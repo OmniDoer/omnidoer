@@ -1,0 +1,44 @@
+# MCP Tools
+
+OmniDoer MCP tools expose actions, not secrets.
+
+## Allowed Tools
+
+- `browser.open(url)`
+- `browser.observe()`
+- `browser.click(selector_or_description)`
+- `browser.type_text(selector_or_description, text)`
+- `browser.select(selector_or_description, value)`
+- `browser.download_current_file()`
+- `browser.current_origin()`
+- `credential.list_for_current_origin()`
+- `credential.create_interactive()`
+- `credential.fill_current_origin_login(credential_id)`
+- `credential.fill_current_origin_totp(credential_id)`
+- `approval.request(action_summary, risk_level, structured_details)`
+- `payment.prepare_review()`
+- `payment.request_user_approval()`
+- `audit.show_recent_events()`
+- `policy.explain_current_block()`
+
+## Forbidden Tool Families
+
+No MCP tool may return a password, TOTP code, cookie, local storage, session
+storage, API key, private key, payment credential, recovery code, or decrypted
+vault record. Tool names that imply secret export are blocked by tests.
+
+## Result Contract
+
+Credential tools return status and policy metadata only:
+
+```json
+{
+  "status": "filled",
+  "origin": "https://example.com",
+  "credential_id": "cred_123",
+  "fields_filled": ["username", "password"],
+  "secret_returned": false
+}
+```
+
+The actual username/password values are not present.

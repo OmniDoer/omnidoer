@@ -1,0 +1,20 @@
+name: OmniDoer CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - omnidoer-mvp
+
+jobs:
+  sidecar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run sidecar tests
+        run: python3 -m unittest discover -s tests
+      - name: Run repository secret-interface scan
+        run: python3 omnidoer/scripts/secret_scan.py
