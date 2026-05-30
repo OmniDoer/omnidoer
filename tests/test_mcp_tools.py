@@ -13,6 +13,7 @@ class McpToolsTest(unittest.TestCase):
     def test_allowed_tools_exclude_forbidden(self) -> None:
         self.assertTrue(forbidden_tool_names().isdisjoint(ALLOWED_TOOLS))
         self.assertIn("credential.request_from_user", ALLOWED_TOOLS)
+        self.assertIn("credential.create_interactive", ALLOWED_TOOLS)
         self.assertIn("takeover.request_user_control", ALLOWED_TOOLS)
         self.assertIn("registration.request_user_handoff", ALLOWED_TOOLS)
         self.assertIn("browser.select", ALLOWED_TOOLS)
@@ -55,6 +56,14 @@ class McpToolsTest(unittest.TestCase):
                 self.assertEqual(credential["status"], "credential_request_created")
                 self.assertNotIn("super-secret", repr(credential))
 
+                interactive = call_tool(
+                    "credential.create_interactive",
+                    {**common, "reason": "first login", "fields": ["username", "password"]},
+                )
+                self.assertEqual(interactive["status"], "credential_request_created")
+                self.assertEqual(interactive["request"]["request_type"], "credential")
+                self.assertNotIn("password_value", repr(interactive))
+
                 challenge = call_tool(
                     "challenge.request_user_interaction",
                     {**common, "challenge_type": "sms", "reason": "verify user"},
@@ -86,6 +95,9 @@ class McpToolsTest(unittest.TestCase):
                 self.assertEqual(approval["request"]["structured_details"]["amount"], "12.34")
                 payment = call_tool("payment.prepare_review", common)
                 self.assertTrue(payment["requires_user_approval"])
+                policy = call_tool("policy.explain_current_block", {"action_type": "account_registration"})
+                self.assertEqual(policy["decision"], "require_takeover")
+                self.assertIn("registration", policy["reason"])
             finally:
                 if old_home is None:
                     os.environ.pop("OMNIDOER_HOME", None)

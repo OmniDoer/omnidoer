@@ -15,6 +15,7 @@ ALLOWED_TOOLS = [
     "browser.detect_challenge",
     "browser.detect_antibot",
     "credential.list_for_current_origin",
+    "credential.create_interactive",
     "credential.request_from_user",
     "credential.fill_current_origin_login",
     "credential.fill_current_origin_totp",
@@ -110,6 +111,26 @@ def _vault_passphrase(arguments: dict) -> str | None:
     return None
 
 
+def _create_credential_request(arguments: dict) -> dict:
+    from omnidoer.omni_control.requests import RequestStore
+    from omnidoer.omni_control.secure_channel import load_or_create_keypair
+
+    origin, top_level_url = _origin_and_url(arguments)
+    if not origin or not top_level_url:
+        return _error("error", "origin or active browser required")
+    request = RequestStore().create(
+        "credential",
+        origin=origin,
+        top_level_url=top_level_url,
+        action_summary=str(arguments.get("reason") or arguments.get("action_summary") or "credential requested"),
+        risk_level=str(arguments.get("risk_level") or "medium"),
+        broker_public_key_fingerprint=load_or_create_keypair().fingerprint,
+        requested_fields=_fields(arguments) or ["username", "password"],
+        save_to_vault=bool(arguments.get("save_to_vault", True)),
+    )
+    return {"status": "credential_request_created", "request": request.to_public_dict(), "secret_exposed_to_model": False}
+
+
 def _totp_code(seed: str) -> str:
     import base64
     import hashlib
@@ -190,24 +211,8 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
                 }
         except Exception as exc:
             return _error("unavailable", type(exc).__name__)
-    if name == "credential.request_from_user":
-        from omnidoer.omni_control.requests import RequestStore
-        from omnidoer.omni_control.secure_channel import load_or_create_keypair
-
-        origin, top_level_url = _origin_and_url(arguments)
-        if not origin or not top_level_url:
-            return _error("error", "origin or active browser required")
-        request = RequestStore().create(
-            "credential",
-            origin=origin,
-            top_level_url=top_level_url,
-            action_summary=str(arguments.get("reason") or arguments.get("action_summary") or "credential requested"),
-            risk_level=str(arguments.get("risk_level") or "medium"),
-            broker_public_key_fingerprint=load_or_create_keypair().fingerprint,
-            requested_fields=_fields(arguments) or ["username", "password"],
-            save_to_vault=bool(arguments.get("save_to_vault", True)),
-        )
-        return {"status": "credential_request_created", "request": request.to_public_dict(), "secret_exposed_to_model": False}
+    if name in {"credential.request_from_user", "credential.create_interactive"}:
+        return _create_credential_request(arguments)
     if name == "credential.list_for_current_origin":
         from pathlib import Path
 
@@ -441,4 +446,30 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
         from omnidoer.omni_audit.audit import AuditLog
 
         return {"status": "ok", "events": AuditLog().tail(), "secret_exposed_to_model": False}
+    if name == "policy.explain_current_block":
+        from omnidoer.omni_policy.policy import evaluate_challenge, requires_approval
+
+        action_type = str(arguments.get("action_type") or arguments.get("challenge_type") or "")
+        if action_type:
+            challenge_decision = evaluate_challenge(action_type)
+            if challenge_decision.decision.value != "allow":
+                return {
+                    "status": "blocked",
+                    "decision": challenge_decision.decision.value,
+                    "reason": challenge_decision.reason,
+                    "secret_exposed_to_model": False,
+                }
+            approval_decision = requires_approval(action_type)
+            return {
+                "status": "ok" if approval_decision.decision.value == "allow" else "blocked",
+                "decision": approval_decision.decision.value,
+                "reason": approval_decision.reason,
+                "secret_exposed_to_model": False,
+            }
+        return {
+            "status": "ok",
+            "decision": "allow",
+            "reason": "no current policy block",
+            "secret_exposed_to_model": False,
+        }
     return {"status": "ok", "tool": name, "secret_exposed_to_model": False}
