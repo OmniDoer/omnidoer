@@ -9,6 +9,7 @@ class OmniDoerCiContractTest(unittest.TestCase):
         self.assertIn("- main", text)
         self.assertIn("- omnidoer-mvp", text)
         self.assertIn('python3 -m pip install -e ".[dev]"', text)
+        self.assertIn("python3 -m playwright install --with-deps chromium", text)
         self.assertIn("python3 -m pytest -q", text)
         self.assertIn("python3 omnidoer/scripts/secret_scan.py", text)
         self.assertIn("python3 omnidoer/scripts/safety_scan.py", text)

@@ -19,6 +19,7 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip install -e ".[dev]"
+          python3 -m playwright install --with-deps chromium
       - name: Check Control Client JavaScript
         run: node --check omnidoer/omni_control/static/app.js
       - name: Run sidecar tests
