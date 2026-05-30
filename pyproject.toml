@@ -12,6 +12,7 @@ license = { text = "Apache-2.0" }
 dependencies = [
   "cryptography>=41",
   "argon2-cffi>=23",
+  "qrcode>=7.4",
 ]
 
 [project.optional-dependencies]

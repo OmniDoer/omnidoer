@@ -5,7 +5,7 @@ from pathlib import Path
 
 from omnidoer.omni_control.auth import pair_device
 from omnidoer.omni_control.devices import DeviceStore
-from omnidoer.omni_control.pairing import PairingStore, parse_duration_seconds, pairing_url, qr_text
+from omnidoer.omni_control.pairing import PairingStore, ascii_qr, parse_duration_seconds, pairing_url, qr_text
 from omnidoer.omni_control.sessions import SessionStore
 
 
@@ -45,11 +45,20 @@ class PairingFlowTest(unittest.TestCase):
             self.assertEqual(result.device.name, "Android")
             self.assertTrue(result.session_token)
             self.assertNotIn(result.session_token, repr(result.to_public_dict()))
-            self.assertIn("[QR]", qr_text(pairing))
+            qr = qr_text(pairing)
+            self.assertGreater(qr.count("\n"), 20)
+            self.assertIn("##", qr)
+            self.assertNotIn("[QR]", qr)
 
     def test_duration_parser(self) -> None:
         self.assertEqual(parse_duration_seconds("10m"), 600)
         self.assertEqual(parse_duration_seconds("30s"), 30)
+
+    def test_ascii_qr_is_deterministic_for_same_payload(self) -> None:
+        first = ascii_qr("https://agent.example.com/pair?code=demo")
+        second = ascii_qr("https://agent.example.com/pair?code=demo")
+        self.assertEqual(first, second)
+        self.assertEqual({char for char in first if char != "\n"}, {"#", " "})
 
 
 if __name__ == "__main__":

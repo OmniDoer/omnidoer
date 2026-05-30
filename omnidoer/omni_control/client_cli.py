@@ -90,7 +90,9 @@ def handle_control_command(args) -> int:
         print(f"broker_fingerprint={pairing.broker_fingerprint}")
         print("warning=Only pair devices you control.")
         if args.print_qr:
+            print("qr_ascii_begin")
             print(qr_text(pairing))
+            print("qr_ascii_end")
         return 0
     if command == "status":
         pending = len(RequestStore().list())

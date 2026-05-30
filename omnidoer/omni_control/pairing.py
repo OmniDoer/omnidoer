@@ -9,6 +9,9 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
+from io import StringIO
+
+import qrcode
 
 from omnidoer.omni_control.secure_channel import load_or_create_keypair, load_or_create_web_keypair
 from omnidoer.paths import state_file
@@ -114,6 +117,21 @@ def pairing_url(pairing: PairingCode) -> str:
 
 
 def qr_text(pairing: PairingCode) -> str:
-    # A terminal-friendly QR placeholder. Native clients can render the URL as
-    # a real QR code; this keeps the CLI dependency-free.
-    return f"[QR] {pairing_url(pairing)}"
+    return ascii_qr(pairing_url(pairing))
+
+
+def ascii_qr(data: str) -> str:
+    """Render a real QR matrix as terminal-safe ASCII.
+
+    The pairing code is intentionally present in the QR payload, but it remains
+    short-lived and one-time use. Do not log this output automatically.
+    """
+
+    qr = qrcode.QRCode(border=2)
+    qr.add_data(data)
+    qr.make(fit=True)
+    buffer = StringIO()
+    for row in qr.get_matrix():
+        buffer.write("".join("##" if cell else "  " for cell in row))
+        buffer.write("\n")
+    return buffer.getvalue().rstrip()
