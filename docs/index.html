@@ -116,6 +116,24 @@
       border-radius: 8px;
       background: white;
     }
+    .localized-posters {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .localized-posters a {
+      color: inherit;
+      text-decoration: none;
+    }
+    .localized-posters img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #020617;
+    }
     code {
       background: #e2e8f0;
       border-radius: 6px;
@@ -137,7 +155,7 @@
       .hero-copy { padding: 38svh 16px 34px; }
       .tagline { max-width: 100%; }
       main, nav { padding-left: 16px; padding-right: 16px; }
-      .grid, .language-list { grid-template-columns: 1fr; }
+      .grid, .language-list, .localized-posters { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -215,6 +233,20 @@
           <h3>한국어</h3>
           <p>OmniDoer는 Codex CLI를 MCP/sidecar 방식으로 확장합니다. 비밀번호와 인증 코드는 Broker, Vault, Control Client 안에서만 처리됩니다.</p>
         </article>
+      </div>
+    </section>
+
+    <section>
+      <h2>Localized README Posters</h2>
+      <p>Each language edition uses a dedicated cinematic CG poster with exact locally typeset text, so the visual system stays polished without sending secrets or relying on model-rendered copy.</p>
+      <div class="localized-posters">
+        <a href="../README.md"><img src="assets/localized/omnidoer-readme-en.jpg" alt="OmniDoer English README poster"></a>
+        <a href="../README.zh-CN.md"><img src="assets/localized/omnidoer-readme-zh-CN.jpg" alt="OmniDoer Chinese README poster"></a>
+        <a href="../README.es.md"><img src="assets/localized/omnidoer-readme-es.jpg" alt="OmniDoer Spanish README poster"></a>
+        <a href="../README.fr.md"><img src="assets/localized/omnidoer-readme-fr.jpg" alt="OmniDoer French README poster"></a>
+        <a href="../README.de.md"><img src="assets/localized/omnidoer-readme-de.jpg" alt="OmniDoer German README poster"></a>
+        <a href="../README.ja.md"><img src="assets/localized/omnidoer-readme-ja.jpg" alt="OmniDoer Japanese README poster"></a>
+        <a href="../README.ko.md"><img src="assets/localized/omnidoer-readme-ko.jpg" alt="OmniDoer Korean README poster"></a>
       </div>
     </section>
 

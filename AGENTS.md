@@ -23,6 +23,9 @@ OmniDoer product and branding notes:
 - Keep README, AGENTS, docs, and the GitHub Pages intro bilingual at minimum
   with English and Chinese. Public introduction copy should also keep concise
   summaries for Spanish, French, German, Japanese, and Korean when practical.
+- Keep localized README editions aligned with their matching cinematic poster
+  assets under `docs/assets/localized/`; overlay exact text locally instead of
+  relying on generated-image text for public copy.
 - The canonical project icon is `icon.png` at the repository root. Additional
   public visuals live under `docs/assets/` and Control Client PWA icons live
   under `omnidoer/omni_control/static/`.
@@ -44,6 +47,8 @@ OmniDoer 产品与品牌说明：
   计费、token 刷新和模型提供方逻辑。
 - README、AGENTS、docs 和 GitHub Pages 介绍页至少保持英文与中文同步；更新
   对外介绍时尽量同步维护西班牙语、法语、德语、日语、韩语等主流语言的简短摘要。
+- 多语言 README 需要与 `docs/assets/localized/` 下对应的电影质感海报保持一致；
+  公开文案文字应本地精确排版，不要依赖生成模型直接生成文字。
 - 根目录 `icon.png` 是项目标准图标；`docs/assets/` 存放公开视觉资源，
   `omnidoer/omni_control/static/` 存放 PWA 图标。
 - Control Client 文件变更后，应将 HTML5/PWA 静态客户端打包并上传到 GitHub

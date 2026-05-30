@@ -6,7 +6,15 @@ The agent that does.
 
 OmniDoer is a local-first autonomous web agent runtime that can operate websites on your behalf. It can log in, navigate, fill forms, download files, prepare purchases, and ask for approval before sensitive actions — while passwords and secrets never enter the model context.
 
-![OmniDoer cinematic control surface](./docs/assets/omnidoer-cinematic-readme.png)
+![OmniDoer English edition cinematic poster](./docs/assets/localized/omnidoer-readme-en.jpg)
+
+Localized README editions:
+[中文](./README.zh-CN.md) |
+[Español](./README.es.md) |
+[Français](./README.fr.md) |
+[Deutsch](./README.de.md) |
+[日本語](./README.ja.md) |
+[한국어](./README.ko.md)
 
 The agent may request an action.
 The broker checks the origin.
