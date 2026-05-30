@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import ssl
 import tempfile
 import ipaddress
@@ -39,6 +40,28 @@ def static_root() -> Path:
 
 
 PAIR_RATE_LIMIT = RateLimiter(max_attempts=8, window_seconds=60, lockout_seconds=300)
+SENSITIVE_LOG_PATTERNS = [
+    re.compile(r"(omnidoer_session=)[^;\s]+"),
+    re.compile(r"(code=)[^&\s]+"),
+    re.compile(r"(pairing_id=)[^&\s]+"),
+    re.compile(r"(token=)[^&\s]+"),
+]
+
+
+def sanitize_log_value(value: object) -> object:
+    if not isinstance(value, str):
+        return value
+    text = value
+    parts = text.split(" ", 2)
+    if len(parts) == 3 and parts[0] in {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}:
+        parsed = urlparse(parts[1])
+        target = parsed.path
+        if parsed.query:
+            target = f"{target}?redacted"
+        text = f"{parts[0]} {target} {parts[2]}"
+    for pattern in SENSITIVE_LOG_PATTERNS:
+        text = pattern.sub(r"\1[redacted]", text)
+    return text
 
 
 def _self_signed_context(host: str) -> ssl.SSLContext:
@@ -83,7 +106,8 @@ class ControlHandler(SimpleHTTPRequestHandler):
 
     def log_message(self, fmt: str, *args: object) -> None:
         # Never log request bodies. Paths and response codes are enough for MVP diagnostics.
-        print(f"{self.address_string()} - {fmt % args}")
+        safe_args = tuple(sanitize_log_value(arg) for arg in args)
+        print(f"{self.address_string()} - {fmt % safe_args}")
 
     def _send_json(self, status: HTTPStatus, payload: dict | list) -> None:
         data = json.dumps(payload, sort_keys=True).encode()

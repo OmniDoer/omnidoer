@@ -2,6 +2,8 @@ import unittest
 import json
 import os
 import tempfile
+from contextlib import redirect_stdout
+from io import StringIO
 from http.server import ThreadingHTTPServer
 from threading import Thread
 from urllib import request as urllib_request
@@ -9,7 +11,7 @@ from urllib import request as urllib_request
 from omnidoer.omni_control.cloud import build_config, security_status
 from omnidoer.omni_control.csrf import CSRF_HEADER
 from omnidoer.omni_control.pairing import PairingStore
-from omnidoer.omni_control.server import ControlHandler
+from omnidoer.omni_control.server import ControlHandler, sanitize_log_value
 
 
 class CloudControlServiceTest(unittest.TestCase):
@@ -40,6 +42,43 @@ class CloudControlServiceTest(unittest.TestCase):
     def test_local_dev_mode_allows_http_localhost(self) -> None:
         config = build_config(host="127.0.0.1", port=8787)
         self.assertEqual(config.mode, "local_dev")
+
+    def test_control_service_logs_redact_pairing_query_and_tokens(self) -> None:
+        self.assertEqual(
+            sanitize_log_value("GET /pair?code=abc123&pairing_id=pair_secret HTTP/1.1"),
+            "GET /pair?redacted HTTP/1.1",
+        )
+        self.assertEqual(
+            sanitize_log_value("omnidoer_session=session:secret token=abc"),
+            "omnidoer_session=[redacted] token=[redacted]",
+        )
+
+    def test_access_log_does_not_print_pairing_code(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            output = StringIO()
+            try:
+                with redirect_stdout(output):
+                    try:
+                        urllib_request.urlopen(f"{base}/pair?code=do-not-log-me&pairing_id=pair_secret", timeout=5)
+                    except Exception:
+                        pass
+                text = output.getvalue()
+                self.assertNotIn("do-not-log-me", text)
+                self.assertNotIn("pair_secret", text)
+                self.assertIn("/pair?redacted", text)
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
 
     def test_cloud_direct_http_api_requires_pairing_session_and_csrf(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
