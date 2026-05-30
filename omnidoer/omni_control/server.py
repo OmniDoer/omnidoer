@@ -34,7 +34,7 @@ from omnidoer.omni_control.rate_limit import RateLimiter
 from omnidoer.omni_control.security_headers import apply_security_headers
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.secure_channel import load_or_create_keypair, load_or_create_web_keypair
-from omnidoer.omni_control.sessions import SessionStore
+from omnidoer.omni_control.sessions import ControlSession, SessionStore
 from omnidoer.omni_control.tasks import TaskStore
 from omnidoer.omni_takeover.input_events import event_from_dict
 from omnidoer.omni_takeover.relay import apply_input_event, start_stream
@@ -192,6 +192,20 @@ class ControlHandler(SimpleHTTPRequestHandler):
             raise PermissionError("csrf rejected")
         return session
 
+    def _request_allowed_for_session(self, request, session: ControlSession | None) -> bool:
+        if self.config.mode != "cloud_direct":
+            return True
+        return not request.allowed_device_id or (session is not None and request.allowed_device_id == session.device_id)
+
+    def _visible_requests(self, store: RequestStore, session: ControlSession | None):
+        return [request for request in store.list() if self._request_allowed_for_session(request, session)]
+
+    def _get_request_for_session(self, store: RequestStore, request_id: str, session: ControlSession | None):
+        request = store.get(request_id)
+        if not self._request_allowed_for_session(request, session):
+            raise PermissionError("request is not assigned to this device")
+        return request
+
     def _set_session_cookie(self, session_id: str, token: str) -> None:
         secure = "; Secure" if self.config.mode == "cloud_direct" else ""
         self.send_header("set-cookie", f"omnidoer_session={session_id}:{token}; HttpOnly; SameSite=Strict{secure}; Path=/")
@@ -235,8 +249,8 @@ class ControlHandler(SimpleHTTPRequestHandler):
             return
         if path == "/api/events":
             try:
-                self._require_access()
-                self._send_sse({"requests": [request.to_public_dict() for request in store.list()]})
+                session = self._require_access()
+                self._send_sse({"requests": [request.to_public_dict() for request in self._visible_requests(store, session)]})
             except PermissionError:
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
             return
@@ -256,11 +270,11 @@ class ControlHandler(SimpleHTTPRequestHandler):
             return
         if path == "/api/requests":
             try:
-                self._require_access()
+                session = self._require_access()
             except PermissionError:
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
                 return
-            self._send_json(HTTPStatus.OK, [request.to_public_dict() for request in store.list()])
+            self._send_json(HTTPStatus.OK, [request.to_public_dict() for request in self._visible_requests(store, session)])
             return
         if path == "/api/tasks":
             try:
@@ -272,26 +286,30 @@ class ControlHandler(SimpleHTTPRequestHandler):
             return
         if path.startswith("/api/requests/"):
             try:
-                self._require_access()
+                session = self._require_access()
             except PermissionError:
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
                 return
             if path.endswith("/frame"):
                 request_id = path.split("/")[-2]
                 try:
-                    request = store.get(request_id)
+                    request = self._get_request_for_session(store, request_id, session)
                     browser = get_browser_context(request.browser_context_id)
                     self._send_json(HTTPStatus.OK, start_stream(request_id, browser_controller=browser))
                 except KeyError:
                     self._send_json(HTTPStatus.NOT_FOUND, {"error": "request not found"})
+                except PermissionError:
+                    self._send_json(HTTPStatus.FORBIDDEN, {"error": "forbidden"})
                 except Exception as exc:
                     self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
                 return
             request_id = path.rsplit("/", 1)[-1]
             try:
-                self._send_json(HTTPStatus.OK, store.get(request_id).to_public_dict())
+                self._send_json(HTTPStatus.OK, self._get_request_for_session(store, request_id, session).to_public_dict())
             except KeyError:
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "request not found"})
+            except PermissionError:
+                self._send_json(HTTPStatus.FORBIDDEN, {"error": "forbidden"})
             return
         super().do_GET()
 
@@ -380,12 +398,13 @@ class ControlHandler(SimpleHTTPRequestHandler):
             return
         if len(parts) == 4 and parts[:2] == ["api", "requests"]:
             try:
-                self._require_access(mutating=True)
+                session = self._require_access(mutating=True)
             except PermissionError:
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
                 return
             request_id, action = parts[2], parts[3]
             try:
+                self._get_request_for_session(store, request_id, session)
                 if action == "approve":
                     request = store.approve(request_id)
                 elif action == "deny":
@@ -410,6 +429,8 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     self._send_json(HTTPStatus.NOT_FOUND, {"error": "unknown action"})
                     return
                 self._send_json(HTTPStatus.OK, request.to_public_dict())
+            except PermissionError:
+                self._send_json(HTTPStatus.FORBIDDEN, {"error": "forbidden"})
             except Exception as exc:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
             return

@@ -21,10 +21,12 @@ class ControlRequestTest(unittest.TestCase):
             top_level_url="http://127.0.0.1:8765/login",
             action_summary="login",
             requested_fields=["username", "password"],
+            allowed_device_id="dev_phone",
         )
         self.assertEqual(req.status, "pending")
         public = req.to_public_dict()
         self.assertNotIn("response_ciphertext", public)
+        self.assertEqual(public["allowed_device_id"], "dev_phone")
         self.assertFalse(public["secret_exposed_to_model"])
 
     def test_public_structured_details_are_redacted(self) -> None:

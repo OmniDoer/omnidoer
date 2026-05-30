@@ -14,6 +14,7 @@ from omnidoer.omni_control.cloud import build_config, security_status
 from omnidoer.omni_control.csrf import CSRF_HEADER
 from omnidoer.omni_control.device_signing import DEVICE_ID_HEADER, DEVICE_NONCE_HEADER, DEVICE_SIG_HEADER, DEVICE_TS_HEADER
 from omnidoer.omni_control.pairing import PairingStore
+from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.server import ControlHandler, sanitize_log_value
 from tests.test_control_auth import public_jwk, sign_request
 
@@ -188,6 +189,82 @@ class CloudControlServiceTest(unittest.TestCase):
                 )
                 with urllib_request.urlopen(events, timeout=5) as response:
                     self.assertEqual(response.headers["content-type"].split(";")[0], "text/event-stream")
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_cloud_direct_request_can_be_scoped_to_one_device(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            config = build_config(
+                host="127.0.0.1",
+                port=8787,
+                cloud_direct=True,
+                public_url="https://agent.example.com",
+                behind_reverse_proxy=True,
+            )
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_config = config  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+
+            def pair(name: str):
+                pairing = PairingStore().create(public_url=config.public_url, ttl_seconds=600)
+                key = ec.generate_private_key(ec.SECP256R1())
+                request = urllib_request.Request(
+                    f"{base}/api/pair",
+                    data=json.dumps({"code": pairing.code, "device_name": name, "device_public_key": public_jwk(key)}).encode(),
+                    headers={"content-type": "application/json", "origin": config.public_origin},
+                    method="POST",
+                )
+                with urllib_request.urlopen(request, timeout=5) as response:
+                    return key, response.headers["set-cookie"], json.loads(response.read().decode())
+
+            def signed_headers(key, body: dict, path: str, nonce: str) -> dict[str, str]:
+                device_id = body["device"]["device_id"]
+                session_id = body["session"]["session_id"]
+                signed = sign_request(key, device_id=device_id, session_id=session_id, method="GET", path=path, nonce=nonce)
+                return {
+                    "cookie": body["cookie"],
+                    DEVICE_ID_HEADER: device_id,
+                    DEVICE_TS_HEADER: signed["timestamp"],
+                    DEVICE_NONCE_HEADER: signed["nonce"],
+                    DEVICE_SIG_HEADER: signed["signature"],
+                }
+
+            try:
+                key_a, cookie_a, body_a = pair("Phone A")
+                key_b, cookie_b, body_b = pair("Phone B")
+                body_a["cookie"] = cookie_a
+                body_b["cookie"] = cookie_b
+                control_request = RequestStore().create(
+                    "credential",
+                    origin="https://example.com",
+                    top_level_url="https://example.com/login",
+                    action_summary="scoped login",
+                    allowed_device_id=body_a["device"]["device_id"],
+                )
+
+                headers_a = signed_headers(key_a, body_a, "/api/requests", "nonce-list-a")
+                with urllib_request.urlopen(urllib_request.Request(f"{base}/api/requests", headers=headers_a), timeout=5) as response:
+                    visible_a = json.loads(response.read().decode())
+                self.assertEqual([item["request_id"] for item in visible_a], [control_request.request_id])
+
+                headers_b = signed_headers(key_b, body_b, "/api/requests", "nonce-list-b")
+                with urllib_request.urlopen(urllib_request.Request(f"{base}/api/requests", headers=headers_b), timeout=5) as response:
+                    visible_b = json.loads(response.read().decode())
+                self.assertEqual(visible_b, [])
+
+                path = f"/api/requests/{control_request.request_id}"
+                headers_b_detail = signed_headers(key_b, body_b, path, "nonce-detail-b")
+                with self.assertRaises(Exception):
+                    urllib_request.urlopen(urllib_request.Request(f"{base}{path}", headers=headers_b_detail), timeout=5)
             finally:
                 server.shutdown()
                 server.server_close()

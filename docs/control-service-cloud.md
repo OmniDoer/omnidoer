@@ -28,3 +28,8 @@ After pairing, protected Control Service APIs require both the httpOnly session
 cookie and a request signature from the paired device private key. The signature
 binds device id, session id, HTTP method, path, timestamp, and nonce; nonces are
 single-use to reject replay. Mutating requests also require the CSRF header.
+
+Requests may be scoped to a specific paired `device_id`. In Cloud Direct Mode,
+devices only see and act on requests assigned to them, plus unassigned requests
+intended for any paired device. This lets high-risk approvals or takeover
+sessions be pinned to the user's phone or another trusted client.

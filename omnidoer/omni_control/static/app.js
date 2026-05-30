@@ -407,6 +407,7 @@ function requestMetadata(request) {
     ["origin", request.origin],
     ["current_url", request.top_level_url],
     ["expires_at", formatTimestamp(request.expires_at)],
+    ["allowed_device", request.allowed_device_id || "any paired device"],
     ["broker_fingerprint", request.broker_public_key_fingerprint || "server pinned"]
   ].forEach(([label, value]) => {
     const dt = document.createElement("dt");

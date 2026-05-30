@@ -13,6 +13,8 @@ Pairing establishes device identity; it is not a secret-submission channel.
 - Protected Cloud Direct requests must include a device-key signature over the
   device id, session id, HTTP method, path, timestamp, and nonce.
 - Signature nonces are single-use. Replayed signed requests are rejected.
+- Individual control requests can be assigned to one `device_id`; other paired
+  devices cannot list, open, approve, submit, or stream that request.
 - CSRF tokens protect mutating HTTP requests.
 - Revoked devices and sessions cannot access requests, audit metadata,
   takeover frames, approvals, or secret submission endpoints.

@@ -52,6 +52,7 @@ class ControlRequest:
     challenge_type: str | None = None
     takeover_reason: str | None = None
     browser_context_id: str | None = None
+    allowed_device_id: str | None = None
     control_owner: str = "agent"
     structured_details: dict[str, Any] = field(default_factory=dict)
     response_ciphertext: dict[str, Any] | None = None
@@ -116,6 +117,7 @@ class RequestStore:
         challenge_type: str | None = None,
         takeover_reason: str | None = None,
         browser_context_id: str | None = None,
+        allowed_device_id: str | None = None,
         save_to_vault: bool = False,
         structured_details: dict[str, Any] | None = None,
     ) -> ControlRequest:
@@ -134,6 +136,7 @@ class RequestStore:
             challenge_type=challenge_type,
             takeover_reason=takeover_reason,
             browser_context_id=browser_context_id,
+            allowed_device_id=allowed_device_id,
             save_to_vault=save_to_vault,
             structured_details=dict(structured_details or {}),
         )
