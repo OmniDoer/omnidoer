@@ -71,7 +71,9 @@ interval. Overlapping frame fetches are coalesced; the Control Service still
 records the delivered frame id before later input can be accepted.
 If the mobile browser is backgrounded or the phone locks, takeover frame
 polling pauses and resumes with an immediate current-frame fetch when the PWA
-becomes visible again.
+becomes visible again. Takeover input is blocked while the PWA is hidden or
+frame polling is paused, and typed handoff text is only cleared after the
+Control Service accepts delivery.
 
 The PWA uses browser WebCrypto in local mode: P-256 ECDH, HKDF-SHA256, and
 AES-GCM with request-bound associated data. The Python CLI uses the native

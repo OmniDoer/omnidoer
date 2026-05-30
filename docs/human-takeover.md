@@ -45,6 +45,9 @@ future input.
 When the phone browser is backgrounded or locked, frame polling pauses while
 the last frame remains visible. Returning to the Control Client immediately
 resumes polling and fetches a current frame before new input can be trusted.
+The Control Client also refuses takeover input while it is hidden or while
+frame polling is paused, so queued text or gestures cannot be delivered from
+an untrusted background state.
 
 Frames are for the Control Client only and are not sent to the LLM. User input
 events are allowlisted, length-limited, and audited by type only; text content,

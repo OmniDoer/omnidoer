@@ -86,4 +86,6 @@ and coalesces overlapping frame requests. This reduces perceived latency
 without changing the server-side frame id binding requirement.
 Mobile page visibility is also part of the client transport contract: hidden
 PWAs pause frame polling, retain the last visible frame, and refresh
-immediately when visible again.
+immediately when visible again. The PWA blocks takeover input while hidden or
+paused, and it keeps typed handoff text in the local field unless delivery is
+accepted by the Control Service.

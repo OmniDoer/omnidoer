@@ -777,15 +777,19 @@ async function loadDevicesAndSessions() {
 
 async function sendTakeoverInput(request, eventPayload) {
   const stream = document.querySelector("#browser-stream");
+  if (document.hidden || takeoverFrameVisibilityPaused) {
+    updateTakeoverPanel(request, null, "Input is blocked while this Control Client is hidden or frame polling is paused. Bring it to the foreground and refresh the frame before sending input.");
+    return false;
+  }
   const frameId = eventPayload.frame_id || stream?.dataset.frameId || "";
   if (!frameId) {
     updateTakeoverPanel(request, null, "Wait for the current browser frame before sending input.");
-    return;
+    return false;
   }
   if (!takeoverFrameIsFresh(stream)) {
     updateTakeoverPanel(request, null, "Frame is stale; refreshing before input.");
     refreshActiveTakeoverFrame();
-    return;
+    return false;
   }
   const payload = {
     ...eventPayload,
@@ -800,6 +804,7 @@ async function sendTakeoverInput(request, eventPayload) {
   if (response.ok) {
     updateTakeoverPanel(request, null, `${eventPayload.event_type} delivered to controlled browser.`);
     scheduleTakeoverFrameRefresh(request, TAKEOVER_FRAME_AFTER_INPUT_MS);
+    return true;
   } else {
     let error = "";
     try {
@@ -810,10 +815,11 @@ async function sendTakeoverInput(request, eventPayload) {
     if (error === "stale_takeover_frame") {
       updateTakeoverPanel(request, null, "Frame changed before input was delivered. Refreshing current browser frame.");
       refreshActiveTakeoverFrame();
-      return;
+      return false;
     }
     updateTakeoverPanel(request, null, "Input was not delivered. The browser context may be disconnected.");
     scheduleTakeoverFrameRefresh(request, TAKEOVER_FRAME_AFTER_INPUT_MS);
+    return false;
   }
 }
 
@@ -1215,7 +1221,9 @@ function renderTakeoverControls(request, item) {
   `;
   controls.querySelector("[data-action='send-text']").onclick = () => {
     const input = controls.querySelector("[data-takeover-text]");
-    sendTakeoverInput(request, { event_type: "type", text: input.value }).then(() => { input.value = ""; });
+    sendTakeoverInput(request, { event_type: "type", text: input.value }).then((delivered) => {
+      if (delivered) input.value = "";
+    });
   };
   controls.querySelector("[data-action='enter-key']").onclick = () => sendTakeoverInput(request, { event_type: "key", key: "Enter" });
   controls.querySelector("[data-action='release']").onclick = () => postAction(request, "release");
