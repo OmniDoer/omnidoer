@@ -12,7 +12,7 @@ codex mcp add omnidoer -- omnidoer mcp serve
 Control Client initiated work uses a local queue:
 
 ```sh
-omnidoer control submit-task "登录 demo 网站并下载我的发票"
+omnidoer control submit-task "Log in to the demo site and download my invoice"
 ```
 
 Codex can claim the next queued task with the MCP tool

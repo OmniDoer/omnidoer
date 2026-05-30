@@ -1,13 +1,14 @@
 # OmniDoer
 
-The agent that does.
+All-purpose web action, inside the security boundary.
 
 ![OmniDoer brand mark](./icon.png)
 
 OmniDoer is the execution layer for agents that need to operate the web, not
 just talk about it. Its product thesis is simple: if an authorized human can
 complete a workflow in a browser, OmniDoer should be able to help complete that
-workflow inside a strict security boundary.
+workflow inside a strict security boundary, with the user taking over whenever
+authentication, consent, payment, or anti-bot judgment must stay human.
 
 Codex remains the reasoning engine. OmniDoer adds the controlled browser,
 Linux-side runtime, Secret Broker, encrypted Vault, Control Client, challenge
@@ -46,7 +47,7 @@ After install:
 
 ```sh
 ~/omnidoer/.venv/bin/omnidoer control pair --print-qr
-~/omnidoer/.venv/bin/omnidoer control submit-task "Use OmniDoer on the local demo"
+~/omnidoer/.venv/bin/omnidoer control submit-task "Open the local demo and download my invoice"
 ```
 
 Set `OMNIDOER_INSTALL_DIR`, `OMNIDOER_HOST`, `OMNIDOER_PORT`, `OMNIDOER_START=0`,
@@ -102,7 +103,8 @@ OmniDoer is not a fraud tool.
 OmniDoer is not an autonomous spender.
 OmniDoer is a user-authorized local execution layer.
 
-The agent may act. Secrets stay inside the controlled security boundary.
+The agent can act only through the controlled security boundary. Secrets stay
+with the Broker, Vault, browser isolation layer, and user-controlled client.
 
 OmniDoer does not call OpenAI APIs directly. It extends Codex CLI through MCP
 and preserves your Codex authentication mode. If Codex is logged in with
@@ -225,7 +227,7 @@ Control Client and demo agent commands do not require `OPENAI_API_KEY`.
 ```sh
 omnidoer doctor
 omnidoer control serve --host 127.0.0.1 --port 8787
-omnidoer control submit-task "登录 demo 网站并下载我的发票"
+omnidoer control submit-task "Log in to the demo site and download my invoice"
 omnidoer mcp serve --self-test
 ```
 
@@ -283,13 +285,13 @@ omnidoer init
 omnidoer vault create
 omnidoer cred add --origin http://localhost:PORT
 omnidoer demo start
-omnidoer agent run "登录 demo 网站并下载我的发票"
+omnidoer agent run "Log in to the demo site and download my invoice"
 ```
 
 The guarded browser flow extends that target:
 
 ```sh
-omnidoer agent run "guarded browser 2FA 智能切换"
+omnidoer agent run "guarded browser 2FA handoff"
 ```
 
 It logs in with a Vault credential, detects the TOTP page, routes it through

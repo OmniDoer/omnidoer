@@ -23,7 +23,7 @@ Nach der Installation:
 
 ```sh
 ~/omnidoer/.venv/bin/omnidoer control pair --print-qr
-~/omnidoer/.venv/bin/omnidoer control submit-task "Use OmniDoer on the local demo"
+~/omnidoer/.venv/bin/omnidoer control submit-task "Öffne die lokale Demo und lade meine Rechnung herunter"
 ```
 
 Der Installer erstellt `~/omnidoer/.venv`, initialisiert OmniDoer, installiert

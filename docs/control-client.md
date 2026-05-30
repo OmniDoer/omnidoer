@@ -7,7 +7,7 @@ MVP commands:
 
 ```sh
 omnidoer control serve --host 127.0.0.1 --port 8787
-omnidoer control submit-task "登录 demo 网站并下载我的发票"
+omnidoer control submit-task "Log in to the demo site and download my invoice"
 omnidoer control tasks
 omnidoer control requests
 omnidoer control input-secret <request_id>

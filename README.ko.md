@@ -23,7 +23,7 @@ curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scr
 
 ```sh
 ~/omnidoer/.venv/bin/omnidoer control pair --print-qr
-~/omnidoer/.venv/bin/omnidoer control submit-task "Use OmniDoer on the local demo"
+~/omnidoer/.venv/bin/omnidoer control submit-task "로컬 데모를 열고 내 청구서를 다운로드"
 ```
 
 설치 스크립트는 `~/omnidoer/.venv`를 만들고, OmniDoer를 초기화하고, browser

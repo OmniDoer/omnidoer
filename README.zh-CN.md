@@ -23,7 +23,7 @@ curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scr
 
 ```sh
 ~/omnidoer/.venv/bin/omnidoer control pair --print-qr
-~/omnidoer/.venv/bin/omnidoer control submit-task "Use OmniDoer on the local demo"
+~/omnidoer/.venv/bin/omnidoer control submit-task "打开本地 demo 并下载我的发票"
 ```
 
 安装脚本会创建 `~/omnidoer/.venv`、初始化 OmniDoer、安装浏览器 worker、
