@@ -62,6 +62,10 @@ During transient frame fetch failures, the panel keeps the last delivered
 browser frame visible, shows a reconnecting stream state, and relies on frame
 freshness to block stale input until the Control Service delivers a current
 frame again.
+Successful takeover input also schedules a fast follow-up frame refresh so
+mobile users see page reactions without waiting for the next fixed polling
+interval. Overlapping frame fetches are coalesced; the Control Service still
+records the delivered frame id before later input can be accepted.
 
 The PWA uses browser WebCrypto in local mode: P-256 ECDH, HKDF-SHA256, and
 AES-GCM with request-bound associated data. The Python CLI uses the native

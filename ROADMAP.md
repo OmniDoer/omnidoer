@@ -73,7 +73,8 @@
   mobile users zoom and pan dense browser frames without changing the
   screenshot-pixel input mapping. Transient frame fetch failures keep the last
   frame visible with a reconnecting state while stale-frame input remains
-  blocked.
+  blocked. Accepted takeover input now schedules a near-immediate frame refresh
+  and coalesces overlapping frame fetches to reduce mobile perceived latency.
 - Payment approvals include structured merchant, amount, recipient, origin,
   final-button, after-approval, and review-fingerprint details. Final sensitive
   browser clicks are gated on scoped approval.

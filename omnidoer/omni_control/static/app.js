@@ -103,6 +103,8 @@ document.querySelectorAll("[data-filter]").forEach((button) => {
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const TAKEOVER_FRAME_MAX_AGE_MS = 30000;
+const TAKEOVER_FRAME_POLL_MS = 1500;
+const TAKEOVER_FRAME_AFTER_INPUT_MS = 180;
 const TAKEOVER_ZOOM_MIN = 1;
 const TAKEOVER_ZOOM_MAX = 3;
 const TAKEOVER_ZOOM_STEP = 0.25;
@@ -112,6 +114,9 @@ let requestStreamRestart = null;
 let activeTakeoverFrameRequest = null;
 let takeoverFrameTimer = null;
 let takeoverFreshnessTimer = null;
+let takeoverFrameRefreshTimer = null;
+let takeoverFrameFetchInFlight = false;
+let takeoverFrameFetchQueued = false;
 let takeoverFrameMisses = 0;
 let takeoverFrameZoom = TAKEOVER_ZOOM_MIN;
 let takeoverFramePanMode = false;
@@ -319,6 +324,16 @@ function refreshActiveTakeoverFrame() {
   const stream = document.querySelector("#browser-stream");
   if (!request || !stream) return;
   fetchTakeoverFrame(request, stream);
+}
+
+function scheduleTakeoverFrameRefresh(request = activeTakeoverRequest(), delayMs = 0) {
+  const stream = document.querySelector("#browser-stream");
+  if (!request || !stream || request.status !== "user_control") return;
+  if (takeoverFrameRefreshTimer) clearTimeout(takeoverFrameRefreshTimer);
+  takeoverFrameRefreshTimer = setTimeout(() => {
+    takeoverFrameRefreshTimer = null;
+    fetchTakeoverFrame(request, stream);
+  }, delayMs);
 }
 
 function releaseActiveTakeover() {
@@ -783,6 +798,7 @@ async function sendTakeoverInput(request, eventPayload) {
   });
   if (response.ok) {
     updateTakeoverPanel(request, null, `${eventPayload.event_type} delivered to controlled browser.`);
+    scheduleTakeoverFrameRefresh(request, TAKEOVER_FRAME_AFTER_INPUT_MS);
   } else {
     let error = "";
     try {
@@ -796,6 +812,7 @@ async function sendTakeoverInput(request, eventPayload) {
       return;
     }
     updateTakeoverPanel(request, null, "Input was not delivered. The browser context may be disconnected.");
+    scheduleTakeoverFrameRefresh(request, TAKEOVER_FRAME_AFTER_INPUT_MS);
   }
 }
 
@@ -854,8 +871,11 @@ function stopTakeoverFramePolling(requestId = null) {
   if (requestId && activeTakeoverFrameRequest !== requestId) return;
   if (takeoverFrameTimer) clearInterval(takeoverFrameTimer);
   if (takeoverFreshnessTimer) clearInterval(takeoverFreshnessTimer);
+  if (takeoverFrameRefreshTimer) clearTimeout(takeoverFrameRefreshTimer);
   takeoverFrameTimer = null;
   takeoverFreshnessTimer = null;
+  takeoverFrameRefreshTimer = null;
+  takeoverFrameFetchQueued = false;
   takeoverFrameMisses = 0;
   activeTakeoverFrameRequest = null;
   const stream = document.querySelector("#browser-stream");
@@ -888,6 +908,11 @@ function markTakeoverFrameReconnect(request, stream, message) {
 
 async function fetchTakeoverFrame(request, stream) {
   if (activeTakeoverFrameRequest !== request.request_id) return;
+  if (takeoverFrameFetchInFlight) {
+    takeoverFrameFetchQueued = true;
+    return;
+  }
+  takeoverFrameFetchInFlight = true;
   try {
     const frame = await signedFetch(`/api/requests/${request.request_id}/frame`, { cache: "no-store" }).then((r) => r.json());
     if (activeTakeoverFrameRequest !== request.request_id) return;
@@ -916,6 +941,17 @@ async function fetchTakeoverFrame(request, stream) {
     if (activeTakeoverFrameRequest === request.request_id) {
       markTakeoverFrameReconnect(request, stream, "Browser frame fetch failed.");
     }
+  } finally {
+    takeoverFrameFetchInFlight = false;
+    const hasQueuedFetch = takeoverFrameFetchQueued;
+    takeoverFrameFetchQueued = false;
+    if (hasQueuedFetch) {
+      const nextRequest = activeTakeoverRequest();
+      const nextStream = document.querySelector("#browser-stream");
+      if (nextRequest && nextStream && nextRequest.status === "user_control") {
+        fetchTakeoverFrame(nextRequest, nextStream);
+      }
+    }
   }
 }
 
@@ -939,7 +975,7 @@ function startTakeoverFramePolling(request, stream) {
   updateTakeoverPanel(request, null, "Loading control-only browser frame...");
   installTakeoverPointerHandlers(request, stream);
   fetchTakeoverFrame(request, stream);
-  takeoverFrameTimer = setInterval(() => fetchTakeoverFrame(request, stream), 1500);
+  takeoverFrameTimer = setInterval(() => fetchTakeoverFrame(request, stream), TAKEOVER_FRAME_POLL_MS);
   takeoverFreshnessTimer = setInterval(() => updateTakeoverFrameFreshness(stream), 1000);
 }
 

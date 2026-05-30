@@ -36,6 +36,10 @@ If frame polling drops during a mobile network transition, the Control Client
 keeps the last browser frame visible and marks the stream as reconnecting
 instead of blanking the challenge. The same freshness guard still turns that
 retained frame stale and blocks input until a new current frame arrives.
+After successful user input, the Control Client schedules a near-immediate
+frame refresh instead of waiting for the next polling tick. Concurrent frame
+requests are coalesced so the newest delivered frame remains the one bound to
+future input.
 
 Frames are for the Control Client only and are not sent to the LLM. User input
 events are allowlisted, length-limited, and audited by type only; text content,

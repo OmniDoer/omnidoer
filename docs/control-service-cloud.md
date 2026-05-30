@@ -79,3 +79,6 @@ change the frame id binding or screenshot-pixel coordinate mapping used by the
 Control Service. If a mobile client briefly loses frame fetch connectivity,
 the PWA retains the last delivered frame for visual continuity while the
 freshness guard blocks stale input until a new frame is delivered.
+After accepted takeover input, the PWA triggers a short-delay frame refresh
+and coalesces overlapping frame requests. This reduces perceived latency
+without changing the server-side frame id binding requirement.
