@@ -6,7 +6,7 @@ import os
 
 from omnidoer.omni_audit.audit import AuditLog
 from omnidoer.omni_control.requests import ControlRequest, RequestStore
-from omnidoer.omni_takeover.input_events import parse_actions
+from omnidoer.omni_takeover.input_events import parse_actions, validate_input_event
 from omnidoer.omni_takeover.models import InputEvent
 from omnidoer.omni_takeover.stream import current_frame
 
@@ -97,6 +97,7 @@ def apply_input_event(request_id: str, event: InputEvent, *, browser_controller=
     request = store.get(request_id)
     if request.status != "user_control":
         raise ValueError("user is not in control")
+    validate_input_event(event)
     result = {"status": "event_applied", "secret_exposed_to_model": False}
     if browser_controller is not None:
         result = browser_controller.apply_user_input_event(event)

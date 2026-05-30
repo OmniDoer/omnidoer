@@ -2,7 +2,7 @@ import os
 import tempfile
 import unittest
 
-from omnidoer.omni_takeover.input_events import parse_actions
+from omnidoer.omni_takeover.input_events import event_from_dict, parse_actions
 from omnidoer.omni_takeover.relay import request_registration_handoff, start_stream
 from omnidoer.omni_takeover.stream import current_frame
 
@@ -19,6 +19,16 @@ class TakeoverStreamTest(unittest.TestCase):
             [event.event_type for event in events],
             ["tap", "click", "double_click", "long_press", "drag", "scroll", "type", "key", "release"],
         )
+
+    def test_event_from_dict_rejects_untrusted_event_type_without_echo(self) -> None:
+        with self.assertRaises(ValueError) as raised:
+            event_from_dict({"event_type": "password=should-not-log", "text": "also-secret"})
+        self.assertEqual(str(raised.exception), "unsupported takeover event")
+
+    def test_event_from_dict_rejects_oversized_text_without_echo(self) -> None:
+        with self.assertRaises(ValueError) as raised:
+            event_from_dict({"event_type": "type", "text": "x" * 4097})
+        self.assertEqual(str(raised.exception), "takeover text too long")
 
     def test_registration_handoff_stream_is_control_only(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

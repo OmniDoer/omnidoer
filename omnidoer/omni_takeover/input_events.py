@@ -5,9 +5,39 @@ from __future__ import annotations
 from omnidoer.omni_takeover.models import InputEvent
 
 
+ALLOWED_INPUT_EVENT_TYPES = {
+    "tap",
+    "click",
+    "double_click",
+    "long_press",
+    "drag",
+    "scroll",
+    "type",
+    "key",
+    "release",
+}
+MAX_TAKEOVER_TEXT_CHARS = 4096
+MAX_TAKEOVER_KEY_CHARS = 64
+
+
+def _event_type(value: object) -> str:
+    return str(value or "").strip()
+
+
+def validate_input_event(event: InputEvent) -> None:
+    """Validate control-only browser input without echoing user-provided text."""
+
+    if event.event_type not in ALLOWED_INPUT_EVENT_TYPES:
+        raise ValueError("unsupported takeover event")
+    if event.text is not None and len(event.text) > MAX_TAKEOVER_TEXT_CHARS:
+        raise ValueError("takeover text too long")
+    if event.key is not None and len(event.key) > MAX_TAKEOVER_KEY_CHARS:
+        raise ValueError("takeover key too long")
+
+
 def event_from_dict(data: dict) -> InputEvent:
-    return InputEvent(
-        event_type=str(data.get("event_type") or data.get("type") or ""),
+    event = InputEvent(
+        event_type=_event_type(data.get("event_type") or data.get("type")),
         x=data.get("x"),
         y=data.get("y"),
         to_x=data.get("to_x"),
@@ -17,6 +47,8 @@ def event_from_dict(data: dict) -> InputEvent:
         delta_x=data.get("delta_x"),
         delta_y=data.get("delta_y"),
     )
+    validate_input_event(event)
+    return event
 
 
 def parse_actions(raw: str) -> list[InputEvent]:

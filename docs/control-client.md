@@ -42,6 +42,12 @@ and clicks Release Control, the Agent observes the resulting login state and
 continues. Registration form contents, verification answers, passkeys, and
 CAPTCHA interactions are never returned through MCP.
 
+Takeover input is a control-only channel. The server accepts only a fixed set
+of browser input event types (`tap`, `click`, `double_click`, `long_press`,
+`drag`, `scroll`, `type`, `key`, and `release`) and rejects unknown events
+without echoing user-provided text. Audit records store the event category, not
+typed text, challenge answers, passkey material, or registration secrets.
+
 The PWA uses browser WebCrypto in local mode: P-256 ECDH, HKDF-SHA256, and
 AES-GCM with request-bound associated data. The Python CLI uses the native
 X25519 secure channel. Both envelope formats are decrypted only by the local
