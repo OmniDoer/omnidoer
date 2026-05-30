@@ -170,6 +170,27 @@ class ControlHandler(SimpleHTTPRequestHandler):
             self.wfile.flush()
         self.close_connection = True
 
+    def _send_websocket_stream(self, store: RequestStore, session: ControlSession | None, *, snapshots: int, interval: float) -> None:
+        from omnidoer.omni_control.websocket import decode_device_auth_subprotocol, websocket_accept_key, websocket_text_frame
+
+        client_key = self.headers.get("sec-websocket-key")
+        if not client_key:
+            raise PermissionError("websocket key required")
+        protocol = decode_device_auth_subprotocol(self.headers.get("sec-websocket-protocol"))
+        self.send_response(HTTPStatus.SWITCHING_PROTOCOLS)
+        self.send_header("upgrade", "websocket")
+        self.send_header("connection", "Upgrade")
+        self.send_header("sec-websocket-accept", websocket_accept_key(client_key))
+        if protocol and protocol.get("subprotocol"):
+            self.send_header("sec-websocket-protocol", protocol["subprotocol"])
+        self.end_headers()
+        for index in range(max(1, min(snapshots, 30))):
+            if index:
+                time.sleep(max(0.0, min(interval, 10.0)))
+            self.wfile.write(websocket_text_frame({"event": "requests", "data": self._sse_payload(store, session)}))
+            self.wfile.flush()
+        self.close_connection = True
+
     def _session_cookie(self) -> tuple[str | None, str | None]:
         cookie = SimpleCookie(self.headers.get("cookie", ""))
         morsel = cookie.get("omnidoer_session")
@@ -201,15 +222,27 @@ class ControlHandler(SimpleHTTPRequestHandler):
         if not session_id or not token:
             raise PermissionError("session required")
         if self.config.mode == "cloud_direct":
+            from omnidoer.omni_control.websocket import decode_device_auth_subprotocol
+
+            protocol = decode_device_auth_subprotocol(self.headers.get("sec-websocket-protocol"))
+            device_id = self.headers.get(DEVICE_ID_HEADER, "")
+            timestamp = self.headers.get(DEVICE_TS_HEADER, "")
+            nonce = self.headers.get(DEVICE_NONCE_HEADER, "")
+            signature = self.headers.get(DEVICE_SIG_HEADER, "")
+            if protocol:
+                device_id = protocol["device_id"]
+                timestamp = protocol["timestamp"]
+                nonce = protocol["nonce"]
+                signature = protocol["signature"]
             return authenticate_signed_session_request(
                 session_id=session_id,
                 session_token=token,
-                device_id=self.headers.get(DEVICE_ID_HEADER, ""),
+                device_id=device_id,
                 method=self.command,
                 path=urlparse(self.path).path,
-                timestamp=self.headers.get(DEVICE_TS_HEADER, ""),
-                nonce=self.headers.get(DEVICE_NONCE_HEADER, ""),
-                signature=self.headers.get(DEVICE_SIG_HEADER, ""),
+                timestamp=timestamp,
+                nonce=nonce,
+                signature=signature,
                 device_store=DeviceStore(),
                 session_store=SessionStore(),
             )
@@ -339,6 +372,27 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 pass
             except ValueError:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid stream options"})
+            return
+        if path == "/api/ws/requests":
+            try:
+                from omnidoer.omni_control.websocket import websocket_origin_allowed
+
+                if self._requires_pairing() and not websocket_origin_allowed(self.headers.get("origin"), self.config.public_origin):
+                    raise PermissionError("websocket origin rejected")
+                if (self.headers.get("upgrade") or "").lower() != "websocket":
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"error": "websocket upgrade required"})
+                    return
+                session = self._require_access()
+                query = parse_qs(parsed_url.query)
+                snapshots = int(query.get("snapshots", ["30"])[0])
+                interval = float(query.get("interval", ["2"])[0])
+                self._send_websocket_stream(store, session, snapshots=snapshots, interval=interval)
+            except PermissionError:
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            except ValueError:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid websocket options"})
             return
         if path == "/api/devices":
             try:

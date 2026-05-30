@@ -45,11 +45,15 @@ devices only see and act on requests assigned to them, plus unassigned requests
 intended for any paired device. This lets high-risk approvals or takeover
 sessions be pinned to the user's phone or another trusted client.
 
-Request push uses a signed HTTPS event stream. The PWA opens
-`/api/events?stream=1` with `fetch()` so it can attach the device-signature
-headers; plain `EventSource` is intentionally avoided because browsers do not
-allow custom authentication headers there. Each streamed snapshot is filtered by
-the authenticated device session before it leaves the Control Service.
+Request push uses WSS when available and a signed HTTPS event stream as a
+compatibility fallback. Browser WebSocket connections cannot attach custom
+headers, so the PWA authenticates `/api/ws/requests` with the httpOnly session
+cookie plus a nonce-bound device signature in `Sec-WebSocket-Protocol`. The SSE
+fallback opens `/api/events?stream=1` with `fetch()` so it can attach the same
+device-signature headers; plain `EventSource` is intentionally avoided because
+browsers do not allow custom authentication headers there. Each streamed
+snapshot is filtered by the authenticated device session before it leaves the
+Control Service.
 
 The QR pairing URL includes a short-lived `code` and opaque `pairing_id`. Before
 the user confirms pairing, the PWA can fetch public pairing metadata by

@@ -1,6 +1,8 @@
 import unittest
+import base64
 import json
 import os
+import socket
 import tempfile
 from contextlib import redirect_stdout
 from io import StringIO
@@ -17,10 +19,32 @@ from omnidoer.omni_control.pairing import PairingStore
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.server import ControlHandler, sanitize_log_value
 from omnidoer.omni_control.secure_channel import encrypt_for_broker, load_or_create_keypair
+from omnidoer.omni_control.websocket import encode_device_auth_subprotocol
 from tests.test_control_auth import public_jwk, sign_request
 
 
 PROXY_HEADERS = {"x-forwarded-proto": "https"}
+
+
+def read_websocket_text(sock: socket.socket, initial: bytes = b"") -> str:
+    data = initial
+    while len(data) < 2:
+        data += sock.recv(4096)
+    length = data[1] & 0x7F
+    offset = 2
+    if length == 126:
+        while len(data) < offset + 2:
+            data += sock.recv(4096)
+        length = int.from_bytes(data[offset : offset + 2], "big")
+        offset += 2
+    elif length == 127:
+        while len(data) < offset + 8:
+            data += sock.recv(4096)
+        length = int.from_bytes(data[offset : offset + 8], "big")
+        offset += 8
+    while len(data) < offset + length:
+        data += sock.recv(4096)
+    return data[offset : offset + length].decode()
 
 
 class CloudControlServiceTest(unittest.TestCase):
@@ -642,6 +666,87 @@ class CloudControlServiceTest(unittest.TestCase):
                     visible = response.read().decode()
                 self.assertIn("event: requests", visible)
                 self.assertIn(control_request.request_id, visible)
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_cloud_direct_websocket_push_uses_signed_device_protocol(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            config = build_config(
+                host="127.0.0.1",
+                port=8787,
+                cloud_direct=True,
+                public_url="https://agent.example.com",
+                behind_reverse_proxy=True,
+            )
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_config = config  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                pairing = PairingStore().create(public_url=config.public_url, ttl_seconds=600)
+                device_key = ec.generate_private_key(ec.SECP256R1())
+                pair_request = urllib_request.Request(
+                    f"{base}/api/pair",
+                    data=json.dumps({"code": pairing.code, "device_name": "Phone", "device_public_key": public_jwk(device_key)}).encode(),
+                    headers={"content-type": "application/json", "origin": config.public_origin, **PROXY_HEADERS},
+                    method="POST",
+                )
+                with urllib_request.urlopen(pair_request, timeout=5) as response:
+                    cookie = response.headers["set-cookie"]
+                    body = json.loads(response.read().decode())
+                device_id = body["device"]["device_id"]
+                session_id = body["session"]["session_id"]
+                control_request = RequestStore().create(
+                    "credential",
+                    origin="https://example.com",
+                    top_level_url="https://example.com/login",
+                    action_summary="websocket login",
+                    allowed_device_id=device_id,
+                )
+                signed = sign_request(device_key, device_id=device_id, session_id=session_id, method="GET", path="/api/ws/requests", nonce="nonce-ws")
+                protocol = encode_device_auth_subprotocol(
+                    device_id=device_id,
+                    timestamp=signed["timestamp"],
+                    nonce=signed["nonce"],
+                    signature=signed["signature"],
+                )
+                websocket_key = base64.b64encode(os.urandom(16)).decode()
+                request_text = "\r\n".join(
+                    [
+                        "GET /api/ws/requests?snapshots=1&interval=0 HTTP/1.1",
+                        "Host: agent.example.com",
+                        "Upgrade: websocket",
+                        "Connection: Upgrade",
+                        f"Sec-WebSocket-Key: {websocket_key}",
+                        "Sec-WebSocket-Version: 13",
+                        f"Sec-WebSocket-Protocol: {protocol}",
+                        f"Origin: {config.public_origin}",
+                        "X-Forwarded-Proto: https",
+                        f"Cookie: {cookie}",
+                        "",
+                        "",
+                    ]
+                ).encode()
+                with socket.create_connection(("127.0.0.1", server.server_address[1]), timeout=5) as sock:
+                    sock.sendall(request_text)
+                    data = b""
+                    while b"\r\n\r\n" not in data:
+                        data += sock.recv(4096)
+                    headers, frame = data.split(b"\r\n\r\n", 1)
+                    self.assertIn(b"101 Switching Protocols", headers)
+                    self.assertIn(protocol.encode(), headers)
+                    payload = json.loads(read_websocket_text(sock, frame))
+                self.assertEqual(payload["event"], "requests")
+                self.assertIn(control_request.request_id, repr(payload["data"]))
+                self.assertNotIn("password", repr(payload))
             finally:
                 server.shutdown()
                 server.server_close()

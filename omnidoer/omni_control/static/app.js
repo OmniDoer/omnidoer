@@ -179,6 +179,18 @@ async function deviceSignatureHeaders(method, path) {
   };
 }
 
+async function deviceAuthSubprotocol(method, path) {
+  const headers = await deviceSignatureHeaders(method, path);
+  if (!headers["x-omnidoer-device-id"]) return "";
+  const payload = {
+    device_id: headers["x-omnidoer-device-id"],
+    timestamp: headers["x-omnidoer-device-ts"],
+    nonce: headers["x-omnidoer-device-nonce"],
+    signature: headers["x-omnidoer-device-sig"]
+  };
+  return `omnidoer-v1.${b64url(encoder.encode(JSON.stringify(payload)))}`;
+}
+
 async function signedFetch(url, options = {}) {
   const target = new URL(url, window.location.origin);
   const method = (options.method || "GET").toUpperCase();
@@ -806,11 +818,48 @@ async function startRequestStream() {
   }
 }
 
+function websocketUrl(path) {
+  const url = new URL(path, window.location.origin);
+  url.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return url.toString();
+}
+
+async function startRequestWebSocket() {
+  if (!window.WebSocket) {
+    startRequestStream();
+    return;
+  }
+  if (requestStreamActive) return;
+  requestStreamActive = true;
+  if (requestStreamRestart) clearTimeout(requestStreamRestart);
+  const path = "/api/ws/requests";
+  try {
+    const protocol = await deviceAuthSubprotocol("GET", path);
+    const socket = protocol
+      ? new WebSocket(websocketUrl(`${path}?snapshots=30&interval=2`), [protocol])
+      : new WebSocket(websocketUrl(`${path}?snapshots=30&interval=2`));
+    socket.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      if (message.event === "requests") applyRequestEvent(message.data);
+    };
+    socket.onerror = () => {
+      socket.close();
+    };
+    socket.onclose = () => {
+      requestStreamActive = false;
+      requestStreamRestart = setTimeout(startRequestWebSocket, 3000);
+    };
+  } catch {
+    requestStreamActive = false;
+    startRequestStream();
+  }
+}
+
 loadRuntimeStatus();
 loadRequests();
 loadTasks();
 loadDevicesAndSessions();
-startRequestStream();
+startRequestWebSocket();
 setInterval(loadRuntimeStatus, 10000);
 setInterval(loadRequests, 15000);
 setInterval(loadTasks, 5000);

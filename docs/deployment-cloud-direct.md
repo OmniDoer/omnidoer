@@ -57,6 +57,13 @@ requests are signed by the paired device key and replay-protected with nonces.
 When the PWA opens from the QR code, it shows the server URL, pairing code,
 broker fingerprint, web broker fingerprint, and expiry before the user confirms
 pairing. The metadata used for that preview is public but not secret-bearing.
+
+Request push prefers WSS on `/api/ws/requests`. The browser uses its httpOnly
+session cookie plus a nonce-bound device signature in `Sec-WebSocket-Protocol`;
+the server verifies Origin, HTTPS reverse-proxy markers, session status,
+device revocation, signature, and replay nonce before streaming requests. A
+signed HTTPS stream remains as a fallback for environments that cannot use
+WebSocket.
 Revoke access:
 
 ```sh

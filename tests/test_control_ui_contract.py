@@ -95,6 +95,11 @@ class ControlUiContractTest(unittest.TestCase):
     def test_request_stream_uses_signed_fetch_not_eventsource(self) -> None:
         app = (static_root() / "app.js").read_text()
         self.assertIn("startRequestStream", app)
+        self.assertIn("startRequestWebSocket", app)
+        self.assertIn("new WebSocket", app)
+        self.assertIn("/api/ws/requests", app)
+        self.assertIn("deviceAuthSubprotocol", app)
+        self.assertIn("omnidoer-v1.", app)
         self.assertIn("/api/events?stream=1", app)
         self.assertIn("ReadableStream", app)
         self.assertIn("signedFetch(\"/api/events?stream=1", app)
