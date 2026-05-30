@@ -11,6 +11,8 @@ class Decision(StrEnum):
     ALLOW = "allow"
     BLOCK = "block"
     REQUIRE_APPROVAL = "require_approval"
+    REQUIRE_USER_INTERACTION = "require_user_interaction"
+    REQUIRE_TAKEOVER = "require_takeover"
 
 
 @dataclass(frozen=True)
@@ -31,6 +33,18 @@ SENSITIVE_ACTIONS = {
     "totp_change",
     "send_sensitive_message",
     "upload_sensitive_file",
+}
+
+CHALLENGE_ACTIONS = {
+    "captcha",
+    "totp",
+    "sms",
+    "email",
+    "mfa",
+    "passkey",
+    "webauthn",
+    "payment_3ds",
+    "device_confirmation",
 }
 
 
@@ -80,3 +94,17 @@ def requires_approval(action_type: str) -> PolicyDecision:
     if action_type in SENSITIVE_ACTIONS:
         return PolicyDecision(Decision.REQUIRE_APPROVAL, f"{action_type} requires approval")
     return PolicyDecision(Decision.ALLOW, "approval not required")
+
+
+def evaluate_challenge(action_type: str) -> PolicyDecision:
+    if action_type == "high_intensity_antibot":
+        return PolicyDecision(Decision.REQUIRE_TAKEOVER, "high-intensity anti-bot requires human takeover")
+    if action_type in CHALLENGE_ACTIONS:
+        return PolicyDecision(Decision.REQUIRE_USER_INTERACTION, f"{action_type} requires user interaction")
+    return PolicyDecision(Decision.ALLOW, "no challenge policy required")
+
+
+def policy_self_test() -> None:
+    assert requires_approval("payment_submit").decision == Decision.REQUIRE_APPROVAL
+    assert evaluate_challenge("captcha").decision == Decision.REQUIRE_USER_INTERACTION
+    assert evaluate_challenge("high_intensity_antibot").decision == Decision.REQUIRE_TAKEOVER

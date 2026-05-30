@@ -1,6 +1,7 @@
 import unittest
 
 from omnidoer.omni_policy import Decision, evaluate_credential_fill, origin_from_url, requires_approval
+from omnidoer.omni_policy.policy import evaluate_challenge
 
 
 class PolicyTest(unittest.TestCase):
@@ -57,6 +58,11 @@ class PolicyTest(unittest.TestCase):
         self.assertEqual(requires_approval("payment_submit").decision, Decision.REQUIRE_APPROVAL)
         self.assertEqual(requires_approval("oauth_grant").decision, Decision.REQUIRE_APPROVAL)
         self.assertEqual(requires_approval("download_invoice").decision, Decision.ALLOW)
+
+    def test_challenges_require_user_or_takeover(self) -> None:
+        self.assertEqual(evaluate_challenge("captcha").decision, Decision.REQUIRE_USER_INTERACTION)
+        self.assertEqual(evaluate_challenge("payment_3ds").decision, Decision.REQUIRE_USER_INTERACTION)
+        self.assertEqual(evaluate_challenge("high_intensity_antibot").decision, Decision.REQUIRE_TAKEOVER)
 
 
 if __name__ == "__main__":
