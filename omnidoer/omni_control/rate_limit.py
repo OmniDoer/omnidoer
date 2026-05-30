@@ -35,5 +35,13 @@ class RateLimiter:
         bucket.attempts = [item for item in bucket.attempts if item >= now - self.window_seconds]
         bucket.attempts.append(now)
 
+    def check_and_record(self, key: str, now: float | None = None) -> None:
+        now = now or time.time()
+        self.check(key, now=now)
+        self.record_failure(key, now=now)
+
     def clear(self, key: str) -> None:
         self._buckets.pop(key, None)
+
+    def clear_all(self) -> None:
+        self._buckets.clear()

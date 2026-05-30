@@ -47,6 +47,7 @@ def static_root() -> Path:
 
 
 PAIR_RATE_LIMIT = RateLimiter(max_attempts=8, window_seconds=60, lockout_seconds=300)
+CONTROL_MUTATION_RATE_LIMIT = RateLimiter(max_attempts=120, window_seconds=60, lockout_seconds=60)
 SENSITIVE_LOG_PATTERNS = [
     re.compile(r"(omnidoer_session=)[^;\s]+"),
     re.compile(r"(code=)[^&\s]+"),
@@ -244,6 +245,20 @@ class ControlHandler(SimpleHTTPRequestHandler):
     def _remote_key(self) -> str:
         return self.client_address[0] if self.client_address else "unknown"
 
+    def _check_mutation_rate_limit(self, session: ControlSession | None) -> None:
+        if self.config.mode != "cloud_direct":
+            return
+        if session is None:
+            raise PermissionError("session required")
+        key = f"mutate:{session.device_id}:{urlparse(self.path).path}"
+        CONTROL_MUTATION_RATE_LIMIT.check_and_record(key)
+
+    def _send_permission_error(self, exc: PermissionError) -> None:
+        if "rate limit" in str(exc):
+            self._send_json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "rate_limited"})
+            return
+        self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+
     def do_GET(self) -> None:
         parsed_url = urlparse(self.path)
         path = parsed_url.path
@@ -386,9 +401,10 @@ class ControlHandler(SimpleHTTPRequestHandler):
             return
         if path == "/api/tasks":
             try:
-                self._require_access(mutating=True)
-            except PermissionError:
-                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+            except PermissionError as exc:
+                self._send_permission_error(exc)
                 return
             try:
                 task = TaskStore().create((self._read_json().get("text") or ""), source="control_client")
@@ -398,9 +414,10 @@ class ControlHandler(SimpleHTTPRequestHandler):
             return
         if path == "/api/tasks/next":
             try:
-                self._require_access(mutating=True)
-            except PermissionError:
-                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+            except PermissionError as exc:
+                self._send_permission_error(exc)
                 return
             try:
                 body = self._read_json()
@@ -421,9 +438,10 @@ class ControlHandler(SimpleHTTPRequestHandler):
             return
         if len(parts) == 4 and parts[:2] == ["api", "tasks"]:
             try:
-                self._require_access(mutating=True)
-            except PermissionError:
-                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+            except PermissionError as exc:
+                self._send_permission_error(exc)
                 return
             task_id, action = parts[2], parts[3]
             try:
@@ -441,8 +459,9 @@ class ControlHandler(SimpleHTTPRequestHandler):
         if len(parts) == 4 and parts[:2] == ["api", "requests"]:
             try:
                 session = self._require_access(mutating=True)
-            except PermissionError:
-                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                self._check_mutation_rate_limit(session)
+            except PermissionError as exc:
+                self._send_permission_error(exc)
                 return
             request_id, action = parts[2], parts[3]
             try:
