@@ -1,3 +1,23 @@
+# OmniDoer
+
+This repository is the `omnidoer/omnidoer` fork of `openai/codex`.
+Keep Codex upstream mergeable. Prefer OmniDoer work in `omnidoer/`,
+new sidecar crates, MCP servers, plugins, or small integration hooks.
+
+Security rules for this fork:
+
+- The model is not a security boundary.
+- The agent may request secret use, but must never read secrets.
+- Do not add tools or commands that return passwords, TOTP seeds, cookies,
+  API keys, private keys, card data, recovery codes, or decrypted vault data.
+- Broker, vault, browser isolation, policy checks, redaction, approval, and
+  audit logs are the security boundary.
+- Test only against the local demo site until the safety fixtures prove that
+  secrets do not leak into model-visible outputs, logs, DOM observations,
+  accessibility observations, screenshots, or errors.
+
+The upstream Codex guidance below still applies when touching upstream files.
+
 # Rust/codex-rs
 
 In the codex-rs folder where the rust code lives:

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111827">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/style.css">
+  <title>OmniDoer Control Client</title>
+</head>
+<body>
+  <main>
+    <h1>OmniDoer Control Client</h1>
+    <section id="security">
+      <h2>Security</h2>
+      <p>Secret destination: Secret Broker. Not sent to Agent/LLM context, MCP return values, logs, or DOM observation.</p>
+      <p>Challenge destination: Challenge Relay / target website. OmniDoer does not bypass CAPTCHA/MFA/Passkey/WebAuthn/3DS.</p>
+      <p>Human Takeover destination: controlled browser. Agent paused. User in control until Release Control.</p>
+    </section>
+    <section id="credential-panel">
+      <h2>Credential Request</h2>
+      <label>Username <input id="username" autocomplete="username"></label>
+      <label>Password <input id="password" type="password" autocomplete="current-password"></label>
+      <label>TOTP seed <input id="totp-seed" type="password"></label>
+    </section>
+    <section id="challenge-panel">
+      <h2>Challenge Request</h2>
+      <p>This challenge is completed by you, not by the Agent. Challenge answers are not sent to the LLM.</p>
+      <label>One-time code <input id="one-time-code" inputmode="numeric"></label>
+    </section>
+    <section id="takeover-panel">
+      <h2>Human Takeover</h2>
+      <p>Agent paused. User in control. Release Control when finished.</p>
+      <div id="browser-stream" role="img" aria-label="Browser stream placeholder"></div>
+      <button id="release-control">Release Control</button>
+    </section>
+    <section id="payment-approval">
+      <h2>Payment Approval</h2>
+      <dl>
+        <dt>Merchant</dt><dd id="merchant">pending</dd>
+        <dt>Amount</dt><dd id="amount">pending</dd>
+        <dt>Currency</dt><dd id="currency">pending</dd>
+        <dt>Origin</dt><dd id="origin">pending</dd>
+      </dl>
+      <button id="deny">Deny</button>
+      <button id="approve">Approve</button>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

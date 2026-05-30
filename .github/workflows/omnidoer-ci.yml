@@ -1,0 +1,24 @@
+name: OmniDoer CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - omnidoer-mvp
+
+jobs:
+  sidecar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run sidecar tests
+        run: python3 -m pytest
+      - name: Run repository secret-interface scan
+        run: python3 omnidoer/scripts/secret_scan.py
+      - name: Check no default OpenAI API client path
+        run: '! grep -R "from openai import\|OpenAI(" omnidoer tests'
+      - name: Check forbidden bypass tools absent
+        run: '! grep -R "captcha.solve\|captcha.bypass\|mfa.bypass\|antibot.bypass\|challenge.get_answer\|takeover.get_user_input" omnidoer tests'
