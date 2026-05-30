@@ -615,6 +615,103 @@ class CloudControlServiceTest(unittest.TestCase):
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
 
+    def test_cloud_direct_can_revoke_sessions_and_devices(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            config = build_config(
+                host="127.0.0.1",
+                port=8787,
+                cloud_direct=True,
+                public_url="https://agent.example.com",
+                behind_reverse_proxy=True,
+            )
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_config = config  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+
+            def pair(name: str):
+                pairing = PairingStore().create(public_url=config.public_url, ttl_seconds=600)
+                key = ec.generate_private_key(ec.SECP256R1())
+                request = urllib_request.Request(
+                    f"{base}/api/pair",
+                    data=json.dumps({"code": pairing.code, "device_name": name, "device_public_key": public_jwk(key)}).encode(),
+                    headers={"content-type": "application/json", "origin": config.public_origin, **PROXY_HEADERS},
+                    method="POST",
+                )
+                with urllib_request.urlopen(request, timeout=5) as response:
+                    return key, response.headers["set-cookie"], json.loads(response.read().decode())
+
+            def signed_headers(key, body: dict, cookie: str, method: str, path: str, nonce: str, *, csrf: bool = False) -> dict[str, str]:
+                device_id = body["device"]["device_id"]
+                session_id = body["session"]["session_id"]
+                signed = sign_request(key, device_id=device_id, session_id=session_id, method=method, path=path, nonce=nonce)
+                headers = {
+                    "cookie": cookie,
+                    **PROXY_HEADERS,
+                    DEVICE_ID_HEADER: device_id,
+                    DEVICE_TS_HEADER: signed["timestamp"],
+                    DEVICE_NONCE_HEADER: signed["nonce"],
+                    DEVICE_SIG_HEADER: signed["signature"],
+                }
+                if csrf:
+                    headers["origin"] = config.public_origin
+                    headers[CSRF_HEADER] = body["csrf_token"]
+                    headers["content-type"] = "application/json"
+                return headers
+
+            try:
+                admin_key, admin_cookie, admin_body = pair("Admin")
+                phone_key, phone_cookie, phone_body = pair("Phone")
+                phone_session_id = phone_body["session"]["session_id"]
+                phone_device_id = phone_body["device"]["device_id"]
+
+                session_revoke_path = f"/api/sessions/{phone_session_id}/revoke"
+                request = urllib_request.Request(
+                    f"{base}{session_revoke_path}",
+                    data=b"{}",
+                    headers=signed_headers(admin_key, admin_body, admin_cookie, "POST", session_revoke_path, "nonce-revoke-session", csrf=True),
+                    method="POST",
+                )
+                with urllib_request.urlopen(request, timeout=5) as response:
+                    revoked = json.loads(response.read().decode())
+                self.assertEqual(revoked["status"], "revoked")
+                self.assertEqual(revoked["session"]["session_id"], phone_session_id)
+                self.assertNotIn("token", repr(revoked))
+
+                with self.assertRaises(Exception):
+                    headers = signed_headers(phone_key, phone_body, phone_cookie, "GET", "/api/requests", "nonce-after-session-revoke")
+                    urllib_request.urlopen(urllib_request.Request(f"{base}/api/requests", headers=headers), timeout=5)
+
+                phone_key, phone_cookie, phone_body = pair("Phone Again")
+                phone_device_id = phone_body["device"]["device_id"]
+                device_revoke_path = f"/api/devices/{phone_device_id}/revoke"
+                request = urllib_request.Request(
+                    f"{base}{device_revoke_path}",
+                    data=b"{}",
+                    headers=signed_headers(admin_key, admin_body, admin_cookie, "POST", device_revoke_path, "nonce-revoke-device", csrf=True),
+                    method="POST",
+                )
+                with urllib_request.urlopen(request, timeout=5) as response:
+                    revoked = json.loads(response.read().decode())
+                self.assertEqual(revoked["status"], "revoked")
+                self.assertEqual(revoked["device"]["device_id"], phone_device_id)
+                self.assertTrue(revoked["revoked_sessions"])
+                self.assertNotIn("public_key", repr(revoked))
+
+                with self.assertRaises(Exception):
+                    headers = signed_headers(phone_key, phone_body, phone_cookie, "GET", "/api/requests", "nonce-after-device-revoke")
+                    urllib_request.urlopen(urllib_request.Request(f"{base}/api/requests", headers=headers), timeout=5)
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
 
 if __name__ == "__main__":
     unittest.main()

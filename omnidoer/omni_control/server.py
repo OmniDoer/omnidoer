@@ -477,6 +477,56 @@ class ControlHandler(SimpleHTTPRequestHandler):
             except Exception as exc:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
             return
+        if len(parts) == 4 and parts[:2] == ["api", "devices"]:
+            try:
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+                return
+            device_id, action = parts[2], parts[3]
+            if action != "revoke":
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "unknown action"})
+                return
+            try:
+                device = DeviceStore().revoke(device_id)
+                revoked_sessions = SessionStore().revoke_for_device(device_id)
+                self._send_json(
+                    HTTPStatus.OK,
+                    {
+                        "status": "revoked",
+                        "device": device.to_public_dict(),
+                        "revoked_sessions": [item.to_public_dict() for item in revoked_sessions],
+                        "secret_exposed_to_model": False,
+                    },
+                )
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
+        if len(parts) == 4 and parts[:2] == ["api", "sessions"]:
+            try:
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+                return
+            session_id, action = parts[2], parts[3]
+            if action != "revoke":
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "unknown action"})
+                return
+            try:
+                revoked = SessionStore().revoke(session_id)
+                self._send_json(
+                    HTTPStatus.OK,
+                    {
+                        "status": "revoked",
+                        "session": revoked.to_public_dict(),
+                        "secret_exposed_to_model": False,
+                    },
+                )
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
         if len(parts) == 4 and parts[:2] == ["api", "requests"]:
             try:
                 session = self._require_access(mutating=True)
