@@ -61,6 +61,24 @@ class CliTest(unittest.TestCase):
             self.assertEqual(len(tasks), 1)
             self.assertEqual(tasks[0].text, "Use the local demo")
 
+    def test_cloud_direct_cli_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            env = {"OMNIDOER_HOME": tmp}
+            refused = self.run_cli(["control", "serve", "--host", "0.0.0.0", "--port", "8787"], env=env)
+            self.assertNotEqual(refused.returncode, 0)
+            self.assertIn("0.0.0.0 requires explicit --cloud-direct", refused.stderr + refused.stdout)
+            pair = self.run_cli(
+                ["control", "pair", "--print-qr", "--expires", "10m", "--public-url", "https://agent.example.com"],
+                env=env,
+            )
+            self.assertEqual(pair.returncode, 0, pair.stderr)
+            self.assertIn("pairing_url=https://agent.example.com/pair", pair.stdout)
+            self.assertIn("broker_fingerprint=", pair.stdout)
+            self.assertIn("Only pair devices you control", pair.stdout)
+            status = self.run_cli(["control", "security-status"], env=env)
+            self.assertEqual(status.returncode, 0, status.stderr)
+            self.assertIn('"mcp_publicly_exposed": false', status.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

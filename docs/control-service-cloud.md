@@ -1,0 +1,25 @@
+# Cloud Control Service
+
+OmniDoer Cloud Direct Mode assumes the Linux Agent runs on a user-controlled
+cloud server or VPS. Android, Windows, and PWA Control Clients connect directly
+to that server over HTTPS/WSS. OmniDoer does not use a third-party relay,
+Telegram, OpenAI, or any SaaS service as the control transport.
+
+```text
+Control Client
+  <-> HTTPS/WSS
+OmniDoer Control Service on the user's cloud server
+  <-> local process / localhost / future Unix socket
+Secret Broker / Challenge Relay / Human Takeover Relay / Browser Controller
+  <-> Vault / headless Chromium / Agent runtime
+```
+
+Codex CLI still talks to OmniDoer through a local MCP stdio process. The MCP
+server, Vault, Broker, and browser internals are not public interfaces and
+should not be exposed to the internet.
+
+Cloud Direct Mode requires explicit `--cloud-direct`, HTTPS public URL,
+pairing, device identity, session auth, CSRF/origin checks, security headers,
+and rate limiting. Secrets and challenge answers are encrypted in the Control
+Client before submission. TLS protects transport, but Secret Broker and
+Challenge Relay E2EE remain the sensitive-data boundary.

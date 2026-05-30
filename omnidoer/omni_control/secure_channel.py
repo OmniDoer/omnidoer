@@ -28,12 +28,20 @@ def _unb64(data: str) -> bytes:
     return base64.urlsafe_b64decode(data + padding)
 
 
-def associated_data(request_id: str, origin: str, request_type: str) -> bytes:
-    return json.dumps(
-        {"request_id": request_id, "origin": origin, "request_type": request_type},
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode()
+def associated_data(
+    request_id: str,
+    origin: str,
+    request_type: str,
+    *,
+    device_id: str | None = None,
+    expires_at: float | None = None,
+) -> bytes:
+    data: dict[str, object] = {"request_id": request_id, "origin": origin, "request_type": request_type}
+    if device_id is not None:
+        data["device_id"] = device_id
+    if expires_at is not None:
+        data["expires_at"] = expires_at
+    return json.dumps(data, sort_keys=True, separators=(",", ":")).encode()
 
 
 @dataclass(frozen=True)
@@ -139,6 +147,8 @@ def encrypt_for_broker(
     request_id: str,
     origin: str,
     request_type: str,
+    device_id: str | None = None,
+    expires_at: float | None = None,
 ) -> dict[str, str]:
     broker_public = x25519.X25519PublicKey.from_public_bytes(_unb64(public_key_b64))
     ephemeral_private = x25519.X25519PrivateKey.generate()
@@ -146,12 +156,12 @@ def encrypt_for_broker(
         encoding=serialization.Encoding.Raw,
         format=serialization.PublicFormat.Raw,
     )
-    aad = associated_data(request_id, origin, request_type)
+    aad = associated_data(request_id, origin, request_type, device_id=device_id, expires_at=expires_at)
     key = _derive(ephemeral_private.exchange(broker_public), aad)
     nonce = os.urandom(12)
     plaintext = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     ciphertext = AESGCM(key).encrypt(nonce, plaintext, aad)
-    return {
+    envelope = {
         "version": "v1",
         "ephemeral_public_key": _b64(ephemeral_public),
         "nonce": _b64(nonce),
@@ -160,6 +170,11 @@ def encrypt_for_broker(
         "origin": origin,
         "request_type": request_type,
     }
+    if device_id is not None:
+        envelope["device_id"] = device_id
+    if expires_at is not None:
+        envelope["expires_at"] = str(expires_at)
+    return envelope
 
 
 def encrypt_for_broker_web(
@@ -169,16 +184,18 @@ def encrypt_for_broker_web(
     request_id: str,
     origin: str,
     request_type: str,
+    device_id: str | None = None,
+    expires_at: float | None = None,
 ) -> dict[str, Any]:
     broker_public = _jwk_to_public_key(public_jwk)
     ephemeral_private = ec.generate_private_key(ec.SECP256R1())
     ephemeral_public_jwk = _public_numbers_to_jwk(ephemeral_private.public_key().public_numbers())
-    aad = associated_data(request_id, origin, request_type)
+    aad = associated_data(request_id, origin, request_type, device_id=device_id, expires_at=expires_at)
     key = _derive_web(ephemeral_private.exchange(ec.ECDH(), broker_public), aad)
     nonce = os.urandom(12)
     plaintext = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     ciphertext = AESGCM(key).encrypt(nonce, plaintext, aad)
-    return {
+    envelope = {
         "version": "web-p256-v1",
         "ephemeral_public_jwk": ephemeral_public_jwk,
         "nonce": _b64(nonce),
@@ -187,6 +204,11 @@ def encrypt_for_broker_web(
         "origin": origin,
         "request_type": request_type,
     }
+    if device_id is not None:
+        envelope["device_id"] = device_id
+    if expires_at is not None:
+        envelope["expires_at"] = expires_at
+    return envelope
 
 
 class ReplayGuard:
@@ -214,15 +236,21 @@ def decrypt_at_broker(
     request_id: str,
     origin: str,
     request_type: str,
+    device_id: str | None = None,
+    expires_at: float | None = None,
     replay_guard: ReplayGuard | None = None,
 ) -> dict[str, Any]:
     if envelope.get("request_id") != request_id or envelope.get("origin") != origin or envelope.get("request_type") != request_type:
+        raise ValueError("envelope associated data mismatch")
+    if device_id is not None and envelope.get("device_id") != device_id:
+        raise ValueError("envelope associated data mismatch")
+    if expires_at is not None and float(envelope.get("expires_at", "nan")) != float(expires_at):
         raise ValueError("envelope associated data mismatch")
     if replay_guard:
         replay_guard.check_and_mark(envelope)
     private_key = x25519.X25519PrivateKey.from_private_bytes(_unb64(private_key_b64))
     ephemeral_public = x25519.X25519PublicKey.from_public_bytes(_unb64(envelope["ephemeral_public_key"]))
-    aad = associated_data(request_id, origin, request_type)
+    aad = associated_data(request_id, origin, request_type, device_id=device_id, expires_at=expires_at)
     key = _derive(private_key.exchange(ephemeral_public), aad)
     plaintext = AESGCM(key).decrypt(_unb64(envelope["nonce"]), _unb64(envelope["ciphertext"]), aad)
     return json.loads(plaintext.decode())
@@ -235,9 +263,15 @@ def decrypt_web_at_broker(
     request_id: str,
     origin: str,
     request_type: str,
+    device_id: str | None = None,
+    expires_at: float | None = None,
     replay_guard: ReplayGuard | None = None,
 ) -> dict[str, Any]:
     if envelope.get("request_id") != request_id or envelope.get("origin") != origin or envelope.get("request_type") != request_type:
+        raise ValueError("envelope associated data mismatch")
+    if device_id is not None and envelope.get("device_id") != device_id:
+        raise ValueError("envelope associated data mismatch")
+    if expires_at is not None and float(envelope.get("expires_at", "nan")) != float(expires_at):
         raise ValueError("envelope associated data mismatch")
     if replay_guard:
         replay_guard.check_and_mark(envelope)
@@ -245,7 +279,7 @@ def decrypt_web_at_broker(
     if not isinstance(private_key, ec.EllipticCurvePrivateKey):
         raise ValueError("not an EC private key")
     ephemeral_public = _jwk_to_public_key(envelope["ephemeral_public_jwk"])
-    aad = associated_data(request_id, origin, request_type)
+    aad = associated_data(request_id, origin, request_type, device_id=device_id, expires_at=expires_at)
     key = _derive_web(private_key.exchange(ec.ECDH(), ephemeral_public), aad)
     plaintext = AESGCM(key).decrypt(_unb64(envelope["nonce"]), _unb64(envelope["ciphertext"]), aad)
     return json.loads(plaintext.decode())
@@ -257,6 +291,8 @@ def decrypt_control_envelope(
     request_id: str,
     origin: str,
     request_type: str,
+    device_id: str | None = None,
+    expires_at: float | None = None,
     replay_guard: ReplayGuard | None = None,
 ) -> dict[str, Any]:
     if envelope.get("version") == "web-p256-v1":
@@ -266,6 +302,8 @@ def decrypt_control_envelope(
             request_id=request_id,
             origin=origin,
             request_type=request_type,
+            device_id=device_id,
+            expires_at=expires_at,
             replay_guard=replay_guard,
         )
     return decrypt_at_broker(
@@ -274,5 +312,7 @@ def decrypt_control_envelope(
         request_id=request_id,
         origin=origin,
         request_type=request_type,
+        device_id=device_id,
+        expires_at=expires_at,
         replay_guard=replay_guard,
     )

@@ -1,0 +1,17 @@
+# Pairing Security
+
+Pairing establishes device identity; it is not a secret-submission channel.
+
+- Pairing codes are short TTL and one-time use.
+- Pairing creates a device record with a public key fingerprint.
+- The client keeps its private key locally.
+- Pairing creates a short-lived session cookie for the web client.
+- Session tokens are stored hashed and are not returned in public API payloads.
+- CSRF tokens protect mutating HTTP requests.
+- Revoked devices and sessions cannot access requests, audit metadata,
+  takeover frames, approvals, or secret submission endpoints.
+
+Secrets and challenge answers are encrypted by the Control Client for the
+Secret Broker or Challenge Relay. Associated data binds `request_id`, `origin`,
+`request_type`, and in Cloud Direct mode can also bind `device_id` and
+`expires_at`. Replays are rejected.

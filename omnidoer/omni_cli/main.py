@@ -45,10 +45,29 @@ def build_parser() -> argparse.ArgumentParser:
     serve = control_sub.add_parser("serve")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8787)
+    serve.add_argument("--public-url")
+    serve.add_argument("--cloud-direct", action="store_true")
+    serve.add_argument("--tls-cert")
+    serve.add_argument("--tls-key")
+    serve.add_argument("--tls-self-signed-dev", action="store_true")
+    serve.add_argument("--behind-reverse-proxy", action="store_true")
+    serve.add_argument("--insecure-dev-public", action="store_true")
     serve.add_argument("--background", action="store_true")
+    pair = control_sub.add_parser("pair")
+    pair.add_argument("--print-qr", action="store_true")
+    pair.add_argument("--expires", default="10m")
+    pair.add_argument("--public-url")
     control_sub.add_parser("tui")
     control_sub.add_parser("status")
     control_sub.add_parser("requests")
+    control_sub.add_parser("devices")
+    revoke_device = control_sub.add_parser("revoke-device")
+    revoke_device.add_argument("device_id")
+    control_sub.add_parser("sessions")
+    revoke_session = control_sub.add_parser("revoke-session")
+    revoke_session.add_argument("session_id")
+    control_sub.add_parser("tunnel-info")
+    control_sub.add_parser("security-status")
     submit_task = control_sub.add_parser("submit-task")
     submit_task.add_argument("task")
     control_sub.add_parser("tasks")
@@ -138,7 +157,23 @@ def main(argv: list[str] | None = None) -> int:
         from omnidoer.omni_control.client_cli import handle_control_command
 
         if args.control_command == "serve" and args.background:
-            return _background(["control", "serve", "--host", args.host, "--port", str(args.port)])
+            background_args = ["control", "serve", "--host", args.host, "--port", str(args.port)]
+            for flag, value in (
+                ("--public-url", args.public_url),
+                ("--tls-cert", args.tls_cert),
+                ("--tls-key", args.tls_key),
+            ):
+                if value:
+                    background_args.extend([flag, value])
+            for flag, enabled in (
+                ("--cloud-direct", args.cloud_direct),
+                ("--tls-self-signed-dev", args.tls_self_signed_dev),
+                ("--behind-reverse-proxy", args.behind_reverse_proxy),
+                ("--insecure-dev-public", args.insecure_dev_public),
+            ):
+                if enabled:
+                    background_args.append(flag)
+            return _background(background_args)
         return handle_control_command(args)
 
     if args.command == "vault":

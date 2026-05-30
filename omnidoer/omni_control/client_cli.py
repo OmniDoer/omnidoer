@@ -6,9 +6,13 @@ import getpass
 import json
 import os
 
+from omnidoer.omni_control.cloud import build_config, security_status
+from omnidoer.omni_control.devices import DeviceStore
+from omnidoer.omni_control.pairing import PairingStore, parse_duration_seconds, pairing_url, qr_text
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.secure_channel import encrypt_for_broker, load_or_create_keypair
 from omnidoer.omni_control.server import serve
+from omnidoer.omni_control.sessions import SessionStore
 from omnidoer.omni_control.tasks import TaskStore
 
 
@@ -66,11 +70,60 @@ def _submit_encrypted(request_id: str, payload: dict) -> None:
 def handle_control_command(args) -> int:
     command = args.control_command
     if command == "serve":
-        serve(args.host, args.port)
+        serve(
+            args.host,
+            args.port,
+            public_url=args.public_url,
+            cloud_direct=args.cloud_direct,
+            tls_cert=args.tls_cert,
+            tls_key=args.tls_key,
+            tls_self_signed_dev=args.tls_self_signed_dev,
+            behind_reverse_proxy=args.behind_reverse_proxy,
+            insecure_dev_public=args.insecure_dev_public,
+        )
+        return 0
+    if command == "pair":
+        public_url = args.public_url or os.environ.get("OMNIDOER_CONTROL_PUBLIC_URL") or "http://127.0.0.1:8787"
+        pairing = PairingStore().create(public_url=public_url, ttl_seconds=parse_duration_seconds(args.expires))
+        print(f"pairing_url={pairing_url(pairing)}")
+        print(f"expires_at={pairing.expires_at}")
+        print(f"broker_fingerprint={pairing.broker_fingerprint}")
+        print("warning=Only pair devices you control.")
+        if args.print_qr:
+            print(qr_text(pairing))
         return 0
     if command == "status":
         pending = len(RequestStore().list())
         print(f"OmniDoer Control Client: local trusted mode, pending_requests={pending}")
+        return 0
+    if command == "devices":
+        print(json.dumps([device.to_public_dict() for device in DeviceStore().list()], indent=2, sort_keys=True))
+        return 0
+    if command == "revoke-device":
+        DeviceStore().revoke(args.device_id)
+        print(f"revoked device {args.device_id}")
+        return 0
+    if command == "sessions":
+        print(json.dumps([session.to_public_dict() for session in SessionStore().list()], indent=2, sort_keys=True))
+        return 0
+    if command == "revoke-session":
+        SessionStore().revoke(args.session_id)
+        print(f"revoked session {args.session_id}")
+        return 0
+    if command == "tunnel-info":
+        print("Cloud Direct uses direct HTTPS/WSS to your own server. No third-party relay is configured.")
+        return 0
+    if command == "security-status":
+        config = build_config(
+            host=os.environ.get("OMNIDOER_CONTROL_HOST", "127.0.0.1"),
+            port=int(os.environ.get("OMNIDOER_CONTROL_PORT", "8787")),
+            public_url=os.environ.get("OMNIDOER_CONTROL_PUBLIC_URL"),
+            cloud_direct=os.environ.get("OMNIDOER_CONTROL_CLOUD_DIRECT") == "1",
+            behind_reverse_proxy=os.environ.get("OMNIDOER_CONTROL_BEHIND_PROXY") == "1",
+            tls_self_signed_dev=os.environ.get("OMNIDOER_CONTROL_TLS_SELF_SIGNED_DEV") == "1",
+            insecure_dev_public=os.environ.get("OMNIDOER_CONTROL_INSECURE_DEV_PUBLIC") == "1",
+        )
+        print(json.dumps(security_status(config), indent=2, sort_keys=True))
         return 0
     if command == "tui":
         print("OmniDoer Control TUI")
