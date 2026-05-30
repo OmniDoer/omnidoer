@@ -99,6 +99,32 @@ class ControlRequestTest(unittest.TestCase):
             self.store.release_takeover(takeover.request_id)
         self.assertEqual(self.store.get(takeover.request_id).status, "expired")
 
+    def test_user_control_and_fulfilled_requests_expire_in_lists(self) -> None:
+        takeover = self.store.create(
+            "account_registration",
+            origin="https://example.com",
+            top_level_url="https://example.com/register",
+            action_summary="register",
+            ttl_seconds=-1,
+        )
+        challenge = self.store.create(
+            "sms_code",
+            origin="https://example.com",
+            top_level_url="https://example.com/sms",
+            action_summary="sms",
+            ttl_seconds=60,
+        )
+        self.store.submit_ciphertext(challenge.request_id, {"ciphertext": "opaque"})
+        loaded = self.store._load()
+        loaded[challenge.request_id].expires_at = time.time() - 1
+        self.store._save(loaded)
+
+        self.assertEqual(self.store.get(takeover.request_id).status, "expired")
+        self.assertEqual(self.store.get(challenge.request_id).status, "expired")
+        active_ids = {request.request_id for request in self.store.list()}
+        self.assertNotIn(takeover.request_id, active_ids)
+        self.assertNotIn(challenge.request_id, active_ids)
+
     def test_fulfilled_challenge_can_be_marked_completed_once(self) -> None:
         req = self.store.create(
             "sms_code",

@@ -35,6 +35,8 @@ REQUEST_TYPES = {
     "account_registration",
 }
 
+EXPIRABLE_STATUSES = {"pending", "user_control", "fulfilled"}
+
 
 @dataclass
 class ControlRequest:
@@ -93,12 +95,17 @@ class RequestStore:
         tmp.replace(self.path)
         self.path.chmod(0o600)
 
+    def _expire_if_needed(self, request: ControlRequest) -> bool:
+        if request.status in EXPIRABLE_STATUSES and request.is_expired():
+            request.status = "expired"
+            request.updated_at = time.time()
+            return True
+        return False
+
     def list(self, include_expired: bool = False) -> list[ControlRequest]:
         requests = self._load()
         for request in requests.values():
-            if request.status == "pending" and request.is_expired():
-                request.status = "expired"
-                request.updated_at = time.time()
+            self._expire_if_needed(request)
         self._save(requests)
         values = list(requests.values())
         if include_expired:
@@ -156,9 +163,7 @@ class RequestStore:
             request = requests[request_id]
         except KeyError as exc:
             raise KeyError(f"request not found: {request_id}") from exc
-        if request.status == "pending" and request.is_expired():
-            request.status = "expired"
-            request.updated_at = time.time()
+        if self._expire_if_needed(request):
             requests[request_id] = request
             self._save(requests)
         return request
