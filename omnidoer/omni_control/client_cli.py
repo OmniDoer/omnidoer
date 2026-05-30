@@ -63,6 +63,8 @@ def _submit_encrypted(request_id: str, payload: dict) -> None:
         request_id=request.request_id,
         origin=request.origin,
         request_type=request.request_type,
+        device_id=request.allowed_device_id,
+        expires_at=request.expires_at,
     )
     store.submit_ciphertext(request.request_id, envelope)
 

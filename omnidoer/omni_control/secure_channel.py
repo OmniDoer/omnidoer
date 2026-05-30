@@ -227,6 +227,7 @@ class ReplayGuard:
             raise ValueError("replay detected")
         seen.add(marker)
         self.path.write_text(json.dumps(sorted(seen), indent=2))
+        self.path.chmod(0o600)
 
 
 def decrypt_at_broker(

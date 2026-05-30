@@ -6,7 +6,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from omnidoer.omni_audit.audit import AuditLog
+from omnidoer.omni_broker.broker import SecretBroker
 from omnidoer.omni_control.requests import RequestStore
+from omnidoer.omni_control.secure_channel import ReplayGuard
 from omnidoer.omni_control.devices import DeviceStore
 from omnidoer.omni_control.sessions import SessionStore
 from omnidoer.omni_control.tasks import TaskStore
@@ -41,25 +44,45 @@ class CliTest(unittest.TestCase):
 
     def test_control_input_secret_does_not_echo_secret(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
             env = {
                 "OMNIDOER_HOME": tmp,
                 "OMNIDOER_CONTROL_TEST_MODE": "1",
                 "OMNIDOER_TEST_USERNAME": "demo",
                 "OMNIDOER_TEST_PASSWORD": "super-secret-password",
             }
-            store = RequestStore(Path(tmp) / "control_requests.json")
-            req = store.create(
-                "credential",
-                origin="http://127.0.0.1:8765",
-                top_level_url="http://127.0.0.1:8765/login",
-                action_summary="login",
-                requested_fields=["username", "password"],
-            )
-            result = self.run_cli(["control", "input-secret", req.request_id], env=env)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            combined = result.stdout + result.stderr
-            self.assertNotIn("super-secret-password", combined)
-            self.assertIn("Secret Broker", combined)
+            try:
+                store = RequestStore(Path(tmp) / "control_requests.json")
+                req = store.create(
+                    "credential",
+                    origin="http://127.0.0.1:8765",
+                    top_level_url="http://127.0.0.1:8765/login",
+                    action_summary="login",
+                    requested_fields=["username", "password"],
+                    allowed_device_id="dev_cli",
+                )
+                result = self.run_cli(["control", "input-secret", req.request_id], env=env)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                combined = result.stdout + result.stderr
+                self.assertNotIn("super-secret-password", combined)
+                self.assertIn("Secret Broker", combined)
+                stored = RequestStore(Path(tmp) / "control_requests.json").get(req.request_id)
+                self.assertEqual(stored.response_ciphertext["device_id"], "dev_cli")
+                self.assertEqual(float(stored.response_ciphertext["expires_at"]), stored.expires_at)
+                broker = SecretBroker(
+                    store=RequestStore(Path(tmp) / "control_requests.json"),
+                    replay_guard=ReplayGuard(Path(tmp) / "replay.json"),
+                    audit=AuditLog(Path(tmp) / "audit.jsonl"),
+                )
+                received = broker.receive_from_control_client(req.request_id)
+                self.assertEqual(received["fields"], ["username", "password"])
+                self.assertNotIn("super-secret-password", repr(received))
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
 
     def test_control_captcha_challenge_does_not_store_answer_payload(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
