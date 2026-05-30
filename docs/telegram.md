@@ -22,3 +22,8 @@ Not allowed:
 - Human Takeover streaming.
 
 High-sensitivity interaction belongs in the Control Client.
+
+The runtime bridge is notify-only. Its payloads may contain request metadata
+such as `request_id`, request type, origin, risk level, and a Control Client
+URL. They must not contain secret fields, challenge answers, browser frames,
+session tokens, pairing tokens, or takeover user input.
