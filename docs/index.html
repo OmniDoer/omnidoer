@@ -288,6 +288,7 @@
   <nav aria-label="Primary">
     <a href="https://github.com/OmniDoer/omnidoer" data-i18n="nav_github">GitHub</a>
     <a href="#install" data-i18n="nav_install">Install</a>
+    <a href="#technical-proof" data-i18n="nav_proof">Technical Proof</a>
     <a href="control-service-cloud.md" data-i18n="nav_cloud">Cloud Direct</a>
     <a href="control-client.md" data-i18n="nav_control">Control Client</a>
     <a href="security-model.md" data-i18n="nav_security">Security Model</a>
@@ -324,6 +325,31 @@
         <li data-i18n="beyond_security">Secure boundary: credentials and challenge secrets never move into model context.</li>
         <li data-i18n="beyond_handoff">Seamless handoff: challenge screens and anti-bot sessions are streamed to the paired client for direct completion.</li>
         <li data-i18n="beyond_payment">Cost-aware loop: the existing Codex billing path is preserved; spend requires explicit human approval.</li>
+      </ul>
+    </section>
+
+    <section id="technical-proof">
+      <h2 data-i18n="proof_heading">Technical Proof of OmniDoer Superiority</h2>
+      <p data-i18n="proof_copy">The execution advantage comes from three boundaries, not model tricks: strict secret custody, live human projection for challenge gates, and explicit approvals for high-risk actions.</p>
+      <div class="grid">
+        <article class="card">
+          <h3 data-i18n="proof_boundary_title">Security Boundary</h3>
+          <p data-i18n="proof_boundary_copy">Secrets, keys, and challenge answers are encrypted and policy-gated between Broker, Vault, and browser worker; the model receives only redacted status and observations.</p>
+        </article>
+        <article class="card">
+          <h3 data-i18n="proof_projection_title">Challenge Projection</h3>
+          <p data-i18n="proof_projection_copy">CAPTCHA, anti-bot, passkey/WebAuthn, registration, and 3DS flows are projected to the paired Control Client; user input is only accepted when frame freshness and request scope are valid.</p>
+        </article>
+        <article class="card">
+          <h3 data-i18n="proof_approval_title">Risk Approval</h3>
+          <p data-i18n="proof_approval_copy">Payments, OAuth grants, account changes, media upload, and message sending all require an explicit scoped approval path before execution.</p>
+        </article>
+      </div>
+      <p data-i18n="proof_tests_intro" class="install-note">Validation is test-enforced:</p>
+      <ul>
+        <li data-i18n="proof_tests_1">`test_challenge_relay.py`, `test_cloud_takeover_stream.py`, `test_takeover_stream.py`, `test_takeover_browser_relay.py`</li>
+        <li data-i18n="proof_tests_2">`test_approval.py`, `test_control_payment_server.py`, `test_policy.py`</li>
+        <li data-i18n="proof_tests_3">`test_redactor.py`, `test_vault.py`, and `test_browser_controller.py`</li>
       </ul>
     </section>
 
@@ -432,6 +458,19 @@
         beyond_security: "Secure boundary: credentials and challenge answers are never placed into model context.",
         beyond_handoff: "Seamless switch: CAPTCHA/anti-bot/passkey sessions are streamed to the user client for live completion.",
         beyond_payment: "Cost-aware autonomy: high-risk actions remain user-approved and always run on local billing/runtime control.",
+        nav_proof: "Technical Proof",
+        proof_heading: "Technical Proof of Superiority",
+        proof_copy: "The execution advantage comes from three boundaries, not model tricks: strict secret custody, live human projection for challenge gates, and explicit approvals for high-risk actions.",
+        proof_boundary_title: "Security Boundary",
+        proof_boundary_copy: "Secrets, keys, and challenge answers are encrypted and policy-gated between Broker, Vault, and browser worker; the model receives only redacted status and observations.",
+        proof_projection_title: "Challenge Projection",
+        proof_projection_copy: "CAPTCHA, anti-bot, passkey/WebAuthn, registration, and 3DS flows are projected to the paired Control Client; user input is accepted only when frame freshness and request scope are valid.",
+        proof_approval_title: "Risk Approval",
+        proof_approval_copy: "Payments, OAuth grants, account changes, media upload, and message sending all require an explicit scoped approval path before execution.",
+        proof_tests_intro: "Validation is test-enforced:",
+        proof_tests_1: "`test_challenge_relay.py`, `test_cloud_takeover_stream.py`, `test_takeover_stream.py`, `test_takeover_browser_relay.py`",
+        proof_tests_2: "`test_approval.py`, `test_control_payment_server.py`, `test_policy.py`",
+        proof_tests_3: "`test_redactor.py`, `test_vault.py`, `test_browser_controller.py`",
         install_heading: "One-Command Install",
         install_copy: "Install OmniDoer on a Linux server or local development machine with one shell command. The bootstrap keeps Codex as the model and auth entrypoint, then starts the Control Service and registers the MCP sidecar when Codex CLI is available.",
         install_local_title: "Local Developer Runtime",
@@ -465,6 +504,19 @@
         beyond_security: "安全边界前置：密码、挑战答案不进入模型上下文。",
         beyond_handoff: "无缝切换：CAPTCHA、anti-bot、passkey 流程会实时投影到 Control Client 由用户完成。",
         beyond_payment: "成本与自治并重：高风险动作保持用户审批，支出与关键变更可追溯可控。",
+        nav_proof: "技术验证",
+        proof_heading: "超越性执行的技术证据",
+        proof_copy: "执行优势来自“边界设计”而非模型技巧：密钥和凭据控制、挑战页安全投影给人类，以及高风险动作审批闭环。",
+        proof_boundary_title: "安全边界",
+        proof_boundary_copy: "密码、密钥与挑战答案经过加密并经 Broker、Vault 与浏览器工作进程的策略网关；模型仅接收脱敏状态和观察。",
+        proof_projection_title: "挑战投影",
+        proof_projection_copy: "CAPTCHA、反爬、passkey/WebAuthn、注册与 3DS 流程会投影到配对的 Control Client；人类输入仅在帧新鲜度和设备范围校验通过时接收。",
+        proof_approval_title: "风险审批",
+        proof_approval_copy: "支付、OAuth 授权、账号删除/修改、文件写入与消息发送必须经过可回放防护的作用域审批。",
+        proof_tests_intro: "安全验证靠测试闭环保证：",
+        proof_tests_1: "`test_challenge_relay.py`、`test_cloud_takeover_stream.py`、`test_takeover_stream.py`、`test_takeover_browser_relay.py`",
+        proof_tests_2: "`test_approval.py`、`test_control_payment_server.py`、`test_policy.py`",
+        proof_tests_3: "`test_redactor.py`、`test_vault.py`、`test_browser_controller.py`",
         install_heading: "一键安装",
         install_copy: "用一条 shell 命令把 OmniDoer 安装到 Linux 服务器或本地开发机。bootstrap 会保留 Codex 作为模型与认证入口，启动 Control Service，并在可用时把 MCP sidecar 注册到 Codex CLI。",
         install_local_title: "本地开发运行时",
@@ -491,6 +543,24 @@
         visual_cloud_caption: "Servicio Cloud Direct para dispositivos, sesiones, Broker, Vault y control del navegador.",
         visual_matrix_caption: "Matriz de funciones para acciones web, secretos, aprobaciones, registro y auditoría.",
         visual_action_caption: "Posicionamiento para registro, login, formularios, descargas, compras y takeover autorizados.",
+        beyond_heading: "Más allá de la automatización",
+        beyond_copy: "OpenClaw y macros similares pueden ejecutar pasos UI, pero se detienen en CAPTCHA, verificación anti-bot y pagos; OmniDoer combina planificación Codex con ejecución segura y delega los pasos críticos al usuario.",
+        beyond_security: "No se mueve ningún secreto al contexto del modelo.",
+        beyond_handoff: "Cambio transparente: sesiones de CAPTCHA/anti-bot/passkey se envían al Control Client para completar en vivo.",
+        beyond_payment: "Pago con autonomía controlada: las acciones críticas requieren aprobación humana explícita.",
+        nav_proof: "Prueba técnica",
+        proof_heading: "Prueba técnica de superioridad",
+        proof_copy: "La ventaja de ejecución proviene de tres límites, no de trucos de modelo: custodia estricta de secretos, proyección humana en tiempo real de retos y aprobaciones explícitas para acciones de alto riesgo.",
+        proof_boundary_title: "Límite de seguridad",
+        proof_boundary_copy: "Las contraseñas, claves y respuestas de challenge están cifradas y pasadas por Broker, Vault y navegador con política de alcance; el modelo recibe solo estado desensibilizado y observación.",
+        proof_projection_title: "Proyección de retos",
+        proof_projection_copy: "CAPTCHA, anti-bot, passkey/WebAuthn, registro y flujos 3DS se proyectan al Control Client emparejado; la entrada humana entra solo con validez de frescura y alcance.",
+        proof_approval_title: "Aprobación de riesgo",
+        proof_approval_copy: "Pagos, autorizaciones OAuth, cambios de cuenta, escritura de archivos y envío de mensajes requieren aprobación con alcance explícito antes de ejecutarse.",
+        proof_tests_intro: "La validación se basa en pruebas:",
+        proof_tests_1: "`test_challenge_relay.py`, `test_cloud_takeover_stream.py`, `test_takeover_stream.py`, `test_takeover_browser_relay.py`",
+        proof_tests_2: "`test_approval.py`, `test_control_payment_server.py`, `test_policy.py`",
+        proof_tests_3: "`test_redactor.py`, `test_vault.py`, `test_browser_controller.py`",
         install_heading: "Despliegue con un comando",
         install_copy: "Instala OmniDoer en un servidor Linux o entorno local con un solo comando shell. El bootstrap conserva Codex como entrada de modelo y autenticación, inicia Control Service y registra el sidecar MCP cuando Codex CLI está disponible.",
         install_local_title: "Runtime local",
@@ -517,6 +587,24 @@
         visual_cloud_caption: "Service Cloud Direct pour appareils, sessions, Broker, Vault et contrôle navigateur.",
         visual_matrix_caption: "Matrice des actions navigateur, secrets, approbations, inscription et audit.",
         visual_action_caption: "Positionnement pour inscription, connexion, formulaires, téléchargements, achats et takeover autorisés.",
+        beyond_heading: "Au-delà des agents automatisés",
+        beyond_copy: "Les macros type OpenClaw exécutent des pas UI, mais bloquent sur CAPTCHA/anti-bot et paiements; OmniDoer combine la planification Codex avec une exécution sécurisée et passe les étapes critiques à l'utilisateur.",
+        beyond_security: "Les secrets ne quittent jamais le contexte modèle.",
+        beyond_handoff: "Passage fluide: flux CAPTCHA/anti-bot/passkey envoyés au Control Client pour fin d'interaction en direct.",
+        beyond_payment: "Coût contrôlé: les actions risquées exigent une approbation humaine explicite.",
+        nav_proof: "Preuve technique",
+        proof_heading: "Preuve technique de supériorité",
+        proof_copy: "L'avantage de l'exécution vient de trois limites, pas de l'astuce du modèle : conservation stricte des secrets, projection humaine en direct des défis et approbations explicites pour les actions à risque.",
+        proof_boundary_title: "Limite de sécurité",
+        proof_boundary_copy: "Mots de passe, clés et réponses de challenge sont chiffrés puis traversent Broker, Vault et navigateur avec politique; le modèle ne voit que des observations assainies.",
+        proof_projection_title: "Projection des défis",
+        proof_projection_copy: "Les flux CAPTCHA, anti-bot, passkey/WebAuthn, enregistrement et 3DS sont projetés au Control Client appairé; l'entrée humaine n'est acceptée qu'avec la fraîcheur de frame et la portée correctes.",
+        proof_approval_title: "Approbation des risques",
+        proof_approval_copy: "Paiements, autorisations OAuth, modifications/suppressions de compte, écritures de fichiers et envois de messages nécessitent une approbation scoped avant exécution.",
+        proof_tests_intro: "La validation est basée sur des tests :",
+        proof_tests_1: "`test_challenge_relay.py`, `test_cloud_takeover_stream.py`, `test_takeover_stream.py`, `test_takeover_browser_relay.py`",
+        proof_tests_2: "`test_approval.py`, `test_control_payment_server.py`, `test_policy.py`",
+        proof_tests_3: "`test_redactor.py`, `test_vault.py`, `test_browser_controller.py`",
         install_heading: "Déploiement en une commande",
         install_copy: "Installez OmniDoer sur un serveur Linux ou une machine locale avec une seule commande shell. Le bootstrap garde Codex comme point d'entrée modèle et auth, lance Control Service et enregistre le sidecar MCP si Codex CLI est disponible.",
         install_local_title: "Runtime local",
@@ -543,6 +631,24 @@
         visual_cloud_caption: "Cloud-Direct-Service für Geräte, Sitzungen, Broker, Vault und Browsersteuerung.",
         visual_matrix_caption: "Funktionsmatrix für Browseraktionen, Secrets, Freigaben, Registrierung und Audit.",
         visual_action_caption: "Positionierung für autorisierte Registrierung, Login, Formulare, Downloads, Käufe und Takeover.",
+        beyond_heading: "Über die Automatisierungsgrenzen hinaus",
+        beyond_copy: "Makro-basierte Automation kann UI-Schritte ausführen, aber bei CAPTCHA/Anti-Bot und Zahlungen zu stoppen; OmniDoer kombiniert Codex-Planung mit sicherem Lauf und übergibt kritische Schritte an den Nutzer.",
+        beyond_security: "Secrets bleiben vor dem Modell verborgen.",
+        beyond_handoff: "Nahtloser Wechsel: CAPTCHA/anti-bot/passkey-Flüsse werden in den Control Client für Live-Interaktion projiziert.",
+        beyond_payment: "Kostensensitives Vorgehen: risikobehaftete Aktionen brauchen explizite Nutzerfreigabe.",
+        nav_proof: "Technischer Nachweis",
+        proof_heading: "Technischer Nachweis der Überlegenheit",
+        proof_copy: "Die Ausführungs-Überlegenheit beruht auf drei Grenzen, nicht auf Modelltricks: sichere Secret-Verwahrung, direkte Mensch-Projektion bei Challenge-Flows und explizite Freigaben bei risikoreichen Aktionen.",
+        proof_boundary_title: "Sicherheitsgrenze",
+        proof_boundary_copy: "Passwörter, Schlüssel und Challenge-Antworten werden verschlüsselt und per Broker, Vault und Browser-Worker policy-gesteuert; das Modell erhält nur geschwärzte Zustände und Beobachtungen.",
+        proof_projection_title: "Challenge-Projektion",
+        proof_projection_copy: "CAPTCHA, Anti-Bot, passkey/WebAuthn, Registrierung und 3DS-Flows werden an den gepaarten Control Client projiziert; menschliche Eingaben werden nur bei gültiger Frame-Frische und Scope-Prüfung akzeptiert.",
+        proof_approval_title: "Risikofreigabe",
+        proof_approval_copy: "Zahlungen, OAuth-Freigaben, Kontoänderungen/Löschungen, Dateischreibzugriffe und Nachrichtensenden benötigen explizite Scoped-Freigaben vor Ausführung.",
+        proof_tests_intro: "Die Validierung ist testbasiert:",
+        proof_tests_1: "`test_challenge_relay.py`, `test_cloud_takeover_stream.py`, `test_takeover_stream.py`, `test_takeover_browser_relay.py`",
+        proof_tests_2: "`test_approval.py`, `test_control_payment_server.py`, `test_policy.py`",
+        proof_tests_3: "`test_redactor.py`, `test_vault.py`, `test_browser_controller.py`",
         install_heading: "Ein-Befehl-Deployment",
         install_copy: "Installiere OmniDoer auf einem Linux-Server oder lokalen Entwicklungsrechner mit einem Shell-Befehl. Das Bootstrap behält Codex als Modell- und Auth-Einstieg, startet den Control Service und registriert das MCP-Sidecar, wenn Codex CLI verfügbar ist.",
         install_local_title: "Lokale Runtime",
@@ -569,6 +675,24 @@
         visual_cloud_caption: "ペアリング端末、session、Broker、Vault、ブラウザ制御の Cloud Direct サービス。",
         visual_matrix_caption: "ブラウザ操作、secret、承認、登録ハンドオフ、監査の機能マトリクス。",
         visual_action_caption: "許可された登録、ログイン、フォーム、ダウンロード、購入、ユーザー接管の位置づけ。",
+        beyond_heading: "自動化優先エージェントを超えて",
+        beyond_copy: "OpenClaw 等のマクロはクリック操作は得意だが、CAPTCHA/anti-bot や決済で停止する。OmniDoer は Codex の推論と安全実行面を組み合わせ、重要ステップはユーザーに手渡す。",
+        beyond_security: "シークレットはモデルのコンテキストへ入らない。",
+        beyond_handoff: "CAPTCHA / anti-bot / passkey は Control Client へライブ投影され、本人の操作で完了。",
+        beyond_payment: "高リスクな支払い・変更操作はユーザー承認付きでのみ実行される。",
+        nav_proof: "技術的根拠",
+        proof_heading: "優位性の技術的証拠",
+        proof_copy: "実行の優位性はモデルの高度化ではなく、3 つの境界にあります。厳格な Secret 管理、挑戦系フローのライブ投影、人手承認の高リスク管理です。",
+        proof_boundary_title: "セキュリティ境界",
+        proof_boundary_copy: "秘密情報・鍵・チャレンジ回答は暗号化され、Broker、Vault、ブラウザワーカーのポリシーを経由して管理されるため、モデルには脱敏状態だけが届きます。",
+        proof_projection_title: "チャレンジ投影",
+        proof_projection_copy: "CAPTCHA、anti-bot、passkey/WebAuthn、登録、3DS のフローは対となる Control Client に投影され、フレーム鮮度とデバイス範囲検証が通る場合のみ入力を受け付けます。",
+        proof_approval_title: "リスク承認",
+        proof_approval_copy: "支払い、OAuth 承認、アカウント変更、ファイル保存、メッセージ送信は、明示的なスコープ付き承認が必要です。",
+        proof_tests_intro: "検証はテストで担保されています:",
+        proof_tests_1: "`test_challenge_relay.py`、`test_cloud_takeover_stream.py`、`test_takeover_stream.py`、`test_takeover_browser_relay.py`",
+        proof_tests_2: "`test_approval.py`、`test_control_payment_server.py`、`test_policy.py`",
+        proof_tests_3: "`test_redactor.py`、`test_vault.py`、`test_browser_controller.py`",
         install_heading: "ワンコマンド配備",
         install_copy: "1 つの shell コマンドで OmniDoer を Linux サーバーまたはローカル開発環境へインストールします。bootstrap は Codex をモデルと認証の入口として維持し、Control Service を起動し、Codex CLI がある場合は MCP sidecar を登録します。",
         install_local_title: "ローカル Runtime",
@@ -595,6 +719,24 @@
         visual_cloud_caption: "페어링 장치, 세션, Broker, Vault, 브라우저 제어를 위한 Cloud Direct 서비스.",
         visual_matrix_caption: "브라우저 작업, secret 처리, 승인, 등록 핸드오프, 감사를 다루는 기능 매트릭스.",
         visual_action_caption: "허가된 가입, 로그인, 폼, 다운로드, 구매, 사용자 Takeover를 위한 포지셔닝.",
+        beyond_heading: "자동화 우선 에이전트 초월",
+        beyond_copy: "OpenClaw류 매크로는 클릭 동작은 잘 처리하지만 CAPTCHA/anti-bot, 결제 구간에서 중단된다. OmniDoer는 Codex 계획력에 안전 실행 면을 결합해 핵심 단계는 사용자에게 넘긴다.",
+        beyond_security: "비밀값은 절대 모델 컨텍스트로 전송되지 않는다.",
+        beyond_handoff: "CAPTCHA/anti-bot/passkey 세션은 Control Client로 실시간 투영되어 사용자 직접 완료.",
+        beyond_payment: "고위험 지불/계정 변경은 사용자 승인 후에만 진행.",
+        nav_proof: "기술 증명",
+        proof_heading: "우위성의 기술적 근거",
+        proof_copy: "실행 우위는 모델 트릭이 아니라 세 가지 경계에서 나옵니다. 엄격한 비밀 보호, 챌린지 플로우의 실시간 사용자 투영, 고위험 동작의 명시적 승인 체인입니다.",
+        proof_boundary_title: "보안 경계",
+        proof_boundary_copy: "비밀번호, 키, 챌린지 응답은 암호화되어 Broker, Vault, 브라우저 워커의 정책 게이트를 거쳐 전달되며 모델은 마스킹된 상태만 받습니다.",
+        proof_projection_title: "챌린지 투영",
+        proof_projection_copy: "CAPTCHA, anti-bot, passkey/WebAuthn, 가입, 3DS 플로우는 짝을 이룬 Control Client로 투영되며 프레임 신선도와 기기 범위 검증이 통과된 경우에만 입력이 허용됩니다.",
+        proof_approval_title: "위험 승인",
+        proof_approval_copy: "결제, OAuth 승인, 계정 변경/삭제, 파일 저장, 메시지 전송은 스코프 승인 절차를 명시적으로 통과해야 실행됩니다.",
+        proof_tests_intro: "검증은 테스트로 보장됩니다:",
+        proof_tests_1: "`test_challenge_relay.py`, `test_cloud_takeover_stream.py`, `test_takeover_stream.py`, `test_takeover_browser_relay.py`",
+        proof_tests_2: "`test_approval.py`, `test_control_payment_server.py`, `test_policy.py`",
+        proof_tests_3: "`test_redactor.py`, `test_vault.py`, `test_browser_controller.py`",
         install_heading: "원커맨드 배포",
         install_copy: "하나의 shell 명령으로 OmniDoer를 Linux 서버나 로컬 개발 머신에 설치합니다. bootstrap은 Codex를 모델 및 인증 진입점으로 유지하고 Control Service를 시작하며, Codex CLI가 있으면 MCP sidecar를 등록합니다.",
         install_local_title: "로컬 Runtime",

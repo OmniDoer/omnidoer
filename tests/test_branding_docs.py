@@ -59,6 +59,8 @@ class BrandingDocsTest(unittest.TestCase):
         self.assertIn("All-purpose web action, inside the security boundary.", readme)
         self.assertIn("The agent can act only through the controlled security boundary.", readme)
         self.assertIn("OpenClaw", readme)
+        self.assertIn("Practical comparison", readme)
+        self.assertIn("Security validation and test contracts", readme)
         self.assertIn("OmniDoer is not a CAPTCHA bypasser.", readme)
         self.assertIn("guarded browser 2FA", readme)
         self.assertIn("Payments, purchases, account changes, OAuth grants, message sending", readme)
@@ -88,6 +90,7 @@ class BrandingDocsTest(unittest.TestCase):
         self.assertIn("streams the live control", security)
         self.assertIn("surface to the paired client", security)
         self.assertIn("model context", security)
+        self.assertIn("Reproducible safety guarantees", security)
 
     def test_one_command_installer_is_documented_and_executable(self) -> None:
         installer = self.root / "omnidoer" / "scripts" / "install-cloud-direct.sh"
@@ -127,6 +130,10 @@ class BrandingDocsTest(unittest.TestCase):
         self.assertIn("Agent Runtime Visuals", page)
         self.assertIn("One-Command Install", page)
         self.assertIn("Beyond Automation-First Agents", page)
+        self.assertIn("Technical Proof of OmniDoer Superiority", page)
+        self.assertIn('id="technical-proof"', page)
+        self.assertIn("proof_heading", page)
+        self.assertIn("Technical Proof", page)
         self.assertIn("install-cloud-direct.sh", page)
         self.assertIn("OMNIDOER_CLOUD_DIRECT=1", page)
         self.assertIn("All-purpose web action, inside the security boundary.", page)
@@ -156,6 +163,48 @@ class BrandingDocsTest(unittest.TestCase):
         self.assertEqual(manifest["name"], "OmniDoer Control Client")
         icon_srcs = {icon["src"] for icon in manifest["icons"]}
         self.assertEqual(icon_srcs, {"/icon-192.png", "/icon-512.png"})
+
+    def test_pages_i18n_has_technical_proof_keys_for_all_languages(self) -> None:
+        page = (self.root / "docs" / "index.html").read_text()
+        languages = ("en", "zh-CN", "es", "fr", "de", "ja", "ko")
+        required_keys = (
+            "nav_proof",
+            "proof_heading",
+            "proof_copy",
+            "proof_boundary_title",
+            "proof_boundary_copy",
+            "proof_projection_title",
+            "proof_projection_copy",
+            "proof_approval_title",
+            "proof_approval_copy",
+            "proof_tests_intro",
+            "proof_tests_1",
+            "proof_tests_2",
+            "proof_tests_3",
+        )
+        def extract_language_block(content: str, lang: str) -> str:
+            marker = f'\n      "{lang}": {{'
+            block_start = content.find(marker)
+            if block_start < 0:
+                raise AssertionError(f"missing language block: {lang}")
+            brace_start = content.find("{", block_start + len(marker) - 1)
+            if brace_start < 0:
+                raise AssertionError(f"missing block start brace for {lang}")
+
+            depth = 0
+            for idx in range(brace_start, len(content)):
+                if content[idx] == "{":
+                    depth += 1
+                elif content[idx] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        return content[block_start : idx + 1]
+            raise AssertionError(f"could not close language block: {lang}")
+
+        for lang in languages:
+            block = extract_language_block(page, lang)
+            for key in required_keys:
+                self.assertIn(f"{key}:", block, f"{lang} missing {key}")
 
 
 if __name__ == "__main__":

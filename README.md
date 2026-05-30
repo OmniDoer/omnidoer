@@ -30,9 +30,10 @@ handles credential use, challenge completion, and high-risk approvals.
 
 Live page: [https://omnidoer.github.io/](https://omnidoer.github.io/)
 
-Project Pages default URL includes this repository path. If you need a pure
-`omnidoer.github.io` root URL, publish from a user-site repository
-(`omnidoer.github.io`) or set a custom domain to this Pages site.
+This README belongs to the project-source repository; project pages are typically
+served at `omnidoer.github.io/omnidoer` by default. For a direct
+`omnidoer.github.io` landing URL, publish the page assets in the user-site repo
+named `omnidoer.github.io`.
 
 ## One-Command Install
 
@@ -110,6 +111,33 @@ Security and autonomy are intentionally coupled:
 - **Smoother autonomy**: the model runs the safe part automatically, then switches
   to human completion at challenge/consent thresholds and resumes after release.
 
+#### Practical comparison
+
+| Stage | OpenClaw/macros | Prompt-only Codex | OmniDoer |
+|---|---|---|---|
+| Repetitive page workflows | ✅ high throughput | ✅ with manual prompting | ✅ with Codex planning and MCP execution |
+| Anti-bot, CAPTCHA, or passkey | ❌ usually blocked | ⚠️ can detect intent but no safe execution boundary | ✅ pauses and streams the live browser to the user for completion |
+| Registration, account recovery, consent | ❌ cannot complete without unsafe automation | ⚠️ can draft steps, not safely execute | ✅ user-completion handoff through the same Cloud Direct stream |
+| Payments, purchases, account changes | ❌ unsafe if automated | ⚠️ can overact without explicit approval flow | ✅ scoped approval gate with replay protection |
+| Secret custody | Usually local text/clipboard workflows | Not designed for secret custody | ✅ Vault/Broker policy boundary, secrets never enter model context |
+| Audit and compliance evidence | ⚠️ weak/implicit | ⚠️ mostly tool-level logs | ✅ tamper-evident redacted audit trail |
+
+### Why this design solves the hard part
+
+The key problem is not raw tool calling. The hard part is keeping web execution in
+security policy while still allowing broad workflows:
+
+- **Secrets and keys never become model-visible state.** Passwords, OTP seeds,
+  payment credentials, and challenge secrets stay in the Vault and Broker control
+  path with origin-scoped policy decisions.
+- **Challenge interaction is projected safely to the human.** CAPTCHA, anti-bot,
+  MFA, passkey/WebAuthn, registration and 3DS frames are streamed to the
+  paired Control Client. Input is only accepted when the frame freshness and
+  request scope checks pass.
+- **Risky action is user-resolved before any irreversible action.** Payments,
+  OAuth grants, account changes, message sending, and file operations pass
+  through explicit approvals that bind to scoped fingerprints.
+
 The security loop is deliberately narrow:
 
 1. The Agent may request an action.
@@ -155,6 +183,29 @@ OmniDoer is not a CAPTCHA bypasser.
 OmniDoer is not a fraud tool.
 OmniDoer is not an autonomous spender.
 OmniDoer is a user-authorized execution layer for the user's own runtime.
+
+### Security validation and test contracts
+
+The implementation is explicitly verified by focused tests for the most
+security-critical paths:
+
+- `tests/test_challenge_relay.py`: challenge answers and CAPTCHA/passkey secrets are
+  never returned to model-visible output.
+- `tests/test_redactor.py`: screenshots, DOM snapshots, and errors are redacted.
+- `tests/test_cloud_takeover_stream.py`: takeover stream identity, frame freshness,
+  and stale input rejection.
+- `tests/test_approval.py` and `tests/test_control_payment_server.py`: high-risk
+  actions require explicit scoped approvals.
+- `tests/test_takeover_stream.py` and `tests/test_takeover_browser_relay.py`: human
+  completion channels remain bound to request and device scope.
+- `tests/test_vault.py` and `tests/test_policy.py`: origin/action scope and secret
+  custody controls around credential use.
+
+Run the focused security test subset:
+
+```sh
+pytest -q tests/test_challenge_relay.py tests/test_redactor.py tests/test_takeover_stream.py tests/test_control_payment_server.py tests/test_approval.py tests/test_cloud_takeover_stream.py
+```
 
 The agent can act only through the controlled security boundary. Secrets stay
 with the Broker, Vault, browser isolation layer, and user-controlled client.
