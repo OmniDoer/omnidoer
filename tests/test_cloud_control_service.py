@@ -52,6 +52,10 @@ class CloudControlServiceTest(unittest.TestCase):
         config = build_config(host="127.0.0.1", port=8787)
         self.assertEqual(config.mode, "local_dev")
 
+    def test_local_bind_with_public_url_requires_cloud_direct(self) -> None:
+        with self.assertRaises(ValueError):
+            build_config(host="127.0.0.1", port=8787, public_url="https://agent.example.com")
+
     def test_lan_mode_requires_pairing_session_and_csrf(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             old_home = os.environ.get("OMNIDOER_HOME")

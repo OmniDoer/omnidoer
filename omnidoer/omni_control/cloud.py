@@ -36,6 +36,11 @@ def validate_public_url(public_url: str, *, require_https: bool) -> None:
         raise ValueError("cloud direct public-url must be https")
 
 
+def _public_url_is_local(public_url: str) -> bool:
+    host = urlparse(public_url).hostname
+    return host in LOCAL_HOSTS
+
+
 def build_config(
     *,
     host: str,
@@ -64,6 +69,8 @@ def build_config(
     elif host in LOCAL_HOSTS:
         public_url = public_url or f"http://{host}:{port}"
         validate_public_url(public_url, require_https=False)
+        if not _public_url_is_local(public_url):
+            raise ValueError("non-local public-url requires explicit --cloud-direct")
         mode = "local_dev"
     else:
         public_url = public_url or f"http://{host}:{port}"

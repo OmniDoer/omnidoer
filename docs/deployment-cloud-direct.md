@@ -27,7 +27,9 @@ omnidoer control serve \
 non-HTTPS `public-url` unless `--insecure-dev-public` is explicitly provided
 for temporary testing. Non-loopback LAN mode is for trusted local networks and
 still requires pairing, session auth, CSRF, origin checks, and request/device
-scoping. Local development can use:
+scoping. A loopback bind with a non-local `--public-url` is rejected unless
+Cloud Direct is explicit, so a reverse proxy cannot accidentally expose Local
+Dev Mode. Local development can use:
 
 When `--behind-reverse-proxy` is used, configure the proxy to send
 `X-Forwarded-Proto: https` or `Forwarded: proto=https` to the OmniDoer backend.
