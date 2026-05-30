@@ -5,7 +5,9 @@ The model is not a security boundary.
 Security boundaries:
 
 - Codex CLI remains the only model/agent inference entry.
-- OmniDoer tools run as local MCP/sidecar actions.
+- OmniDoer tools run as local MCP/sidecar actions on the user's own runtime.
+- Codex/GPT remains the sole inference engine; the security boundary never runs
+  inside model output paths.
 - Secret Broker validates origin and policy before credential use.
 - Vault encrypts secret payloads with Argon2id-derived keys and AES-GCM.
 - Session and request identifiers are bound to device, timestamp, nonce, request id,

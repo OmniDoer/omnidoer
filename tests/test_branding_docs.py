@@ -69,6 +69,9 @@ class BrandingDocsTest(unittest.TestCase):
         self.assertIn("install-cloud-direct.sh", readme)
         self.assertIn("OMNIDOER_CLOUD_DIRECT=1", readme)
         self.assertNotIn("智能体可以行动，但秘密必须留在本地。", readme)
+        pkg_info = self.root / "omnidoer.egg-info" / "PKG-INFO"
+        if pkg_info.exists():
+            self.assertNotIn("智能体可以行动，但秘密必须留在本地。", pkg_info.read_text())
         self.assertIn("不要把 OmniDoer 做成默认 OpenAI API 客户端", agents)
         self.assertIn("docs/assets/localized", agents)
 
@@ -136,7 +139,7 @@ class BrandingDocsTest(unittest.TestCase):
         self.assertIn("Technical Proof", page)
         self.assertIn("install-cloud-direct.sh", page)
         self.assertIn("OMNIDOER_CLOUD_DIRECT=1", page)
-        self.assertIn("All-purpose web action, inside the security boundary.", page)
+        self.assertIn("All-purpose web action on the user's own server", page)
         self.assertIn("install_after_commands", page)
         self.assertIn("打开本地 demo 并下载我的发票", page)
         self.assertIn('href="#install"', page)

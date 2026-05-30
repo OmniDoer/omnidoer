@@ -282,7 +282,7 @@
     </div>
     <div class="hero-copy">
       <h1>OmniDoer</h1>
-      <p class="tagline" data-i18n="hero_tagline">All-purpose web action, inside the security boundary. A Codex CLI MCP sidecar where secrets remain with the broker, vault, and user-controlled client.</p>
+      <p class="tagline" data-i18n="hero_tagline">All-purpose web action on the user's own server: Codex plans with GPT strengths, while secrets stay behind Broker/Vault boundaries and sensitive flows are handed to the human in a secure stream.</p>
     </div>
   </header>
   <nav aria-label="Primary">
@@ -301,7 +301,7 @@
       <div class="grid">
         <article class="card">
           <h3 data-i18n="card_codex_title">Codex Preserved</h3>
-          <p data-i18n="card_codex_copy">OmniDoer extends Codex CLI through MCP and does not create a default OpenAI API client or billing path.</p>
+          <p data-i18n="card_codex_copy">OmniDoer keeps Codex as the model and billing entrypoint, then runs execution tools on the user's server through MCP.</p>
         </article>
         <article class="card">
           <h3 data-i18n="card_control_title">Control Client</h3>
@@ -320,17 +320,17 @@
 
     <section>
       <h2 data-i18n="beyond_heading">Why OmniDoer Is Beyond Automation-Only Agents</h2>
-      <p data-i18n="beyond_copy">OpenClaw-style macros and prompt-only assistants can start workflows, but they usually stop at anti-bot, registration, and payment gates. OmniDoer combines Codex planning with a secure Linux runtime, then hands the human-critical steps to the user and resumes automatically.</p>
+      <p data-i18n="beyond_copy">OpenClaw-style macros and prompt-only assistants can execute web steps, but they usually stop at anti-bot, registration, and payment gates. OmniDoer keeps Codex as the reasoning layer, adds secure execution on the user server, and hands trust-critical steps to the human without bypassing defenses.</p>
       <ul>
-        <li data-i18n="beyond_security">Secure boundary: credentials and challenge secrets never move into model context.</li>
-        <li data-i18n="beyond_handoff">Seamless handoff: challenge screens and anti-bot sessions are streamed to the paired client for direct completion.</li>
-        <li data-i18n="beyond_payment">Cost-aware loop: the existing Codex billing path is preserved; spend requires explicit human approval.</li>
+        <li data-i18n="beyond_security">Secure boundary: secrets and challenge materials stay in the encrypted Broker/Vault path, not model context.</li>
+        <li data-i18n="beyond_handoff">Seamless handoff: anti-bot, registration, and passkey flows stream live to the user client for completion.</li>
+        <li data-i18n="beyond_payment">Cost-aware autonomy: high-risk actions remain user-approved and always run under explicit billing and release control.</li>
       </ul>
     </section>
 
     <section id="technical-proof">
       <h2 data-i18n="proof_heading">Technical Proof of OmniDoer Superiority</h2>
-      <p data-i18n="proof_copy">The execution advantage comes from three boundaries, not model tricks: strict secret custody, live human projection for challenge gates, and explicit approvals for high-risk actions.</p>
+      <p data-i18n="proof_copy">The advantage is not model trickery; it is boundary-first design: encrypted secret custody, challenge projection to the user's client, and explicit approvals for high-risk actions.</p>
       <div class="grid">
         <article class="card">
           <h3 data-i18n="proof_boundary_title">Security Boundary</h3>
@@ -435,11 +435,11 @@
     };
     const copy = {
       "en": {
-        hero_tagline: "All-purpose web action, inside the security boundary. OmniDoer executes any web workflow a person can authorize, then hands off challenge and payment gates to the user in a secure stream.",
+        hero_tagline: "All-purpose web action on the user's own server: Codex plans with GPT strengths, while secrets stay behind Broker/Vault boundaries and sensitive flows are handed to the human in a secure stream.",
         nav_github: "GitHub", nav_install: "Install", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Security Model", nav_tools: "MCP Tools",
         secrets_heading: "Secrets Stay Out Of The Model",
         secrets_copy: "The agent may request an action. The broker checks the origin. The vault uses the secret. The browser receives the credential. The model never does.",
-        card_codex_title: "Codex Preserved", card_codex_copy: "OmniDoer extends Codex CLI through MCP and does not create a default OpenAI API client or billing path.",
+        card_codex_title: "Codex Preserved", card_codex_copy: "OmniDoer keeps Codex as the model and billing entrypoint, then runs execution tools on the user's server through MCP.",
         card_control_title: "Control Client", card_control_copy: "Users handle credentials, approvals, challenges, and human takeover from one PWA-friendly interface.",
         card_cloud_title: "Cloud Direct", card_cloud_copy: "Android, Windows, and browser clients connect directly to the user's own cloud server with pairing and E2EE secret submission.",
         card_registration_title: "Registration Handoff", card_registration_copy: "When a site needs a new account, the live registration page is proxied to the Control Client so the user completes signup and verification directly.",
@@ -454,19 +454,19 @@
         visual_matrix_caption: "Feature matrix covering browser actions, secret handling, approvals, registration handoff, and audit.",
         visual_action_caption: "Omni action positioning for authorized signup, login, forms, downloads, purchases, and user takeover.",
         beyond_heading: "Beyond Automation-First Agents",
-        beyond_copy: "OpenClaw and similar macro systems can execute UI steps, but they stall at anti-bot, registration, and payment gates. OmniDoer keeps Codex as the reasoning layer, adds secure execution on the user server, and lets humans complete the trust-critical steps through one paired session.",
-        beyond_security: "Secure boundary: credentials and challenge answers are never placed into model context.",
-        beyond_handoff: "Seamless switch: CAPTCHA/anti-bot/passkey sessions are streamed to the user client for live completion.",
-        beyond_payment: "Cost-aware autonomy: high-risk actions remain user-approved and always run on local billing/runtime control.",
+        beyond_copy: "OpenClaw and similar macro systems can execute UI steps, but they stall at anti-bot, registration, and payment gates. OmniDoer keeps Codex as the reasoning layer, adds secure execution on the user server, and hands trust-critical steps to the human without bypassing defenses.",
+        beyond_security: "Secure boundary: secrets and challenge materials stay in the encrypted Broker/Vault path, not model context.",
+        beyond_handoff: "Seamless switch: anti-bot, registration, and passkey flows stream live to the user client for completion.",
+        beyond_payment: "Cost-aware autonomy: high-risk actions remain user-approved and always run under explicit billing and release control.",
         nav_proof: "Technical Proof",
         proof_heading: "Technical Proof of Superiority",
-        proof_copy: "The execution advantage comes from three boundaries, not model tricks: strict secret custody, live human projection for challenge gates, and explicit approvals for high-risk actions.",
+        proof_copy: "The advantage is not model trickery; it is boundary-first design: encrypted secret custody, challenge projection to the user's client, and explicit approvals for high-risk actions.",
         proof_boundary_title: "Security Boundary",
-        proof_boundary_copy: "Secrets, keys, and challenge answers are encrypted and policy-gated between Broker, Vault, and browser worker; the model receives only redacted status and observations.",
+        proof_boundary_copy: "Secrets, keys, and challenge answers are encrypted and policy-gated through Broker, Vault, and browser worker; the model receives only redacted status and observations.",
         proof_projection_title: "Challenge Projection",
         proof_projection_copy: "CAPTCHA, anti-bot, passkey/WebAuthn, registration, and 3DS flows are projected to the paired Control Client; user input is accepted only when frame freshness and request scope are valid.",
         proof_approval_title: "Risk Approval",
-        proof_approval_copy: "Payments, OAuth grants, account changes, media upload, and message sending all require an explicit scoped approval path before execution.",
+        proof_approval_copy: "Payments, OAuth grants, account changes, media upload, and message sending all require explicit scoped approval before execution.",
         proof_tests_intro: "Validation is test-enforced:",
         proof_tests_1: "`test_challenge_relay.py`, `test_cloud_takeover_stream.py`, `test_takeover_stream.py`, `test_takeover_browser_relay.py`",
         proof_tests_2: "`test_approval.py`, `test_control_payment_server.py`, `test_policy.py`",
