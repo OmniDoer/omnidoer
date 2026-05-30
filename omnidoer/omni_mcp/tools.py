@@ -66,9 +66,65 @@ def tool_descriptors() -> list[dict]:
     ]
 
 
+def _error(status: str, message: str) -> dict:
+    return {"status": status, "error": message, "secret_exposed_to_model": False}
+
+
 def call_tool(name: str, arguments: dict | None = None) -> dict:
     if name not in ALLOWED_TOOLS:
         raise KeyError(name)
+    arguments = arguments or {}
+    if name.startswith("browser."):
+        try:
+            from omnidoer.omni_mcp.runtime import get_browser
+
+            browser = get_browser()
+            if name == "browser.open":
+                url = arguments.get("url")
+                if not url:
+                    return _error("error", "url required")
+                return browser.open(str(url))
+            if name == "browser.observe":
+                return {"status": "ok", "observation": browser.observe_dom(), "secret_exposed_to_model": False}
+            if name == "browser.click":
+                selector = arguments.get("selector") or arguments.get("selector_or_description")
+                if not selector:
+                    return _error("error", "selector required")
+                return browser.click(str(selector))
+            if name == "browser.type_text":
+                if arguments.get("secret"):
+                    return _error("rejected", "browser.type_text is for ordinary text; use credential tools for secrets")
+                selector = arguments.get("selector") or arguments.get("selector_or_description")
+                text = arguments.get("text")
+                if not selector:
+                    return _error("error", "selector required")
+                if text is None:
+                    return _error("error", "text required")
+                return browser.type_text(str(selector), str(text))
+            if name == "browser.download_current_file":
+                selector = str(arguments.get("selector") or arguments.get("selector_or_description") or "a[download]")
+                path = browser.download_current_file(selector=selector, output_dir=arguments.get("output_dir"))
+                return {"status": "downloaded", "path": str(path), "secret_exposed_to_model": False}
+            if name == "browser.current_origin":
+                return {"status": "ok", "origin": browser.current_origin(), "url": browser.current_url(), "secret_exposed_to_model": False}
+            if name == "browser.detect_challenge":
+                challenge_type = browser.detect_challenge()
+                return {
+                    "status": "ok",
+                    "challenge_type": challenge_type,
+                    "requires_user_interaction": bool(challenge_type),
+                    "secret_exposed_to_model": False,
+                }
+            if name == "browser.detect_antibot":
+                detected = browser.detect_antibot()
+                return {
+                    "status": "ok",
+                    "antibot_detected": detected,
+                    "requires_human_takeover": detected,
+                    "secret_exposed_to_model": False,
+                }
+        except Exception as exc:
+            return _error("unavailable", type(exc).__name__)
     if name == "control.list_requests":
         from omnidoer.omni_control.requests import RequestStore
 
