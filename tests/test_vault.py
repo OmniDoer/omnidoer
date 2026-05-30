@@ -52,6 +52,30 @@ class VaultTest(unittest.TestCase):
             self.assertEqual(metadata[0].username, "demo")
             self.assertEqual(metadata[0].allowed_origins, ["http://127.0.0.1:8765"])
 
+    def test_metadata_is_redacted_before_storage(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "vault.json"
+            Vault.create(path, "test-passphrase").add_credential(
+                username="demo",
+                password="fake-password-never-plain",
+                allowed_origins=["http://127.0.0.1:8765"],
+                metadata={
+                    "label": "demo login",
+                    "sms_code": "123456",
+                    "captcha_answer": "user-completed-secret",
+                    "payment_3ds_code": "654321",
+                },
+            )
+            raw = path.read_text()
+            self.assertIn("demo login", raw)
+            self.assertNotIn("user-completed-secret", raw)
+            self.assertNotIn("654321", raw)
+            metadata = Vault.load(path).list_metadata()[0].metadata
+            self.assertEqual(metadata["label"], "demo login")
+            self.assertEqual(metadata["sms_code"], "[REDACTED]")
+            self.assertEqual(metadata["captcha_answer"], "[REDACTED]")
+            self.assertEqual(metadata["payment_3ds_code"], "[REDACTED]")
+
 
 if __name__ == "__main__":
     unittest.main()

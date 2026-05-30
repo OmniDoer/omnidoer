@@ -10,6 +10,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from omnidoer.omni_observer.redactor import redact_dom_snapshot
 from omnidoer.omni_vault.crypto import decrypt_json_bytes, derive_key, encrypt_json_bytes, random_b64
 from omnidoer.omni_vault.models import CredentialMetadata, CredentialSecret
 
@@ -92,7 +93,7 @@ class Vault:
                 "credential_id": credential_id,
                 "username": username,
                 "allowed_origins": sorted(set(allowed_origins)),
-                "metadata": metadata or {},
+                "metadata": redact_dom_snapshot(metadata or {}),
                 "secret_nonce": nonce,
                 "secret_ciphertext": ciphertext,
                 "created_at": time.time(),
