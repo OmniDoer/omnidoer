@@ -82,20 +82,33 @@ Linux server. Codex plans the work. OmniDoer executes through a controlled
 browser, Secret Broker, encrypted Vault, approval gate, challenge relay, human
 takeover channel, and tamper-evident audit log.
 
-### Why this is a step beyond browser-only or automation-first agents
+### Why OmniDoer is beyond OpenClaw-style automation and prompt-only Codex usage
 
-OmniDoer is not a browser macro, not a CAPTCHA bypass engine, and not a
-replacement for the user's security judgment. It is a security-boundary
-execution surface around a cloud model:
+This project targets the gap where two existing patterns fail:
+
+- **OpenClaw-style automation** can click through pages but reaches a wall at
+  anti-bot checks, registration handoff, CAPTCHA flow, and payment consent.
+- **Prompt-only Codex usage** can reason clearly but has no safe execution plane
+  for real browser workflows.
+
+OmniDoer fills that gap by keeping Codex at the reasoning layer and adding:
+
+- **Secure cloud execution plane** on the user's own Linux server, not in model
+  prompts.
+- **Codex-plan + secure-runtime execution** for high-frequency browser flows.
+- **Human takeover on demand** for CAPTCHA, anti-bot, passkey/WebAuthn, 3DS,
+  account registration, OAuth consent, and other sensitive gates.
+- **Payment gates with explicit approval** before spend, account change, or
+  message sending.
+
+Security and autonomy are intentionally coupled:
 
 - **Cost-optimal planning**: Codex billing remains the primary control plane, so
-  credentials and execution stay local to the user's server.
-- **Real multimodal tasking**: model reasoning and visual observation still
-  use Codex/GPT model capabilities while never receiving secret values or
-  challenge answers.
-- **Higher safety, higher autonomy**: it can cover a larger fraction of real
-  workflows by switching between model execution and human-assisted completion
-  at challenge gates, registration handoffs, approvals, and payment checks.
+  credentials, sessions, and runtime secrets stay local to the user's server.
+- **Cloud-grade multimodal execution**: model reasoning and visual observation keep
+  GPT strengths while never receiving secret values or one-time challenge answers.
+- **Smoother autonomy**: the model runs the safe part automatically, then switches
+  to human completion at challenge/consent thresholds and resumes after release.
 
 The security loop is deliberately narrow:
 

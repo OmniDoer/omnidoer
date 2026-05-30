@@ -317,6 +317,16 @@
       </div>
     </section>
 
+    <section>
+      <h2 data-i18n="beyond_heading">Why OmniDoer Is Beyond Automation-Only Agents</h2>
+      <p data-i18n="beyond_copy">OpenClaw-style macros and prompt-only assistants can start workflows, but they usually stop at anti-bot, registration, and payment gates. OmniDoer combines Codex planning with a secure Linux runtime, then hands the human-critical steps to the user and resumes automatically.</p>
+      <ul>
+        <li data-i18n="beyond_security">Secure boundary: credentials and challenge secrets never move into model context.</li>
+        <li data-i18n="beyond_handoff">Seamless handoff: challenge screens and anti-bot sessions are streamed to the paired client for direct completion.</li>
+        <li data-i18n="beyond_payment">Cost-aware loop: the existing Codex billing path is preserved; spend requires explicit human approval.</li>
+      </ul>
+    </section>
+
     <section id="install">
       <h2 data-i18n="install_heading">One-Command Install</h2>
       <p data-i18n="install_copy">Install OmniDoer on a Linux server or local development machine with one shell command. The bootstrap keeps Codex as the model and auth entrypoint, then starts the Control Service and registers the MCP sidecar when Codex CLI is available.</p>
@@ -417,6 +427,11 @@
         visual_cloud_caption: "Cloud Direct control service for paired devices, sessions, broker, vault, and browser control.",
         visual_matrix_caption: "Feature matrix covering browser actions, secret handling, approvals, registration handoff, and audit.",
         visual_action_caption: "Omni action positioning for authorized signup, login, forms, downloads, purchases, and user takeover.",
+        beyond_heading: "Beyond Automation-First Agents",
+        beyond_copy: "OpenClaw and similar macro systems can execute UI steps, but they stall at anti-bot, registration, and payment gates. OmniDoer keeps Codex as the reasoning layer, adds secure execution on the user server, and lets humans complete the trust-critical steps through one paired session.",
+        beyond_security: "Secure boundary: credentials and challenge answers are never placed into model context.",
+        beyond_handoff: "Seamless switch: CAPTCHA/anti-bot/passkey sessions are streamed to the user client for live completion.",
+        beyond_payment: "Cost-aware autonomy: high-risk actions remain user-approved and always run on local billing/runtime control.",
         install_heading: "One-Command Install",
         install_copy: "Install OmniDoer on a Linux server or local development machine with one shell command. The bootstrap keeps Codex as the model and auth entrypoint, then starts the Control Service and registers the MCP sidecar when Codex CLI is available.",
         install_local_title: "Local Developer Runtime",
@@ -445,6 +460,11 @@
         visual_cloud_caption: "Cloud Direct 控制服务管理配对设备、会话、Broker、Vault 和浏览器控制。",
         visual_matrix_caption: "覆盖浏览器行动、secret 处理、审批、注册接管和审计的功能矩阵。",
         visual_action_caption: "用于授权注册、登录、表单、下载、购买和用户接管的全能行动定位。",
+        beyond_heading: "超越自动化优先的代理",
+        beyond_copy: "OpenClaw 这类浏览器宏擅长执行点击流程，但在反爬、注册、支付这类信任关卡会停滞。OmniDoer 保留 Codex 的推理能力，在用户服务器提供安全执行面，并把关键人机环节通过同一配对会话流式交给用户完成。",
+        beyond_security: "安全边界前置：密码、挑战答案不进入模型上下文。",
+        beyond_handoff: "无缝切换：CAPTCHA、anti-bot、passkey 流程会实时投影到 Control Client 由用户完成。",
+        beyond_payment: "成本与自治并重：高风险动作保持用户审批，支出与关键变更可追溯可控。",
         install_heading: "一键安装",
         install_copy: "用一条 shell 命令把 OmniDoer 安装到 Linux 服务器或本地开发机。bootstrap 会保留 Codex 作为模型与认证入口，启动 Control Service，并在可用时把 MCP sidecar 注册到 Codex CLI。",
         install_local_title: "本地开发运行时",

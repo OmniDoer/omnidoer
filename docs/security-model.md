@@ -15,6 +15,18 @@ Security boundaries:
 - Error and exception fields are treated as sensitive surfaces because browser,
   challenge, or takeover failures may otherwise echo user input.
 
+Challenge-stream contract:
+
+- Browser screenshots and DOM snapshots are redacted before any model-visible
+  observation reaches Codex.
+- For CAPTCHA, anti-bot pages, passkey/WebAuthn prompts, registration captchas,
+  and 3DS challenges, OmniDoer pauses the agent and streams the live control
+  surface to the paired client.
+- The user inputs in the takeover path through the same authenticated Cloud Direct
+  session; no challenge solution or secret enters the model context.
+- The agent only resumes after explicit release from the Control Client when the
+  user has completed the interaction and policy revalidation succeeds.
+
 Operational rule:
 
 - The Agent can request action.

@@ -43,18 +43,21 @@ OmniDoer 是 Codex CLI 的 MCP/sidecar 全能网页行动层，不是新的 Open
 
 如果一件事需要人类授权后在网页上完成，OmniDoer 的目标就是在安全边界内接力完成。它补上原版 Codex 缺少的真实浏览器、Secret Broker、Vault、Control Client、Challenge Relay、Human Takeover、Cloud Direct、Approval Gate、错误脱敏和审计链。
 
-### 为何不只是“浏览器自动化增强器”
+### 为什么超越 OpenClaw/Codex 自动化边界
 
-OmniDoer 的目标不是取代用户判断，而是让 Codex 在安全边界内“持续接力”更多真实页面任务：
+OpenClaw 一类的浏览器自动化擅长低风险点按流程，但在验证码、反爬、passkey、3DS
+和支付确认时通常无从安全衔接；纯 Prompt 的 Codex 又缺少可控执行面。OmniDoer
+把推理与执行分层，把 Codex 保持在决策平面，执行平面运行在用户自己的 Linux
+服务器：
 
-- **安全边界不下沉到模型**：密码、TOTP 种子、cookie、支付信息仍在
-  Secret Broker、Vault、浏览器控制器和 Control Client 中处理。
-- **人机切换更完整**：验证码、反爬、注册确认、支付批准、OAuth 授权等由用户在
-  客户端完成，模型只拿脱敏状态继续下一步。
-- **成本与能力并存**：保留现有 Codex 登录和账单模型，不强行引入新的 API
-  收费路径；同时保留 Codex 的多模态建模能力与可扩展工具调用。
-- **“越界”场景不做事**：OmniDoer 不绕过 anti-bot，遇到高风险环节会自动交还
-  给用户，必要时暂停后续执行。
+- **安全边界不下沉到模型**：模型负责计划与判断，密码、TOTP 种子、cookie、支付
+  信息都留在 Secret Broker、Vault、浏览器控制器和 Control Client。
+- **按场景自动切换人机协同**：反爬、验证码、注册、passkey、3DS、OAuth 授权和
+  支付确认由用户在客户端完成，模型仅接着返回的脱敏状态继续推进。
+- **更低成本与更高自由度**：沿用现有 Codex 登录与账单模型，不新增默认 API
+  收费路径，保留 Codex 的多模态上下文能力。
+- **更少“越界”失败**：OmniDoer 不破解 anti-bot，也不替人完成同意/支付，而是
+  自动将关键阶段挂起并切回用户客户端，完成后再恢复自动执行。
 
 核心规则：Agent 可以请求使用 secret，但不能读取 secret。Codex 仍然是唯一模型推理入口，OmniDoer 不默认要求 `OPENAI_API_KEY`，不创建新的 OpenAI API billing path，也不修改 Codex 的 ChatGPT 登录、计费或模型提供方逻辑。
 

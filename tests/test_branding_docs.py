@@ -58,6 +58,7 @@ class BrandingDocsTest(unittest.TestCase):
         self.assertIn("Cloud Direct Mode", readme)
         self.assertIn("All-purpose web action, inside the security boundary.", readme)
         self.assertIn("The agent can act only through the controlled security boundary.", readme)
+        self.assertIn("OpenClaw", readme)
         self.assertIn("OmniDoer is not a CAPTCHA bypasser.", readme)
         self.assertIn("guarded browser 2FA", readme)
         self.assertIn("Payments, purchases, account changes, OAuth grants, message sending", readme)
@@ -80,6 +81,13 @@ class BrandingDocsTest(unittest.TestCase):
         for allowed in allowed_labels:
             lead = lead.replace(allowed, "")
         self.assertIsNone(re.search(r"[\u4e00-\u9fff]", lead), lead)
+
+    def test_security_model_documents_handover_stream_contract(self) -> None:
+        security = (self.root / "docs" / "security-model.md").read_text()
+        self.assertIn("Challenge-stream contract", security)
+        self.assertIn("streams the live control", security)
+        self.assertIn("surface to the paired client", security)
+        self.assertIn("model context", security)
 
     def test_one_command_installer_is_documented_and_executable(self) -> None:
         installer = self.root / "omnidoer" / "scripts" / "install-cloud-direct.sh"
@@ -118,6 +126,7 @@ class BrandingDocsTest(unittest.TestCase):
         self.assertIn("System Blueprints", page)
         self.assertIn("Agent Runtime Visuals", page)
         self.assertIn("One-Command Install", page)
+        self.assertIn("Beyond Automation-First Agents", page)
         self.assertIn("install-cloud-direct.sh", page)
         self.assertIn("OMNIDOER_CLOUD_DIRECT=1", page)
         self.assertIn("All-purpose web action, inside the security boundary.", page)
