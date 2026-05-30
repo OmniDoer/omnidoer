@@ -29,20 +29,36 @@
       min-height: 92svh;
       display: grid;
       align-items: end;
-      background: #fff var(--hero-image, url("assets/localized/omnidoer-readme-en.jpg")) center / cover no-repeat;
+      background: #0f172a;
       border-bottom: 1px solid var(--line);
       position: relative;
+      overflow: hidden;
+    }
+    .hero-media {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center 28%;
+      z-index: 0;
+    }
+    .hero-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(2, 8, 23, 0.25), rgba(2, 8, 23, 0.58));
+      z-index: 1;
     }
     .language-switcher {
       position: absolute;
       top: 18px;
-      right: max(18px, calc((100vw - 1120px) / 2 + 24px));
-      left: max(18px, calc((100vw - 1120px) / 2 + 24px));
+      right: 18px;
+      left: auto;
       display: flex;
       justify-content: flex-end;
       gap: 8px;
       flex-wrap: wrap;
-      z-index: 1;
+      z-index: 3;
     }
     .language-switcher button {
       border: 1px solid rgba(255, 255, 255, 0.48);
@@ -64,6 +80,8 @@
       width: 100%;
       margin: 0 auto;
       padding: 42svh 24px 54px;
+      position: relative;
+      z-index: 2;
     }
     h1 {
       margin: 0;
@@ -234,7 +252,8 @@
       text-align: center;
     }
     @media (max-width: 760px) {
-      header { min-height: 86svh; background-position: 49% 28%; }
+      header { min-height: 86svh; }
+      .hero-media { object-position: 49% 30%; }
       .language-switcher {
         position: static;
         justify-content: flex-start;
@@ -250,6 +269,8 @@
 </head>
 <body>
   <header>
+    <img id="hero-image" class="hero-media" src="assets/localized/omnidoer-readme-en.jpg" alt="OmniDoer visual banner">
+    <div class="hero-overlay" aria-hidden="true"></div>
     <div class="language-switcher" aria-label="Language">
       <button type="button" data-lang="en" aria-pressed="true">English</button>
       <button type="button" data-lang="zh-CN" aria-pressed="false">中文</button>
@@ -297,7 +318,7 @@
     </section>
 
     <section id="install">
-      <h2 data-i18n="install_heading">One-Command Deploy</h2>
+      <h2 data-i18n="install_heading">One-Command Install</h2>
       <p data-i18n="install_copy">Install OmniDoer on a Linux server or local development machine with one shell command. The bootstrap keeps Codex as the model and auth entrypoint, then starts the Control Service and registers the MCP sidecar when Codex CLI is available.</p>
       <div class="deploy-grid">
         <article class="command-panel">
@@ -367,14 +388,14 @@
   </main>
   <footer data-i18n="footer_copy">OmniDoer is a user-authorized local execution layer, not a credential stealer, CAPTCHA bypasser, or autonomous spender.</footer>
   <script>
-    const heroImages = {
-      "en": "url('assets/localized/omnidoer-readme-en.jpg')",
-      "zh-CN": "url('assets/localized/omnidoer-readme-zh-CN.jpg')",
-      "es": "url('assets/localized/omnidoer-readme-es.jpg')",
-      "fr": "url('assets/localized/omnidoer-readme-fr.jpg')",
-      "de": "url('assets/localized/omnidoer-readme-de.jpg')",
-      "ja": "url('assets/localized/omnidoer-readme-ja.jpg')",
-      "ko": "url('assets/localized/omnidoer-readme-ko.jpg')"
+    const heroImageByLang = {
+      "en": "assets/localized/omnidoer-readme-en.jpg",
+      "zh-CN": "assets/localized/omnidoer-readme-zh-CN.jpg",
+      "es": "assets/localized/omnidoer-readme-es.jpg",
+      "fr": "assets/localized/omnidoer-readme-fr.jpg",
+      "de": "assets/localized/omnidoer-readme-de.jpg",
+      "ja": "assets/localized/omnidoer-readme-ja.jpg",
+      "ko": "assets/localized/omnidoer-readme-ko.jpg"
     };
     const copy = {
       "en": {
@@ -396,7 +417,7 @@
         visual_cloud_caption: "Cloud Direct control service for paired devices, sessions, broker, vault, and browser control.",
         visual_matrix_caption: "Feature matrix covering browser actions, secret handling, approvals, registration handoff, and audit.",
         visual_action_caption: "Omni action positioning for authorized signup, login, forms, downloads, purchases, and user takeover.",
-        install_heading: "One-Command Deploy",
+        install_heading: "One-Command Install",
         install_copy: "Install OmniDoer on a Linux server or local development machine with one shell command. The bootstrap keeps Codex as the model and auth entrypoint, then starts the Control Service and registers the MCP sidecar when Codex CLI is available.",
         install_local_title: "Local Developer Runtime",
         install_cloud_title: "Cloud Direct Server",
@@ -424,7 +445,7 @@
         visual_cloud_caption: "Cloud Direct 控制服务管理配对设备、会话、Broker、Vault 和浏览器控制。",
         visual_matrix_caption: "覆盖浏览器行动、secret 处理、审批、注册接管和审计的功能矩阵。",
         visual_action_caption: "用于授权注册、登录、表单、下载、购买和用户接管的全能行动定位。",
-        install_heading: "一键部署",
+        install_heading: "一键安装",
         install_copy: "用一条 shell 命令把 OmniDoer 安装到 Linux 服务器或本地开发机。bootstrap 会保留 Codex 作为模型与认证入口，启动 Control Service，并在可用时把 MCP sidecar 注册到 Codex CLI。",
         install_local_title: "本地开发运行时",
         install_cloud_title: "Cloud Direct 服务器",
@@ -607,7 +628,11 @@
       const selected = normalizeLanguage(lang);
       const active = copy[selected];
       document.documentElement.lang = selected;
-      document.documentElement.style.setProperty("--hero-image", heroImages[selected]);
+      const heroImage = document.getElementById("hero-image");
+      const heroImageSource = heroImageByLang[selected] || heroImageByLang.en;
+      if (heroImage && heroImageSource) {
+        heroImage.src = heroImageSource;
+      }
       document.querySelectorAll("[data-i18n]").forEach((node) => {
         const value = active[node.dataset.i18n] || copy.en[node.dataset.i18n];
         if (value) node.innerHTML = value;
