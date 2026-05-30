@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches:
+      - main
       - omnidoer-mvp
 
 jobs:
@@ -14,11 +15,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install OmniDoer sidecar
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -e ".[dev]"
+      - name: Check Control Client JavaScript
+        run: node --check omnidoer/omni_control/static/app.js
       - name: Run sidecar tests
-        run: python3 -m pytest
+        run: python3 -m pytest -q
       - name: Run repository secret-interface scan
         run: python3 omnidoer/scripts/secret_scan.py
+      - name: Remove Python bytecode before grep scans
+        run: find omnidoer tests -type d -name __pycache__ -prune -exec rm -rf {} +
       - name: Check no default OpenAI API client path
-        run: '! grep -R "from openai import\|OpenAI(" omnidoer tests'
+        run: '! grep -R --exclude-dir=__pycache__ "from openai import\|OpenAI(" omnidoer tests'
       - name: Check forbidden bypass tools absent
-        run: '! grep -R "captcha.solve\|captcha.bypass\|mfa.bypass\|antibot.bypass\|challenge.get_answer\|takeover.get_user_input" omnidoer tests'
+        run: '! grep -R --exclude-dir=__pycache__ "captcha.solve\|captcha.bypass\|mfa.bypass\|antibot.bypass\|challenge.get_answer\|takeover.get_user_input" omnidoer tests'
