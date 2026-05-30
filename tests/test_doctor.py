@@ -3,7 +3,28 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from omnidoer.omni_cli.doctor import _run_codex_login_status, collect_checks
+from omnidoer.omni_cli.doctor import _check_chromium, _run_codex_login_status, collect_checks
+
+
+class FakeChromium:
+    def __init__(self, should_fail: bool = False):
+        self.should_fail = should_fail
+
+    def launch(self, *, headless: bool):
+        if self.should_fail:
+            raise RuntimeError("missing chromium")
+        return SimpleNamespace(close=lambda: None)
+
+
+class FakePlaywrightContext:
+    def __init__(self, should_fail: bool = False):
+        self.chromium = FakeChromium(should_fail=should_fail)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
 
 
 class DoctorTest(unittest.TestCase):
@@ -60,6 +81,20 @@ class DoctorTest(unittest.TestCase):
             mode, detail = _run_codex_login_status()
         self.assertEqual(mode, "unknown")
         self.assertNotIn("secret-token-value", detail)
+
+    def test_chromium_check_launches_browser(self) -> None:
+        with patch("playwright.sync_api.sync_playwright", return_value=FakePlaywrightContext()):
+            check = _check_chromium()
+        self.assertEqual(check.name, "chromium")
+        self.assertEqual(check.status, "ok")
+        self.assertIn("launched", check.detail)
+
+    def test_chromium_check_reports_launch_failure_without_secret_output(self) -> None:
+        with patch("playwright.sync_api.sync_playwright", return_value=FakePlaywrightContext(should_fail=True)):
+            check = _check_chromium()
+        self.assertEqual(check.name, "chromium")
+        self.assertEqual(check.status, "missing")
+        self.assertIn("playwright install chromium", check.detail)
 
 
 if __name__ == "__main__":

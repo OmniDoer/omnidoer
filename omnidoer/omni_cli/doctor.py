@@ -49,6 +49,29 @@ def _run_codex_login_status() -> tuple[str, str]:
     return "unknown", "Codex is installed, but auth mode could not be classified."
 
 
+def _check_chromium() -> Check:
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception:
+        return Check(
+            "chromium",
+            "missing",
+            "Python Playwright is not installed. Run python3 -m pip install -e '.[dev]' and python3 -m playwright install chromium.",
+        )
+
+    try:
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(headless=True)
+            browser.close()
+    except Exception as exc:
+        return Check(
+            "chromium",
+            "missing",
+            f"Chromium could not be launched via Playwright: {type(exc).__name__}. Run python3 -m playwright install chromium.",
+        )
+    return Check("chromium", "ok", "Playwright Chromium launched successfully.")
+
+
 def collect_checks() -> list[Check]:
     checks: list[Check] = []
     codex_path = shutil.which("codex")
@@ -93,18 +116,7 @@ def collect_checks() -> list[Check]:
     except Exception as exc:
         checks.append(Check("control_client", "error", f"Control Client check failed: {type(exc).__name__}"))
 
-    try:
-        import playwright  # noqa: F401
-
-        checks.append(Check("playwright", "ok", "Python Playwright package is importable."))
-    except Exception:
-        checks.append(
-            Check(
-                "playwright",
-                "missing",
-                "Python Playwright is not installed. Run python3 -m pip install -e '.[dev]' and python3 -m playwright install chromium.",
-            )
-        )
+    checks.append(_check_chromium())
 
     vault = default_vault_path()
     checks.append(Check("vault", "present" if vault.exists() else "missing", str(vault)))
