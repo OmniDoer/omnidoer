@@ -13,6 +13,7 @@ def home() -> Path:
 def ensure_home() -> Path:
     path = home()
     path.mkdir(parents=True, exist_ok=True)
+    path.chmod(0o700)
     return path
 
 

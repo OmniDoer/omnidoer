@@ -1,4 +1,5 @@
 import os
+import stat
 import subprocess
 import sys
 import tempfile
@@ -30,6 +31,13 @@ class CliTest(unittest.TestCase):
         result = self.run_cli(["--help"])
         self.assertEqual(result.returncode, 0)
         self.assertIn("doctor", result.stdout)
+
+    def test_init_creates_private_state_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "state"
+            result = self.run_cli(["init"], env={"OMNIDOER_HOME": str(home)})
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(stat.S_IMODE(home.stat().st_mode), 0o700)
 
     def test_control_input_secret_does_not_echo_secret(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
