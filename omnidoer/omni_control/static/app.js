@@ -57,6 +57,26 @@ if (releaseActiveTakeoverButton) {
   releaseActiveTakeoverButton.onclick = () => releaseActiveTakeover();
 }
 
+const zoomOutTakeoverFrameButton = document.querySelector("#zoom-out-takeover-frame");
+if (zoomOutTakeoverFrameButton) {
+  zoomOutTakeoverFrameButton.onclick = () => setTakeoverFrameZoom(takeoverFrameZoom - TAKEOVER_ZOOM_STEP);
+}
+
+const zoomResetTakeoverFrameButton = document.querySelector("#zoom-reset-takeover-frame");
+if (zoomResetTakeoverFrameButton) {
+  zoomResetTakeoverFrameButton.onclick = () => resetTakeoverFrameView();
+}
+
+const zoomInTakeoverFrameButton = document.querySelector("#zoom-in-takeover-frame");
+if (zoomInTakeoverFrameButton) {
+  zoomInTakeoverFrameButton.onclick = () => setTakeoverFrameZoom(takeoverFrameZoom + TAKEOVER_ZOOM_STEP);
+}
+
+const panTakeoverFrameButton = document.querySelector("#pan-takeover-frame");
+if (panTakeoverFrameButton) {
+  panTakeoverFrameButton.onclick = () => setTakeoverFramePanMode(!takeoverFramePanMode);
+}
+
 const approvalConfirmInput = document.querySelector("#approval-confirm");
 if (approvalConfirmInput) {
   approvalConfirmInput.onchange = () => updatePaymentApprovalButtons();
@@ -83,12 +103,17 @@ document.querySelectorAll("[data-filter]").forEach((button) => {
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const TAKEOVER_FRAME_MAX_AGE_MS = 30000;
+const TAKEOVER_ZOOM_MIN = 1;
+const TAKEOVER_ZOOM_MAX = 3;
+const TAKEOVER_ZOOM_STEP = 0.25;
 let cachedRequests = [];
 let requestStreamActive = false;
 let requestStreamRestart = null;
 let activeTakeoverFrameRequest = null;
 let takeoverFrameTimer = null;
 let takeoverFreshnessTimer = null;
+let takeoverFrameZoom = TAKEOVER_ZOOM_MIN;
+let takeoverFramePanMode = false;
 let activePaymentApprovalRequest = null;
 let renderedPaymentApprovalRequestId = null;
 
@@ -191,6 +216,62 @@ function updateTakeoverFrameFreshness(stream = document.querySelector("#browser-
   field.className = stale ? "frame-stale" : "frame-fresh";
 }
 
+function takeoverIsActive() {
+  const request = activeTakeoverRequest();
+  return Boolean(request && request.status === "user_control");
+}
+
+function updateTakeoverZoomControls() {
+  const isActive = takeoverIsActive();
+  const zoomed = takeoverFrameZoom > TAKEOVER_ZOOM_MIN;
+  const zoomOut = document.querySelector("#zoom-out-takeover-frame");
+  const zoomReset = document.querySelector("#zoom-reset-takeover-frame");
+  const zoomIn = document.querySelector("#zoom-in-takeover-frame");
+  const pan = document.querySelector("#pan-takeover-frame");
+  if (zoomOut) zoomOut.disabled = !isActive || !zoomed;
+  if (zoomReset) zoomReset.disabled = !isActive || (!zoomed && !takeoverFramePanMode);
+  if (zoomIn) zoomIn.disabled = !isActive || takeoverFrameZoom >= TAKEOVER_ZOOM_MAX;
+  if (pan) {
+    pan.disabled = !isActive || !zoomed;
+    pan.textContent = takeoverFramePanMode ? "Pan On" : "Pan View";
+    pan.setAttribute("aria-pressed", takeoverFramePanMode ? "true" : "false");
+  }
+}
+
+function applyTakeoverFrameZoom(stream = document.querySelector("#browser-stream")) {
+  const image = stream?.querySelector("#takeover-frame") || document.querySelector("#takeover-frame");
+  const zoomPercent = Math.round(takeoverFrameZoom * 100);
+  const zoomed = takeoverFrameZoom > TAKEOVER_ZOOM_MIN;
+  if (stream) {
+    stream.classList.toggle("frame-zoomed", zoomed);
+    stream.classList.toggle("view-pan", takeoverFramePanMode && zoomed);
+  }
+  if (image) {
+    image.style.width = zoomed ? `${zoomPercent}%` : "";
+    image.style.maxWidth = zoomed ? "none" : "100%";
+  }
+  setFieldText("#takeover-frame-zoom", `${zoomPercent}%${takeoverFramePanMode ? " pan" : ""}`);
+  updateTakeoverZoomControls();
+}
+
+function setTakeoverFrameZoom(value) {
+  const nextZoom = Math.min(TAKEOVER_ZOOM_MAX, Math.max(TAKEOVER_ZOOM_MIN, value));
+  takeoverFrameZoom = Math.round(nextZoom / TAKEOVER_ZOOM_STEP) * TAKEOVER_ZOOM_STEP;
+  if (takeoverFrameZoom <= TAKEOVER_ZOOM_MIN) takeoverFramePanMode = false;
+  applyTakeoverFrameZoom();
+}
+
+function setTakeoverFramePanMode(enabled) {
+  takeoverFramePanMode = Boolean(enabled) && takeoverFrameZoom > TAKEOVER_ZOOM_MIN;
+  applyTakeoverFrameZoom();
+}
+
+function resetTakeoverFrameView() {
+  takeoverFrameZoom = TAKEOVER_ZOOM_MIN;
+  takeoverFramePanMode = false;
+  applyTakeoverFrameZoom();
+}
+
 function updateTakeoverPanel(request, frame = null, message = null) {
   const status = request ? (request.status === "user_control" ? "Agent paused - user control active" : request.status) : "No active takeover";
   setFieldText("#takeover-status-label", status);
@@ -208,6 +289,7 @@ function updateTakeoverPanel(request, frame = null, message = null) {
   const release = document.querySelector("#release-active-takeover");
   if (refresh) refresh.disabled = !isActive;
   if (release) release.disabled = !isActive;
+  updateTakeoverZoomControls();
 }
 
 function syncTakeoverPanel(requests) {
@@ -711,10 +793,12 @@ async function sendTakeoverInput(request, eventPayload) {
 
 function framePoint(event, image) {
   const rect = image.getBoundingClientRect();
+  const x = Math.round((event.clientX - rect.left) * (image.naturalWidth / Math.max(1, rect.width)));
+  const y = Math.round((event.clientY - rect.top) * (image.naturalHeight / Math.max(1, rect.height)));
   return {
     frame_id: image.dataset.frameId || "",
-    x: Math.round((event.clientX - rect.left) * (image.naturalWidth / rect.width)),
-    y: Math.round((event.clientY - rect.top) * (image.naturalHeight / rect.height))
+    x: Math.min(Math.max(0, x), Math.max(0, image.naturalWidth - 1)),
+    y: Math.min(Math.max(0, y), Math.max(0, image.naturalHeight - 1))
   };
 }
 
@@ -722,12 +806,14 @@ function installTakeoverPointerHandlers(request, stream) {
   let start = null;
   stream.tabIndex = 0;
   stream.onpointerdown = (event) => {
+    if (takeoverFramePanMode) return;
     const img = document.querySelector("#takeover-frame");
     if (!img) return;
     stream.setPointerCapture(event.pointerId);
     start = { ...framePoint(event, img), frame_id: img.dataset.frameId || "", at: Date.now() };
   };
   stream.onpointerup = (event) => {
+    if (takeoverFramePanMode) return;
     const img = document.querySelector("#takeover-frame");
     if (!img || !start) return;
     const end = framePoint(event, img);
@@ -743,12 +829,14 @@ function installTakeoverPointerHandlers(request, stream) {
     start = null;
   };
   stream.onkeydown = (event) => {
+    if (takeoverFramePanMode) return;
     if (event.key.length === 1 || ["Enter", "Tab", "Backspace", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
       event.preventDefault();
       sendTakeoverInput(request, { event_type: "key", key: event.key });
     }
   };
   stream.onwheel = (event) => {
+    if (takeoverFramePanMode) return;
     event.preventDefault();
     sendTakeoverInput(request, { event_type: "scroll", delta_y: Math.round(event.deltaY) });
   };
@@ -766,6 +854,7 @@ function stopTakeoverFramePolling(requestId = null) {
     delete stream.dataset.frameId;
     delete stream.dataset.frameCapturedAt;
   }
+  resetTakeoverFrameView();
   updateTakeoverFrameFreshness(stream);
 }
 
@@ -786,6 +875,7 @@ async function fetchTakeoverFrame(request, stream) {
       stream.dataset.frameCapturedAt = frame.captured_at || "";
       stream.dataset.frameUrl = frame.url || "";
       stream.dataset.frameOrigin = frame.origin || "";
+      applyTakeoverFrameZoom(stream);
       updateTakeoverPanel(request, frame, "Live browser frame ready. Input is bound to the frame currently visible here.");
       updateTakeoverFrameFreshness(stream);
     } else {
@@ -812,6 +902,7 @@ function startTakeoverFramePolling(request, stream) {
   }
   if (activeTakeoverFrameRequest === request.request_id && takeoverFrameTimer) return;
   activeTakeoverFrameRequest = request.request_id;
+  resetTakeoverFrameView();
   stream.textContent = "Loading control-only browser frame...";
   updateTakeoverPanel(request, null, "Loading control-only browser frame...");
   installTakeoverPointerHandlers(request, stream);

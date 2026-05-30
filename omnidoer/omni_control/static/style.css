@@ -200,15 +200,26 @@ button:disabled {
   border: 1px solid #64748b;
   background: #0f172a;
   touch-action: none;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  overscroll-behavior: contain;
   border-radius: 8px;
   color: #e2e8f0;
   outline: none;
+  cursor: crosshair;
 }
 #browser-stream:focus {
   box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.28);
+}
+#browser-stream.frame-zoomed {
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+#browser-stream.view-pan {
+  touch-action: pan-x pan-y;
+  cursor: grab;
 }
 #browser-stream img {
   display: block;
@@ -217,6 +228,9 @@ button:disabled {
   touch-action: none;
   user-select: none;
 }
+#browser-stream.view-pan img {
+  touch-action: pan-x pan-y;
+}
 .takeover-toolbar {
   display: flex;
   gap: 8px;
@@ -224,7 +238,12 @@ button:disabled {
   margin: 10px 0;
 }
 .takeover-toolbar button {
-  flex: 1 1 170px;
+  flex: 1 1 140px;
+}
+.takeover-toolbar #zoom-in-takeover-frame,
+.takeover-toolbar #zoom-out-takeover-frame {
+  flex: 0 0 54px;
+  min-width: 54px;
 }
 .takeover-metadata {
   background: #f8fafc;

@@ -73,4 +73,7 @@ categories, never typed text or challenge answers. Browser-frame input is
 also frame-bound: the Control Service records the last delivered frame id and
 capture timestamp, then rejects stale or mismatched input before forwarding it
 to the browser worker. The Control Client mirrors that rule with a visible
-freshness indicator and client-side stale-input refresh.
+freshness indicator and client-side stale-input refresh. Mobile users can zoom
+and pan the frame projection in the PWA, but those view-only transforms do not
+change the frame id binding or screenshot-pixel coordinate mapping used by the
+Control Service.

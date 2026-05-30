@@ -53,6 +53,11 @@ frame id, and stale or mismatched frame input is rejected so a tap intended for
 one page is not replayed onto a different page after navigation.
 The Human Takeover panel displays frame freshness and blocks stale input
 client-side before refreshing the projection.
+On small screens the same panel can zoom the browser frame and switch to a
+view-pan mode for reading dense CAPTCHA, passkey, or registration prompts.
+Those controls change only the projection displayed in the PWA. Input events
+remain bound to the visible frame id and are mapped back to screenshot pixel
+coordinates before they reach the browser worker.
 
 The PWA uses browser WebCrypto in local mode: P-256 ECDH, HKDF-SHA256, and
 AES-GCM with request-bound associated data. The Python CLI uses the native

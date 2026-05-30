@@ -69,16 +69,18 @@
   metadata, and `input_binding_required`; Control Client input is bound to the
   currently visible frame, and stale or mismatched frame input is rejected
   before it reaches the browser worker. The Human Takeover panel also displays
-  frame freshness and refreshes stale projections before sending input.
+  frame freshness, refreshes stale projections before sending input, and lets
+  mobile users zoom and pan dense browser frames without changing the
+  screenshot-pixel input mapping.
 - Payment approvals include structured merchant, amount, recipient, origin,
   final-button, after-approval, and review-fingerprint details. Final sensitive
   browser clicks are gated on scoped approval.
 
 ## Immediate Next Work
 
-- Continue improving mobile takeover ergonomics: reconnect behavior, zoom/pan
-  handling, and WebSocket/WebRTC-ready frame transport while preserving the
-  same security boundary.
+- Continue improving mobile takeover ergonomics: reconnect behavior and
+  WebSocket/WebRTC-ready frame transport while preserving the same security
+  boundary.
 - Expand end-to-end tests proving that registration, CAPTCHA/passkey handoff,
   payment approval, and frame-bound takeover input never leak secrets or
   challenge answers to logs, MCP, model-visible observations, screenshots, or

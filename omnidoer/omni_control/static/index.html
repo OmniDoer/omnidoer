@@ -86,9 +86,14 @@
         <dt>URL</dt><dd id="takeover-current-url">pending</dd>
         <dt>Frame</dt><dd id="takeover-frame-meta">waiting for browser handoff</dd>
         <dt>Freshness</dt><dd id="takeover-frame-freshness">waiting for browser handoff</dd>
+        <dt>Zoom</dt><dd id="takeover-frame-zoom">100%</dd>
       </dl>
       <div class="takeover-toolbar" aria-label="Live browser handoff controls">
         <button id="refresh-takeover-frame" type="button" disabled>Refresh Frame</button>
+        <button id="zoom-out-takeover-frame" type="button" aria-label="Zoom out" title="Zoom out" disabled>-</button>
+        <button id="zoom-reset-takeover-frame" type="button" disabled>Fit</button>
+        <button id="zoom-in-takeover-frame" type="button" aria-label="Zoom in" title="Zoom in" disabled>+</button>
+        <button id="pan-takeover-frame" type="button" aria-pressed="false" disabled>Pan View</button>
         <button id="release-active-takeover" type="button" disabled>Release Control</button>
       </div>
       <div id="browser-stream" role="img" aria-label="Browser stream placeholder"></div>
