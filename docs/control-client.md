@@ -74,6 +74,11 @@ records the delivered frame id before later input can be accepted.
 The PWA prefers an authenticated WebSocket takeover-frame stream when the
 browser and server path support it, then falls back to signed HTTP frame
 polling without changing the visible-frame binding contract.
+The same frame requests include an adaptive profile hint. Normal mobile
+clients request a balanced JPEG frame, while `Save-Data` or 2G network signals
+request a lower-bandwidth data-saver JPEG frame. The Control Service records
+the delivered frame id and viewport exactly the same way for all profiles, so
+compression does not loosen input binding.
 If the mobile browser is backgrounded or the phone locks, takeover frame
 polling pauses and resumes with an immediate current-frame fetch when the PWA
 becomes visible again. Takeover input is blocked while the PWA is hidden or

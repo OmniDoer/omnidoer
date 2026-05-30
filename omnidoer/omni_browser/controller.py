@@ -14,7 +14,7 @@ from omnidoer.omni_observer import redact_dom_snapshot, redact_text
 from omnidoer.omni_observer.redactor import SECRET_FIELD_RE
 from omnidoer.omni_policy.policy import origin_from_url
 from omnidoer.omni_takeover.models import InputEvent
-from omnidoer.omni_takeover.stream import frame_from_png
+from omnidoer.omni_takeover.stream import frame_from_image, frame_profile_settings
 
 
 class BrowserUnavailable(RuntimeError):
@@ -110,17 +110,26 @@ class BrowserController:
         )
         return redact_dom_snapshot(snapshot)
 
-    def screenshot(self) -> bytes:
+    def screenshot(self, *, content_type: str = "image/png", quality: int | None = None) -> bytes:
+        if content_type == "image/jpeg":
+            kwargs: dict[str, Any] = {"full_page": False, "type": "jpeg"}
+            if quality is not None:
+                kwargs["quality"] = quality
+            return self.page.screenshot(**kwargs)
         return self.page.screenshot(full_page=False)
 
-    def takeover_frame(self) -> dict:
+    def takeover_frame(self, *, frame_profile: str | None = None) -> dict:
+        profile = frame_profile_settings(frame_profile)
         viewport = self.page.viewport_size or {"width": 1280, "height": 720}
-        return frame_from_png(
-            self.screenshot(),
+        return frame_from_image(
+            self.screenshot(content_type=profile["content_type"], quality=profile["quality"]),
             url=self.current_url(),
             origin=self.current_origin() or "",
             viewport_width=int(viewport["width"]),
             viewport_height=int(viewport["height"]),
+            content_type=profile["content_type"],
+            frame_profile=profile["name"],
+            quality=profile["quality"],
         )
 
     def click(self, selector: str) -> dict:

@@ -42,6 +42,7 @@ from omnidoer.omni_control.tasks import TaskStore
 from omnidoer.omni_takeover.input_events import event_from_dict
 from omnidoer.omni_takeover.relay import apply_input_event, start_stream
 from omnidoer.omni_takeover.sessions import get_browser_context
+from omnidoer.omni_takeover.stream import normalize_frame_profile
 
 
 def static_root() -> Path:
@@ -204,6 +205,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
         *,
         snapshots: int,
         interval: float,
+        frame_profile: str,
     ) -> None:
         self._get_request_for_session(store, request_id, session)
         websocket_text_frame = self._open_websocket()
@@ -212,7 +214,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 time.sleep(max(0.0, min(interval, 10.0)))
             request = self._get_request_for_session(store, request_id, session)
             browser = get_browser_context(request.browser_context_id)
-            frame = start_stream(request_id, browser_controller=browser)
+            frame = start_stream(request_id, browser_controller=browser, frame_profile=frame_profile)
             store.record_takeover_frame(request_id, frame)
             self.wfile.write(websocket_text_frame({"event": "takeover_frame", "request_id": request_id, "data": frame}))
             self.wfile.flush()
@@ -417,7 +419,15 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 query = parse_qs(parsed_url.query)
                 snapshots = int(query.get("snapshots", ["60"])[0])
                 interval = float(query.get("interval", ["0.75"])[0])
-                self._send_takeover_frame_websocket_stream(store, session, parts[3], snapshots=snapshots, interval=interval)
+                frame_profile = normalize_frame_profile(query.get("profile", [None])[0])
+                self._send_takeover_frame_websocket_stream(
+                    store,
+                    session,
+                    parts[3],
+                    snapshots=snapshots,
+                    interval=interval,
+                    frame_profile=frame_profile,
+                )
             except PermissionError:
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
             except (BrokenPipeError, ConnectionResetError):
@@ -487,9 +497,11 @@ class ControlHandler(SimpleHTTPRequestHandler):
             if path.endswith("/frame"):
                 request_id = path.split("/")[-2]
                 try:
+                    query = parse_qs(parsed_url.query)
+                    frame_profile = normalize_frame_profile(query.get("profile", [None])[0])
                     request = self._get_request_for_session(store, request_id, session)
                     browser = get_browser_context(request.browser_context_id)
-                    frame = start_stream(request_id, browser_controller=browser)
+                    frame = start_stream(request_id, browser_controller=browser, frame_profile=frame_profile)
                     store.record_takeover_frame(request_id, frame)
                     self._send_json(HTTPStatus.OK, frame)
                 except KeyError:

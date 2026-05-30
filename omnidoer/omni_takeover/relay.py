@@ -80,7 +80,13 @@ def request_registration_handoff(
     return request
 
 
-def start_stream(request_id: str, *, browser_controller=None, store: RequestStore | None = None) -> dict:
+def start_stream(
+    request_id: str,
+    *,
+    browser_controller=None,
+    store: RequestStore | None = None,
+    frame_profile: str | None = None,
+) -> dict:
     store = store or RequestStore()
     request = store.get(request_id)
     if request.request_type not in {"human_takeover", "account_registration"}:
@@ -88,7 +94,7 @@ def start_stream(request_id: str, *, browser_controller=None, store: RequestStor
     if request.status != "user_control":
         raise ValueError("user is not in control")
     if browser_controller is not None:
-        return browser_controller.takeover_frame()
+        return browser_controller.takeover_frame(frame_profile=frame_profile)
     return current_frame()
 
 

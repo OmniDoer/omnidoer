@@ -47,6 +47,11 @@ When the browser and reverse proxy support it, the Control Client opens an
 authenticated WebSocket frame stream for lower-latency takeover projection.
 The HTTP frame endpoint remains the fallback, and both transports update the
 same server-side `frame_id` binding before input can be accepted.
+Takeover frame requests also carry an adaptive `profile` hint. The default
+mobile profile is a balanced JPEG frame, while save-data and 2G clients request
+a lower-bandwidth JPEG profile. The profile changes only frame encoding and
+transport metadata; input still binds to the delivered `frame_id`, timestamp,
+and viewport before it reaches the browser worker.
 When the phone browser is backgrounded or locked, frame polling pauses while
 the last frame remains visible. Returning to the Control Client immediately
 resumes polling and fetches a current frame before new input can be trusted.

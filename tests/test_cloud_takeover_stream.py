@@ -17,10 +17,30 @@ from omnidoer.omni_control.pairing import PairingStore
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.server import ControlHandler
 from omnidoer.omni_control.websocket import encode_device_auth_subprotocol
+from omnidoer.omni_takeover.sessions import registered_browser_context
+from omnidoer.omni_takeover.stream import frame_from_image
 from tests.test_control_auth import public_jwk, sign_request
 
 
 PROXY_HEADERS = {"x-forwarded-proto": "https"}
+
+
+class ProfileAwareBrowser:
+    def __init__(self):
+        self.frame_profile = None
+
+    def takeover_frame(self, *, frame_profile: str | None = None) -> dict:
+        self.frame_profile = frame_profile
+        return frame_from_image(
+            b"compressed-takeover-frame",
+            url="https://example.com/antibot",
+            origin="https://example.com",
+            viewport_width=320,
+            viewport_height=180,
+            content_type="image/jpeg",
+            frame_profile=frame_profile,
+            quality=48,
+        )
 
 
 def read_websocket_text(sock: socket.socket, initial: bytes = b"") -> str:
@@ -45,6 +65,39 @@ def read_websocket_text(sock: socket.socket, initial: bytes = b"") -> str:
 
 
 class CloudTakeoverStreamTest(unittest.TestCase):
+    def test_takeover_frame_endpoint_passes_adaptive_profile_to_browser(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            browser = ProfileAwareBrowser()
+            try:
+                takeover = RequestStore().create(
+                    "human_takeover",
+                    origin="https://example.com",
+                    top_level_url="https://example.com/antibot",
+                    action_summary="adaptive profile takeover",
+                    browser_context_id="profile-browser",
+                )
+                with registered_browser_context("profile-browser", browser):
+                    with urllib_request.urlopen(f"{base}/api/requests/{takeover.request_id}/frame?profile=data_saver", timeout=5) as response:
+                        payload = json.loads(response.read().decode())
+                self.assertEqual(browser.frame_profile, "data_saver")
+                self.assertEqual(payload["content_type"], "image/jpeg")
+                self.assertEqual(payload["transport"]["profile"], "data_saver")
+                self.assertEqual(payload["transport"]["quality"], 48)
+                RequestStore().validate_takeover_frame(takeover.request_id, payload["frame_id"])
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     def test_cloud_takeover_frame_requires_authenticated_device(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             old_home = os.environ.get("OMNIDOER_HOME")

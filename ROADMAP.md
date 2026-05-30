@@ -88,6 +88,11 @@
   immediate current-frame fetch when the Control Client becomes visible again;
   takeover input is blocked while hidden or paused, and typed handoff text is
   cleared only after delivery is accepted.
+- Takeover frame transport now accepts an adaptive profile hint. The PWA uses
+  balanced JPEG frames by default and switches to a data-saver JPEG profile for
+  browser `Save-Data` or 2G network signals; all profiles still use the same
+  delivered frame id, timestamp, and viewport binding before user input reaches
+  the browser worker.
 - Payment approvals include structured merchant, amount, recipient, origin,
   final-button, after-approval, and review-fingerprint details. Final sensitive
   browser clicks are gated on scoped approval, and approved sensitive actions
@@ -105,7 +110,7 @@
 ## Immediate Next Work
 
 - Continue improving mobile takeover ergonomics toward WebRTC-ready frame
-  transport, adaptive quality, and stronger live-rendering tests while
+  transport, adaptive resize/quality, and stronger live-rendering tests while
   preserving the same security boundary.
 - Expand end-to-end tests proving that registration, CAPTCHA/passkey handoff,
   payment approval, and frame-bound takeover input never leak secrets or

@@ -6,6 +6,43 @@ import base64
 import hashlib
 import json
 import time
+from typing import Any
+
+
+FRAME_PROFILES: dict[str, dict[str, Any]] = {
+    "lossless": {
+        "content_type": "image/png",
+        "playwright_type": "png",
+        "quality": None,
+        "description": "lossless PNG frame",
+    },
+    "balanced": {
+        "content_type": "image/jpeg",
+        "playwright_type": "jpeg",
+        "quality": 72,
+        "description": "balanced mobile JPEG frame",
+    },
+    "data_saver": {
+        "content_type": "image/jpeg",
+        "playwright_type": "jpeg",
+        "quality": 48,
+        "description": "lower-bandwidth mobile JPEG frame",
+    },
+}
+
+DEFAULT_FRAME_PROFILE = "balanced"
+
+
+def normalize_frame_profile(value: str | None) -> str:
+    profile = (value or DEFAULT_FRAME_PROFILE).strip().lower().replace("-", "_")
+    if profile not in FRAME_PROFILES:
+        raise ValueError("unsupported takeover frame profile")
+    return profile
+
+
+def frame_profile_settings(value: str | None = None) -> dict[str, Any]:
+    profile = normalize_frame_profile(value)
+    return {"name": profile, **FRAME_PROFILES[profile]}
 
 
 def _frame_id(data: bytes, *, url: str, origin: str, viewport_width: int, viewport_height: int) -> str:
@@ -32,6 +69,41 @@ def current_frame() -> dict:
     )
 
 
+def frame_from_image(
+    data: bytes,
+    *,
+    url: str,
+    origin: str,
+    viewport_width: int,
+    viewport_height: int,
+    content_type: str,
+    frame_profile: str | None = None,
+    quality: int | None = None,
+) -> dict:
+    profile = normalize_frame_profile(frame_profile)
+    captured_at = time.time()
+    return {
+        "frame_id": _frame_id(data, url=url, origin=origin, viewport_width=viewport_width, viewport_height=viewport_height),
+        "captured_at": captured_at,
+        "content_type": content_type,
+        "data_b64": base64.b64encode(data).decode(),
+        "url": url,
+        "origin": origin,
+        "viewport": {"width": viewport_width, "height": viewport_height},
+        "coordinate_space": "viewport_pixels",
+        "transport": {
+            "profile": profile,
+            "content_type": content_type,
+            "quality": quality,
+            "byte_length": len(data),
+            "adaptive_quality": True,
+        },
+        "input_binding_required": True,
+        "for_control_client_only": True,
+        "not_for_llm": True,
+    }
+
+
 def frame_from_png(
     data: bytes,
     *,
@@ -40,17 +112,12 @@ def frame_from_png(
     viewport_width: int,
     viewport_height: int,
 ) -> dict:
-    captured_at = time.time()
-    return {
-        "frame_id": _frame_id(data, url=url, origin=origin, viewport_width=viewport_width, viewport_height=viewport_height),
-        "captured_at": captured_at,
-        "content_type": "image/png",
-        "data_b64": base64.b64encode(data).decode(),
-        "url": url,
-        "origin": origin,
-        "viewport": {"width": viewport_width, "height": viewport_height},
-        "coordinate_space": "viewport_pixels",
-        "input_binding_required": True,
-        "for_control_client_only": True,
-        "not_for_llm": True,
-    }
+    return frame_from_image(
+        data,
+        url=url,
+        origin=origin,
+        viewport_width=viewport_width,
+        viewport_height=viewport_height,
+        content_type="image/png",
+        frame_profile="lossless",
+    )

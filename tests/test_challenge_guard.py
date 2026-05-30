@@ -27,10 +27,11 @@ class FakeGuardBrowser:
     def detect_challenge(self) -> str | None:
         return self.challenge_type
 
-    def takeover_frame(self) -> dict:
+    def takeover_frame(self, *, frame_profile: str | None = None) -> dict:
         return {
             "content_type": "image/png",
             "data_b64": "frame",
+            "transport": {"profile": frame_profile or "lossless"},
             "for_control_client_only": True,
             "not_for_llm": True,
         }

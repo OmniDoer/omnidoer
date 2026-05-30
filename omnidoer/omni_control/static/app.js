@@ -107,6 +107,8 @@ const TAKEOVER_FRAME_POLL_MS = 1500;
 const TAKEOVER_FRAME_AFTER_INPUT_MS = 180;
 const TAKEOVER_FRAME_WS_SNAPSHOTS = 120;
 const TAKEOVER_FRAME_WS_INTERVAL_SECONDS = 0.75;
+const TAKEOVER_FRAME_PROFILE_DEFAULT = "balanced";
+const TAKEOVER_FRAME_PROFILE_DATA_SAVER = "data_saver";
 const TAKEOVER_ZOOM_MIN = 1;
 const TAKEOVER_ZOOM_MAX = 3;
 const TAKEOVER_ZOOM_STEP = 0.25;
@@ -212,6 +214,30 @@ function takeoverFrameIsFresh(stream = document.querySelector("#browser-stream")
   return age !== null && age <= TAKEOVER_FRAME_MAX_AGE_MS;
 }
 
+function takeoverFrameProfile() {
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  if (connection?.saveData) return TAKEOVER_FRAME_PROFILE_DATA_SAVER;
+  const effectiveType = connection?.effectiveType || "";
+  if (["slow-2g", "2g"].includes(effectiveType)) return TAKEOVER_FRAME_PROFILE_DATA_SAVER;
+  return TAKEOVER_FRAME_PROFILE_DEFAULT;
+}
+
+function takeoverFrameQuery(extra = {}) {
+  const params = new URLSearchParams({ profile: takeoverFrameProfile() });
+  Object.entries(extra).forEach(([key, value]) => params.set(key, String(value)));
+  return params.toString();
+}
+
+function takeoverFrameProfileLabel(frame = null) {
+  const transport = frame?.transport || {};
+  const profile = transport.profile || takeoverFrameProfile();
+  const contentType = transport.content_type || frame?.content_type || "";
+  const quality = transport.quality;
+  const qualityLabel = quality === undefined || quality === null ? "" : ` q${quality}`;
+  const typeLabel = contentType.replace("image/", "") || "frame";
+  return `${profile.replaceAll("_", " ")} ${typeLabel}${qualityLabel}`;
+}
+
 function updateTakeoverFrameFreshness(stream = document.querySelector("#browser-stream")) {
   const field = document.querySelector("#takeover-frame-freshness");
   if (!field) return;
@@ -298,8 +324,10 @@ function updateTakeoverPanel(request, frame = null, message = null) {
   setFieldText("#takeover-current-url", request?.top_level_url || request?.origin, "pending");
   if (frame) {
     setFieldText("#takeover-frame-meta", frame.url || frame.origin || request?.top_level_url, "waiting for browser handoff");
+    setFieldText("#takeover-frame-profile", takeoverFrameProfileLabel(frame), "adaptive");
   } else {
     setFieldText("#takeover-frame-meta", request ? "waiting for next browser frame" : "waiting for browser handoff");
+    setFieldText("#takeover-frame-profile", request ? takeoverFrameProfileLabel() : "adaptive", "adaptive");
   }
   setFieldText("#takeover-input-state", message || (request ? "Touch, keyboard, and text input are routed to the controlled browser only." : "No active browser handoff."), "");
   updateTakeoverFrameFreshness();
@@ -364,6 +392,8 @@ function renderTakeoverFrame(request, stream, frame, message = "Live browser fra
   stream.dataset.frameCapturedAt = frame.captured_at || "";
   stream.dataset.frameUrl = frame.url || "";
   stream.dataset.frameOrigin = frame.origin || "";
+  stream.dataset.frameProfile = frame.transport?.profile || takeoverFrameProfile();
+  stream.dataset.frameContentType = frame.transport?.content_type || frame.content_type || "";
   takeoverFrameMisses = 0;
   takeoverFrameVisibilityPaused = false;
   stream.classList.remove("frame-reconnecting");
@@ -1011,7 +1041,7 @@ async function startTakeoverFrameWebSocket(request, stream) {
   const path = `/api/ws/requests/${encodeURIComponent(request.request_id)}/frames`;
   try {
     const protocol = await deviceAuthSubprotocol("GET", path);
-    const target = `${path}?snapshots=${TAKEOVER_FRAME_WS_SNAPSHOTS}&interval=${TAKEOVER_FRAME_WS_INTERVAL_SECONDS}`;
+    const target = `${path}?${takeoverFrameQuery({ snapshots: TAKEOVER_FRAME_WS_SNAPSHOTS, interval: TAKEOVER_FRAME_WS_INTERVAL_SECONDS })}`;
     const socket = protocol ? new WebSocket(websocketUrl(target), [protocol]) : new WebSocket(websocketUrl(target));
     takeoverFrameSocket = socket;
     takeoverFrameSocketRequest = request.request_id;
@@ -1120,6 +1150,8 @@ function stopTakeoverFramePolling(requestId = null) {
     delete stream.dataset.frameId;
     delete stream.dataset.frameCapturedAt;
     stream.classList.remove("frame-reconnecting");
+    delete stream.dataset.frameProfile;
+    delete stream.dataset.frameContentType;
   }
   resetTakeoverFrameView();
   updateTakeoverFrameConnection("", "waiting for browser handoff");
@@ -1155,7 +1187,7 @@ async function fetchTakeoverFrame(request, stream) {
   }
   takeoverFrameFetchInFlight = true;
   try {
-    const frame = await signedFetch(`/api/requests/${request.request_id}/frame`, { cache: "no-store" }).then((r) => r.json());
+    const frame = await signedFetch(`/api/requests/${request.request_id}/frame?${takeoverFrameQuery()}`, { cache: "no-store" }).then((r) => r.json());
     if (activeTakeoverFrameRequest !== request.request_id) return;
     if (frame.data_b64) {
       renderTakeoverFrame(request, stream, frame);

@@ -75,8 +75,8 @@ class BrowserContextWorker:
             return value
         raise value
 
-    def takeover_frame(self) -> dict:
-        return self._call("takeover_frame")
+    def takeover_frame(self, *, frame_profile: str | None = None) -> dict:
+        return self._call("takeover_frame", frame_profile=frame_profile)
 
     def apply_user_input_event(self, event: InputEvent) -> dict:
         return self._call("apply_user_input_event", event)

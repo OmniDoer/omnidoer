@@ -91,6 +91,11 @@ For lower-latency projection, Cloud Direct exposes an authenticated
 same device subprotocol signature, request visibility checks, frame metadata,
 and `record_takeover_frame` binding as the signed HTTP frame endpoint; HTTP
 polling remains the fallback.
+Both HTTP and WebSocket frame endpoints accept an adaptive `profile` hint. The
+PWA chooses `balanced` by default and `data_saver` when browser network signals
+show `Save-Data` or 2G. The browser worker may encode frames as JPEG for these
+profiles, but the Control Service still records the delivered frame id,
+timestamp, and viewport before accepting input.
 Mobile page visibility is also part of the client transport contract: hidden
 PWAs pause frame polling, retain the last visible frame, and refresh
 immediately when visible again. The PWA blocks takeover input while hidden or
