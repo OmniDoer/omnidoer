@@ -18,6 +18,7 @@ ALLOWED_INPUT_EVENT_TYPES = {
 }
 MAX_TAKEOVER_TEXT_CHARS = 4096
 MAX_TAKEOVER_KEY_CHARS = 64
+MAX_TAKEOVER_FRAME_ID_CHARS = 128
 
 
 def _event_type(value: object) -> str:
@@ -29,6 +30,8 @@ def validate_input_event(event: InputEvent) -> None:
 
     if event.event_type not in ALLOWED_INPUT_EVENT_TYPES:
         raise ValueError("unsupported takeover event")
+    if event.frame_id is not None and len(event.frame_id) > MAX_TAKEOVER_FRAME_ID_CHARS:
+        raise ValueError("takeover frame id too long")
     if event.text is not None and len(event.text) > MAX_TAKEOVER_TEXT_CHARS:
         raise ValueError("takeover text too long")
     if event.key is not None and len(event.key) > MAX_TAKEOVER_KEY_CHARS:
@@ -38,6 +41,7 @@ def validate_input_event(event: InputEvent) -> None:
 def event_from_dict(data: dict) -> InputEvent:
     event = InputEvent(
         event_type=_event_type(data.get("event_type") or data.get("type")),
+        frame_id=str(data["frame_id"]) if data.get("frame_id") is not None else None,
         x=data.get("x"),
         y=data.get("y"),
         to_x=data.get("to_x"),

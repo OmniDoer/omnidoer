@@ -47,6 +47,10 @@ of browser input event types (`tap`, `click`, `double_click`, `long_press`,
 `drag`, `scroll`, `type`, `key`, and `release`) and rejects unknown events
 without echoing user-provided text. Audit records store the event category, not
 typed text, challenge answers, passkey material, or registration secrets.
+Each streamed browser frame includes a frame id and capture timestamp. Touch,
+keyboard, and text events sent from the Control Client are bound to the visible
+frame id, and stale or mismatched frame input is rejected so a tap intended for
+one page is not replayed onto a different page after navigation.
 
 The PWA uses browser WebCrypto in local mode: P-256 ECDH, HKDF-SHA256, and
 AES-GCM with request-bound associated data. The Python CLI uses the native

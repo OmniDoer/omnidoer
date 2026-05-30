@@ -155,6 +155,28 @@ class ControlRequestTest(unittest.TestCase):
         self.assertTrue(released.completed_by_user)
         self.assertFalse(released.bypassed)
 
+    def test_takeover_frame_binding_flow(self) -> None:
+        req = self.store.create(
+            "human_takeover",
+            origin="http://127.0.0.1:8765",
+            top_level_url="http://127.0.0.1:8765/antibot",
+            action_summary="take over",
+        )
+        frame = {"frame_id": "frame-current", "captured_at": time.time()}
+        updated = self.store.record_takeover_frame(req.request_id, frame)
+        self.assertEqual(updated.takeover_frame_id, "frame-current")
+        self.assertEqual(self.store.validate_takeover_frame(req.request_id, "frame-current").request_id, req.request_id)
+        with self.assertRaises(ValueError) as mismatch:
+            self.store.validate_takeover_frame(req.request_id, "frame-old")
+        self.assertEqual(str(mismatch.exception), "stale takeover frame")
+
+        loaded = self.store._load()
+        loaded[req.request_id].takeover_frame_captured_at = time.time() - 31
+        self.store._save(loaded)
+        with self.assertRaises(ValueError) as stale:
+            self.store.validate_takeover_frame(req.request_id, "frame-current")
+        self.assertEqual(str(stale.exception), "stale takeover frame")
+
     def test_account_registration_uses_user_control_flow(self) -> None:
         req = self.store.create(
             "account_registration",

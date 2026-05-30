@@ -19,5 +19,13 @@ returns a PNG frame with viewport metadata marked `for_control_client_only` and
 tap, click, double-click, long-press, drag, scroll, text, and key events to
 Playwright mouse/keyboard input.
 
+Each streamed frame includes `frame_id`, `captured_at`, viewport metadata, and
+`input_binding_required`. The Control Client attaches the visible `frame_id` to
+touch, keyboard, and text input. The Control Service records the last delivered
+frame and rejects stale or mismatched input before it reaches the browser
+worker, preventing a tap from an old phone frame from being replayed onto a
+newly navigated page.
+
 Frames are for the Control Client only and are not sent to the LLM. User input
-events are audited by type only; text content is not logged.
+events are allowlisted, length-limited, and audited by type only; text content,
+challenge answers, passkey material, and registration secrets are not logged.

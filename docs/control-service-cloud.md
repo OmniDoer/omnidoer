@@ -69,4 +69,7 @@ browser stream and sends user input events back to that session. The Agent is
 paused until the user releases control, and registration secrets, verification
 answers, and CAPTCHA/passkey interactions are not available to MCP or Codex.
 Takeover input events are allowlisted and audit logs record only event
-categories, never typed text or challenge answers.
+categories, never typed text or challenge answers. Browser-frame input is
+also frame-bound: the Control Service records the last delivered frame id and
+capture timestamp, then rejects stale or mismatched input before forwarding it
+to the browser worker.

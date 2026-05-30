@@ -12,6 +12,10 @@ class TakeoverStreamTest(unittest.TestCase):
         frame = current_frame()
         self.assertTrue(frame["for_control_client_only"])
         self.assertTrue(frame["not_for_llm"])
+        self.assertIn("frame_id", frame)
+        self.assertIn("captured_at", frame)
+        self.assertEqual(frame["coordinate_space"], "viewport_pixels")
+        self.assertTrue(frame["input_binding_required"])
 
     def test_parse_actions(self) -> None:
         events = parse_actions("tap:1,2;click:3,4;double_click:5,6;long_press:7,8;drag:1,2->3,4;scroll:30;type:secret;key:Enter;release")
@@ -29,6 +33,11 @@ class TakeoverStreamTest(unittest.TestCase):
         with self.assertRaises(ValueError) as raised:
             event_from_dict({"event_type": "type", "text": "x" * 4097})
         self.assertEqual(str(raised.exception), "takeover text too long")
+
+    def test_event_from_dict_rejects_oversized_frame_id_without_echo(self) -> None:
+        with self.assertRaises(ValueError) as raised:
+            event_from_dict({"event_type": "tap", "frame_id": "x" * 129, "x": 1, "y": 2})
+        self.assertEqual(str(raised.exception), "takeover frame id too long")
 
     def test_registration_handoff_stream_is_control_only(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -640,14 +640,36 @@ async function loadDevicesAndSessions() {
 }
 
 async function sendTakeoverInput(request, eventPayload) {
+  const stream = document.querySelector("#browser-stream");
+  const frameId = eventPayload.frame_id || stream?.dataset.frameId || "";
+  if (!frameId) {
+    updateTakeoverPanel(request, null, "Wait for the current browser frame before sending input.");
+    return;
+  }
+  const payload = {
+    ...eventPayload,
+    frame_id: frameId,
+    frame_captured_at: stream?.dataset.frameCapturedAt || undefined
+  };
   const response = await signedFetch(`/api/requests/${request.request_id}/input`, {
     method: "POST",
     headers: { "content-type": "application/json", ...csrfHeaders() },
-    body: JSON.stringify(eventPayload)
+    body: JSON.stringify(payload)
   });
   if (response.ok) {
     updateTakeoverPanel(request, null, `${eventPayload.event_type} delivered to controlled browser.`);
   } else {
+    let error = "";
+    try {
+      error = (await response.json()).error || "";
+    } catch {
+      error = "";
+    }
+    if (error === "stale_takeover_frame") {
+      updateTakeoverPanel(request, null, "Frame changed before input was delivered. Refreshing current browser frame.");
+      refreshActiveTakeoverFrame();
+      return;
+    }
     updateTakeoverPanel(request, null, "Input was not delivered. The browser context may be disconnected.");
   }
 }
@@ -655,6 +677,7 @@ async function sendTakeoverInput(request, eventPayload) {
 function framePoint(event, image) {
   const rect = image.getBoundingClientRect();
   return {
+    frame_id: image.dataset.frameId || "",
     x: Math.round((event.clientX - rect.left) * (image.naturalWidth / rect.width)),
     y: Math.round((event.clientY - rect.top) * (image.naturalHeight / rect.height))
   };
@@ -667,7 +690,7 @@ function installTakeoverPointerHandlers(request, stream) {
     const img = document.querySelector("#takeover-frame");
     if (!img) return;
     stream.setPointerCapture(event.pointerId);
-    start = { ...framePoint(event, img), at: Date.now() };
+    start = { ...framePoint(event, img), frame_id: img.dataset.frameId || "", at: Date.now() };
   };
   stream.onpointerup = (event) => {
     const img = document.querySelector("#takeover-frame");
@@ -676,11 +699,11 @@ function installTakeoverPointerHandlers(request, stream) {
     const distance = Math.hypot(end.x - start.x, end.y - start.y);
     const duration = Date.now() - start.at;
     if (distance > 12) {
-      sendTakeoverInput(request, { event_type: "drag", x: start.x, y: start.y, to_x: end.x, to_y: end.y });
+      sendTakeoverInput(request, { event_type: "drag", frame_id: start.frame_id, x: start.x, y: start.y, to_x: end.x, to_y: end.y });
     } else if (duration > 650) {
-      sendTakeoverInput(request, { event_type: "long_press", x: start.x, y: start.y });
+      sendTakeoverInput(request, { event_type: "long_press", frame_id: start.frame_id, x: start.x, y: start.y });
     } else {
-      sendTakeoverInput(request, { event_type: "tap", x: end.x, y: end.y });
+      sendTakeoverInput(request, { event_type: "tap", frame_id: end.frame_id || start.frame_id, x: end.x, y: end.y });
     }
     start = null;
   };
@@ -713,10 +736,14 @@ async function fetchTakeoverFrame(request, stream) {
       image.id = "takeover-frame";
       image.alt = "Controlled browser frame";
       image.src = `data:${frame.content_type};base64,${frame.data_b64}`;
+      image.dataset.frameId = frame.frame_id || "";
+      image.dataset.frameCapturedAt = frame.captured_at || "";
       stream.replaceChildren(image);
+      stream.dataset.frameId = frame.frame_id || "";
+      stream.dataset.frameCapturedAt = frame.captured_at || "";
       stream.dataset.frameUrl = frame.url || "";
       stream.dataset.frameOrigin = frame.origin || "";
-      updateTakeoverPanel(request, frame, "Live browser frame ready for direct user control.");
+      updateTakeoverPanel(request, frame, "Live browser frame ready. Input is bound to the frame currently visible here.");
     } else {
       stream.textContent = "Browser context is not connected in this process.";
       updateTakeoverPanel(request, frame, "Browser context is not connected in this process.");

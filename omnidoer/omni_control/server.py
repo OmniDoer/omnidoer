@@ -436,7 +436,9 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 try:
                     request = self._get_request_for_session(store, request_id, session)
                     browser = get_browser_context(request.browser_context_id)
-                    self._send_json(HTTPStatus.OK, start_stream(request_id, browser_controller=browser))
+                    frame = start_stream(request_id, browser_controller=browser)
+                    store.record_takeover_frame(request_id, frame)
+                    self._send_json(HTTPStatus.OK, frame)
                 except KeyError:
                     self._send_json(HTTPStatus.NOT_FOUND, {"error": "request not found"})
                 except PermissionError:
@@ -653,6 +655,19 @@ class ControlHandler(SimpleHTTPRequestHandler):
                         self._send_json(HTTPStatus.CONFLICT, {"error": "browser context is not connected"})
                         return
                     body = self._read_json()
+                    try:
+                        store.validate_takeover_frame(request_id, body.get("frame_id"))
+                    except ValueError as exc:
+                        if str(exc) == "stale takeover frame":
+                            self._send_json(
+                                HTTPStatus.CONFLICT,
+                                {
+                                    "error": "stale_takeover_frame",
+                                    "secret_exposed_to_model": False,
+                                },
+                            )
+                            return
+                        raise
                     self._send_json(HTTPStatus.OK, apply_input_event(request_id, event_from_dict(body), browser_controller=browser))
                     return
                 else:

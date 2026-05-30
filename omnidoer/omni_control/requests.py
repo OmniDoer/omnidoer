@@ -36,6 +36,7 @@ REQUEST_TYPES = {
 }
 
 EXPIRABLE_STATUSES = {"pending", "user_control", "fulfilled"}
+TAKEOVER_FRAME_MAX_AGE_SECONDS = 30.0
 
 
 @dataclass
@@ -55,6 +56,8 @@ class ControlRequest:
     challenge_type: str | None = None
     takeover_reason: str | None = None
     browser_context_id: str | None = None
+    takeover_frame_id: str | None = None
+    takeover_frame_captured_at: float | None = None
     allowed_device_id: str | None = None
     control_owner: str = "agent"
     structured_details: dict[str, Any] = field(default_factory=dict)
@@ -235,3 +238,26 @@ class RequestStore:
         request.bypassed = False
         request.used = request.one_time_use
         return self.update(request)
+
+    def record_takeover_frame(self, request_id: str, frame: dict[str, Any]) -> ControlRequest:
+        request = self.get(request_id)
+        if request.request_type not in {"human_takeover", "account_registration"}:
+            raise ValueError("request is not human takeover or registration handoff")
+        self._ensure_actionable(request)
+        request.takeover_frame_id = str(frame.get("frame_id") or "")
+        request.takeover_frame_captured_at = float(frame.get("captured_at") or time.time())
+        return self.update(request)
+
+    def validate_takeover_frame(self, request_id: str, frame_id: str | None, *, now: float | None = None) -> ControlRequest:
+        request = self.get(request_id)
+        if request.request_type not in {"human_takeover", "account_registration"}:
+            raise ValueError("request is not human takeover or registration handoff")
+        self._ensure_actionable(request)
+        if not request.takeover_frame_id:
+            return request
+        if not frame_id or frame_id != request.takeover_frame_id:
+            raise ValueError("stale takeover frame")
+        captured_at = request.takeover_frame_captured_at or 0.0
+        if (now or time.time()) - captured_at > TAKEOVER_FRAME_MAX_AGE_SECONDS:
+            raise ValueError("stale takeover frame")
+        return request

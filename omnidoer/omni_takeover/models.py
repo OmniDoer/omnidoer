@@ -16,3 +16,4 @@ class InputEvent:
     key: str | None = None
     delta_x: int | None = None
     delta_y: int | None = None
+    frame_id: str | None = None

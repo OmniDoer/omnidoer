@@ -5,6 +5,7 @@ import unittest
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
+from urllib.error import HTTPError
 
 from omnidoer.omni_browser.controller import BrowserController
 from omnidoer.omni_control.server import ControlHandler
@@ -81,7 +82,8 @@ class TakeoverBrowserRelayTest(unittest.TestCase):
                         frame = json.loads(urlopen(f"{base}/api/requests/{request.request_id}/frame", timeout=5).read().decode())
                         self.assertTrue(frame["for_control_client_only"])
                         self.assertGreater(len(frame["data_b64"]), 100)
-                        body = json.dumps({"event_type": "tap", "x": 90, "y": 150}).encode()
+                        self.assertIn("frame_id", frame)
+                        body = json.dumps({"event_type": "tap", "frame_id": frame["frame_id"], "x": 90, "y": 150}).encode()
                         urlopen(
                             Request(
                                 f"{base}/api/requests/{request.request_id}/input",
@@ -91,7 +93,7 @@ class TakeoverBrowserRelayTest(unittest.TestCase):
                             ),
                             timeout=5,
                         )
-                        body = json.dumps({"event_type": "type", "text": "endpoint-sensitive-input"}).encode()
+                        body = json.dumps({"event_type": "type", "frame_id": frame["frame_id"], "text": "endpoint-sensitive-input"}).encode()
                         urlopen(
                             Request(
                                 f"{base}/api/requests/{request.request_id}/input",
@@ -101,11 +103,24 @@ class TakeoverBrowserRelayTest(unittest.TestCase):
                             ),
                             timeout=5,
                         )
+                        stale_body = json.dumps({"event_type": "type", "frame_id": "stale-frame", "text": "stale-sensitive-input"}).encode()
+                        with self.assertRaises(HTTPError) as stale:
+                            urlopen(
+                                Request(
+                                    f"{base}/api/requests/{request.request_id}/input",
+                                    data=stale_body,
+                                    headers={"content-type": "application/json"},
+                                    method="POST",
+                                ),
+                                timeout=5,
+                            )
+                        self.assertEqual(stale.exception.code, 409)
                 finally:
                     worker.stop()
                 raw_audit = (Path(tmp) / "audit.jsonl").read_text()
                 self.assertIn("takeover_input_event", raw_audit)
                 self.assertNotIn("endpoint-sensitive-input", raw_audit)
+                self.assertNotIn("stale-sensitive-input", raw_audit)
             finally:
                 control_server.shutdown()
                 control_server.server_close()

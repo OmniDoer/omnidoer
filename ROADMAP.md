@@ -50,3 +50,37 @@
 ## Milestone 8: Security Hardening
 
 - Add origin exact-match, punycode/homograph, iframe, form-action, HTTP, prompt-injection, redaction, payment-policy, and audit-integrity tests.
+
+## Current Progress Snapshot
+
+- Cloud Direct is the primary deployment model. The root Pages site and project
+  Pages site both publish one-command install instructions for local and Cloud
+  Direct setups.
+- Control Client pairing uses device identity, signed requests, CSRF, origin
+  checks, rate limiting, and request/device scoping.
+- Secret and challenge submissions are encrypted to the broker path and are not
+  returned through MCP or model-visible outputs.
+- Human Takeover and Registration Handoff stream the live browser to the
+  Control Client, pause the Agent, route allowed touch/keyboard/text events
+  back to the controlled browser, and release control back to the Agent.
+- Takeover events are allowlisted, length-limited, audited by event category
+  only, and rejected without echoing user-provided text.
+- Takeover browser frames now carry `frame_id`, `captured_at`, viewport
+  metadata, and `input_binding_required`; Control Client input is bound to the
+  currently visible frame, and stale or mismatched frame input is rejected
+  before it reaches the browser worker.
+- Payment approvals include structured merchant, amount, recipient, origin,
+  final-button, after-approval, and review-fingerprint details. Final sensitive
+  browser clicks are gated on scoped approval.
+
+## Immediate Next Work
+
+- Continue improving mobile takeover ergonomics: frame freshness indicators,
+  reconnect behavior, zoom/pan handling, and WebSocket/WebRTC-ready frame
+  transport while preserving the same security boundary.
+- Expand end-to-end tests proving that registration, CAPTCHA/passkey handoff,
+  payment approval, and frame-bound takeover input never leak secrets or
+  challenge answers to logs, MCP, model-visible observations, screenshots, or
+  errors.
+- Keep README, Pages, release notes, and this roadmap updated after each
+  substantial change so the project can be resumed from repository state alone.
