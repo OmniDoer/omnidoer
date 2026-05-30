@@ -167,8 +167,9 @@ def handle_control_command(args) -> int:
         return 0
     if command == "challenge":
         request = RequestStore().get(args.request_id)
-        payload = _challenge_payload(request)
-        _submit_encrypted(args.request_id, payload)
+        if request.request_type not in {"captcha", "passkey", "webauthn", "device_confirmation"}:
+            payload = _challenge_payload(request)
+            _submit_encrypted(args.request_id, payload)
         RequestStore().mark_challenge_completed(args.request_id)
         print(f"challenge completed by user for {args.request_id}; bypassed=false")
         return 0

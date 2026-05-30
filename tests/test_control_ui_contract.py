@@ -24,6 +24,8 @@ class ControlUiContractTest(unittest.TestCase):
     def test_challenge_no_bypass_explanation_present(self) -> None:
         self.assertIn("does not bypass CAPTCHA/MFA/Passkey/WebAuthn/3DS", self.html)
         self.assertIn("completed by you, not by the Agent", self.app)
+        self.assertIn("No challenge answer is submitted to OmniDoer", self.app)
+        self.assertIn('if (isVisualChallenge)', self.app)
 
     def test_takeover_explanation_present(self) -> None:
         self.assertIn("Agent paused", self.html)

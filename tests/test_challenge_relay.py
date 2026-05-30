@@ -54,6 +54,34 @@ class ChallengeRelayTest(unittest.TestCase):
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
 
+    def test_captcha_has_no_answer_receipt_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                store = RequestStore(Path(tmp) / "requests.json")
+                request = request_user_interaction(
+                    origin="https://example.com",
+                    top_level_url="https://example.com/captcha",
+                    challenge_type="captcha",
+                    reason="CAPTCHA user interaction",
+                    fields=[],
+                    store=store,
+                )
+                relay = ChallengeRelay(store=store, replay_guard=ReplayGuard(Path(tmp) / "replay.json"), audit=AuditLog(Path(tmp) / "audit.jsonl"))
+                with self.assertRaises(ValueError):
+                    relay.receive_user_response(request.request_id)
+                completed = relay.mark_completed_by_user(request.request_id)
+                self.assertEqual(completed["status"], "challenge_completed")
+                self.assertTrue(completed["completed_by_user"])
+                self.assertFalse(completed["bypassed"])
+                self.assertIsNone(store.get(request.request_id).response_ciphertext)
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     @unittest.skipIf(importlib.util.find_spec("playwright") is None, "playwright not installed")
     def test_challenge_relay_receives_and_injects_code_without_returning_it(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, DemoServerFixture() as demo:

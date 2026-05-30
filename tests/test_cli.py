@@ -61,6 +61,30 @@ class CliTest(unittest.TestCase):
             self.assertNotIn("super-secret-password", combined)
             self.assertIn("Secret Broker", combined)
 
+    def test_control_captcha_challenge_does_not_store_answer_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            env = {
+                "OMNIDOER_HOME": tmp,
+                "OMNIDOER_CHALLENGE_TEST_MODE": "1",
+                "OMNIDOER_TEST_CAPTCHA_ACK": "user-completed-secret",
+            }
+            store = RequestStore(Path(tmp) / "control_requests.json")
+            req = store.create(
+                "captcha",
+                origin="http://127.0.0.1:8765",
+                top_level_url="http://127.0.0.1:8765/captcha",
+                action_summary="captcha",
+                requested_fields=["ack"],
+                challenge_type="captcha",
+            )
+            result = self.run_cli(["control", "challenge", req.request_id], env=env)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            combined = result.stdout + result.stderr
+            self.assertNotIn("user-completed-secret", combined)
+            stored = RequestStore(Path(tmp) / "control_requests.json").get(req.request_id)
+            self.assertEqual(stored.status, "challenge_completed")
+            self.assertIsNone(stored.response_ciphertext)
+
     def test_control_submit_task_queues_local_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             env = {"OMNIDOER_HOME": tmp}

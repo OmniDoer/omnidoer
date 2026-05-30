@@ -498,16 +498,25 @@ function renderChallengeControls(request, item) {
   const form = document.createElement("form");
   form.className = "secure-form";
   const isVisualChallenge = ["captcha", "passkey", "webauthn", "device_confirmation"].includes(request.request_type);
-  form.innerHTML = `
+  form.innerHTML = isVisualChallenge ? `
     <p class="flow-note">Challenge will be completed by you, not by the Agent. OmniDoer will not bypass CAPTCHA/MFA/Passkey/WebAuthn/3DS.</p>
-    <label>${isVisualChallenge ? "Completion acknowledgement" : "One-time code"} <input data-challenge-field="code" ${isVisualChallenge ? "" : "inputmode=\"numeric\""} autocomplete="one-time-code"></label>
-    <div class="button-row"><button type="submit">${isVisualChallenge ? "Mark User Completed" : "Submit Challenge"}</button></div>
+    <p class="flow-note">No challenge answer is submitted to OmniDoer. Complete the challenge in the controlled browser or external device, then mark it complete.</p>
+    <div class="button-row"><button type="submit">Mark User Completed</button></div>
+  ` : `
+    <p class="flow-note">Challenge will be completed by you, not by the Agent. OmniDoer will not bypass CAPTCHA/MFA/Passkey/WebAuthn/3DS.</p>
+    <label>One-time code <input data-challenge-field="code" inputmode="numeric" autocomplete="one-time-code"></label>
+    <div class="button-row"><button type="submit">Submit Challenge</button></div>
   `;
   form.onsubmit = (event) => {
     event.preventDefault();
-    const value = form.querySelector("[data-challenge-field='code']").value || "user-completed";
+    if (isVisualChallenge) {
+      postAction(request, "complete-challenge");
+      return;
+    }
+    const field = form.querySelector("[data-challenge-field='code']");
+    const value = field.value;
     submitEncrypted(request, { code: value }).then(() => postAction(request, "complete-challenge")).then(() => {
-      form.querySelector("[data-challenge-field='code']").value = "";
+      field.value = "";
     });
   };
   item.append(form);

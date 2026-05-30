@@ -92,7 +92,7 @@ class ChallengeRelay:
 
     def receive_user_response(self, request_id: str) -> dict:
         request = self.store.get(request_id)
-        if request.request_type not in {"totp", "sms_code", "email_code", "one_time_code", "payment_3ds", "captcha"}:
+        if request.request_type not in {"totp", "sms_code", "email_code", "one_time_code", "payment_3ds"}:
             raise ValueError("request is not a user challenge response")
         if not request.response_ciphertext:
             raise ValueError("challenge request has no encrypted response")
