@@ -6,6 +6,8 @@ import unittest
 from pathlib import Path
 
 from omnidoer.omni_control.requests import RequestStore
+from omnidoer.omni_control.devices import DeviceStore
+from omnidoer.omni_control.sessions import SessionStore
 from omnidoer.omni_control.tasks import TaskStore
 
 
@@ -81,6 +83,27 @@ class CliTest(unittest.TestCase):
             status = self.run_cli(["control", "security-status"], env=env)
             self.assertEqual(status.returncode, 0, status.stderr)
             self.assertIn('"mcp_publicly_exposed": false', status.stdout)
+
+    def test_control_device_and_session_cli_redacts_tokens(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            env = {"OMNIDOER_HOME": tmp}
+            device = DeviceStore(Path(tmp) / "control_devices.json").register(name="Phone", public_key="pub")
+            session, token = SessionStore(Path(tmp) / "control_sessions.json").create(device_id=device.device_id)
+
+            devices = self.run_cli(["control", "devices"], env=env)
+            self.assertEqual(devices.returncode, 0, devices.stderr)
+            self.assertIn(device.device_id, devices.stdout)
+            self.assertNotIn("pub", devices.stdout)
+
+            sessions = self.run_cli(["control", "sessions"], env=env)
+            self.assertEqual(sessions.returncode, 0, sessions.stderr)
+            self.assertIn(session.session_id, sessions.stdout)
+            self.assertNotIn(token, sessions.stdout)
+            self.assertNotIn("token_hash", sessions.stdout)
+
+            revoked = self.run_cli(["control", "revoke-device", device.device_id], env=env)
+            self.assertEqual(revoked.returncode, 0, revoked.stderr)
+            self.assertIn("revoked_sessions=1", revoked.stdout)
 
 
 if __name__ == "__main__":

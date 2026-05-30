@@ -85,6 +85,17 @@ class SessionStore:
         self._save(sessions)
         return session
 
+    def revoke_for_device(self, device_id: str) -> list[ControlSession]:
+        sessions = self._load()
+        revoked: list[ControlSession] = []
+        for session in sessions.values():
+            if session.device_id == device_id and not session.revoked:
+                session.revoked = True
+                revoked.append(session)
+                sessions[session.session_id] = session
+        self._save(sessions)
+        return revoked
+
     def authenticate(self, session_id: str, token: str) -> ControlSession:
         sessions = self._load()
         try:

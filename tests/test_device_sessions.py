@@ -45,6 +45,19 @@ class DeviceSessionTest(unittest.TestCase):
                     session_store=sessions,
                 )
 
+    def test_revoke_for_device_revokes_all_device_sessions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            sessions = SessionStore(Path(tmp) / "sessions.json")
+            session_a, _token_a = sessions.create(device_id="dev_a")
+            session_b, _token_b = sessions.create(device_id="dev_a")
+            session_c, _token_c = sessions.create(device_id="dev_b")
+            revoked = sessions.revoke_for_device("dev_a")
+            self.assertEqual({session.session_id for session in revoked}, {session_a.session_id, session_b.session_id})
+            all_sessions = {session.session_id: session for session in sessions.list()}
+            self.assertTrue(all_sessions[session_a.session_id].revoked)
+            self.assertTrue(all_sessions[session_b.session_id].revoked)
+            self.assertFalse(all_sessions[session_c.session_id].revoked)
+
 
 if __name__ == "__main__":
     unittest.main()

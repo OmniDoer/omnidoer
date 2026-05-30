@@ -103,7 +103,8 @@ def handle_control_command(args) -> int:
         return 0
     if command == "revoke-device":
         DeviceStore().revoke(args.device_id)
-        print(f"revoked device {args.device_id}")
+        revoked_sessions = SessionStore().revoke_for_device(args.device_id)
+        print(f"revoked device {args.device_id}; revoked_sessions={len(revoked_sessions)}")
         return 0
     if command == "sessions":
         print(json.dumps([session.to_public_dict() for session in SessionStore().list()], indent=2, sort_keys=True))
