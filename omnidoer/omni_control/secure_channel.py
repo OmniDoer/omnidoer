@@ -246,11 +246,13 @@ def decrypt_at_broker(
         raise ValueError("envelope associated data mismatch")
     if expires_at is not None and float(envelope.get("expires_at", "nan")) != float(expires_at):
         raise ValueError("envelope associated data mismatch")
+    aad_device_id = device_id if device_id is not None else envelope.get("device_id")
+    aad_expires_at = expires_at if expires_at is not None else (float(envelope["expires_at"]) if envelope.get("expires_at") is not None else None)
     if replay_guard:
         replay_guard.check_and_mark(envelope)
     private_key = x25519.X25519PrivateKey.from_private_bytes(_unb64(private_key_b64))
     ephemeral_public = x25519.X25519PublicKey.from_public_bytes(_unb64(envelope["ephemeral_public_key"]))
-    aad = associated_data(request_id, origin, request_type, device_id=device_id, expires_at=expires_at)
+    aad = associated_data(request_id, origin, request_type, device_id=aad_device_id, expires_at=aad_expires_at)
     key = _derive(private_key.exchange(ephemeral_public), aad)
     plaintext = AESGCM(key).decrypt(_unb64(envelope["nonce"]), _unb64(envelope["ciphertext"]), aad)
     return json.loads(plaintext.decode())
@@ -273,13 +275,15 @@ def decrypt_web_at_broker(
         raise ValueError("envelope associated data mismatch")
     if expires_at is not None and float(envelope.get("expires_at", "nan")) != float(expires_at):
         raise ValueError("envelope associated data mismatch")
+    aad_device_id = device_id if device_id is not None else envelope.get("device_id")
+    aad_expires_at = expires_at if expires_at is not None else (float(envelope["expires_at"]) if envelope.get("expires_at") is not None else None)
     if replay_guard:
         replay_guard.check_and_mark(envelope)
     private_key = serialization.load_pem_private_key(private_key_pem.encode(), password=None)
     if not isinstance(private_key, ec.EllipticCurvePrivateKey):
         raise ValueError("not an EC private key")
     ephemeral_public = _jwk_to_public_key(envelope["ephemeral_public_jwk"])
-    aad = associated_data(request_id, origin, request_type, device_id=device_id, expires_at=expires_at)
+    aad = associated_data(request_id, origin, request_type, device_id=aad_device_id, expires_at=aad_expires_at)
     key = _derive_web(private_key.exchange(ec.ECDH(), ephemeral_public), aad)
     plaintext = AESGCM(key).decrypt(_unb64(envelope["nonce"]), _unb64(envelope["ciphertext"]), aad)
     return json.loads(plaintext.decode())

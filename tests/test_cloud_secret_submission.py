@@ -31,8 +31,6 @@ class CloudSecretSubmissionTest(unittest.TestCase):
             request_id="req_cloud",
             origin="https://agent.example.com",
             request_type="credential",
-            device_id="dev_123",
-            expires_at=expires_at,
         )
         self.assertEqual(payload["password"], "cloud-secret")
         with self.assertRaises(ValueError):

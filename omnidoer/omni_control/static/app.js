@@ -12,15 +12,76 @@ if (submitTaskButton) {
   submitTaskButton.onclick = () => submitTask();
 }
 
+const pairDeviceButton = document.querySelector("#pair-device");
+if (pairDeviceButton) {
+  pairDeviceButton.onclick = () => pairDevice();
+}
+
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get("code")) {
+  document.querySelector("#pairing-code").value = urlParams.get("code");
+}
+
+function csrfHeaders() {
+  const token = localStorage.getItem("omnidoer_csrf_token");
+  return token ? { "x-omnidoer-csrf": token } : {};
+}
+
+async function deviceKeyPair() {
+  const storedPrivate = localStorage.getItem("omnidoer_device_private_jwk");
+  const storedPublic = localStorage.getItem("omnidoer_device_public_jwk");
+  if (storedPrivate && storedPublic) {
+    return { publicJwk: JSON.parse(storedPublic) };
+  }
+  const key = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+  const privateJwk = await crypto.subtle.exportKey("jwk", key.privateKey);
+  const publicJwk = await crypto.subtle.exportKey("jwk", key.publicKey);
+  localStorage.setItem("omnidoer_device_private_jwk", JSON.stringify(privateJwk));
+  localStorage.setItem("omnidoer_device_public_jwk", JSON.stringify(publicJwk));
+  return { publicJwk };
+}
+
+async function pairDevice() {
+  const code = document.querySelector("#pairing-code").value.trim();
+  const deviceName = document.querySelector("#device-name").value.trim() || "PWA Control Client";
+  if (!code) return;
+  const { publicJwk } = await deviceKeyPair();
+  const response = await fetch("/api/pair", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ code, device_name: deviceName, device_public_key: JSON.stringify(publicJwk) })
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    document.querySelector("#pairing-status").textContent = "Pairing failed.";
+    return;
+  }
+  localStorage.setItem("omnidoer_device_id", payload.device.device_id);
+  localStorage.setItem("omnidoer_csrf_token", payload.csrf_token);
+  document.querySelector("#pairing-status").textContent = `Paired ${payload.device.name}. Broker fingerprint pinned by server.`;
+  await loadRequests();
+}
 
 function b64url(bytes) {
   return btoa(String.fromCharCode(...new Uint8Array(bytes))).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 }
 
 function stableAssociatedData(request) {
-  return encoder.encode(`{"origin":"${request.origin}","request_id":"${request.request_id}","request_type":"${request.request_type}"}`);
+  const data = {
+    origin: request.origin,
+    request_id: request.request_id,
+    request_type: request.request_type
+  };
+  if (request.device_id) data.device_id = request.device_id;
+  if (request.expires_at) data.expires_at = request.expires_at;
+  const sorted = Object.keys(data).sort().reduce((acc, key) => {
+    acc[key] = data[key];
+    return acc;
+  }, {});
+  return encoder.encode(JSON.stringify(sorted));
 }
 
 async function deriveAesKey(sharedBits, request) {
@@ -36,6 +97,11 @@ async function deriveAesKey(sharedBits, request) {
 }
 
 async function encryptForBroker(payload, request) {
+  const requestForAad = {
+    ...request,
+    device_id: localStorage.getItem("omnidoer_device_id") || undefined,
+    expires_at: request.expires_at
+  };
   const broker = await fetch("/api/broker-key", { cache: "no-store" }).then((r) => r.json());
   const brokerKey = await crypto.subtle.importKey(
     "jwk",
@@ -46,9 +112,9 @@ async function encryptForBroker(payload, request) {
   );
   const ephemeral = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
   const sharedBits = await crypto.subtle.deriveBits({ name: "ECDH", public: brokerKey }, ephemeral.privateKey, 256);
-  const key = await deriveAesKey(sharedBits, request);
+  const key = await deriveAesKey(sharedBits, requestForAad);
   const nonce = crypto.getRandomValues(new Uint8Array(12));
-  const aad = stableAssociatedData(request);
+  const aad = stableAssociatedData(requestForAad);
   const ciphertext = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv: nonce, additionalData: aad },
     key,
@@ -61,7 +127,9 @@ async function encryptForBroker(payload, request) {
     ciphertext: b64url(ciphertext),
     request_id: request.request_id,
     origin: request.origin,
-    request_type: request.request_type
+    request_type: request.request_type,
+    device_id: requestForAad.device_id,
+    expires_at: requestForAad.expires_at
   };
 }
 
@@ -69,14 +137,14 @@ async function submitEncrypted(request, payload) {
   const envelope = await encryptForBroker(payload, request);
   await fetch(`/api/requests/${request.request_id}/submit`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...csrfHeaders() },
     body: JSON.stringify({ envelope })
   });
   await loadRequests();
 }
 
 async function postAction(request, action) {
-  await fetch(`/api/requests/${request.request_id}/${action}`, { method: "POST" });
+  await fetch(`/api/requests/${request.request_id}/${action}`, { method: "POST", headers: csrfHeaders() });
   await loadRequests();
 }
 
@@ -86,7 +154,7 @@ async function submitTask() {
   if (!text) return;
   await fetch("/api/tasks", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...csrfHeaders() },
     body: JSON.stringify({ text })
   });
   input.value = "";
@@ -94,7 +162,7 @@ async function submitTask() {
 }
 
 async function updateTask(task, action) {
-  await fetch(`/api/tasks/${task.task_id}/${action}`, { method: "POST" });
+  await fetch(`/api/tasks/${task.task_id}/${action}`, { method: "POST", headers: csrfHeaders() });
   await loadTasks();
 }
 
@@ -139,7 +207,7 @@ async function loadTasks() {
 async function sendTakeoverInput(request, eventPayload) {
   await fetch(`/api/requests/${request.request_id}/input`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...csrfHeaders() },
     body: JSON.stringify(eventPayload)
   });
 }

@@ -11,6 +11,15 @@
 <body>
   <main>
     <h1>OmniDoer Control Client</h1>
+    <section id="pairing-panel">
+      <h2>Pair Device</h2>
+      <p>Pairing connects this Control Client directly to your own OmniDoer Control Service. Only pair devices you control.</p>
+      <p>After pairing, secret and challenge submissions are encrypted locally before they are sent.</p>
+      <label>Pairing code <input id="pairing-code" autocomplete="one-time-code"></label>
+      <label>Device name <input id="device-name" value="PWA Control Client"></label>
+      <button id="pair-device">Pair Device</button>
+      <p id="pairing-status">Not paired.</p>
+    </section>
     <section id="security">
       <h2>Security</h2>
       <p>Secret destination: Secret Broker. Not sent to Agent/LLM context, MCP return values, logs, or DOM observation.</p>

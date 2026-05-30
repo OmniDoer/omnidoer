@@ -59,6 +59,16 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("submitTask", app)
         self.assertIn("local queue -> MCP control.next_user_task -> Codex CLI", app)
 
+    def test_pairing_panel_and_cloud_csrf_contract_present(self) -> None:
+        self.assertIn("Pair Device", self.html)
+        self.assertIn("Only pair devices you control", self.html)
+        app = (static_root() / "app.js").read_text()
+        self.assertIn("/api/pair", app)
+        self.assertIn("omnidoer_device_id", app)
+        self.assertIn("x-omnidoer-csrf", app)
+        self.assertIn("device_id", app)
+        self.assertIn("expires_at", app)
+
     def test_takeover_ui_sends_rich_input_events(self) -> None:
         app = (static_root() / "app.js").read_text()
         for event_type in ("drag", "long_press", "scroll", "type", "key"):
