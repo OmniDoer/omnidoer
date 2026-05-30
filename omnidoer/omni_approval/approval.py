@@ -118,11 +118,14 @@ def verify_approval_scope(
     action_summary: str,
     structured_details: dict[str, Any],
     store: RequestStore | None = None,
+    consume: bool = False,
 ) -> ControlRequest:
     store = store or RequestStore()
     request = store.get(request_id)
     if request.status != "approved":
         raise PermissionError("approval request is not approved")
+    if request.used:
+        raise PermissionError("approval request already used")
     expected = request.approval_fingerprint
     current = approval_fingerprint(
         origin=origin,
@@ -136,6 +139,8 @@ def verify_approval_scope(
         raise PermissionError("approval fingerprint is required for scoped sensitive actions")
     if request.origin != origin:
         raise PermissionError("approval origin mismatch")
+    if consume:
+        return store.consume_approval(request_id)
     return request
 
 

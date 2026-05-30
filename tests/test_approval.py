@@ -59,6 +59,7 @@ class ApprovalTest(unittest.TestCase):
                     store=store,
                 )
                 store.approve(req.request_id)
+                self.assertFalse(store.get(req.request_id).used)
                 verified = verify_approval_scope(
                     req.request_id,
                     origin="https://checkout.example",
@@ -68,6 +69,26 @@ class ApprovalTest(unittest.TestCase):
                     store=store,
                 )
                 self.assertEqual(verified.request_id, req.request_id)
+                consumed = verify_approval_scope(
+                    req.request_id,
+                    origin="https://checkout.example",
+                    top_level_url="https://checkout.example/pay",
+                    action_summary="Submit reviewed payment",
+                    structured_details=details,
+                    store=store,
+                    consume=True,
+                )
+                self.assertEqual(consumed.status, "consumed")
+                self.assertTrue(consumed.used)
+                with self.assertRaises(PermissionError):
+                    verify_approval_scope(
+                        req.request_id,
+                        origin="https://checkout.example",
+                        top_level_url="https://checkout.example/pay",
+                        action_summary="Submit reviewed payment",
+                        structured_details=details,
+                        store=store,
+                    )
                 with self.assertRaises(PermissionError):
                     verify_approval_scope(
                         req.request_id,

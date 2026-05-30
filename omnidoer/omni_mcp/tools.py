@@ -150,6 +150,8 @@ def _file_upload_allowed(arguments: dict, *, origin: str | None, top_level_url: 
             return _error("not_found", "file upload approval request not found")
         if request.request_type != "file_upload":
             return _error("rejected", "approval request is not for file upload")
+        if request.used:
+            return _error("rejected", "approval request already used")
         if request.status != "approved":
             return {
                 "status": "approval_required",
@@ -158,6 +160,7 @@ def _file_upload_allowed(arguments: dict, *, origin: str | None, top_level_url: 
             }
         if origin and request.origin != origin:
             return _error("rejected", "file upload approval origin mismatch")
+        store.consume_approval(request.request_id)
         return None
 
     request = store.create(
@@ -246,6 +249,12 @@ def _sensitive_click_allowed(arguments: dict, *, browser, selector: str) -> dict
     request_id = arguments.get("approval_request_id") or arguments.get("request_id")
     if request_id:
         try:
+            request = store.get(str(request_id))
+        except KeyError:
+            return _error("not_found", "approval request not found")
+        if request.request_type != _approval_request_type(action_type):
+            return _error("rejected", "approval request type does not match click action")
+        try:
             request = verify_approval_scope(
                 str(request_id),
                 origin=origin,
@@ -253,13 +262,10 @@ def _sensitive_click_allowed(arguments: dict, *, browser, selector: str) -> dict
                 action_summary=action_summary,
                 structured_details=structured_details,
                 store=store,
+                consume=True,
             )
-        except KeyError:
-            return _error("not_found", "approval request not found")
         except PermissionError as exc:
             return {"status": "approval_scope_mismatch", "reason": str(exc), "secret_exposed_to_model": False}
-        if request.request_type != _approval_request_type(action_type):
-            return _error("rejected", "approval request type does not match click action")
         return None
 
     fingerprint = approval_fingerprint(

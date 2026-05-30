@@ -100,6 +100,23 @@ class ControlRequestTest(unittest.TestCase):
             self.store.release_takeover(takeover.request_id)
         self.assertEqual(self.store.get(takeover.request_id).status, "expired")
 
+    def test_approval_is_consumed_once_after_user_approval(self) -> None:
+        approval = self.store.create(
+            "payment_approval",
+            origin="https://checkout.example",
+            top_level_url="https://checkout.example/pay",
+            action_summary="approve",
+        )
+        approved = self.store.approve(approval.request_id)
+        self.assertEqual(approved.status, "approved")
+        self.assertFalse(approved.used)
+        consumed = self.store.consume_approval(approval.request_id)
+        self.assertEqual(consumed.status, "consumed")
+        self.assertTrue(consumed.used)
+        with self.assertRaises(ValueError) as reused:
+            self.store.consume_approval(approval.request_id)
+        self.assertEqual(str(reused.exception), "request already used")
+
     def test_user_control_and_fulfilled_requests_expire_in_lists(self) -> None:
         takeover = self.store.create(
             "account_registration",

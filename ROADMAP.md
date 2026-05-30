@@ -90,7 +90,8 @@
   cleared only after delivery is accepted.
 - Payment approvals include structured merchant, amount, recipient, origin,
   final-button, after-approval, and review-fingerprint details. Final sensitive
-  browser clicks are gated on scoped approval.
+  browser clicks are gated on scoped approval, and approved sensitive actions
+  are consumed before release so the same approval id cannot be replayed.
 
 ## Immediate Next Work
 

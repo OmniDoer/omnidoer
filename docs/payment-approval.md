@@ -35,6 +35,9 @@ or account deletion do not click immediately. The tool creates an approval
 request with merchant/payee, amount, currency, origin, form action, final
 button text, and after-approval result when those details are visible. Only an
 approved request with the same review fingerprint can release that exact click.
+The approval is consumed before the sensitive click is released, so replaying
+the same approval id cannot submit the payment, transfer, upload, OAuth grant,
+or account change a second time.
 
 ## Local Demo
 

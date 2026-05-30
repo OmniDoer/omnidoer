@@ -115,13 +115,13 @@ class McpBrowserToolsTest(unittest.TestCase):
             try:
                 html = quote(
                     """
-<form id="pay-form" action="/pay" onsubmit="event.preventDefault(); window.clicked = true;">
+<form id="pay-form" action="/pay" onsubmit="event.preventDefault(); window.clickedCount += 1;">
   <input type="hidden" name="merchant" value="Demo Store">
   <input type="hidden" name="amount" value="12.34">
   <input type="hidden" name="currency" value="USD">
   <button id="pay" type="submit">Pay 12.34 USD</button>
 </form>
-<script>window.clicked = false;</script>
+<script>window.clickedCount = 0;</script>
 """
                 )
                 opened = call_tool("browser.open", {"url": f"data:text/html,{html}"})
@@ -136,18 +136,23 @@ class McpBrowserToolsTest(unittest.TestCase):
                 self.assertEqual(request["structured_details"]["merchant"], "Demo Store")
                 self.assertEqual(request["structured_details"]["amount"], "12.34")
                 self.assertRegex(request["approval_fingerprint"], r"^[0-9a-f]{64}$")
-                self.assertFalse(get_browser().page.evaluate("window.clicked"))
+                self.assertEqual(get_browser().page.evaluate("window.clickedCount"), 0)
 
                 RequestStore().approve(request["request_id"])
                 get_browser().page.evaluate("document.querySelector('[name=amount]').value = '99.00'")
                 mismatch = call_tool("browser.click", {"selector": "#pay", "approval_request_id": request["request_id"]})
                 self.assertEqual(mismatch["status"], "approval_scope_mismatch")
-                self.assertFalse(get_browser().page.evaluate("window.clicked"))
+                self.assertEqual(get_browser().page.evaluate("window.clickedCount"), 0)
 
                 get_browser().page.evaluate("document.querySelector('[name=amount]').value = '12.34'")
                 clicked = call_tool("browser.click", {"selector": "#pay", "approval_request_id": request["request_id"]})
                 self.assertEqual(clicked["status"], "clicked")
-                self.assertTrue(get_browser().page.evaluate("window.clicked"))
+                self.assertEqual(get_browser().page.evaluate("window.clickedCount"), 1)
+                self.assertEqual(RequestStore().get(request["request_id"]).status, "consumed")
+                replay = call_tool("browser.click", {"selector": "#pay", "approval_request_id": request["request_id"]})
+                self.assertEqual(replay["status"], "approval_scope_mismatch")
+                self.assertIn("not approved", replay["reason"])
+                self.assertEqual(get_browser().page.evaluate("window.clickedCount"), 1)
             finally:
                 if old_home is None:
                     os.environ.pop("OMNIDOER_HOME", None)

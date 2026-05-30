@@ -36,7 +36,7 @@ REQUEST_TYPES = {
     "account_registration",
 }
 
-EXPIRABLE_STATUSES = {"pending", "user_control", "fulfilled"}
+EXPIRABLE_STATUSES = {"pending", "user_control", "fulfilled", "approved"}
 TAKEOVER_FRAME_MAX_AGE_SECONDS = 30.0
 
 
@@ -208,7 +208,7 @@ class RequestStore:
         self._ensure_actionable(request)
         request.approval_decision = "approved"
         request.status = "approved"
-        request.used = request.one_time_use
+        request.used = False
         request.completed_by_user = True
         return self.update(request)
 
@@ -283,3 +283,12 @@ class RequestStore:
         if event.event_type == "drag" and (not in_bounds(event.x, event.y) or not in_bounds(event.to_x, event.to_y)):
             raise ValueError("takeover coordinates out of frame bounds")
         return request
+
+    def consume_approval(self, request_id: str) -> ControlRequest:
+        request = self.get(request_id)
+        self._ensure_actionable(request)
+        if request.status != "approved" or request.approval_decision != "approved":
+            raise ValueError("approval request is not approved")
+        request.status = "consumed"
+        request.used = True
+        return self.update(request)

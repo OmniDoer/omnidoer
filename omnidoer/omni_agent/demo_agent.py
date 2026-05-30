@@ -301,6 +301,7 @@ def _checkout_task(args) -> int:
         AuditLog().append("payment_denied", origin=args.demo_origin, request_id=request.request_id, status="denied")
         print("payment denied; not submitted")
         return 0
+    RequestStore().consume_approval(request.request_id)
 
     challenge = request_user_interaction(
         origin=args.demo_origin,
