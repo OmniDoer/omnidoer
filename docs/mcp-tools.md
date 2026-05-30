@@ -42,3 +42,8 @@ Credential tools return status and policy metadata only:
 ```
 
 The actual username/password values are not present.
+
+`browser.type_text` and `browser.select` are ordinary form tools. If the target
+field appears to be a password, OTP, token, recovery code, payment, or other
+sensitive field, the browser controller rejects the call and requires the
+Secret Broker or Challenge Relay path instead.

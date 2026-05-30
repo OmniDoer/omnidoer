@@ -9,6 +9,7 @@ ALLOWED_TOOLS = [
     "browser.observe",
     "browser.click",
     "browser.type_text",
+    "browser.select",
     "browser.download_current_file",
     "browser.current_origin",
     "browser.detect_challenge",
@@ -156,6 +157,14 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
                 if text is None:
                     return _error("error", "text required")
                 return browser.type_text(str(selector), str(text))
+            if name == "browser.select":
+                selector = arguments.get("selector") or arguments.get("selector_or_description")
+                value = arguments.get("value")
+                if not selector:
+                    return _error("error", "selector required")
+                if value is None:
+                    return _error("error", "value required")
+                return browser.select(str(selector), str(value))
             if name == "browser.download_current_file":
                 selector = str(arguments.get("selector") or arguments.get("selector_or_description") or "a[download]")
                 path = browser.download_current_file(selector=selector, output_dir=arguments.get("output_dir"))

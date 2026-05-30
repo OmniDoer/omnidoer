@@ -112,6 +112,16 @@ class BrowserController:
         self.page.fill(selector, text)
         return {"status": "typed", "secret_exposed_to_model": False}
 
+    def select(self, selector: str, value: str) -> dict:
+        if self._selector_targets_sensitive_field(selector):
+            return {
+                "status": "rejected",
+                "reason": "sensitive fields require Secret Broker or Challenge Relay",
+                "secret_exposed_to_model": False,
+            }
+        self.page.select_option(selector, value=value)
+        return {"status": "selected", "secret_exposed_to_model": False}
+
     def fill_field(self, selector: str, value: str, *, secret: bool = False) -> dict:
         self.page.fill(selector, value)
         return {"status": "filled", "secret": bool(secret), "secret_exposed_to_model": False}

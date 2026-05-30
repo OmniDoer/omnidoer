@@ -14,6 +14,7 @@ class McpToolsTest(unittest.TestCase):
         self.assertTrue(forbidden_tool_names().isdisjoint(ALLOWED_TOOLS))
         self.assertIn("credential.request_from_user", ALLOWED_TOOLS)
         self.assertIn("takeover.request_user_control", ALLOWED_TOOLS)
+        self.assertIn("browser.select", ALLOWED_TOOLS)
         self.assertIn("control.next_user_task", ALLOWED_TOOLS)
 
     def test_tool_result_status_only(self) -> None:

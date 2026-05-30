@@ -3,6 +3,7 @@ import tempfile
 import importlib.util
 import unittest
 from pathlib import Path
+from urllib.parse import quote
 
 from omnidoer.omni_mcp.runtime import reset_runtime_for_tests
 from omnidoer.omni_mcp.tools import call_tool
@@ -45,6 +46,14 @@ class McpBrowserToolsTest(unittest.TestCase):
             antibot = call_tool("browser.detect_antibot", {})
             self.assertTrue(antibot["antibot_detected"])
             self.assertTrue(antibot["requires_human_takeover"])
+
+    def test_mcp_browser_selects_plain_form_values(self) -> None:
+        html = quote("<select id='mode'><option value='slow'>Slow</option><option value='fast'>Fast</option></select>")
+        opened = call_tool("browser.open", {"url": f"data:text/html,{html}"})
+        if opened.get("status") == "unavailable":
+            self.skipTest("playwright chromium unavailable")
+        selected = call_tool("browser.select", {"selector": "#mode", "value": "fast"})
+        self.assertEqual(selected["status"], "selected")
 
     def test_mcp_credential_fill_uses_vault_without_returning_secret(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, DemoServerFixture() as demo:
