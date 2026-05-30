@@ -113,6 +113,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("request.structured_details", app)
         self.assertIn("Agent prepared action", app)
         self.assertIn("Submit only after approval", app)
+        self.assertIn('"file_upload"', app)
 
 
 if __name__ == "__main__":

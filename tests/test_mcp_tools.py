@@ -16,7 +16,9 @@ class McpToolsTest(unittest.TestCase):
         self.assertIn("credential.create_interactive", ALLOWED_TOOLS)
         self.assertIn("takeover.request_user_control", ALLOWED_TOOLS)
         self.assertIn("registration.request_user_handoff", ALLOWED_TOOLS)
+        self.assertIn("browser.observe_accessibility", ALLOWED_TOOLS)
         self.assertIn("browser.select", ALLOWED_TOOLS)
+        self.assertIn("browser.upload_file", ALLOWED_TOOLS)
         self.assertIn("control.next_user_task", ALLOWED_TOOLS)
 
     def test_tool_result_status_only(self) -> None:

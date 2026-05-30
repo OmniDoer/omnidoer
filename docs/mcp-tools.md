@@ -6,9 +6,11 @@ OmniDoer MCP tools expose actions, not secrets.
 
 - `browser.open(url)`
 - `browser.observe()`
+- `browser.observe_accessibility()`
 - `browser.click(selector_or_description)`
 - `browser.type_text(selector_or_description, text)`
 - `browser.select(selector_or_description, value)`
+- `browser.upload_file(selector_or_description, path)`
 - `browser.download_current_file()`
 - `browser.current_origin()`
 - `credential.list_for_current_origin()`
@@ -49,3 +51,12 @@ The actual username/password values are not present.
 field appears to be a password, OTP, token, recovery code, payment, or other
 sensitive field, the browser controller rejects the call and requires the
 Secret Broker or Challenge Relay path instead.
+
+`browser.observe_accessibility` returns a redacted accessibility snapshot for
+model-visible reasoning. It must not include password values, verification
+codes, payment details, or challenge answers.
+
+`browser.upload_file` sends a local file path to the controlled browser file
+input without returning file contents. If the caller marks the upload as
+`sensitive: true`, OmniDoer creates a `file_upload` approval request and
+requires that request to be approved before the upload is allowed.

@@ -7,9 +7,11 @@ import os
 ALLOWED_TOOLS = [
     "browser.open",
     "browser.observe",
+    "browser.observe_accessibility",
     "browser.click",
     "browser.type_text",
     "browser.select",
+    "browser.upload_file",
     "browser.download_current_file",
     "browser.current_origin",
     "browser.detect_challenge",
@@ -131,6 +133,53 @@ def _create_credential_request(arguments: dict) -> dict:
     return {"status": "credential_request_created", "request": request.to_public_dict(), "secret_exposed_to_model": False}
 
 
+def _file_upload_allowed(arguments: dict, *, origin: str | None, top_level_url: str, file_path: str, selector: str) -> dict | None:
+    if not arguments.get("sensitive"):
+        return None
+
+    from pathlib import Path
+
+    from omnidoer.omni_control.requests import RequestStore
+
+    store = RequestStore()
+    request_id = arguments.get("approval_request_id") or arguments.get("request_id")
+    if request_id:
+        try:
+            request = store.get(str(request_id))
+        except KeyError:
+            return _error("not_found", "file upload approval request not found")
+        if request.request_type != "file_upload":
+            return _error("rejected", "approval request is not for file upload")
+        if request.status != "approved":
+            return {
+                "status": "approval_required",
+                "request": request.to_public_dict(),
+                "secret_exposed_to_model": False,
+            }
+        if origin and request.origin != origin:
+            return _error("rejected", "file upload approval origin mismatch")
+        return None
+
+    request = store.create(
+        "file_upload",
+        origin=origin or "",
+        top_level_url=top_level_url,
+        action_summary=str(arguments.get("action_summary") or "sensitive file upload approval required"),
+        risk_level=str(arguments.get("risk_level") or "high"),
+        structured_details={
+            "filename": Path(file_path).name,
+            "selector": selector,
+            "sensitive": True,
+            "after_approval": "Upload the selected local file to the current browser file input",
+        },
+    )
+    return {
+        "status": "approval_required",
+        "request": request.to_public_dict(),
+        "secret_exposed_to_model": False,
+    }
+
+
 def _totp_code(seed: str) -> str:
     import base64
     import hashlib
@@ -164,6 +213,8 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
                 return browser.open(str(url))
             if name == "browser.observe":
                 return {"status": "ok", "observation": browser.observe_dom(), "secret_exposed_to_model": False}
+            if name == "browser.observe_accessibility":
+                return {"status": "ok", "observation": browser.observe_accessibility(), "secret_exposed_to_model": False}
             if name == "browser.click":
                 selector = arguments.get("selector") or arguments.get("selector_or_description")
                 if not selector:
@@ -187,6 +238,23 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
                 if value is None:
                     return _error("error", "value required")
                 return browser.select(str(selector), str(value))
+            if name == "browser.upload_file":
+                selector = arguments.get("selector") or arguments.get("selector_or_description")
+                file_path = arguments.get("path") or arguments.get("file_path")
+                if not selector:
+                    return _error("error", "selector required")
+                if not file_path:
+                    return _error("error", "path required")
+                approval = _file_upload_allowed(
+                    arguments,
+                    origin=browser.current_origin(),
+                    top_level_url=browser.current_url(),
+                    file_path=str(file_path),
+                    selector=str(selector),
+                )
+                if approval is not None:
+                    return approval
+                return browser.upload_file(str(selector), str(file_path))
             if name == "browser.download_current_file":
                 selector = str(arguments.get("selector") or arguments.get("selector_or_description") or "a[download]")
                 path = browser.download_current_file(selector=selector, output_dir=arguments.get("output_dir"))

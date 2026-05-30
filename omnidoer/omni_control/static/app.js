@@ -95,6 +95,7 @@ function formatTimestamp(value) {
 function requestKind(request) {
   if (request.request_type === "credential") return "credential";
   if (request.request_type === "human_takeover" || request.request_type === "account_registration") return "takeover";
+  if (["file_upload", "account_delete", "password_change", "two_factor_change", "message_send"].includes(request.request_type)) return "approval";
   if (request.request_type.endsWith("_approval") || request.request_type.includes("approval")) return "approval";
   return "challenge";
 }

@@ -85,7 +85,29 @@ class BrowserController:
         return {"url": self.current_url(), "origin": self.current_origin(), "nodes": redact_dom_snapshot(data)}
 
     def observe_accessibility(self) -> dict:
-        snapshot = self.page.accessibility.snapshot() or {}
+        accessibility = getattr(self.page, "accessibility", None)
+        if accessibility is not None:
+            try:
+                snapshot = accessibility.snapshot() or {}
+                return redact_dom_snapshot(snapshot)
+            except Exception:
+                pass
+        snapshot = self.page.evaluate(
+            """() => ({
+                role: 'document',
+                name: document.title || '',
+                children: Array.from(document.querySelectorAll('label, input, textarea, button, a, h1, h2, p')).map((el) => ({
+                    role: el.getAttribute('role') || el.tagName.toLowerCase(),
+                    type: el.getAttribute('type') || '',
+                    name: el.getAttribute('name') || el.getAttribute('aria-label') || el.innerText || '',
+                    id: el.getAttribute('id') || '',
+                    label: el.labels && el.labels.length ? Array.from(el.labels).map((label) => label.innerText).join(' ') : '',
+                    autocomplete: el.getAttribute('autocomplete') || '',
+                    description: el.getAttribute('placeholder') || '',
+                    value: el.matches('input, textarea') ? el.value : ''
+                }))
+            })"""
+        )
         return redact_dom_snapshot(snapshot)
 
     def screenshot(self) -> bytes:
@@ -124,6 +146,13 @@ class BrowserController:
             }
         self.page.select_option(selector, value=value)
         return {"status": "selected", "secret_exposed_to_model": False}
+
+    def upload_file(self, selector: str, file_path: str | Path) -> dict:
+        path = Path(file_path)
+        if not path.is_file():
+            raise FileNotFoundError(path)
+        self.page.set_input_files(selector, str(path))
+        return {"status": "uploaded", "filename": path.name, "secret_exposed_to_model": False}
 
     def fill_field(self, selector: str, value: str, *, secret: bool = False) -> dict:
         self.page.fill(selector, value)
