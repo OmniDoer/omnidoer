@@ -1,0 +1,135 @@
+"""Headless Chromium controller.
+
+Playwright is optional at import time so non-browser safety tests can run on
+minimal systems. Browser commands explain how to install it when unavailable.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+from omnidoer.omni_challenge.detector import detect_challenge_from_url
+from omnidoer.omni_observer import redact_dom_snapshot, redact_text
+from omnidoer.omni_policy.policy import origin_from_url
+
+
+class BrowserUnavailable(RuntimeError):
+    pass
+
+
+class BrowserController:
+    def __init__(self, headless: bool = True, downloads_path: str | None = None):
+        self.headless = headless
+        self.downloads_path = downloads_path
+        self._playwright = None
+        self._browser = None
+        self._context = None
+        self._page = None
+
+    def __enter__(self) -> "BrowserController":
+        try:
+            from playwright.sync_api import sync_playwright
+        except Exception as exc:
+            raise BrowserUnavailable(
+                "Playwright is not installed. Run python3 -m pip install -e '.[dev]' and python3 -m playwright install chromium."
+            ) from exc
+        self._playwright = sync_playwright().start()
+        self._browser = self._playwright.chromium.launch(headless=self.headless)
+        self._context = self._browser.new_context(accept_downloads=True)
+        self._page = self._context.new_page()
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        if self._context:
+            self._context.close()
+        if self._browser:
+            self._browser.close()
+        if self._playwright:
+            self._playwright.stop()
+
+    @property
+    def page(self):
+        if self._page is None:
+            raise BrowserUnavailable("browser is not started")
+        return self._page
+
+    def open(self, url: str) -> dict:
+        self.page.goto(url, wait_until="domcontentloaded")
+        return {"status": "opened", "url": self.current_url(), "secret_exposed_to_model": False}
+
+    def current_url(self) -> str:
+        return self.page.url
+
+    def current_origin(self) -> str | None:
+        return origin_from_url(self.current_url())
+
+    def observe_dom(self) -> dict:
+        data = self.page.evaluate(
+            """() => Array.from(document.querySelectorAll('input, textarea, button, a, h1, h2, p')).map((el) => ({
+                tag: el.tagName.toLowerCase(),
+                type: el.getAttribute('type') || '',
+                name: el.getAttribute('name') || '',
+                id: el.getAttribute('id') || '',
+                text: el.innerText || el.getAttribute('value') || '',
+                value: el.matches('input, textarea') ? el.value : '',
+                href: el.getAttribute('href') || ''
+            }))"""
+        )
+        return {"url": self.current_url(), "origin": self.current_origin(), "nodes": redact_dom_snapshot(data)}
+
+    def observe_accessibility(self) -> dict:
+        snapshot = self.page.accessibility.snapshot() or {}
+        return redact_dom_snapshot(snapshot)
+
+    def screenshot(self) -> bytes:
+        return self.page.screenshot(full_page=False)
+
+    def click(self, selector: str) -> dict:
+        self.page.click(selector)
+        return {"status": "clicked", "secret_exposed_to_model": False}
+
+    def type_text(self, selector: str, text: str) -> dict:
+        self.page.fill(selector, text)
+        return {"status": "typed", "secret_exposed_to_model": False}
+
+    def fill_field(self, selector: str, value: str, *, secret: bool = False) -> dict:
+        self.page.fill(selector, value)
+        return {"status": "filled", "secret": bool(secret), "secret_exposed_to_model": False}
+
+    def inspect_forms(self) -> list[dict[str, Any]]:
+        return self.page.evaluate(
+            """() => Array.from(document.forms).map((form) => ({
+                action: form.action,
+                method: form.method,
+                fields: Array.from(form.elements).map((el) => ({
+                    tag: el.tagName.toLowerCase(),
+                    type: el.getAttribute('type') || '',
+                    name: el.getAttribute('name') || '',
+                    id: el.getAttribute('id') || ''
+                }))
+            }))"""
+        )
+
+    def inspect_frame_tree(self) -> dict:
+        return {"top_level_url": self.current_url(), "frames": [frame.url for frame in self.page.frames]}
+
+    def inspect_form_action(self) -> str | None:
+        forms = self.inspect_forms()
+        return forms[0]["action"] if forms else None
+
+    def detect_challenge(self) -> str | None:
+        return detect_challenge_from_url(self.current_url())
+
+    def detect_antibot(self) -> bool:
+        return "antibot" in self.current_url().lower()
+
+    def download_current_file(self, selector: str = "a[download]", output_dir: str | None = None) -> Path:
+        output = Path(output_dir or self.downloads_path or ".omnidoer/downloads")
+        output.mkdir(parents=True, exist_ok=True)
+        with self.page.expect_download() as download_info:
+            self.page.click(selector)
+        download = download_info.value
+        path = output / download.suggested_filename
+        download.save_as(path)
+        return path
