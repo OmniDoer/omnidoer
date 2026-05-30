@@ -42,7 +42,7 @@ def _run_codex_login_status() -> tuple[str, str]:
     if "api key" in lowered or "apikey" in lowered or "openai_api_key" in lowered:
         return (
             "api_key",
-            "WARNING: API-key billing mode detected. If you want to use ChatGPT Pro subscription-backed Codex, run codex login and choose ChatGPT login.",
+            "WARNING: API-key billing mode detected. This uses OpenAI Platform API billing. If you want to use ChatGPT Pro subscription-backed Codex, run codex login and choose ChatGPT login.",
         )
     if result.returncode != 0:
         return "error", "codex login status returned a non-zero exit code"

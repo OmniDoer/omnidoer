@@ -1,7 +1,9 @@
 import os
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
-from omnidoer.omni_cli.doctor import collect_checks
+from omnidoer.omni_cli.doctor import _run_codex_login_status, collect_checks
 
 
 class DoctorTest(unittest.TestCase):
@@ -31,6 +33,33 @@ class DoctorTest(unittest.TestCase):
                 os.environ.pop("OPENAI_API_KEY", None)
             else:
                 os.environ["OPENAI_API_KEY"] = old
+
+    def test_codex_login_status_classifies_chatgpt_mode(self) -> None:
+        with patch("shutil.which", return_value="/usr/bin/codex"), patch(
+            "subprocess.run",
+            return_value=SimpleNamespace(stdout="Logged in using ChatGPT\n", returncode=0),
+        ):
+            mode, detail = _run_codex_login_status()
+        self.assertEqual(mode, "chatgpt")
+        self.assertIn("subscription-backed", detail)
+
+    def test_codex_login_status_classifies_api_key_mode(self) -> None:
+        with patch("shutil.which", return_value="/usr/bin/codex"), patch(
+            "subprocess.run",
+            return_value=SimpleNamespace(stdout="Logged in using API key\n", returncode=0),
+        ):
+            mode, detail = _run_codex_login_status()
+        self.assertEqual(mode, "api_key")
+        self.assertIn("OpenAI Platform API billing", detail)
+
+    def test_codex_login_status_does_not_print_status_output(self) -> None:
+        with patch("shutil.which", return_value="/usr/bin/codex"), patch(
+            "subprocess.run",
+            return_value=SimpleNamespace(stdout="access token secret-token-value\n", returncode=0),
+        ):
+            mode, detail = _run_codex_login_status()
+        self.assertEqual(mode, "unknown")
+        self.assertNotIn("secret-token-value", detail)
 
 
 if __name__ == "__main__":
