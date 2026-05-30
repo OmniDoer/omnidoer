@@ -844,6 +844,16 @@ class CloudControlServiceTest(unittest.TestCase):
                 with self.assertRaises(Exception):
                     headers = signed_headers(phone_key, phone_body, phone_cookie, "GET", "/api/requests", "nonce-after-device-revoke")
                     urllib_request.urlopen(urllib_request.Request(f"{base}/api/requests", headers=headers), timeout=5)
+
+                raw_audit = os.path.join(tmp, "audit.jsonl")
+                with open(raw_audit, encoding="utf-8") as handle:
+                    audit_text = handle.read()
+                self.assertIn("control_device_paired", audit_text)
+                self.assertIn("control_session_revoked", audit_text)
+                self.assertIn("control_device_revoked", audit_text)
+                self.assertNotIn("session_token", audit_text)
+                self.assertNotIn("public_key", audit_text)
+                self.assertNotIn("nonce-revoke", audit_text)
             finally:
                 server.shutdown()
                 server.server_close()

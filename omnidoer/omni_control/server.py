@@ -21,6 +21,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 
+from omnidoer.omni_audit.audit import AuditLog
 from omnidoer.omni_control.auth import authenticate_session, authenticate_signed_session_request, pair_device
 from omnidoer.omni_control.cloud import ControlServiceConfig, build_config
 from omnidoer.omni_control.csrf import CSRF_HEADER, verify_csrf
@@ -479,9 +480,16 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 self.send_header("content-length", str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
+                AuditLog().append(
+                    "control_device_paired",
+                    device_id=result.device.device_id,
+                    device_fingerprint=result.device.fingerprint,
+                    status="ok",
+                )
                 PAIR_RATE_LIMIT.clear(remote_key)
             except Exception as exc:
                 PAIR_RATE_LIMIT.record_failure(remote_key)
+                AuditLog().append("control_pairing_failed", status=type(exc).__name__)
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": type(exc).__name__})
             return
         if path == "/api/tasks":
@@ -555,6 +563,12 @@ class ControlHandler(SimpleHTTPRequestHandler):
             try:
                 device = DeviceStore().revoke(device_id)
                 revoked_sessions = SessionStore().revoke_for_device(device_id)
+                AuditLog().append(
+                    "control_device_revoked",
+                    device_id=device.device_id,
+                    revoked_sessions=len(revoked_sessions),
+                    status="revoked",
+                )
                 self._send_json(
                     HTTPStatus.OK,
                     {
@@ -580,6 +594,12 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 return
             try:
                 revoked = SessionStore().revoke(session_id)
+                AuditLog().append(
+                    "control_session_revoked",
+                    session_id=revoked.session_id,
+                    device_id=revoked.device_id,
+                    status="revoked",
+                )
                 self._send_json(
                     HTTPStatus.OK,
                     {
