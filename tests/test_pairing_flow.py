@@ -3,6 +3,8 @@ import time
 import unittest
 from pathlib import Path
 
+from cryptography.hazmat.primitives.asymmetric import ec
+
 from omnidoer.omni_control.auth import pair_device
 from omnidoer.omni_control.devices import DeviceStore
 from omnidoer.omni_control.pairing import (
@@ -14,6 +16,7 @@ from omnidoer.omni_control.pairing import (
     qr_text,
 )
 from omnidoer.omni_control.sessions import SessionStore
+from tests.test_control_auth import public_jwk
 
 
 class PairingFlowTest(unittest.TestCase):
@@ -48,7 +51,7 @@ class PairingFlowTest(unittest.TestCase):
             result = pair_device(
                 code=pairing.code,
                 device_name="Android",
-                device_public_key="device-public-key",
+                device_public_key=public_jwk(ec.generate_private_key(ec.SECP256R1())),
                 pairing_store=pairing_store,
                 device_store=device_store,
                 session_store=session_store,
@@ -60,6 +63,31 @@ class PairingFlowTest(unittest.TestCase):
             self.assertGreater(qr.count("\n"), 20)
             self.assertIn("##", qr)
             self.assertNotIn("[QR]", qr)
+
+    def test_invalid_device_public_key_does_not_consume_pairing_code(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            pairing_store = PairingStore(Path(tmp) / "pairing.json")
+            device_store = DeviceStore(Path(tmp) / "devices.json")
+            session_store = SessionStore(Path(tmp) / "sessions.json")
+            pairing = pairing_store.create(public_url="https://agent.example.com", ttl_seconds=600)
+            with self.assertRaises(PermissionError):
+                pair_device(
+                    code=pairing.code,
+                    device_name="Invalid",
+                    device_public_key="not-a-jwk",
+                    pairing_store=pairing_store,
+                    device_store=device_store,
+                    session_store=session_store,
+                )
+            result = pair_device(
+                code=pairing.code,
+                device_name="Android",
+                device_public_key=public_jwk(ec.generate_private_key(ec.SECP256R1())),
+                pairing_store=pairing_store,
+                device_store=device_store,
+                session_store=session_store,
+            )
+            self.assertEqual(result.device.name, "Android")
 
     def test_duration_parser(self) -> None:
         self.assertEqual(parse_duration_seconds("10m"), 600)

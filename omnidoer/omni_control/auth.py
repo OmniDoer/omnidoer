@@ -8,6 +8,7 @@ from omnidoer.omni_control.devices import Device, DeviceStore
 from omnidoer.omni_control.device_signing import (
     DeviceNonceStore,
     device_signature_message,
+    load_ec_public_key,
     verify_ecdsa_signature,
 )
 from omnidoer.omni_control.pairing import PairingStore
@@ -41,6 +42,7 @@ def pair_device(
     pairing_store = pairing_store or PairingStore()
     device_store = device_store or DeviceStore()
     session_store = session_store or SessionStore()
+    load_ec_public_key(device_public_key)
     pairing_store.consume(code)
     device = device_store.register(name=device_name, public_key=device_public_key)
     session, token = session_store.create(device_id=device.device_id)
