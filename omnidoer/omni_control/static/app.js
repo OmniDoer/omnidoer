@@ -109,6 +109,37 @@ function renderRequest(request) {
     item.append(button);
   }
   if (request.request_type === "human_takeover") {
+    const stream = document.querySelector("#browser-stream");
+    stream.textContent = "Loading control-only browser frame...";
+    fetch(`/api/requests/${request.request_id}/frame`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((frame) => {
+        if (frame.data_b64) {
+          stream.innerHTML = `<img id="takeover-frame" alt="Controlled browser frame" src="data:${frame.content_type};base64,${frame.data_b64}">`;
+        } else {
+          stream.textContent = "Browser context is not connected in this process.";
+        }
+      });
+    stream.onclick = (event) => {
+      const img = document.querySelector("#takeover-frame");
+      if (!img) return;
+      const rect = img.getBoundingClientRect();
+      const x = Math.round((event.clientX - rect.left) * (img.naturalWidth / rect.width));
+      const y = Math.round((event.clientY - rect.top) * (img.naturalHeight / rect.height));
+      fetch(`/api/requests/${request.request_id}/input`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ event_type: "tap", x, y })
+      });
+    };
+    stream.onwheel = (event) => {
+      event.preventDefault();
+      fetch(`/api/requests/${request.request_id}/input`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ event_type: "scroll", delta_y: Math.round(event.deltaY) })
+      });
+    };
     const release = document.createElement("button");
     release.textContent = "Release Control";
     release.onclick = () => postAction(request, "release");

@@ -11,8 +11,11 @@ class TakeoverStreamTest(unittest.TestCase):
         self.assertTrue(frame["not_for_llm"])
 
     def test_parse_actions(self) -> None:
-        events = parse_actions("tap:1,2;scroll:30;type:secret;release")
-        self.assertEqual([event.event_type for event in events], ["tap", "scroll", "type", "release"])
+        events = parse_actions("tap:1,2;click:3,4;double_click:5,6;long_press:7,8;drag:1,2->3,4;scroll:30;type:secret;key:Enter;release")
+        self.assertEqual(
+            [event.event_type for event in events],
+            ["tap", "click", "double_click", "long_press", "drag", "scroll", "type", "key", "release"],
+        )
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ input, button { font: inherit; min-height: 44px; padding: 8px; }
 input { width: 100%; }
 button { min-width: 120px; }
 #browser-stream { min-height: 220px; border: 1px solid #64748b; background: #e2e8f0; touch-action: none; }
+#browser-stream img { display: block; max-width: 100%; height: auto; touch-action: none; }
 @media (max-width: 640px) {
   main { padding: 8px; }
   section { border-radius: 0; margin: 8px 0; }

@@ -48,7 +48,7 @@ def main() -> int:
     for path in iter_files():
         try:
             text = path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
+        except (FileNotFoundError, UnicodeDecodeError):
             continue
         lowered = text.lower()
         if path.name != "secret_scan.py":

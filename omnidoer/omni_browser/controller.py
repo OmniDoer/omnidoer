@@ -12,6 +12,8 @@ from typing import Any
 from omnidoer.omni_challenge.detector import detect_challenge_from_url
 from omnidoer.omni_observer import redact_dom_snapshot, redact_text
 from omnidoer.omni_policy.policy import origin_from_url
+from omnidoer.omni_takeover.models import InputEvent
+from omnidoer.omni_takeover.stream import frame_from_png
 
 
 class BrowserUnavailable(RuntimeError):
@@ -85,6 +87,16 @@ class BrowserController:
     def screenshot(self) -> bytes:
         return self.page.screenshot(full_page=False)
 
+    def takeover_frame(self) -> dict:
+        viewport = self.page.viewport_size or {"width": 1280, "height": 720}
+        return frame_from_png(
+            self.screenshot(),
+            url=self.current_url(),
+            origin=self.current_origin() or "",
+            viewport_width=int(viewport["width"]),
+            viewport_height=int(viewport["height"]),
+        )
+
     def click(self, selector: str) -> dict:
         self.page.click(selector)
         return {"status": "clicked", "secret_exposed_to_model": False}
@@ -96,6 +108,39 @@ class BrowserController:
     def fill_field(self, selector: str, value: str, *, secret: bool = False) -> dict:
         self.page.fill(selector, value)
         return {"status": "filled", "secret": bool(secret), "secret_exposed_to_model": False}
+
+    def apply_user_input_event(self, event: InputEvent) -> dict:
+        if event.event_type in {"tap", "click"}:
+            if event.x is None or event.y is None:
+                raise ValueError("tap/click requires x and y")
+            self.page.mouse.click(event.x, event.y)
+        elif event.event_type == "double_click":
+            if event.x is None or event.y is None:
+                raise ValueError("double_click requires x and y")
+            self.page.mouse.dblclick(event.x, event.y)
+        elif event.event_type == "long_press":
+            if event.x is None or event.y is None:
+                raise ValueError("long_press requires x and y")
+            self.page.mouse.move(event.x, event.y)
+            self.page.mouse.down()
+            self.page.wait_for_timeout(650)
+            self.page.mouse.up()
+        elif event.event_type == "drag":
+            if event.x is None or event.y is None or event.to_x is None or event.to_y is None:
+                raise ValueError("drag requires x, y, to_x and to_y")
+            self.page.mouse.move(event.x, event.y)
+            self.page.mouse.down()
+            self.page.mouse.move(event.to_x, event.to_y, steps=10)
+            self.page.mouse.up()
+        elif event.event_type == "scroll":
+            self.page.mouse.wheel(event.delta_x or 0, event.delta_y or 0)
+        elif event.event_type == "type":
+            self.page.keyboard.type(event.text or "")
+        elif event.event_type == "key":
+            self.page.keyboard.press(event.key or "Enter")
+        else:
+            raise ValueError(f"unsupported takeover event: {event.event_type}")
+        return {"status": "event_applied", "secret_exposed_to_model": False}
 
     def inspect_forms(self) -> list[dict[str, Any]]:
         return self.page.evaluate(

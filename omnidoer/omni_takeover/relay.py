@@ -7,6 +7,7 @@ import os
 from omnidoer.omni_audit.audit import AuditLog
 from omnidoer.omni_control.requests import ControlRequest, RequestStore
 from omnidoer.omni_takeover.input_events import parse_actions
+from omnidoer.omni_takeover.models import InputEvent
 from omnidoer.omni_takeover.stream import current_frame
 
 
@@ -40,17 +41,24 @@ def request_user_control(
     return request
 
 
-def start_stream(request_id: str) -> dict:
+def start_stream(request_id: str, *, browser_controller=None) -> dict:
     request = RequestStore().get(request_id)
     if request.request_type != "human_takeover":
         raise ValueError("not a takeover request")
+    if request.status != "user_control":
+        raise ValueError("user is not in control")
+    if browser_controller is not None:
+        return browser_controller.takeover_frame()
     return current_frame()
 
 
-def apply_input_event(request_id: str, event) -> dict:
+def apply_input_event(request_id: str, event: InputEvent, *, browser_controller=None) -> dict:
     request = RequestStore().get(request_id)
     if request.status != "user_control":
         raise ValueError("user is not in control")
+    result = {"status": "event_applied", "secret_exposed_to_model": False}
+    if browser_controller is not None:
+        result = browser_controller.apply_user_input_event(event)
     # Do not log event text or sensitive inputs.
     AuditLog().append(
         "takeover_input_event",
@@ -58,7 +66,7 @@ def apply_input_event(request_id: str, event) -> dict:
         origin=request.origin,
         input_event_type=getattr(event, "event_type", "unknown"),
     )
-    return {"status": "event_applied", "secret_exposed_to_model": False}
+    return {**result, "secret_exposed_to_model": False}
 
 
 def release_control(request_id: str, *, store: RequestStore | None = None) -> dict:
@@ -79,11 +87,11 @@ def release_control(request_id: str, *, store: RequestStore | None = None) -> di
     }
 
 
-def complete_in_test_mode(request_id: str) -> dict:
+def complete_in_test_mode(request_id: str, *, browser_controller=None) -> dict:
     if os.environ.get("OMNIDOER_TAKEOVER_TEST_MODE") != "1":
         raise RuntimeError("takeover test mode is not enabled")
     for event in parse_actions(os.environ.get("OMNIDOER_TEST_TAKEOVER_ACTIONS", "release")):
         if event.event_type == "release":
             return release_control(request_id)
-        apply_input_event(request_id, event)
+        apply_input_event(request_id, event, browser_controller=browser_controller)
     return release_control(request_id)
