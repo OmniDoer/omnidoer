@@ -82,11 +82,13 @@ document.querySelectorAll("[data-filter]").forEach((button) => {
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+const TAKEOVER_FRAME_MAX_AGE_MS = 30000;
 let cachedRequests = [];
 let requestStreamActive = false;
 let requestStreamRestart = null;
 let activeTakeoverFrameRequest = null;
 let takeoverFrameTimer = null;
+let takeoverFreshnessTimer = null;
 let activePaymentApprovalRequest = null;
 let renderedPaymentApprovalRequestId = null;
 
@@ -162,6 +164,33 @@ function activeTakeoverRequest() {
   return cachedRequests.find((request) => request.request_id === activeTakeoverFrameRequest) || findActiveTakeoverRequest(cachedRequests);
 }
 
+function takeoverFrameAgeMs(stream = document.querySelector("#browser-stream")) {
+  const capturedAt = Number(stream?.dataset.frameCapturedAt || 0);
+  if (!capturedAt) return null;
+  return Math.max(0, Date.now() - capturedAt * 1000);
+}
+
+function takeoverFrameIsFresh(stream = document.querySelector("#browser-stream")) {
+  const age = takeoverFrameAgeMs(stream);
+  return age !== null && age <= TAKEOVER_FRAME_MAX_AGE_MS;
+}
+
+function updateTakeoverFrameFreshness(stream = document.querySelector("#browser-stream")) {
+  const field = document.querySelector("#takeover-frame-freshness");
+  if (!field) return;
+  const frameId = stream?.dataset.frameId || "";
+  const age = takeoverFrameAgeMs(stream);
+  if (!frameId || age === null) {
+    field.textContent = "waiting for browser handoff";
+    field.className = "";
+    return;
+  }
+  const seconds = Math.round(age / 1000);
+  const stale = age > TAKEOVER_FRAME_MAX_AGE_MS;
+  field.textContent = stale ? `stale ${seconds}s - refresh before input` : `fresh ${seconds}s`;
+  field.className = stale ? "frame-stale" : "frame-fresh";
+}
+
 function updateTakeoverPanel(request, frame = null, message = null) {
   const status = request ? (request.status === "user_control" ? "Agent paused - user control active" : request.status) : "No active takeover";
   setFieldText("#takeover-status-label", status);
@@ -173,6 +202,7 @@ function updateTakeoverPanel(request, frame = null, message = null) {
     setFieldText("#takeover-frame-meta", request ? "waiting for next browser frame" : "waiting for browser handoff");
   }
   setFieldText("#takeover-input-state", message || (request ? "Touch, keyboard, and text input are routed to the controlled browser only." : "No active browser handoff."), "");
+  updateTakeoverFrameFreshness();
   const isActive = Boolean(request && request.status === "user_control");
   const refresh = document.querySelector("#refresh-takeover-frame");
   const release = document.querySelector("#release-active-takeover");
@@ -646,6 +676,11 @@ async function sendTakeoverInput(request, eventPayload) {
     updateTakeoverPanel(request, null, "Wait for the current browser frame before sending input.");
     return;
   }
+  if (!takeoverFrameIsFresh(stream)) {
+    updateTakeoverPanel(request, null, "Frame is stale; refreshing before input.");
+    refreshActiveTakeoverFrame();
+    return;
+  }
   const payload = {
     ...eventPayload,
     frame_id: frameId,
@@ -722,8 +757,16 @@ function installTakeoverPointerHandlers(request, stream) {
 function stopTakeoverFramePolling(requestId = null) {
   if (requestId && activeTakeoverFrameRequest !== requestId) return;
   if (takeoverFrameTimer) clearInterval(takeoverFrameTimer);
+  if (takeoverFreshnessTimer) clearInterval(takeoverFreshnessTimer);
   takeoverFrameTimer = null;
+  takeoverFreshnessTimer = null;
   activeTakeoverFrameRequest = null;
+  const stream = document.querySelector("#browser-stream");
+  if (stream) {
+    delete stream.dataset.frameId;
+    delete stream.dataset.frameCapturedAt;
+  }
+  updateTakeoverFrameFreshness(stream);
 }
 
 async function fetchTakeoverFrame(request, stream) {
@@ -744,6 +787,7 @@ async function fetchTakeoverFrame(request, stream) {
       stream.dataset.frameUrl = frame.url || "";
       stream.dataset.frameOrigin = frame.origin || "";
       updateTakeoverPanel(request, frame, "Live browser frame ready. Input is bound to the frame currently visible here.");
+      updateTakeoverFrameFreshness(stream);
     } else {
       stream.textContent = "Browser context is not connected in this process.";
       updateTakeoverPanel(request, frame, "Browser context is not connected in this process.");
@@ -773,6 +817,7 @@ function startTakeoverFramePolling(request, stream) {
   installTakeoverPointerHandlers(request, stream);
   fetchTakeoverFrame(request, stream);
   takeoverFrameTimer = setInterval(() => fetchTakeoverFrame(request, stream), 1500);
+  takeoverFreshnessTimer = setInterval(() => updateTakeoverFrameFreshness(stream), 1000);
 }
 
 function requestHeader(request) {

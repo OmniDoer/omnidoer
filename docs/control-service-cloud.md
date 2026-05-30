@@ -72,4 +72,5 @@ Takeover input events are allowlisted and audit logs record only event
 categories, never typed text or challenge answers. Browser-frame input is
 also frame-bound: the Control Service records the last delivered frame id and
 capture timestamp, then rejects stale or mismatched input before forwarding it
-to the browser worker.
+to the browser worker. The Control Client mirrors that rule with a visible
+freshness indicator and client-side stale-input refresh.

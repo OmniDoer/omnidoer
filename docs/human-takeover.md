@@ -25,6 +25,9 @@ touch, keyboard, and text input. The Control Service records the last delivered
 frame and rejects stale or mismatched input before it reaches the browser
 worker, preventing a tap from an old phone frame from being replayed onto a
 newly navigated page.
+The Control Client also shows frame freshness and refuses to send user input
+from a stale frame, refreshing the browser projection before the user tries
+again.
 
 Frames are for the Control Client only and are not sent to the LLM. User input
 events are allowlisted, length-limited, and audited by type only; text content,

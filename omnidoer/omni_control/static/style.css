@@ -232,6 +232,8 @@ button:disabled {
   border-radius: 8px;
   padding: 10px;
 }
+.frame-fresh { color: var(--ok); font-weight: 700; }
+.frame-stale { color: var(--danger); font-weight: 700; }
 .takeover-controls {
   border-top: 1px solid #e2e8f0;
   margin-top: 12px;

@@ -51,6 +51,8 @@ Each streamed browser frame includes a frame id and capture timestamp. Touch,
 keyboard, and text events sent from the Control Client are bound to the visible
 frame id, and stale or mismatched frame input is rejected so a tap intended for
 one page is not replayed onto a different page after navigation.
+The Human Takeover panel displays frame freshness and blocks stale input
+client-side before refreshing the projection.
 
 The PWA uses browser WebCrypto in local mode: P-256 ECDH, HKDF-SHA256, and
 AES-GCM with request-bound associated data. The Python CLI uses the native
