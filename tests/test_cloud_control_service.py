@@ -16,6 +16,7 @@ from omnidoer.omni_control.device_signing import DEVICE_ID_HEADER, DEVICE_NONCE_
 from omnidoer.omni_control.pairing import PairingStore
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.server import ControlHandler, sanitize_log_value
+from omnidoer.omni_control.secure_channel import encrypt_for_broker, load_or_create_keypair
 from tests.test_control_auth import public_jwk, sign_request
 
 
@@ -50,6 +51,197 @@ class CloudControlServiceTest(unittest.TestCase):
     def test_local_dev_mode_allows_http_localhost(self) -> None:
         config = build_config(host="127.0.0.1", port=8787)
         self.assertEqual(config.mode, "local_dev")
+
+    def test_lan_mode_requires_pairing_session_and_csrf(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            config = build_config(host="192.168.1.20", port=8787, public_url="http://192.168.1.20:8787")
+            self.assertEqual(config.mode, "lan")
+            self.assertTrue(security_status(config)["requires_authentication"])
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_config = config  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                with self.assertRaises(Exception):
+                    urllib_request.urlopen(f"{base}/api/requests", timeout=5)
+
+                pairing = PairingStore().create(public_url=config.public_url, ttl_seconds=600)
+                device_key = ec.generate_private_key(ec.SECP256R1())
+                pair_request = urllib_request.Request(
+                    f"{base}/api/pair",
+                    data=json.dumps({"code": pairing.code, "device_name": "Phone", "device_public_key": public_jwk(device_key)}).encode(),
+                    headers={"content-type": "application/json", "origin": config.public_origin},
+                    method="POST",
+                )
+                with urllib_request.urlopen(pair_request, timeout=5) as response:
+                    self.assertEqual(response.status, 201)
+                    cookie = response.headers["set-cookie"]
+                    body = json.loads(response.read().decode())
+                csrf = body["csrf_token"]
+                self.assertIn("HttpOnly", cookie)
+                self.assertNotIn("session_token", repr(body))
+
+                with urllib_request.urlopen(urllib_request.Request(f"{base}/api/requests", headers={"cookie": cookie}), timeout=5) as response:
+                    self.assertEqual(response.status, 200)
+
+                wrong_origin = urllib_request.Request(f"{base}/api/requests", headers={"cookie": cookie, "origin": "http://evil.example"})
+                with self.assertRaises(Exception):
+                    urllib_request.urlopen(wrong_origin, timeout=5)
+
+                no_csrf = urllib_request.Request(
+                    f"{base}/api/tasks",
+                    data=json.dumps({"text": "run"}).encode(),
+                    headers={"content-type": "application/json", "cookie": cookie, "origin": config.public_origin},
+                    method="POST",
+                )
+                with self.assertRaises(Exception):
+                    urllib_request.urlopen(no_csrf, timeout=5)
+
+                with_csrf = urllib_request.Request(
+                    f"{base}/api/tasks",
+                    data=json.dumps({"text": "run"}).encode(),
+                    headers={"content-type": "application/json", "cookie": cookie, "origin": config.public_origin, CSRF_HEADER: csrf},
+                    method="POST",
+                )
+                with urllib_request.urlopen(with_csrf, timeout=5) as response:
+                    self.assertEqual(response.status, 201)
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_lan_request_can_be_scoped_to_one_device(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            config = build_config(host="192.168.1.20", port=8787, public_url="http://192.168.1.20:8787")
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_config = config  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+
+            def pair(name: str):
+                pairing = PairingStore().create(public_url=config.public_url, ttl_seconds=600)
+                key = ec.generate_private_key(ec.SECP256R1())
+                request = urllib_request.Request(
+                    f"{base}/api/pair",
+                    data=json.dumps({"code": pairing.code, "device_name": name, "device_public_key": public_jwk(key)}).encode(),
+                    headers={"content-type": "application/json", "origin": config.public_origin},
+                    method="POST",
+                )
+                with urllib_request.urlopen(request, timeout=5) as response:
+                    return response.headers["set-cookie"], json.loads(response.read().decode())
+
+            try:
+                cookie_a, body_a = pair("Phone A")
+                cookie_b, body_b = pair("Phone B")
+                control_request = RequestStore().create(
+                    "credential",
+                    origin="https://example.com",
+                    top_level_url="https://example.com/login",
+                    action_summary="LAN scoped login",
+                    allowed_device_id=body_a["device"]["device_id"],
+                )
+
+                with urllib_request.urlopen(urllib_request.Request(f"{base}/api/requests", headers={"cookie": cookie_a}), timeout=5) as response:
+                    visible_a = json.loads(response.read().decode())
+                self.assertEqual([item["request_id"] for item in visible_a], [control_request.request_id])
+
+                with urllib_request.urlopen(urllib_request.Request(f"{base}/api/requests", headers={"cookie": cookie_b}), timeout=5) as response:
+                    visible_b = json.loads(response.read().decode())
+                self.assertEqual(visible_b, [])
+
+                with self.assertRaises(Exception):
+                    urllib_request.urlopen(urllib_request.Request(f"{base}/api/requests/{control_request.request_id}", headers={"cookie": cookie_b}), timeout=5)
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_lan_secret_submit_requires_device_bound_envelope(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            config = build_config(host="192.168.1.20", port=8787, public_url="http://192.168.1.20:8787")
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_config = config  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                pairing = PairingStore().create(public_url=config.public_url, ttl_seconds=600)
+                device_key = ec.generate_private_key(ec.SECP256R1())
+                pair_request = urllib_request.Request(
+                    f"{base}/api/pair",
+                    data=json.dumps({"code": pairing.code, "device_name": "Phone", "device_public_key": public_jwk(device_key)}).encode(),
+                    headers={"content-type": "application/json", "origin": config.public_origin},
+                    method="POST",
+                )
+                with urllib_request.urlopen(pair_request, timeout=5) as response:
+                    cookie = response.headers["set-cookie"]
+                    body = json.loads(response.read().decode())
+                device_id = body["device"]["device_id"]
+                csrf = body["csrf_token"]
+                control_request = RequestStore().create(
+                    "credential",
+                    origin="https://example.com",
+                    top_level_url="https://example.com/login",
+                    action_summary="LAN credential",
+                    allowed_device_id=device_id,
+                )
+                keypair = load_or_create_keypair()
+
+                def submit(envelope: dict):
+                    path = f"/api/requests/{control_request.request_id}/submit"
+                    return urllib_request.Request(
+                        f"{base}{path}",
+                        data=json.dumps({"envelope": envelope}).encode(),
+                        headers={"content-type": "application/json", "origin": config.public_origin, "cookie": cookie, CSRF_HEADER: csrf},
+                        method="POST",
+                    )
+
+                wrong_device = encrypt_for_broker(
+                    keypair.public_key_b64,
+                    {"password": "lan-secret"},
+                    request_id=control_request.request_id,
+                    origin=control_request.origin,
+                    request_type=control_request.request_type,
+                    device_id="dev_other",
+                    expires_at=control_request.expires_at,
+                )
+                with self.assertRaises(Exception):
+                    urllib_request.urlopen(submit(wrong_device), timeout=5)
+
+                correct = encrypt_for_broker(
+                    keypair.public_key_b64,
+                    {"password": "lan-secret"},
+                    request_id=control_request.request_id,
+                    origin=control_request.origin,
+                    request_type=control_request.request_type,
+                    device_id=device_id,
+                    expires_at=control_request.expires_at,
+                )
+                with urllib_request.urlopen(submit(correct), timeout=5) as response:
+                    payload = json.loads(response.read().decode())
+                self.assertEqual(payload["status"], "fulfilled")
+                self.assertNotIn("lan-secret", repr(payload))
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
 
     def test_control_service_logs_redact_pairing_query_and_tokens(self) -> None:
         self.assertEqual(

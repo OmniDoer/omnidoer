@@ -178,10 +178,13 @@ class ControlHandler(SimpleHTTPRequestHandler):
         return session_id, token
 
     def _origin_allowed(self) -> bool:
-        if self.config.mode != "cloud_direct":
+        if self.config.mode not in {"lan", "cloud_direct"}:
             return True
         origin = self.headers.get("origin")
         return not origin or origin == self.config.public_origin
+
+    def _requires_pairing(self) -> bool:
+        return self.config.mode in {"lan", "cloud_direct"}
 
     def _transport_allowed(self) -> bool:
         if self.config.mode != "cloud_direct" or not self.config.behind_reverse_proxy:
@@ -212,7 +215,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
         return authenticate_session(session_id=session_id, session_token=token, device_store=DeviceStore(), session_store=SessionStore())
 
     def _require_access(self, *, mutating: bool = False):
-        if self.config.mode != "cloud_direct":
+        if not self._requires_pairing():
             return None
         if not self._transport_allowed():
             raise PermissionError("https proxy header required")
@@ -224,7 +227,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
         return session
 
     def _request_allowed_for_session(self, request, session: ControlSession | None) -> bool:
-        if self.config.mode != "cloud_direct":
+        if not self._requires_pairing():
             return True
         return not request.allowed_device_id or (session is not None and request.allowed_device_id == session.device_id)
 
@@ -238,7 +241,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
         return request
 
     def _validate_envelope_for_session(self, envelope: dict, request, session: ControlSession | None) -> None:
-        if self.config.mode != "cloud_direct":
+        if not self._requires_pairing():
             return
         if session is None:
             raise PermissionError("session required")
@@ -257,7 +260,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
         return self.client_address[0] if self.client_address else "unknown"
 
     def _check_mutation_rate_limit(self, session: ControlSession | None) -> None:
-        if self.config.mode != "cloud_direct":
+        if not self._requires_pairing():
             return
         if session is None:
             raise PermissionError("session required")

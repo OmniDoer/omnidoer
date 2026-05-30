@@ -18,11 +18,14 @@ Codex CLI still talks to OmniDoer through a local MCP stdio process. The MCP
 server, Vault, Broker, and browser internals are not public interfaces and
 should not be exposed to the internet.
 
-Cloud Direct Mode requires explicit `--cloud-direct`, HTTPS public URL,
-pairing, device identity, session auth, CSRF/origin checks, security headers,
-and rate limiting. Secrets and challenge answers are encrypted in the Control
-Client before submission. TLS protects transport, but Secret Broker and
-Challenge Relay E2EE remain the sensitive-data boundary.
+Local Dev Mode is restricted to loopback and is the only mode where protected
+Control APIs may be used without pairing. LAN Mode and Cloud Direct Mode both
+require pairing, device identity, session auth, request/device scoping,
+CSRF/origin checks, and rate limiting for mutating APIs. Cloud Direct Mode adds
+explicit `--cloud-direct`, HTTPS public URL, and public-server transport
+requirements. Secrets and challenge answers are encrypted in the Control Client
+before submission. TLS protects transport, but Secret Broker and Challenge
+Relay E2EE remain the sensitive-data boundary.
 
 When TLS is terminated by Nginx, Caddy, Traefik, or another reverse proxy, the
 proxy must forward `X-Forwarded-Proto: https` or `Forwarded: proto=https`.

@@ -25,7 +25,9 @@ omnidoer control serve \
 
 `0.0.0.0` is rejected unless `--cloud-direct` is explicit. Cloud Direct rejects
 non-HTTPS `public-url` unless `--insecure-dev-public` is explicitly provided
-for temporary testing. Local development can use:
+for temporary testing. Non-loopback LAN mode is for trusted local networks and
+still requires pairing, session auth, CSRF, origin checks, and request/device
+scoping. Local development can use:
 
 When `--behind-reverse-proxy` is used, configure the proxy to send
 `X-Forwarded-Proto: https` or `Forwarded: proto=https` to the OmniDoer backend.

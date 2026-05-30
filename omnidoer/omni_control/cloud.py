@@ -90,7 +90,7 @@ def security_status(config: ControlServiceConfig) -> dict:
         "public_url": config.public_url,
         "cloud_direct": config.cloud_direct,
         "requires_pairing": config.mode in {"lan", "cloud_direct"},
-        "requires_authentication": config.mode == "cloud_direct",
+        "requires_authentication": config.mode in {"lan", "cloud_direct"},
         "requires_https": config.mode == "cloud_direct" and not config.insecure_dev_public,
         "behind_reverse_proxy": config.behind_reverse_proxy,
         "mcp_publicly_exposed": False,
