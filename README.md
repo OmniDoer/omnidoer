@@ -6,6 +6,8 @@ The agent that does.
 
 OmniDoer is a local-first autonomous web agent runtime that can operate websites on your behalf. It can log in, navigate, fill forms, download files, prepare purchases, and ask for approval before sensitive actions — while passwords and secrets never enter the model context.
 
+![OmniDoer cinematic control surface](./docs/assets/omnidoer-cinematic-readme.png)
+
 The agent may request an action.
 The broker checks the origin.
 The vault uses the secret.
@@ -46,9 +48,21 @@ Human Takeover 和审计日志让 Agent 可以行动，但密码、验证码、C
 seguras. Las credenciales se usan por medio del broker local y las acciones
 sensibles requieren aprobación humana.
 
+**Français.** OmniDoer ajoute à Codex CLI une couche MCP/sidecar pour agir sur
+le web avec un navigateur contrôlé, un coffre local, un broker de secrets et
+des approbations humaines.
+
+**Deutsch.** OmniDoer erweitert Codex CLI um eine sichere MCP/Sidecar-Laufzeit.
+Anmeldedaten, Codes und Zahlungsfreigaben bleiben im Broker, Vault und Control
+Client, nicht im Modellkontext.
+
 **日本語.** OmniDoer は Codex CLI を MCP/sidecar として拡張するローカル優先
 の実行基盤です。モデルは秘密を読み取らず、認証情報やチャレンジ処理は Control
 Client と Broker の安全境界内で扱われます。
+
+**한국어.** OmniDoer는 Codex CLI를 MCP/sidecar 방식으로 확장하는 실행 계층입니다.
+비밀번호, 인증 코드, 결제 승인 정보는 모델이 아니라 Broker, Vault, Control
+Client 안에서만 처리됩니다.
 
 ## Status
 
