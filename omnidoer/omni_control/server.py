@@ -10,7 +10,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
 from omnidoer.omni_control.requests import RequestStore
-from omnidoer.omni_control.secure_channel import load_or_create_keypair
+from omnidoer.omni_control.secure_channel import load_or_create_keypair, load_or_create_web_keypair
 
 
 def static_root() -> Path:
@@ -48,9 +48,16 @@ class ControlHandler(SimpleHTTPRequestHandler):
             return
         if path == "/api/broker-key":
             keypair = load_or_create_keypair()
+            web_keypair = load_or_create_web_keypair()
             self._send_json(
                 HTTPStatus.OK,
-                {"public_key": keypair.public_key_b64, "fingerprint": keypair.fingerprint, "mode": "local_trusted"},
+                {
+                    "public_key": keypair.public_key_b64,
+                    "fingerprint": keypair.fingerprint,
+                    "web_public_jwk": web_keypair.public_jwk,
+                    "web_fingerprint": web_keypair.fingerprint,
+                    "mode": "local_trusted",
+                },
             )
             return
         if path == "/api/requests":

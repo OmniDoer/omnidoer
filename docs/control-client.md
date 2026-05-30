@@ -19,3 +19,8 @@ Secrets are sent to the Secret Broker, not to Agent/LLM context. Challenge
 answers are handled by the Challenge Relay or target browser, not by the model.
 Human Takeover pauses the Agent and gives the user browser control until
 release.
+
+The PWA uses browser WebCrypto in local mode: P-256 ECDH, HKDF-SHA256, and
+AES-GCM with request-bound associated data. The Python CLI uses the native
+X25519 secure channel. Both envelope formats are decrypted only by the local
+Broker path.

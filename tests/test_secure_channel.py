@@ -5,8 +5,11 @@ from pathlib import Path
 from omnidoer.omni_control.secure_channel import (
     ReplayGuard,
     decrypt_at_broker,
+    decrypt_web_at_broker,
     encrypt_for_broker,
+    encrypt_for_broker_web,
     generate_keypair,
+    generate_web_keypair,
 )
 
 
@@ -76,6 +79,26 @@ class SecureChannelTest(unittest.TestCase):
                     request_type="sms_code",
                     replay_guard=guard,
                 )
+
+    def test_web_crypto_compatible_envelope_round_trip(self) -> None:
+        keypair = generate_web_keypair()
+        envelope = encrypt_for_broker_web(
+            keypair.public_jwk,
+            {"username": "demo", "password": "web-secret"},
+            request_id="req_web",
+            origin="http://127.0.0.1:8765",
+            request_type="credential",
+        )
+        payload = decrypt_web_at_broker(
+            keypair.private_key_pem,
+            envelope,
+            request_id="req_web",
+            origin="http://127.0.0.1:8765",
+            request_type="credential",
+        )
+        self.assertEqual(payload["username"], "demo")
+        self.assertEqual(payload["password"], "web-secret")
+        self.assertNotIn("web-secret", repr(envelope))
 
 
 if __name__ == "__main__":

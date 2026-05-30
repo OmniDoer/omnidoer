@@ -19,7 +19,7 @@ from omnidoer.omni_audit.audit import AuditLog
 from omnidoer.omni_challenge.relay import complete_in_test_mode as complete_challenge
 from omnidoer.omni_challenge.relay import request_user_interaction
 from omnidoer.omni_control.requests import RequestStore
-from omnidoer.omni_control.secure_channel import decrypt_at_broker, encrypt_for_broker, load_or_create_keypair
+from omnidoer.omni_control.secure_channel import decrypt_control_envelope, encrypt_for_broker, load_or_create_keypair
 from omnidoer.omni_takeover.relay import complete_in_test_mode as complete_takeover
 from omnidoer.omni_takeover.relay import request_user_control, start_stream
 from omnidoer.omni_vault.models import CredentialSecret
@@ -55,9 +55,7 @@ def _wait_for_request_payload(request_id: str, timeout_seconds: int = 300) -> di
     while time.time() < deadline:
         request = store.get(request_id)
         if request.response_ciphertext:
-            keypair = load_or_create_keypair()
-            return decrypt_at_broker(
-                keypair.private_key_b64,
+            return decrypt_control_envelope(
                 request.response_ciphertext,
                 request_id=request.request_id,
                 origin=request.origin,

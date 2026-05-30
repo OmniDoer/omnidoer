@@ -31,6 +31,13 @@ class ControlUiContractTest(unittest.TestCase):
         for label in ("Merchant", "Amount", "Currency", "Origin"):
             self.assertIn(label, self.html)
 
+    def test_app_uses_webcrypto_and_request_api(self) -> None:
+        app = (static_root() / "app.js").read_text()
+        self.assertIn("crypto.subtle", app)
+        self.assertIn("/api/requests", app)
+        self.assertIn("submitEncrypted", app)
+        self.assertIn("web-p256-v1", app)
+
 
 if __name__ == "__main__":
     unittest.main()
