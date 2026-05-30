@@ -4,7 +4,15 @@ The agent that does.
 
 ![OmniDoer brand mark](./icon.png)
 
-OmniDoer is a local-first autonomous web agent runtime that can operate websites on your behalf. It can log in, navigate, fill forms, download files, prepare purchases, and ask for approval before sensitive actions — while passwords and secrets never enter the model context.
+OmniDoer is the execution layer for web agents that need to do more than chat.
+Codex is the brain. OmniDoer is the hands, browser, vault, broker, approval
+gate, Control Client, and human-takeover bridge.
+
+If a human can operate a website with authorization, OmniDoer is designed to
+help execute that workflow safely: sign up, log in, navigate, fill forms,
+download files, organize information, prepare purchases, request approvals,
+and hand the live browser back to the user when a challenge or judgment call
+requires a human.
 
 ![OmniDoer English edition cinematic poster](./docs/assets/localized/omnidoer-readme-en.jpg)
 
@@ -22,6 +30,13 @@ The vault uses the secret.
 The browser receives the credential.
 The model never does.
 
+Compared with Codex alone, OmniDoer adds a real controlled browser, Secret
+Broker, encrypted Vault, Challenge Relay, Human Takeover, Cloud Direct Control
+Service, Approval Gate, and tamper-evident audit trail. Compared with
+browser-only automation demos, OmniDoer treats secrets, CAPTCHA/MFA/passkey
+handoff, payments, registration, remote control, and logs as first-class
+security boundaries.
+
 Sensitive actions such as payments, purchases, account changes, OAuth grants, and message sending require explicit human approval.
 
 OmniDoer is not a credential stealer.
@@ -38,19 +53,22 @@ ChatGPT, OmniDoer uses that Codex path through Codex CLI. If Codex is using an
 API key, `omnidoer doctor` warns that this is OpenAI Platform API billing, but
 OmniDoer does not switch modes or create a new API client.
 
-![OmniDoer secure action pipeline](./docs/assets/omnidoer-card.png)
+![OmniDoer cloud-native human-in-the-loop web agent](./docs/assets/omnidoer-human-loop-web-agent.jpg)
+
+![OmniDoer secure cloud control service](./docs/assets/omnidoer-cloud-control-service.jpg)
 
 ## Languages / 多语言
 
 **English.** OmniDoer is a Codex CLI sidecar, MCP tool server, secure browser
-runtime, Secret Broker, Control Client, and approval layer. Codex remains the
-only model entrypoint; OmniDoer handles local/cloud-controlled actions without
-revealing secrets to the model.
+runtime, Secret Broker, Control Client, Challenge Relay, Human Takeover, Cloud
+Direct service, and approval layer. Codex remains the only model entrypoint;
+OmniDoer turns reasoning into real user-authorized web action without
+revealing secrets or challenge answers to the model.
 
 **中文。** OmniDoer 是 Codex CLI 的 sidecar / MCP 扩展层，不是新的 OpenAI
 API 客户端。它通过 Secret Broker、Vault、Control Client、Challenge Relay、
-Human Takeover 和审计日志让 Agent 可以行动，但密码、验证码、Cookie、私钥和
-支付凭据不会进入模型上下文。
+Human Takeover、Cloud Direct、Approval Gate 和审计日志，让 Codex 的推理
+变成真实可控的网页行动；密码、验证码、Cookie、私钥和支付凭据不会进入模型上下文。
 
 **Español.** OmniDoer amplía Codex CLI con herramientas MCP para acciones web
 seguras. Las credenciales se usan por medio del broker local y las acciones
@@ -79,11 +97,11 @@ The first implementation path is a sidecar runtime, MCP tool layer, browser
 controller, local vault, policy engine, approval layer, and audit log that
 Codex can call without receiving secrets.
 
-This branch is intentionally early. The local demo site and redaction/policy
-tests are the first safety fixtures. Real banking, exchange, ticketing,
-checkout, or production account automation is out of scope until the local
-demo proves that secrets, approvals, logs, screenshots, DOM observations, and
-tool outputs are controlled.
+This branch is intentionally early, but the target is not a toy browser script.
+The local demo site and redaction/policy tests are the proving ground for an
+omni-capable runtime: real browser control, registration handoff, credential
+fill, file download, challenge handoff, payment review, remote takeover, and
+audit verification without leaking secrets.
 
 ## Core Rule
 
@@ -100,6 +118,8 @@ The security boundary is the combination of:
 - audit logs that never contain secrets
 
 The agent can ask to use a credential. It cannot read the credential.
+
+![OmniDoer feature matrix](./docs/assets/omnidoer-feature-matrix.jpg)
 
 ## Repository Layout
 

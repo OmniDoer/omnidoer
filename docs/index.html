@@ -116,6 +116,31 @@
       border-radius: 8px;
       background: white;
     }
+    .visual-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .visual-grid figure {
+      margin: 0;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .visual-grid img {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: #020617;
+    }
+    .visual-grid figcaption {
+      color: var(--muted);
+      font-size: 0.94rem;
+      line-height: 1.5;
+      padding: 12px 14px;
+    }
     .localized-posters {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -155,7 +180,7 @@
       .hero-copy { padding: 38svh 16px 34px; }
       .tagline { max-width: 100%; }
       main, nav { padding-left: 16px; padding-right: 16px; }
-      .grid, .language-list, .localized-posters { grid-template-columns: 1fr; }
+      .grid, .language-list, .localized-posters, .visual-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -200,6 +225,29 @@
     <section>
       <h2>Cloud Direct Architecture</h2>
       <img class="diagram" src="assets/omnidoer-cloud-direct.svg" alt="Control Client connects over HTTPS and WSS to the user's cloud Control Service, which connects internally to Broker, Vault, Browser Controller, and Codex MCP.">
+    </section>
+
+    <section>
+      <h2>Agent Runtime Visuals</h2>
+      <p>OmniDoer is built around a real controlled browser, cloud control service, user handoff, policy approvals, and audit evidence rather than a browser-only demo.</p>
+      <div class="visual-grid">
+        <figure>
+          <img src="assets/omnidoer-human-loop-web-agent.jpg" alt="OmniDoer human-in-the-loop web agent pipeline">
+          <figcaption>Human-in-the-loop web action with challenge relay, approval gates, and takeover.</figcaption>
+        </figure>
+        <figure>
+          <img src="assets/omnidoer-cloud-control-service.jpg" alt="OmniDoer cloud control service architecture">
+          <figcaption>Cloud Direct control service for paired devices, sessions, broker, vault, and browser control.</figcaption>
+        </figure>
+        <figure>
+          <img src="assets/omnidoer-feature-matrix.jpg" alt="OmniDoer feature matrix across browser, vault, control, and audit">
+          <figcaption>Feature matrix covering browser actions, secret handling, approvals, registration handoff, and audit.</figcaption>
+        </figure>
+        <figure>
+          <img src="assets/omnidoer-omni-action-poster.jpg" alt="OmniDoer omni action poster">
+          <figcaption>Omni action positioning for authorized signup, login, forms, downloads, purchases, and user takeover.</figcaption>
+        </figure>
+      </div>
     </section>
 
     <section>
