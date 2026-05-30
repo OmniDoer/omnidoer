@@ -47,7 +47,6 @@ class BrandingDocsTest(unittest.TestCase):
     def test_readme_and_agents_keep_multilingual_product_constraints(self) -> None:
         readme = (self.root / "README.md").read_text()
         agents = (self.root / "AGENTS.md").read_text()
-        self.assertIn("Languages / 多语言", readme)
         self.assertIn("English", readme)
         self.assertIn("中文", readme)
         self.assertIn("Español", readme)
@@ -59,10 +58,11 @@ class BrandingDocsTest(unittest.TestCase):
         self.assertIn("Cloud Direct Mode", readme)
         self.assertIn("All-purpose web action, inside the security boundary.", readme)
         self.assertIn("The agent can act only through the controlled security boundary.", readme)
+        self.assertIn("OmniDoer is not a CAPTCHA bypasser.", readme)
         self.assertIn("guarded browser 2FA", readme)
         self.assertIn("Payments, purchases, account changes, OAuth grants, message sending", readme)
         self.assertIn("OmniDoer does not bypass the mechanism", readme)
-        self.assertIn("Quick Install / 一键部署", readme)
+        self.assertIn("One-Command Install", readme)
         self.assertIn("install-cloud-direct.sh", readme)
         self.assertIn("OMNIDOER_CLOUD_DIRECT=1", readme)
         self.assertNotIn("智能体可以行动，但秘密必须留在本地。", readme)
@@ -71,9 +71,9 @@ class BrandingDocsTest(unittest.TestCase):
 
     def test_english_readme_lead_has_no_stray_chinese_body_copy(self) -> None:
         readme = (self.root / "README.md").read_text()
-        lead = readme.split("## Languages / 多语言", 1)[0]
+        lead = readme.split("## Available translations", 1)[0]
         allowed_labels = (
-            "Quick Install / 一键部署",
+            "One-Command Install",
             "[中文](./README.zh-CN.md)",
             "[日本語](./README.ja.md)",
         )

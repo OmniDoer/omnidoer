@@ -6,6 +6,9 @@
 
 落地页： [https://omnidoer.github.io/](https://omnidoer.github.io/)
 
+OmniDoer 目标是把“人类能在网页上完成的动作”安全地交给智能体延续执行：如果用户有权限在网页上完成一个流程，OmniDoer 在不越界的前提下可把该流程接上去。
+关键规则是：模型负责推理与决策，执行在用户自己控制的 Linux 服务器里完成，任何密钥、验证码、支付决策都不允许离开安全边界。
+
 ## 一键部署
 
 本地开发安装：
@@ -37,8 +40,29 @@ OmniDoer 是 Codex CLI 的 MCP/sidecar 全能网页行动层，不是新的 Open
 
 如果一件事需要人类授权后在网页上完成，OmniDoer 的目标就是在安全边界内接力完成。它补上原版 Codex 缺少的真实浏览器、Secret Broker、Vault、Control Client、Challenge Relay、Human Takeover、Cloud Direct、Approval Gate、错误脱敏和审计链。
 
+### 为何不只是“浏览器自动化增强器”
+
+OmniDoer 的目标不是取代用户判断，而是让 Codex 在安全边界内“持续接力”更多真实页面任务：
+
+- **安全边界不下沉到模型**：密码、TOTP 种子、cookie、支付信息仍在
+  Secret Broker、Vault、浏览器控制器和 Control Client 中处理。
+- **人机切换更完整**：验证码、反爬、注册确认、支付批准、OAuth 授权等由用户在
+  客户端完成，模型只拿脱敏状态继续下一步。
+- **成本与能力并存**：保留现有 Codex 登录和账单模型，不强行引入新的 API
+  收费路径；同时保留 Codex 的多模态建模能力与可扩展工具调用。
+- **“越界”场景不做事**：OmniDoer 不绕过 anti-bot，遇到高风险环节会自动交还
+  给用户，必要时暂停后续执行。
+
 核心规则：Agent 可以请求使用 secret，但不能读取 secret。Codex 仍然是唯一模型推理入口，OmniDoer 不默认要求 `OPENAI_API_KEY`，不创建新的 OpenAI API billing path，也不修改 Codex 的 ChatGPT 登录、计费或模型提供方逻辑。
 
 Control Client 负责凭据输入、挑战交互、Human Takeover、注册代理、支付审批和审计查看。遇到 CAPTCHA、MFA、Passkey、WebAuthn、3DS、账号注册确认或高强度 anti-bot 页面时，OmniDoer 不绕过、不破解、不代答，而是把真实浏览器页面或挑战请求交给用户本人完成。
 
 Cloud Direct Mode 允许 Android、Windows 11 和 PWA 客户端直接连接用户自己的云服务器。公网模式必须显式启用 HTTPS/WSS、pairing、设备身份、会话认证、Origin/CSRF 防护、限速和端到端加密 secret submission。
+
+安全测试覆盖：
+
+- `tests/test_broker_origin.py`、`tests/test_policy.py`、`tests/test_ci_contract.py`：来源策略与合约校验。
+- `tests/test_vault.py`、`tests/test_challenge_guard.py`、`tests/test_challenge_relay.py`：凭据加密、挑战拦截、流转路径。
+- `tests/test_control_auth.py`、`tests/test_control_csrf_origin.py`、`tests/test_control_rate_limit.py`：设备配对、签名会话、CSRF、反滥用边界。
+- `tests/test_redactor.py`、`tests/test_audit.py`：脱敏与审计可靠性。
+- `tests/test_takeover_stream.py`：人机接管帧、控制权恢复链路。

@@ -10,6 +10,9 @@ authorized human can complete a workflow in a browser, OmniDoer should be able
 to help complete that workflow on the user's Linux runtime inside a strict
 security boundary. The user takes over whenever authentication, consent,
 payment, registration, or anti-bot judgment must stay human.
+That is the core: OmniDoer is built to execute the full spectrum of browser
+tasks a person can legally complete, without pretending to bypass anti-bot or
+challenge systems.
 
 Codex remains the reasoning engine. OmniDoer adds the controlled browser,
 Linux-side runtime, Secret Broker, encrypted Vault, Control Client, challenge
@@ -20,6 +23,8 @@ The target is broad web capability without unsafe shortcuts: open sites, sign
 up, log in, navigate, fill forms, upload and download files, organize
 information, prepare purchases, review payments, and hand the live browser to
 the user whenever a site requires human authentication, judgment, or consent.
+The model plans and can request actions; the user-approved execution plane
+handles credential use, challenge completion, and high-risk approvals.
 
 ![OmniDoer English edition cinematic poster](./docs/assets/localized/omnidoer-readme-en.jpg)
 
@@ -73,6 +78,21 @@ Linux server. Codex plans the work. OmniDoer executes through a controlled
 browser, Secret Broker, encrypted Vault, approval gate, challenge relay, human
 takeover channel, and tamper-evident audit log.
 
+### Why this is a step beyond browser-only or automation-first agents
+
+OmniDoer is not a browser macro, not a CAPTCHA bypass engine, and not a
+replacement for the user's security judgment. It is a security-boundary
+execution surface around a cloud model:
+
+- **Cost-optimal planning**: Codex billing remains the primary control plane, so
+  credentials and execution stay local to the user's server.
+- **Real multimodal tasking**: model reasoning and visual observation still
+  use Codex/GPT model capabilities while never receiving secret values or
+  challenge answers.
+- **Higher safety, higher autonomy**: it can cover a larger fraction of real
+  workflows by switching between model execution and human-assisted completion
+  at challenge gates, registration handoffs, approvals, and payment checks.
+
 The security loop is deliberately narrow:
 
 1. The Agent may request an action.
@@ -92,7 +112,9 @@ Mode. When a page requires CAPTCHA, graphical verification, MFA, passkey,
 WebAuthn, 3DS, registration confirmation, or an anti-bot interaction,
 OmniDoer does not bypass the mechanism. It pauses the Agent, projects the live
 browser session to the user's client, accepts user input through the takeover
-channel, then resumes the Agent after Release Control.
+channel, then resumes the Agent after release. The same path projects each
+human interaction point to the client with pairing and encryption in the same
+Cloud Direct session.
 
 Payments, purchases, account changes, OAuth grants, message sending, and other
 sensitive actions stop at an approval gate. The Agent can prepare the action;
@@ -176,6 +198,8 @@ The agent can ask to use a credential. It cannot read the credential.
 These diagrams define the product direction for the Linux-based all-purpose
 web action runtime: secure credential storage and login, human takeover for
 2FA/anti-bot/registration, and Cloud Direct deployment on a user-owned server.
+Treat them as the execution contract: every high-risk action path in the codebase
+must remain consistent with these diagrams before shipping.
 
 ![OmniDoer secure credential lifecycle](./docs/assets/omnidoer-secure-credential-flow.svg)
 
@@ -299,6 +323,24 @@ Expected safety properties:
 - Mock payment submission stops for human approval.
 - 2FA and anti-bot pages trigger user completion instead of automated bypass.
 - Human takeover frames are for the Control Client only and are not sent to the model.
+
+### Security validation coverage
+
+The current guardrail stack is tested in the suite:
+
+- `tests/test_broker_origin.py`, `tests/test_policy.py`, `tests/test_ci_contract.py`:
+  origin/form-action policy enforcement and security contract edges.
+- `tests/test_vault.py`, `tests/test_challenge_guard.py`,
+  `tests/test_challenge_relay.py`, `tests/test_takeover_stream.py`: credential
+  confidentiality, challenge projection, and handoff behavior.
+- `tests/test_control_auth.py`, `tests/test_control_csrf_origin.py`,
+  `tests/test_control_rate_limit.py`, `tests/test_control_requests.py`: pairing,
+  CSRF, session, and abuse protections for Cloud Direct APIs.
+- `tests/test_redactor.py`, `tests/test_control_ui_contract.py`,
+  `tests/test_audit.py`: redaction and observability guarantees.
+
+This list is intentionally explicit so regressions in security behavior fail
+fast during development and CI.
 
 ## Upstream
 
