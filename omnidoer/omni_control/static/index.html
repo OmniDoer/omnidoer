@@ -19,6 +19,13 @@
         <p>The control plane for approvals, credentials, challenges, and human takeover.</p>
       </div>
     </header>
+    <nav class="section-tabs" aria-label="Control sections">
+      <a href="#requests-panel">Requests</a>
+      <a href="#task-panel">Tasks</a>
+      <a href="#security">Security</a>
+      <a href="#takeover-panel">Takeover</a>
+      <a href="#payment-approval">Payments</a>
+    </nav>
     <section id="pairing-panel">
       <h2>Pair Device</h2>
       <p>Pairing connects this Control Client directly to your own OmniDoer Control Service. Only pair devices you control.</p>
@@ -42,26 +49,14 @@
       <button id="submit-task">Submit Task</button>
       <div id="tasks-list">Loading tasks...</div>
     </section>
-    <section id="credential-panel">
-      <h2>Credential Request</h2>
-      <label>Username <input id="username" autocomplete="username"></label>
-      <label>Password <input id="password" type="password" autocomplete="current-password"></label>
-      <label>TOTP seed <input id="totp-seed" type="password"></label>
-    </section>
-    <section id="challenge-panel">
-      <h2>Challenge Request</h2>
-      <p>This challenge is completed by you, not by the Agent. Challenge answers are not sent to the LLM.</p>
-      <label>One-time code <input id="one-time-code" inputmode="numeric"></label>
-    </section>
     <section id="takeover-panel">
       <h2>Human Takeover</h2>
-      <p>Agent paused. User in control. Release Control when finished.</p>
+      <p>Agent paused. User in control. Release Control when finished. Touch, scroll, type, and key events are sent only to the controlled browser.</p>
       <div id="browser-stream" role="img" aria-label="Browser stream placeholder"></div>
-      <button id="release-control">Release Control</button>
     </section>
     <section id="payment-approval">
       <h2>Payment Approval</h2>
-      <dl>
+      <dl class="metadata approval-details">
         <dt>Merchant</dt><dd id="merchant">pending</dd>
         <dt>Amount</dt><dd id="amount">pending</dd>
         <dt>Currency</dt><dd id="currency">pending</dd>
@@ -74,8 +69,10 @@
         <dt>Final button text</dt><dd id="final-button">pending</dd>
         <dt>After approval</dt><dd id="after-approval">pending</dd>
       </dl>
-      <button id="deny">Deny</button>
-      <button id="approve">Approve</button>
+      <div class="button-row">
+        <button id="deny">Deny</button>
+        <button id="approve">Approve</button>
+      </div>
     </section>
   </main>
   <script src="/app.js"></script>

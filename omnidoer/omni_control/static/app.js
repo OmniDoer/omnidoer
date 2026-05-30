@@ -1,11 +1,36 @@
-const statusEl = document.createElement("p");
-statusEl.textContent = "Local trusted mode. Remote mode requires pairing and broker fingerprint pinning.";
-document.querySelector("main").prepend(statusEl);
+const main = document.querySelector("main");
+
+const runtimeStatus = document.createElement("section");
+runtimeStatus.id = "runtime-status";
+runtimeStatus.className = "status-strip";
+runtimeStatus.innerHTML = `
+  <div>
+    <strong id="runtime-mode">Checking runtime...</strong>
+    <span id="runtime-detail">Control Client does not call OpenAI APIs or models directly.</span>
+  </div>
+  <div id="runtime-counts">Requests: 0</div>
+`;
+main.prepend(runtimeStatus);
 
 const requestsRoot = document.createElement("section");
 requestsRoot.id = "requests-panel";
-requestsRoot.innerHTML = "<h2>Requests</h2><div id=\"requests-list\">Loading...</div>";
-document.querySelector("main").append(requestsRoot);
+requestsRoot.innerHTML = `
+  <div class="panel-heading">
+    <div>
+      <h2>Requests</h2>
+      <p>Handle credentials, verification, approvals, and human takeover from request-scoped controls.</p>
+    </div>
+    <div class="filter-row" aria-label="Request filters">
+      <button data-filter="all" class="active">All</button>
+      <button data-filter="credential">Secrets</button>
+      <button data-filter="challenge">Challenges</button>
+      <button data-filter="approval">Approvals</button>
+      <button data-filter="takeover">Takeover</button>
+    </div>
+  </div>
+  <div id="requests-list" class="request-grid">Loading...</div>
+`;
+main.insertBefore(requestsRoot, document.querySelector("#task-panel"));
 
 const submitTaskButton = document.querySelector("#submit-task");
 if (submitTaskButton) {
@@ -17,8 +42,16 @@ if (pairDeviceButton) {
   pairDeviceButton.onclick = () => pairDevice();
 }
 
+document.querySelectorAll("[data-filter]").forEach((button) => {
+  button.onclick = () => {
+    document.querySelectorAll("[data-filter]").forEach((item) => item.classList.remove("active"));
+    button.classList.add("active");
+    renderRequestList(cachedRequests, button.dataset.filter);
+  };
+});
+
 const encoder = new TextEncoder();
-const decoder = new TextDecoder();
+let cachedRequests = [];
 
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get("code")) {
@@ -28,6 +61,27 @@ if (urlParams.get("code")) {
 function csrfHeaders() {
   const token = localStorage.getItem("omnidoer_csrf_token");
   return token ? { "x-omnidoer-csrf": token } : {};
+}
+
+function activeFilter() {
+  return document.querySelector("[data-filter].active")?.dataset.filter || "all";
+}
+
+function formatTimestamp(value) {
+  if (!value) return "not set";
+  return new Date(value * 1000).toLocaleString();
+}
+
+function requestKind(request) {
+  if (request.request_type === "credential") return "credential";
+  if (request.request_type === "human_takeover") return "takeover";
+  if (request.request_type.endsWith("_approval") || request.request_type.includes("approval")) return "approval";
+  return "challenge";
+}
+
+function setStatus(message, detail = "") {
+  document.querySelector("#runtime-mode").textContent = message;
+  document.querySelector("#runtime-detail").textContent = detail;
 }
 
 async function deviceKeyPair() {
@@ -61,7 +115,7 @@ async function pairDevice() {
   }
   localStorage.setItem("omnidoer_device_id", payload.device.device_id);
   localStorage.setItem("omnidoer_csrf_token", payload.csrf_token);
-  document.querySelector("#pairing-status").textContent = `Paired ${payload.device.name}. Broker fingerprint pinned by server.`;
+  document.querySelector("#pairing-status").textContent = `Paired ${payload.device.name}. Device identity created.`;
   await loadRequests();
 }
 
@@ -135,16 +189,22 @@ async function encryptForBroker(payload, request) {
 
 async function submitEncrypted(request, payload) {
   const envelope = await encryptForBroker(payload, request);
-  await fetch(`/api/requests/${request.request_id}/submit`, {
+  const response = await fetch(`/api/requests/${request.request_id}/submit`, {
     method: "POST",
     headers: { "content-type": "application/json", ...csrfHeaders() },
     body: JSON.stringify({ envelope })
   });
+  if (!response.ok) {
+    setStatus("Request submit failed", "Pair again if this is Cloud Direct Mode.");
+  }
   await loadRequests();
 }
 
 async function postAction(request, action) {
-  await fetch(`/api/requests/${request.request_id}/${action}`, { method: "POST", headers: csrfHeaders() });
+  const response = await fetch(`/api/requests/${request.request_id}/${action}`, { method: "POST", headers: csrfHeaders() });
+  if (!response.ok) {
+    setStatus("Action failed", `${request.request_type} ${action}`);
+  }
   await loadRequests();
 }
 
@@ -166,28 +226,33 @@ async function updateTask(task, action) {
   await loadTasks();
 }
 
+function appendText(parent, tag, text, className) {
+  const node = document.createElement(tag);
+  node.textContent = text;
+  if (className) node.className = className;
+  parent.append(node);
+  return node;
+}
+
 function renderTask(task) {
   const item = document.createElement("article");
   item.className = "task";
-  const title = document.createElement("h3");
-  title.textContent = task.status;
-  const id = document.createElement("p");
-  id.textContent = `task_id: ${task.task_id}`;
-  const text = document.createElement("p");
-  text.textContent = task.text;
-  const source = document.createElement("p");
-  source.textContent = `source: ${task.source}`;
-  const flow = document.createElement("p");
-  flow.textContent = "Delivery: local queue -> MCP control.next_user_task -> Codex CLI. The Control Client does not call models directly.";
-  item.append(title, id, text, source, flow);
+  appendText(item, "h3", task.status);
+  appendText(item, "p", `task_id: ${task.task_id}`);
+  appendText(item, "p", task.text);
+  appendText(item, "p", `source: ${task.source}`);
+  appendText(item, "p", "Delivery: local queue -> MCP control.next_user_task -> Codex CLI. The Control Client does not call models directly.", "flow-note");
   if (task.status !== "completed" && task.status !== "cancelled") {
+    const actions = document.createElement("div");
+    actions.className = "button-row";
     const complete = document.createElement("button");
     complete.textContent = "Mark Complete";
     complete.onclick = () => updateTask(task, "complete");
     const cancel = document.createElement("button");
     cancel.textContent = "Cancel";
     cancel.onclick = () => updateTask(task, "cancel");
-    item.append(cancel, complete);
+    actions.append(cancel, complete);
+    item.append(actions);
   }
   return item;
 }
@@ -195,13 +260,17 @@ function renderTask(task) {
 async function loadTasks() {
   const list = document.querySelector("#tasks-list");
   if (!list) return;
-  const tasks = await fetch("/api/tasks", { cache: "no-store" }).then((r) => r.json());
-  list.innerHTML = "";
-  if (!tasks.length) {
-    list.textContent = "No queued tasks.";
-    return;
+  try {
+    const tasks = await fetch("/api/tasks", { cache: "no-store" }).then((r) => r.json());
+    list.innerHTML = "";
+    if (!tasks.length) {
+      list.textContent = "No queued tasks.";
+      return;
+    }
+    tasks.forEach((task) => list.append(renderTask(task)));
+  } catch {
+    list.textContent = "Pair this device to view task queue in Cloud Direct Mode.";
   }
-  tasks.forEach((task) => list.append(renderTask(task)));
 }
 
 async function sendTakeoverInput(request, eventPayload) {
@@ -222,19 +291,12 @@ function framePoint(event, image) {
 
 function installTakeoverPointerHandlers(request, stream) {
   let start = null;
-  let last = null;
   stream.tabIndex = 0;
   stream.onpointerdown = (event) => {
     const img = document.querySelector("#takeover-frame");
     if (!img) return;
     stream.setPointerCapture(event.pointerId);
     start = { ...framePoint(event, img), at: Date.now() };
-    last = start;
-  };
-  stream.onpointermove = (event) => {
-    const img = document.querySelector("#takeover-frame");
-    if (!img || !start) return;
-    last = framePoint(event, img);
   };
   stream.onpointerup = (event) => {
     const img = document.querySelector("#takeover-frame");
@@ -250,7 +312,6 @@ function installTakeoverPointerHandlers(request, stream) {
       sendTakeoverInput(request, { event_type: "tap", x: end.x, y: end.y });
     }
     start = null;
-    last = null;
   };
   stream.onkeydown = (event) => {
     if (event.key.length === 1 || ["Enter", "Tab", "Backspace", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
@@ -258,121 +319,216 @@ function installTakeoverPointerHandlers(request, stream) {
       sendTakeoverInput(request, { event_type: "key", key: event.key });
     }
   };
+  stream.onwheel = (event) => {
+    event.preventDefault();
+    sendTakeoverInput(request, { event_type: "scroll", delta_y: Math.round(event.deltaY) });
+  };
+}
+
+function requestHeader(request) {
+  const header = document.createElement("div");
+  header.className = "request-header";
+  const titleBlock = document.createElement("div");
+  appendText(titleBlock, "h3", request.request_type.replaceAll("_", " "));
+  appendText(titleBlock, "p", request.action_summary || "Waiting for user action", "request-summary");
+  const badges = document.createElement("div");
+  badges.className = "badge-row";
+  appendText(badges, "span", request.status, `badge status-${request.status}`);
+  appendText(badges, "span", request.risk_level || "unknown risk", `badge risk-${request.risk_level || "unknown"}`);
+  appendText(badges, "span", requestKind(request), "badge");
+  header.append(titleBlock, badges);
+  return header;
+}
+
+function requestMetadata(request) {
+  const dl = document.createElement("dl");
+  dl.className = "metadata";
+  [
+    ["request_id", request.request_id],
+    ["origin", request.origin],
+    ["current_url", request.top_level_url],
+    ["expires_at", formatTimestamp(request.expires_at)],
+    ["broker_fingerprint", request.broker_public_key_fingerprint || "server pinned"]
+  ].forEach(([label, value]) => {
+    const dt = document.createElement("dt");
+    dt.textContent = label;
+    const dd = document.createElement("dd");
+    dd.textContent = value || "not visible";
+    dl.append(dt, dd);
+  });
+  return dl;
+}
+
+function renderCredentialControls(request, item) {
+  const form = document.createElement("form");
+  form.className = "secure-form";
+  form.innerHTML = `
+    <p class="flow-note">Secret will be encrypted to Secret Broker. It will not be sent to Agent/LLM context, MCP return values, logs, or DOM observation.</p>
+    <label>Username <input id="username" data-secret-field="username" autocomplete="username"></label>
+    <label>Password <input id="password" data-secret-field="password" type="password" autocomplete="current-password"></label>
+    <label>TOTP seed <input id="totp-seed" data-secret-field="totp_seed" type="password" autocomplete="off"></label>
+    <label class="check-row"><input type="checkbox" data-secret-field="save_to_vault" checked> Save encrypted in Vault</label>
+    <div class="button-row"><button type="submit">Submit Credential</button></div>
+  `;
+  form.onsubmit = (event) => {
+    event.preventDefault();
+    const payload = {
+      username: form.querySelector("[data-secret-field='username']").value,
+      password: form.querySelector("[data-secret-field='password']").value,
+      totp_seed: form.querySelector("[data-secret-field='totp_seed']").value,
+      save_to_vault: form.querySelector("[data-secret-field='save_to_vault']").checked
+    };
+    submitEncrypted(request, payload).then(() => {
+      form.querySelector("[data-secret-field='password']").value = "";
+      form.querySelector("[data-secret-field='totp_seed']").value = "";
+    });
+  };
+  item.append(form);
+}
+
+function renderChallengeControls(request, item) {
+  const form = document.createElement("form");
+  form.className = "secure-form";
+  const isVisualChallenge = ["captcha", "passkey", "webauthn", "device_confirmation"].includes(request.request_type);
+  form.innerHTML = `
+    <p class="flow-note">Challenge will be completed by you, not by the Agent. OmniDoer will not bypass CAPTCHA/MFA/Passkey/WebAuthn/3DS.</p>
+    <label>${isVisualChallenge ? "Completion acknowledgement" : "One-time code"} <input data-challenge-field="code" ${isVisualChallenge ? "" : "inputmode=\"numeric\""} autocomplete="one-time-code"></label>
+    <div class="button-row"><button type="submit">${isVisualChallenge ? "Mark User Completed" : "Submit Challenge"}</button></div>
+  `;
+  form.onsubmit = (event) => {
+    event.preventDefault();
+    const value = form.querySelector("[data-challenge-field='code']").value || "user-completed";
+    submitEncrypted(request, { code: value }).then(() => postAction(request, "complete-challenge")).then(() => {
+      form.querySelector("[data-challenge-field='code']").value = "";
+    });
+  };
+  item.append(form);
+}
+
+function renderTakeoverControls(request, item) {
+  const stream = document.querySelector("#browser-stream");
+  stream.textContent = "Loading control-only browser frame...";
+  fetch(`/api/requests/${request.request_id}/frame`, { cache: "no-store" })
+    .then((r) => r.json())
+    .then((frame) => {
+      if (frame.data_b64) {
+        stream.innerHTML = `<img id="takeover-frame" alt="Controlled browser frame" src="data:${frame.content_type};base64,${frame.data_b64}">`;
+        installTakeoverPointerHandlers(request, stream);
+      } else {
+        stream.textContent = "Browser context is not connected in this process.";
+      }
+    });
+  appendText(item, "p", "The browser is streamed to this Control Client. Agent paused. User in control. Sensitive input is not recorded.", "flow-note");
+  const controls = document.createElement("div");
+  controls.className = "takeover-controls";
+  controls.innerHTML = `
+    <label>Text to controlled browser <input type="password" autocomplete="off" data-takeover-text placeholder="Text to controlled browser"></label>
+    <div class="button-row">
+      <button data-action="send-text">Send Text</button>
+      <button data-action="enter-key">Enter</button>
+      <button data-action="release">Release Control</button>
+    </div>
+  `;
+  controls.querySelector("[data-action='send-text']").onclick = () => {
+    const input = controls.querySelector("[data-takeover-text]");
+    sendTakeoverInput(request, { event_type: "type", text: input.value }).then(() => { input.value = ""; });
+  };
+  controls.querySelector("[data-action='enter-key']").onclick = () => sendTakeoverInput(request, { event_type: "key", key: "Enter" });
+  controls.querySelector("[data-action='release']").onclick = () => postAction(request, "release");
+  item.append(controls);
+}
+
+function renderApprovalControls(request, item) {
+  const details = request.structured_details || {};
+  const detailList = document.createElement("dl");
+  detailList.className = "metadata approval-details";
+  [
+    ["Merchant", details.merchant],
+    ["Amount", details.amount],
+    ["Currency", details.currency],
+    ["Recipient", details.recipient || details.payee],
+    ["Shipping address", details.shipping_address],
+    ["Billing method summary", details.billing_method_summary],
+    ["Subscription / renewal", details.subscription || details.renewal],
+    ["Refund / cancellation terms", details.refund_terms || details.cancellation_terms],
+    ["Origin", details.origin || request.origin],
+    ["Final button text", details.final_button],
+    ["Agent prepared action", request.action_summary],
+    ["After approval", details.after_approval || "Submit only after approval"]
+  ].forEach(([label, value]) => {
+    const dt = document.createElement("dt");
+    dt.textContent = label;
+    const dd = document.createElement("dd");
+    dd.textContent = value || "not visible";
+    detailList.append(dt, dd);
+  });
+  item.append(detailList);
+  const actions = document.createElement("div");
+  actions.className = "button-row";
+  const approve = document.createElement("button");
+  approve.textContent = "Approve";
+  approve.onclick = () => postAction(request, "approve");
+  const deny = document.createElement("button");
+  deny.textContent = "Deny";
+  deny.onclick = () => postAction(request, "deny");
+  actions.append(deny, approve);
+  item.append(actions);
 }
 
 function renderRequest(request) {
   const item = document.createElement("article");
-  item.className = "request";
-  item.innerHTML = `
-    <h3>${request.request_type}</h3>
-    <p><strong>request_id:</strong> ${request.request_id}</p>
-    <p><strong>origin:</strong> ${request.origin}</p>
-    <p><strong>risk:</strong> ${request.risk_level}</p>
-    <p><strong>status:</strong> ${request.status}</p>
-    <p>Secret destination: Secret Broker. Challenge destination: Challenge Relay / target website. Human Takeover destination: controlled browser.</p>
-  `;
+  item.className = `request request-${requestKind(request)}`;
+  item.append(requestHeader(request));
+  item.append(requestMetadata(request));
   if (request.request_type === "credential") {
-    const button = document.createElement("button");
-    button.textContent = "Submit Credential";
-    button.onclick = () => submitEncrypted(request, {
-      username: document.querySelector("#username").value,
-      password: document.querySelector("#password").value,
-      totp_seed: document.querySelector("#totp-seed").value,
-      save_to_vault: true
-    }).then(() => {
-      document.querySelector("#password").value = "";
-      document.querySelector("#totp-seed").value = "";
-    });
-    item.append(button);
-  }
-  if (["totp", "sms_code", "email_code", "one_time_code", "payment_3ds", "captcha"].includes(request.request_type)) {
-    const button = document.createElement("button");
-    button.textContent = "Submit Challenge";
-    button.onclick = () => submitEncrypted(request, { code: document.querySelector("#one-time-code").value || "user-completed" })
-      .then(() => postAction(request, "complete-challenge"))
-      .then(() => { document.querySelector("#one-time-code").value = ""; });
-    item.append(button);
-  }
-  if (request.request_type === "human_takeover") {
-    const stream = document.querySelector("#browser-stream");
-    stream.textContent = "Loading control-only browser frame...";
-    fetch(`/api/requests/${request.request_id}/frame`, { cache: "no-store" })
-      .then((r) => r.json())
-      .then((frame) => {
-        if (frame.data_b64) {
-          stream.innerHTML = `<img id="takeover-frame" alt="Controlled browser frame" src="data:${frame.content_type};base64,${frame.data_b64}">`;
-          installTakeoverPointerHandlers(request, stream);
-        } else {
-          stream.textContent = "Browser context is not connected in this process.";
-        }
-      });
-    stream.onwheel = (event) => {
-      event.preventDefault();
-      sendTakeoverInput(request, { event_type: "scroll", delta_y: Math.round(event.deltaY) });
-    };
-    const textInput = document.createElement("input");
-    textInput.type = "password";
-    textInput.placeholder = "Text to controlled browser";
-    textInput.autocomplete = "off";
-    const sendText = document.createElement("button");
-    sendText.textContent = "Send Text";
-    sendText.onclick = () => sendTakeoverInput(request, { event_type: "type", text: textInput.value }).then(() => { textInput.value = ""; });
-    const enter = document.createElement("button");
-    enter.textContent = "Enter";
-    enter.onclick = () => sendTakeoverInput(request, { event_type: "key", key: "Enter" });
-    const release = document.createElement("button");
-    release.textContent = "Release Control";
-    release.onclick = () => postAction(request, "release");
-    item.append(textInput, sendText, enter, release);
-  }
-  if (request.request_type.endsWith("_approval") || request.request_type === "payment_approval") {
-    const details = request.structured_details || {};
-    const detailList = document.createElement("dl");
-    const fields = [
-      ["Merchant", details.merchant],
-      ["Amount", details.amount],
-      ["Currency", details.currency],
-      ["Recipient", details.recipient || details.payee],
-      ["Shipping address", details.shipping_address],
-      ["Billing method summary", details.billing_method_summary],
-      ["Subscription / renewal", details.subscription || details.renewal],
-      ["Refund / cancellation terms", details.refund_terms || details.cancellation_terms],
-      ["Origin", details.origin || request.origin],
-      ["Final button text", details.final_button],
-      ["Agent prepared action", request.action_summary],
-      ["After approval", details.after_approval || "Submit only after approval"]
-    ];
-    fields.forEach(([label, value]) => {
-      const dt = document.createElement("dt");
-      dt.textContent = label;
-      const dd = document.createElement("dd");
-      dd.textContent = value || "not visible";
-      detailList.append(dt, dd);
-    });
-    item.append(detailList);
-    const approve = document.createElement("button");
-    approve.textContent = "Approve";
-    approve.onclick = () => postAction(request, "approve");
-    const deny = document.createElement("button");
-    deny.textContent = "Deny";
-    deny.onclick = () => postAction(request, "deny");
-    item.append(deny, approve);
+    renderCredentialControls(request, item);
+  } else if (request.request_type === "human_takeover") {
+    renderTakeoverControls(request, item);
+  } else if (requestKind(request) === "approval") {
+    renderApprovalControls(request, item);
+  } else {
+    renderChallengeControls(request, item);
   }
   return item;
 }
 
-async function loadRequests() {
+function renderRequestList(requests, filter = activeFilter()) {
   const list = document.querySelector("#requests-list");
-  const requests = await fetch("/api/requests", { cache: "no-store" }).then((r) => r.json());
   list.innerHTML = "";
-  if (!requests.length) {
-    list.textContent = "No pending requests.";
+  const visible = filter === "all" ? requests : requests.filter((request) => requestKind(request) === filter);
+  document.querySelector("#runtime-counts").textContent = `Requests: ${requests.length}`;
+  if (!visible.length) {
+    list.textContent = requests.length ? "No requests match this filter." : "No pending requests.";
     return;
   }
-  requests.forEach((request) => list.append(renderRequest(request)));
+  visible.forEach((request) => list.append(renderRequest(request)));
 }
 
+async function loadRuntimeStatus() {
+  try {
+    const status = await fetch("/api/status", { cache: "no-store" }).then((r) => r.json());
+    setStatus(`Mode: ${status.mode}`, "Control Client does not call OpenAI APIs or models directly.");
+  } catch {
+    setStatus("Runtime offline", "Start omnidoer control serve.");
+  }
+}
+
+async function loadRequests() {
+  try {
+    const requests = await fetch("/api/requests", { cache: "no-store" }).then((r) => {
+      if (!r.ok) throw new Error("unauthorized");
+      return r.json();
+    });
+    cachedRequests = requests;
+    renderRequestList(requests);
+  } catch {
+    document.querySelector("#requests-list").textContent = "Pair this device to view requests in Cloud Direct Mode.";
+  }
+}
+
+loadRuntimeStatus();
 loadRequests();
 loadTasks();
+setInterval(loadRuntimeStatus, 10000);
 setInterval(loadRequests, 3000);
 setInterval(loadTasks, 5000);

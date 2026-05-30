@@ -8,6 +8,7 @@ class ControlUiContractTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.html = (static_root() / "index.html").read_text()
+        cls.app = (static_root() / "app.js").read_text()
 
     def test_secret_explanation_present(self) -> None:
         self.assertIn("Secret Broker", self.html)
@@ -15,12 +16,14 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("MCP return values", self.html)
 
     def test_password_inputs_are_password_type(self) -> None:
-        self.assertIn('id="password" type="password"', self.html)
-        self.assertIn('id="totp-seed" type="password"', self.html)
+        self.assertIn('id="password"', self.app)
+        self.assertIn('data-secret-field="password" type="password"', self.app)
+        self.assertIn('id="totp-seed"', self.app)
+        self.assertIn('data-secret-field="totp_seed" type="password"', self.app)
 
     def test_challenge_no_bypass_explanation_present(self) -> None:
         self.assertIn("does not bypass CAPTCHA/MFA/Passkey/WebAuthn/3DS", self.html)
-        self.assertIn("completed by you, not by the Agent", self.html)
+        self.assertIn("completed by you, not by the Agent", self.app)
 
     def test_takeover_explanation_present(self) -> None:
         self.assertIn("Agent paused", self.html)
