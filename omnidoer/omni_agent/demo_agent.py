@@ -58,11 +58,14 @@ def _wait_for_request_payload(request_id: str, timeout_seconds: int = 300) -> di
     while time.time() < deadline:
         request = store.get(request_id)
         if request.response_ciphertext:
+            expected_expires_at = request.expires_at if request.response_ciphertext.get("expires_at") is not None else None
             return decrypt_control_envelope(
                 request.response_ciphertext,
                 request_id=request.request_id,
                 origin=request.origin,
                 request_type=request.request_type,
+                device_id=request.allowed_device_id,
+                expires_at=expected_expires_at,
             )
         time.sleep(0.5)
     raise TimeoutError("timed out waiting for Control Client request")
