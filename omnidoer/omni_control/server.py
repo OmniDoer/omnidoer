@@ -225,6 +225,18 @@ class ControlHandler(SimpleHTTPRequestHandler):
             raise PermissionError("request is not assigned to this device")
         return request
 
+    def _validate_envelope_for_session(self, envelope: dict, request, session: ControlSession | None) -> None:
+        if self.config.mode != "cloud_direct":
+            return
+        if session is None:
+            raise PermissionError("session required")
+        if envelope.get("request_id") != request.request_id or envelope.get("origin") != request.origin or envelope.get("request_type") != request.request_type:
+            raise PermissionError("envelope associated data mismatch")
+        if envelope.get("device_id") != session.device_id:
+            raise PermissionError("envelope device mismatch")
+        if float(envelope.get("expires_at", "nan")) != float(request.expires_at):
+            raise PermissionError("envelope expiry mismatch")
+
     def _set_session_cookie(self, session_id: str, token: str) -> None:
         secure = "; Secure" if self.config.mode == "cloud_direct" else ""
         self.send_header("set-cookie", f"omnidoer_session={session_id}:{token}; HttpOnly; SameSite=Strict{secure}; Path=/")
@@ -434,7 +446,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 return
             request_id, action = parts[2], parts[3]
             try:
-                self._get_request_for_session(store, request_id, session)
+                control_request = self._get_request_for_session(store, request_id, session)
                 if action == "approve":
                     request = store.approve(request_id)
                 elif action == "deny":
@@ -445,7 +457,9 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     request = store.mark_challenge_completed(request_id)
                 elif action == "submit":
                     body = self._read_json()
-                    request = store.submit_ciphertext(request_id, body.get("envelope", body))
+                    envelope = body.get("envelope", body)
+                    self._validate_envelope_for_session(envelope, control_request, session)
+                    request = store.submit_ciphertext(request_id, envelope)
                 elif action == "input":
                     request = store.get(request_id)
                     browser = get_browser_context(request.browser_context_id)

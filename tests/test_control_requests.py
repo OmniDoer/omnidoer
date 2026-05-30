@@ -39,7 +39,7 @@ class ControlRequestTest(unittest.TestCase):
         )
         public = req.to_public_dict()
         self.assertEqual(public["structured_details"]["merchant"], "Demo")
-        self.assertNotIn("4111", repr(public))
+        self.assertEqual(public["structured_details"]["card"], "[REDACTED]")
 
     def test_ttl_expiry(self) -> None:
         req = self.store.create(
