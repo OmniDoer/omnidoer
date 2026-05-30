@@ -18,6 +18,19 @@ from omnidoer.omni_vault.models import CredentialMetadata, CredentialSecret
 VAULT_VERSION = 1
 
 
+def username_hint(username: str) -> str:
+    text = username.strip()
+    if not text:
+        return ""
+    if "@" in text:
+        local, domain = text.split("@", 1)
+        local_hint = f"{local[:1]}***" if local else "***"
+        return f"{local_hint}@{domain}"
+    if len(text) <= 2:
+        return "***"
+    return f"{text[:1]}***{text[-1:]}"
+
+
 def _passphrase_from_env(name: str | None) -> str:
     if name:
         value = os.environ.get(name)
@@ -66,7 +79,7 @@ class Vault:
         return [
             CredentialMetadata(
                 credential_id=item["credential_id"],
-                username=item["username"],
+                username=item.get("username_hint") or username_hint(item.get("username", "")),
                 allowed_origins=list(item.get("allowed_origins", [])),
                 metadata=dict(item.get("metadata", {})),
             )
@@ -91,7 +104,7 @@ class Vault:
         self.data.setdefault("credentials", []).append(
             {
                 "credential_id": credential_id,
-                "username": username,
+                "username_hint": username_hint(username),
                 "allowed_origins": sorted(set(allowed_origins)),
                 "metadata": redact_dom_snapshot(metadata or {}),
                 "secret_nonce": nonce,

@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from omnidoer.omni_vault.vault import Vault
+from omnidoer.omni_vault.vault import Vault, username_hint
 
 
 class VaultTest(unittest.TestCase):
@@ -12,17 +12,18 @@ class VaultTest(unittest.TestCase):
             path = Path(tmp) / "vault.json"
             vault = Vault.create(path, "test-passphrase")
             credential_id = vault.add_credential(
-                username="demo",
+                username="demo-user@example.test",
                 password="fake-password-never-plain",
                 totp_seed="fake-totp-seed-never-plain",
                 allowed_origins=["http://127.0.0.1:8765"],
             )
             raw = path.read_text()
+            self.assertNotIn("demo-user@example.test", raw)
             self.assertNotIn("fake-password-never-plain", raw)
             self.assertNotIn("fake-totp-seed-never-plain", raw)
             unlocked = Vault.load(path, "test-passphrase")
             secret = unlocked.decrypt_credential(credential_id)
-            self.assertEqual(secret.username, "demo")
+            self.assertEqual(secret.username, "demo-user@example.test")
             self.assertEqual(secret.password, "fake-password-never-plain")
             self.assertEqual(secret.totp_seed, "fake-totp-seed-never-plain")
 
@@ -43,13 +44,15 @@ class VaultTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "vault.json"
             Vault.create(path, "test-passphrase").add_credential(
-                username="demo",
+                username="metadata-user@example.test",
                 password="fake-password-never-plain",
                 allowed_origins=["http://127.0.0.1:8765"],
             )
+            raw = path.read_text()
+            self.assertNotIn("metadata-user@example.test", raw)
             locked = Vault.load(path)
             metadata = locked.list_metadata()
-            self.assertEqual(metadata[0].username, "demo")
+            self.assertEqual(metadata[0].username, "m***@example.test")
             self.assertEqual(metadata[0].allowed_origins, ["http://127.0.0.1:8765"])
 
     def test_metadata_is_redacted_before_storage(self) -> None:
@@ -75,6 +78,11 @@ class VaultTest(unittest.TestCase):
             self.assertEqual(metadata["sms_code"], "[REDACTED]")
             self.assertEqual(metadata["captcha_answer"], "[REDACTED]")
             self.assertEqual(metadata["payment_3ds_code"], "[REDACTED]")
+
+    def test_username_hint_masks_full_username(self) -> None:
+        self.assertEqual(username_hint("demo@example.test"), "d***@example.test")
+        self.assertEqual(username_hint("demo"), "d***o")
+        self.assertNotIn("demo@example.test", username_hint("demo@example.test"))
 
 
 if __name__ == "__main__":
