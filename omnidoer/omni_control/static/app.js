@@ -75,6 +75,62 @@ async function postAction(request, action) {
   await loadRequests();
 }
 
+async function sendTakeoverInput(request, eventPayload) {
+  await fetch(`/api/requests/${request.request_id}/input`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(eventPayload)
+  });
+}
+
+function framePoint(event, image) {
+  const rect = image.getBoundingClientRect();
+  return {
+    x: Math.round((event.clientX - rect.left) * (image.naturalWidth / rect.width)),
+    y: Math.round((event.clientY - rect.top) * (image.naturalHeight / rect.height))
+  };
+}
+
+function installTakeoverPointerHandlers(request, stream) {
+  let start = null;
+  let last = null;
+  stream.tabIndex = 0;
+  stream.onpointerdown = (event) => {
+    const img = document.querySelector("#takeover-frame");
+    if (!img) return;
+    stream.setPointerCapture(event.pointerId);
+    start = { ...framePoint(event, img), at: Date.now() };
+    last = start;
+  };
+  stream.onpointermove = (event) => {
+    const img = document.querySelector("#takeover-frame");
+    if (!img || !start) return;
+    last = framePoint(event, img);
+  };
+  stream.onpointerup = (event) => {
+    const img = document.querySelector("#takeover-frame");
+    if (!img || !start) return;
+    const end = framePoint(event, img);
+    const distance = Math.hypot(end.x - start.x, end.y - start.y);
+    const duration = Date.now() - start.at;
+    if (distance > 12) {
+      sendTakeoverInput(request, { event_type: "drag", x: start.x, y: start.y, to_x: end.x, to_y: end.y });
+    } else if (duration > 650) {
+      sendTakeoverInput(request, { event_type: "long_press", x: start.x, y: start.y });
+    } else {
+      sendTakeoverInput(request, { event_type: "tap", x: end.x, y: end.y });
+    }
+    start = null;
+    last = null;
+  };
+  stream.onkeydown = (event) => {
+    if (event.key.length === 1 || ["Enter", "Tab", "Backspace", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
+      event.preventDefault();
+      sendTakeoverInput(request, { event_type: "key", key: event.key });
+    }
+  };
+}
+
 function renderRequest(request) {
   const item = document.createElement("article");
   item.className = "request";
@@ -116,34 +172,29 @@ function renderRequest(request) {
       .then((frame) => {
         if (frame.data_b64) {
           stream.innerHTML = `<img id="takeover-frame" alt="Controlled browser frame" src="data:${frame.content_type};base64,${frame.data_b64}">`;
+          installTakeoverPointerHandlers(request, stream);
         } else {
           stream.textContent = "Browser context is not connected in this process.";
         }
       });
-    stream.onclick = (event) => {
-      const img = document.querySelector("#takeover-frame");
-      if (!img) return;
-      const rect = img.getBoundingClientRect();
-      const x = Math.round((event.clientX - rect.left) * (img.naturalWidth / rect.width));
-      const y = Math.round((event.clientY - rect.top) * (img.naturalHeight / rect.height));
-      fetch(`/api/requests/${request.request_id}/input`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ event_type: "tap", x, y })
-      });
-    };
     stream.onwheel = (event) => {
       event.preventDefault();
-      fetch(`/api/requests/${request.request_id}/input`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ event_type: "scroll", delta_y: Math.round(event.deltaY) })
-      });
+      sendTakeoverInput(request, { event_type: "scroll", delta_y: Math.round(event.deltaY) });
     };
+    const textInput = document.createElement("input");
+    textInput.type = "password";
+    textInput.placeholder = "Text to controlled browser";
+    textInput.autocomplete = "off";
+    const sendText = document.createElement("button");
+    sendText.textContent = "Send Text";
+    sendText.onclick = () => sendTakeoverInput(request, { event_type: "type", text: textInput.value }).then(() => { textInput.value = ""; });
+    const enter = document.createElement("button");
+    enter.textContent = "Enter";
+    enter.onclick = () => sendTakeoverInput(request, { event_type: "key", key: "Enter" });
     const release = document.createElement("button");
     release.textContent = "Release Control";
     release.onclick = () => postAction(request, "release");
-    item.append(release);
+    item.append(textInput, sendText, enter, release);
   }
   if (request.request_type.endsWith("_approval") || request.request_type === "payment_approval") {
     const approve = document.createElement("button");

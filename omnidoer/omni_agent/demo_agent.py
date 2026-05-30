@@ -20,8 +20,10 @@ from omnidoer.omni_challenge.relay import complete_in_test_mode as complete_chal
 from omnidoer.omni_challenge.relay import request_user_interaction
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.secure_channel import decrypt_control_envelope, encrypt_for_broker, load_or_create_keypair
-from omnidoer.omni_takeover.relay import complete_in_test_mode as complete_takeover
-from omnidoer.omni_takeover.relay import request_user_control, start_stream
+from omnidoer.omni_takeover.browser_worker import BrowserContextWorker
+from omnidoer.omni_takeover.input_events import parse_actions
+from omnidoer.omni_takeover.relay import apply_input_event, release_control, request_user_control, start_stream
+from omnidoer.omni_takeover.sessions import registered_browser_context
 from omnidoer.omni_vault.models import CredentialSecret
 from omnidoer.omni_vault.vault import Vault, _passphrase_from_env
 
@@ -163,17 +165,30 @@ def _captcha_task(args) -> int:
 
 
 def _takeover_task(args) -> int:
-    client = DemoHttpClient(args.demo_origin)
-    client.get("/antibot")
+    origin = args.demo_origin.rstrip("/")
     request = request_user_control(
-        origin=args.demo_origin,
-        top_level_url=f"{args.demo_origin}/antibot",
+        origin=origin,
+        top_level_url=f"{origin}/antibot",
         reason="Demo high-intensity anti-bot requires user takeover",
+        browser_context_id="demo-antibot",
     )
-    start_stream(request.request_id)
     if os.environ.get("OMNIDOER_TAKEOVER_TEST_MODE") == "1":
-        complete_takeover(request.request_id)
-        client.post("/antibot", {"takeover": "user-completed"})
+        with BrowserContextWorker(f"{origin}/antibot") as browser:
+            with registered_browser_context("demo-antibot", browser):
+                start_stream(request.request_id, browser_controller=browser)
+                browser.click("#takeover")
+                release_seen = False
+                for event in parse_actions(os.environ.get("OMNIDOER_TEST_TAKEOVER_ACTIONS", "type:user-completed;release")):
+                    if event.event_type == "release":
+                        release_seen = True
+                        break
+                    if event.event_type == "type":
+                        browser.click("#takeover")
+                    apply_input_event(request.request_id, event, browser_controller=browser)
+                browser.press_key("Enter")
+                release_control(request.request_id)
+    else:
+        start_stream(request.request_id)
     print("human takeover completed by user; agent resumed")
     return 0
 

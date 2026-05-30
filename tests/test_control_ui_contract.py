@@ -38,6 +38,13 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("submitEncrypted", app)
         self.assertIn("web-p256-v1", app)
 
+    def test_takeover_ui_sends_rich_input_events(self) -> None:
+        app = (static_root() / "app.js").read_text()
+        for event_type in ("drag", "long_press", "scroll", "type", "key"):
+            self.assertIn(f'event_type: "{event_type}"', app)
+        self.assertIn("Text to controlled browser", app)
+        self.assertIn("installTakeoverPointerHandlers", app)
+
 
 if __name__ == "__main__":
     unittest.main()
