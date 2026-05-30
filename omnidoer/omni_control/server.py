@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.secure_channel import load_or_create_keypair, load_or_create_web_keypair
+from omnidoer.omni_control.tasks import TaskStore
 from omnidoer.omni_takeover.input_events import event_from_dict
 from omnidoer.omni_takeover.relay import apply_input_event, start_stream
 from omnidoer.omni_takeover.sessions import get_browser_context
@@ -66,6 +67,9 @@ class ControlHandler(SimpleHTTPRequestHandler):
         if path == "/api/requests":
             self._send_json(HTTPStatus.OK, [request.to_public_dict() for request in store.list()])
             return
+        if path == "/api/tasks":
+            self._send_json(HTTPStatus.OK, [task.to_public_dict() for task in TaskStore().list(include_completed=True)])
+            return
         if path.startswith("/api/requests/"):
             if path.endswith("/frame"):
                 request_id = path.split("/")[-2]
@@ -90,6 +94,45 @@ class ControlHandler(SimpleHTTPRequestHandler):
         path = urlparse(self.path).path
         store = RequestStore()
         parts = path.strip("/").split("/")
+        if path == "/api/tasks":
+            try:
+                task = TaskStore().create((self._read_json().get("text") or ""), source="control_client")
+                self._send_json(HTTPStatus.CREATED, task.to_public_dict())
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
+        if path == "/api/tasks/next":
+            try:
+                body = self._read_json()
+                task = TaskStore().next_pending(claim=bool(body.get("claim", True)))
+                if task is None:
+                    self._send_json(
+                        HTTPStatus.OK,
+                        {
+                            "status": "empty",
+                            "secret_fields_allowed": False,
+                            "submitted_to_openai_api_by_control_client": False,
+                        },
+                    )
+                    return
+                self._send_json(HTTPStatus.OK, task.to_public_dict())
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
+        if len(parts) == 4 and parts[:2] == ["api", "tasks"]:
+            task_id, action = parts[2], parts[3]
+            try:
+                if action == "complete":
+                    task = TaskStore().complete(task_id)
+                elif action == "cancel":
+                    task = TaskStore().cancel(task_id)
+                else:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "unknown action"})
+                    return
+                self._send_json(HTTPStatus.OK, task.to_public_dict())
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
         if len(parts) == 4 and parts[:2] == ["api", "requests"]:
             request_id, action = parts[2], parts[3]
             try:

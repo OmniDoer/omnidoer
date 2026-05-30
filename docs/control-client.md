@@ -7,6 +7,8 @@ MVP commands:
 
 ```sh
 omnidoer control serve --host 127.0.0.1 --port 8787
+omnidoer control submit-task "登录 demo 网站并下载我的发票"
+omnidoer control tasks
 omnidoer control requests
 omnidoer control input-secret <request_id>
 omnidoer control challenge <request_id>
@@ -14,6 +16,11 @@ omnidoer control approve <request_id>
 omnidoer control deny <request_id>
 omnidoer control release <request_id>
 ```
+
+The Chat / Task panel is a local task queue, not a new LLM chat client. The
+Control Client writes user tasks to `.omnidoer/control_tasks.json`. Codex reads
+them through the safe MCP tool `control.next_user_task`, then continues using
+the existing Codex CLI authentication and billing mode.
 
 Secrets are sent to the Secret Broker, not to Agent/LLM context. Challenge
 answers are handled by the Challenge Relay or target browser, not by the model.

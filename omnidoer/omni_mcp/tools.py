@@ -26,6 +26,7 @@ ALLOWED_TOOLS = [
     "policy.explain_current_block",
     "control.list_requests",
     "control.request_status",
+    "control.list_tasks",
     "control.next_user_task",
 ]
 
@@ -72,6 +73,42 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
         from omnidoer.omni_control.requests import RequestStore
 
         return {"status": "ok", "requests": [req.to_public_dict() for req in RequestStore().list()], "secret_exposed_to_model": False}
+    if name == "control.request_status":
+        from omnidoer.omni_control.requests import RequestStore
+
+        request_id = (arguments or {}).get("request_id")
+        if not request_id:
+            return {"status": "error", "error": "request_id required", "secret_exposed_to_model": False}
+        try:
+            request = RequestStore().get(str(request_id))
+        except KeyError:
+            return {"status": "not_found", "secret_exposed_to_model": False}
+        return {"status": "ok", "request": request.to_public_dict(), "secret_exposed_to_model": False}
+    if name == "control.list_tasks":
+        from omnidoer.omni_control.tasks import TaskStore
+
+        return {
+            "status": "ok",
+            "tasks": [task.to_public_dict() for task in TaskStore().list(include_completed=True)],
+            "secret_exposed_to_model": False,
+            "submitted_to_openai_api_by_control_client": False,
+        }
+    if name == "control.next_user_task":
+        from omnidoer.omni_control.tasks import TaskStore
+
+        task = TaskStore().next_pending(claim=True)
+        if task is None:
+            return {
+                "status": "empty",
+                "secret_exposed_to_model": False,
+                "submitted_to_openai_api_by_control_client": False,
+            }
+        return {
+            "status": "ok",
+            "task": task.to_public_dict(),
+            "secret_exposed_to_model": False,
+            "submitted_to_openai_api_by_control_client": False,
+        }
     if name == "audit.show_recent_events":
         from omnidoer.omni_audit.audit import AuditLog
 

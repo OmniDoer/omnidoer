@@ -90,8 +90,13 @@ Control Client and demo agent commands do not require `OPENAI_API_KEY`.
 ```sh
 omnidoer doctor
 omnidoer control serve --host 127.0.0.1 --port 8787
+omnidoer control submit-task "登录 demo 网站并下载我的发票"
 omnidoer mcp serve --self-test
 ```
+
+The Control Client task panel writes to a local queue. Codex can read queued
+tasks with `control.next_user_task` over MCP while keeping Codex CLI as the
+only model inference entrypoint.
 
 ## MVP Target
 

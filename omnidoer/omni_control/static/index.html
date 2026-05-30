@@ -17,6 +17,14 @@
       <p>Challenge destination: Challenge Relay / target website. OmniDoer does not bypass CAPTCHA/MFA/Passkey/WebAuthn/3DS.</p>
       <p>Human Takeover destination: controlled browser. Agent paused. User in control until Release Control.</p>
     </section>
+    <section id="task-panel">
+      <h2>Chat / Task</h2>
+      <p>Submit work to the local OmniDoer task queue. The Control Client does not call OpenAI APIs or models directly; Codex reads tasks through the MCP tool control.next_user_task.</p>
+      <p>Do not enter passwords, verification codes, card numbers, private keys, or other secrets here. Use Credential Request or Challenge Request panels for sensitive input.</p>
+      <label>Task <textarea id="task-text" rows="4" placeholder="Ask Codex to use OmniDoer MCP tools for a local task"></textarea></label>
+      <button id="submit-task">Submit Task</button>
+      <div id="tasks-list">Loading tasks...</div>
+    </section>
     <section id="credential-panel">
       <h2>Credential Request</h2>
       <label>Username <input id="username" autocomplete="username"></label>

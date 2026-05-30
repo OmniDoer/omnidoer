@@ -9,6 +9,7 @@ import os
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.secure_channel import encrypt_for_broker, load_or_create_keypair
 from omnidoer.omni_control.server import serve
+from omnidoer.omni_control.tasks import TaskStore
 
 
 def _secret_payload(request) -> dict[str, str | bool]:
@@ -79,6 +80,21 @@ def handle_control_command(args) -> int:
         return 0
     if command == "requests":
         print(json.dumps([request.to_public_dict() for request in RequestStore().list()], indent=2, sort_keys=True))
+        return 0
+    if command == "submit-task":
+        task = TaskStore().create(args.task, source="control_cli")
+        print(f"queued task {task.task_id}; Codex can read it with control.next_user_task")
+        return 0
+    if command == "tasks":
+        print(json.dumps([task.to_public_dict() for task in TaskStore().list(include_completed=True)], indent=2, sort_keys=True))
+        return 0
+    if command == "complete-task":
+        TaskStore().complete(args.task_id)
+        print(f"completed {args.task_id}")
+        return 0
+    if command == "cancel-task":
+        TaskStore().cancel(args.task_id)
+        print(f"cancelled {args.task_id}")
         return 0
     if command == "approve":
         RequestStore().approve(args.request_id)

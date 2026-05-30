@@ -7,6 +7,11 @@ requestsRoot.id = "requests-panel";
 requestsRoot.innerHTML = "<h2>Requests</h2><div id=\"requests-list\">Loading...</div>";
 document.querySelector("main").append(requestsRoot);
 
+const submitTaskButton = document.querySelector("#submit-task");
+if (submitTaskButton) {
+  submitTaskButton.onclick = () => submitTask();
+}
+
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -73,6 +78,62 @@ async function submitEncrypted(request, payload) {
 async function postAction(request, action) {
   await fetch(`/api/requests/${request.request_id}/${action}`, { method: "POST" });
   await loadRequests();
+}
+
+async function submitTask() {
+  const input = document.querySelector("#task-text");
+  const text = input.value.trim();
+  if (!text) return;
+  await fetch("/api/tasks", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text })
+  });
+  input.value = "";
+  await loadTasks();
+}
+
+async function updateTask(task, action) {
+  await fetch(`/api/tasks/${task.task_id}/${action}`, { method: "POST" });
+  await loadTasks();
+}
+
+function renderTask(task) {
+  const item = document.createElement("article");
+  item.className = "task";
+  const title = document.createElement("h3");
+  title.textContent = task.status;
+  const id = document.createElement("p");
+  id.textContent = `task_id: ${task.task_id}`;
+  const text = document.createElement("p");
+  text.textContent = task.text;
+  const source = document.createElement("p");
+  source.textContent = `source: ${task.source}`;
+  const flow = document.createElement("p");
+  flow.textContent = "Delivery: local queue -> MCP control.next_user_task -> Codex CLI. The Control Client does not call models directly.";
+  item.append(title, id, text, source, flow);
+  if (task.status !== "completed" && task.status !== "cancelled") {
+    const complete = document.createElement("button");
+    complete.textContent = "Mark Complete";
+    complete.onclick = () => updateTask(task, "complete");
+    const cancel = document.createElement("button");
+    cancel.textContent = "Cancel";
+    cancel.onclick = () => updateTask(task, "cancel");
+    item.append(cancel, complete);
+  }
+  return item;
+}
+
+async function loadTasks() {
+  const list = document.querySelector("#tasks-list");
+  if (!list) return;
+  const tasks = await fetch("/api/tasks", { cache: "no-store" }).then((r) => r.json());
+  list.innerHTML = "";
+  if (!tasks.length) {
+    list.textContent = "No queued tasks.";
+    return;
+  }
+  tasks.forEach((task) => list.append(renderTask(task)));
 }
 
 async function sendTakeoverInput(request, eventPayload) {
@@ -220,4 +281,6 @@ async function loadRequests() {
 }
 
 loadRequests();
+loadTasks();
 setInterval(loadRequests, 3000);
+setInterval(loadTasks, 5000);

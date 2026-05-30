@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from omnidoer.omni_control.requests import RequestStore
+from omnidoer.omni_control.tasks import TaskStore
 
 
 class CliTest(unittest.TestCase):
@@ -49,6 +50,16 @@ class CliTest(unittest.TestCase):
             combined = result.stdout + result.stderr
             self.assertNotIn("super-secret-password", combined)
             self.assertIn("Secret Broker", combined)
+
+    def test_control_submit_task_queues_local_task(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            env = {"OMNIDOER_HOME": tmp}
+            result = self.run_cli(["control", "submit-task", "Use the local demo"], env=env)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("queued task", result.stdout)
+            tasks = TaskStore(Path(tmp) / "control_tasks.json").list()
+            self.assertEqual(len(tasks), 1)
+            self.assertEqual(tasks[0].text, "Use the local demo")
 
 
 if __name__ == "__main__":

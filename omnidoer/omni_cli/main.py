@@ -49,6 +49,12 @@ def build_parser() -> argparse.ArgumentParser:
     control_sub.add_parser("tui")
     control_sub.add_parser("status")
     control_sub.add_parser("requests")
+    submit_task = control_sub.add_parser("submit-task")
+    submit_task.add_argument("task")
+    control_sub.add_parser("tasks")
+    for name in ("complete-task", "cancel-task"):
+        p = control_sub.add_parser(name)
+        p.add_argument("task_id")
     for name in ("approve", "deny", "input-secret", "challenge", "takeover", "release"):
         p = control_sub.add_parser(name)
         p.add_argument("request_id")

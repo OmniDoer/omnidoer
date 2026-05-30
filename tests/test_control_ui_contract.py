@@ -38,6 +38,15 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("submitEncrypted", app)
         self.assertIn("web-p256-v1", app)
 
+    def test_task_panel_uses_local_queue_not_direct_model_api(self) -> None:
+        self.assertIn("Chat / Task", self.html)
+        self.assertIn("does not call OpenAI APIs or models directly", self.html)
+        self.assertIn("control.next_user_task", self.html)
+        app = (static_root() / "app.js").read_text()
+        self.assertIn("/api/tasks", app)
+        self.assertIn("submitTask", app)
+        self.assertIn("local queue -> MCP control.next_user_task -> Codex CLI", app)
+
     def test_takeover_ui_sends_rich_input_events(self) -> None:
         app = (static_root() / "app.js").read_text()
         for event_type in ("drag", "long_press", "scroll", "type", "key"):
