@@ -75,6 +75,8 @@
   frame visible with a reconnecting state while stale-frame input remains
   blocked. Accepted takeover input now schedules a near-immediate frame refresh
   and coalesces overlapping frame fetches to reduce mobile perceived latency.
+  Mobile background/lock transitions pause frame polling and resume with an
+  immediate current-frame fetch when the Control Client becomes visible again.
 - Payment approvals include structured merchant, amount, recipient, origin,
   final-button, after-approval, and review-fingerprint details. Final sensitive
   browser clicks are gated on scoped approval.

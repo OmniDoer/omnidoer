@@ -118,6 +118,7 @@ let takeoverFrameRefreshTimer = null;
 let takeoverFrameFetchInFlight = false;
 let takeoverFrameFetchQueued = false;
 let takeoverFrameMisses = 0;
+let takeoverFrameVisibilityPaused = false;
 let takeoverFrameZoom = TAKEOVER_ZOOM_MIN;
 let takeoverFramePanMode = false;
 let activePaymentApprovalRequest = null;
@@ -328,7 +329,7 @@ function refreshActiveTakeoverFrame() {
 
 function scheduleTakeoverFrameRefresh(request = activeTakeoverRequest(), delayMs = 0) {
   const stream = document.querySelector("#browser-stream");
-  if (!request || !stream || request.status !== "user_control") return;
+  if (!request || !stream || request.status !== "user_control" || document.hidden) return;
   if (takeoverFrameRefreshTimer) clearTimeout(takeoverFrameRefreshTimer);
   takeoverFrameRefreshTimer = setTimeout(() => {
     takeoverFrameRefreshTimer = null;
@@ -867,6 +868,55 @@ function installTakeoverPointerHandlers(request, stream) {
   };
 }
 
+function startTakeoverFrameTimers(request, stream) {
+  if (!takeoverFrameTimer) {
+    takeoverFrameTimer = setInterval(() => fetchTakeoverFrame(request, stream), TAKEOVER_FRAME_POLL_MS);
+  }
+  if (!takeoverFreshnessTimer) {
+    takeoverFreshnessTimer = setInterval(() => updateTakeoverFrameFreshness(stream), 1000);
+  }
+}
+
+function pauseTakeoverFramePollingForVisibility() {
+  if (!activeTakeoverFrameRequest || !document.hidden) return;
+  const request = activeTakeoverRequest();
+  const stream = document.querySelector("#browser-stream");
+  if (takeoverFrameTimer) clearInterval(takeoverFrameTimer);
+  if (takeoverFreshnessTimer) clearInterval(takeoverFreshnessTimer);
+  if (takeoverFrameRefreshTimer) clearTimeout(takeoverFrameRefreshTimer);
+  takeoverFrameTimer = null;
+  takeoverFreshnessTimer = null;
+  takeoverFrameRefreshTimer = null;
+  takeoverFrameFetchQueued = false;
+  takeoverFrameVisibilityPaused = true;
+  updateTakeoverFrameConnection("paused", "paused - page hidden");
+  updateTakeoverFrameFreshness(stream);
+  if (request) {
+    updateTakeoverPanel(request, null, "Frame polling paused while this Control Client is hidden. Last frame is retained and stale input remains blocked.");
+  }
+}
+
+function resumeTakeoverFramePollingFromVisibility() {
+  if (document.hidden) return;
+  const request = activeTakeoverRequest();
+  const stream = document.querySelector("#browser-stream");
+  takeoverFrameVisibilityPaused = false;
+  if (!request || !stream || request.status !== "user_control") return;
+  updateTakeoverFrameConnection("connecting", "resuming");
+  updateTakeoverPanel(request, null, "Control Client visible again; refreshing current browser frame.");
+  installTakeoverPointerHandlers(request, stream);
+  startTakeoverFrameTimers(request, stream);
+  fetchTakeoverFrame(request, stream);
+}
+
+function handleTakeoverVisibilityChange() {
+  if (document.hidden) {
+    pauseTakeoverFramePollingForVisibility();
+    return;
+  }
+  resumeTakeoverFramePollingFromVisibility();
+}
+
 function stopTakeoverFramePolling(requestId = null) {
   if (requestId && activeTakeoverFrameRequest !== requestId) return;
   if (takeoverFrameTimer) clearInterval(takeoverFrameTimer);
@@ -877,6 +927,7 @@ function stopTakeoverFramePolling(requestId = null) {
   takeoverFrameRefreshTimer = null;
   takeoverFrameFetchQueued = false;
   takeoverFrameMisses = 0;
+  takeoverFrameVisibilityPaused = false;
   activeTakeoverFrameRequest = null;
   const stream = document.querySelector("#browser-stream");
   if (stream) {
@@ -908,6 +959,10 @@ function markTakeoverFrameReconnect(request, stream, message) {
 
 async function fetchTakeoverFrame(request, stream) {
   if (activeTakeoverFrameRequest !== request.request_id) return;
+  if (document.hidden) {
+    pauseTakeoverFramePollingForVisibility();
+    return;
+  }
   if (takeoverFrameFetchInFlight) {
     takeoverFrameFetchQueued = true;
     return;
@@ -929,6 +984,7 @@ async function fetchTakeoverFrame(request, stream) {
       stream.dataset.frameUrl = frame.url || "";
       stream.dataset.frameOrigin = frame.origin || "";
       takeoverFrameMisses = 0;
+      takeoverFrameVisibilityPaused = false;
       stream.classList.remove("frame-reconnecting");
       applyTakeoverFrameZoom(stream);
       updateTakeoverFrameConnection("connected", "connected");
@@ -971,12 +1027,19 @@ function startTakeoverFramePolling(request, stream) {
   resetTakeoverFrameView();
   stream.textContent = "Loading control-only browser frame...";
   stream.classList.remove("frame-reconnecting");
+  if (document.hidden) {
+    takeoverFrameVisibilityPaused = true;
+    updateTakeoverFrameConnection("paused", "paused - page hidden");
+    updateTakeoverPanel(request, null, "Frame polling paused while this Control Client is hidden. Last frame is retained and stale input remains blocked.");
+    installTakeoverPointerHandlers(request, stream);
+    return;
+  }
+  takeoverFrameVisibilityPaused = false;
   updateTakeoverFrameConnection("connecting", "connecting");
   updateTakeoverPanel(request, null, "Loading control-only browser frame...");
   installTakeoverPointerHandlers(request, stream);
   fetchTakeoverFrame(request, stream);
-  takeoverFrameTimer = setInterval(() => fetchTakeoverFrame(request, stream), TAKEOVER_FRAME_POLL_MS);
-  takeoverFreshnessTimer = setInterval(() => updateTakeoverFrameFreshness(stream), 1000);
+  startTakeoverFrameTimers(request, stream);
 }
 
 function requestHeader(request) {
@@ -1299,6 +1362,7 @@ loadRequests();
 loadTasks();
 loadDevicesAndSessions();
 startRequestWebSocket();
+document.addEventListener("visibilitychange", handleTakeoverVisibilityChange);
 setInterval(loadRuntimeStatus, 10000);
 setInterval(loadRequests, 15000);
 setInterval(loadTasks, 5000);

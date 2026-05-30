@@ -82,3 +82,6 @@ freshness guard blocks stale input until a new frame is delivered.
 After accepted takeover input, the PWA triggers a short-delay frame refresh
 and coalesces overlapping frame requests. This reduces perceived latency
 without changing the server-side frame id binding requirement.
+Mobile page visibility is also part of the client transport contract: hidden
+PWAs pause frame polling, retain the last visible frame, and refresh
+immediately when visible again.

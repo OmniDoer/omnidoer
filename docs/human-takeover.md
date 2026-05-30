@@ -40,6 +40,9 @@ After successful user input, the Control Client schedules a near-immediate
 frame refresh instead of waiting for the next polling tick. Concurrent frame
 requests are coalesced so the newest delivered frame remains the one bound to
 future input.
+When the phone browser is backgrounded or locked, frame polling pauses while
+the last frame remains visible. Returning to the Control Client immediately
+resumes polling and fetches a current frame before new input can be trusted.
 
 Frames are for the Control Client only and are not sent to the LLM. User input
 events are allowlisted, length-limited, and audited by type only; text content,
