@@ -564,8 +564,39 @@
         footer_copy: "OmniDoer는 사용자 승인 로컬 실행 계층이며 자격 증명 탈취, CAPTCHA 우회, 자율 결제 도구가 아닙니다."
       }
     };
+    const languageAliases = {
+      "zh": "zh-CN",
+      "zh-cn": "zh-CN",
+      "zh-tw": "zh-CN",
+      "zh-hk": "zh-CN",
+      "zh-sg": "zh-CN",
+      "zh-mo": "zh-CN"
+    };
+    function normalizeLanguage(value) {
+      const requested = (value || "en").trim();
+      if (copy[requested]) {
+        return requested;
+      }
+      const lowerRequested = requested.toLowerCase();
+      if (copy[lowerRequested]) {
+        return lowerRequested;
+      }
+      const aliased = languageAliases[lowerRequested];
+      if (aliased && copy[aliased]) {
+        return aliased;
+      }
+      const base = requested.split("-")[0];
+      if (copy[base]) {
+        return base;
+      }
+      const baseAliased = languageAliases[base.toLowerCase()];
+      if (baseAliased && copy[baseAliased]) {
+        return baseAliased;
+      }
+      return "en";
+    }
     function applyLanguage(lang) {
-      const selected = copy[lang] ? lang : "en";
+      const selected = normalizeLanguage(lang);
       const active = copy[selected];
       document.documentElement.lang = selected;
       document.documentElement.style.setProperty("--hero-image", heroImages[selected]);
@@ -583,9 +614,9 @@
     }
     const requestedLanguage = new URLSearchParams(window.location.search).get("lang")
       || localStorage.getItem("omnidoer_pages_language")
-      || (navigator.languages || [navigator.language || "en"]).find((lang) => copy[lang] || copy[lang.split("-")[0]])
+      || (navigator.languages || [navigator.language || "en"]).find((lang) => copy[lang] || copy[lang.split("-")[0]] || languageAliases[lang.toLowerCase()])
       || "en";
-    const normalizedLanguage = copy[requestedLanguage] ? requestedLanguage : requestedLanguage.split("-")[0];
+    const normalizedLanguage = normalizeLanguage(requestedLanguage);
     document.querySelectorAll("[data-lang]").forEach((button) => {
       button.addEventListener("click", () => applyLanguage(button.dataset.lang));
     });

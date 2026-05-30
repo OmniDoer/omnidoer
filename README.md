@@ -23,7 +23,7 @@ the user whenever a site requires human authentication, judgment, or consent.
 
 ![OmniDoer English edition cinematic poster](./docs/assets/localized/omnidoer-readme-en.jpg)
 
-## Quick Install / 一键部署
+## One-Command Install
 
 Local developer install:
 
@@ -55,7 +55,7 @@ Set `OMNIDOER_INSTALL_DIR`, `OMNIDOER_HOST`, `OMNIDOER_PORT`, `OMNIDOER_START=0`
 `OMNIDOER_REGISTER_MCP=0`, or `OMNIDOER_SKIP_PLAYWRIGHT=1` to customize the
 bootstrap.
 
-Localized README editions:
+Available translations:
 [中文](./README.zh-CN.md) |
 [Español](./README.es.md) |
 [Français](./README.fr.md) |
@@ -128,38 +128,15 @@ OmniDoer does not switch modes or create a new API client.
 
 ![OmniDoer secure cloud control service](./docs/assets/omnidoer-cloud-control-service.jpg)
 
-## Languages / 多语言
+## Translations
 
-**English.** OmniDoer is a Codex CLI sidecar, MCP tool server, secure browser
-runtime, Secret Broker, Control Client, Challenge Relay, Human Takeover, Cloud
-Direct service, and approval layer. Codex remains the only model entrypoint;
-OmniDoer turns reasoning into real user-authorized web action without
-revealing secrets or challenge answers to the model.
-
-**中文。** OmniDoer 是 Codex CLI 的 sidecar / MCP 扩展层，不是新的 OpenAI
-API 客户端。它通过 Secret Broker、Vault、Control Client、Challenge Relay、
-Human Takeover、Cloud Direct、Approval Gate 和审计日志，让 Codex 的推理
-变成真实可控的网页行动；密码、验证码、Cookie、私钥和支付凭据不会进入模型上下文。
-
-**Español.** OmniDoer amplía Codex CLI con herramientas MCP para acciones web
-seguras. Las credenciales se usan por medio del broker local y las acciones
-sensibles requieren aprobación humana.
-
-**Français.** OmniDoer ajoute à Codex CLI une couche MCP/sidecar pour agir sur
-le web avec un navigateur contrôlé, un coffre local, un broker de secrets et
-des approbations humaines.
-
-**Deutsch.** OmniDoer erweitert Codex CLI um eine sichere MCP/Sidecar-Laufzeit.
-Anmeldedaten, Codes und Zahlungsfreigaben bleiben im Broker, Vault und Control
-Client, nicht im Modellkontext.
-
-**日本語.** OmniDoer は Codex CLI を MCP/sidecar として拡張するローカル優先
-の実行基盤です。モデルは秘密を読み取らず、認証情報やチャレンジ処理は Control
-Client と Broker の安全境界内で扱われます。
-
-**한국어.** OmniDoer는 Codex CLI를 MCP/sidecar 방식으로 확장하는 실행 계층입니다.
-비밀번호, 인증 코드, 결제 승인 정보는 모델이 아니라 Broker, Vault, Control
-Client 안에서만 처리됩니다.
+- English (this document)
+- [中文](./README.zh-CN.md)
+- [Español](./README.es.md)
+- [Français](./README.fr.md)
+- [Deutsch](./README.de.md)
+- [日本語](./README.ja.md)
+- [한국어](./README.ko.md)
 
 ## Status
 
