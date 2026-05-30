@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 ALLOWED_TOOLS = [
     "browser.open",
     "browser.observe",
@@ -95,6 +97,34 @@ def _fields(arguments: dict) -> list[str]:
     return [str(item) for item in value]
 
 
+def _vault_path(arguments: dict) -> str:
+    return str(arguments.get("vault_path") or arguments.get("vault") or ".omnidoer/vault.json")
+
+
+def _vault_passphrase(arguments: dict) -> str | None:
+    env_name = arguments.get("passphrase_env") or os.environ.get("OMNIDOER_VAULT_PASSPHRASE_ENV")
+    if env_name:
+        return os.environ.get(str(env_name))
+    return None
+
+
+def _totp_code(seed: str) -> str:
+    import base64
+    import hashlib
+    import hmac
+    import struct
+    import time
+
+    normalized = seed.replace(" ", "").upper()
+    padded = normalized + ("=" * ((8 - len(normalized) % 8) % 8))
+    key = base64.b32decode(padded)
+    counter = int(time.time() // 30)
+    digest = hmac.new(key, struct.pack(">Q", counter), hashlib.sha1).digest()
+    offset = digest[-1] & 0x0F
+    value = struct.unpack(">I", digest[offset : offset + 4])[0] & 0x7FFFFFFF
+    return f"{value % 1_000_000:06d}"
+
+
 def call_tool(name: str, arguments: dict | None = None) -> dict:
     if name not in ALLOWED_TOOLS:
         raise KeyError(name)
@@ -169,12 +199,80 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
         )
         return {"status": "credential_request_created", "request": request.to_public_dict(), "secret_exposed_to_model": False}
     if name == "credential.list_for_current_origin":
+        from pathlib import Path
+
+        from omnidoer.omni_vault.vault import Vault
+
         origin, _top_level_url = _origin_and_url(arguments)
-        return {"status": "ok", "origin": origin, "credentials": [], "secret_exposed_to_model": False}
+        vault_path = Path(_vault_path(arguments))
+        credentials = []
+        if origin and vault_path.exists():
+            vault = Vault.load(vault_path)
+            credentials = [
+                {
+                    "credential_id": item.credential_id,
+                    "username": item.username,
+                    "allowed_origins": item.allowed_origins,
+                    "metadata": item.metadata,
+                }
+                for item in vault.find_for_origin(origin)
+            ]
+        return {"status": "ok", "origin": origin, "credentials": credentials, "secret_exposed_to_model": False}
     if name in {"credential.fill_current_origin_login", "credential.fill_current_origin_totp"}:
+        from omnidoer.omni_broker.broker import validate_fill
+        from omnidoer.omni_mcp.runtime import get_browser
+        from omnidoer.omni_vault.vault import Vault
+
+        passphrase = _vault_passphrase(arguments)
+        if passphrase is None:
+            return _error("locked", "passphrase_env is required for vault-backed MCP fill")
+        browser = get_browser()
+        current_url = browser.current_url()
+        current_origin = browser.current_origin()
+        if not current_origin:
+            return _error("error", "active browser origin required")
+        vault = Vault.load(_vault_path(arguments), passphrase)
+        credential_id = arguments.get("credential_id")
+        metadata_items = vault.list_metadata()
+        if credential_id is None:
+            matches = [item for item in metadata_items if current_origin in item.allowed_origins]
+            if not matches:
+                return _error("not_found", "no credential for current origin")
+            credential_id = matches[0].credential_id
+        metadata = next((item for item in metadata_items if item.credential_id == credential_id), None)
+        if metadata is None:
+            return _error("not_found", "credential not found")
+        try:
+            validate_fill(current_url, metadata.allowed_origins, browser.inspect_form_action())
+            secret = vault.decrypt_credential(str(credential_id))
+        except PermissionError as exc:
+            return {"status": "blocked", "reason": str(exc), "secret_exposed_to_model": False}
+        except Exception as exc:
+            return _error("unavailable", type(exc).__name__)
+        if name == "credential.fill_current_origin_login":
+            username_selector = str(
+                arguments.get("username_selector")
+                or "input[autocomplete='username'], input[name='email'], input[name='username'], #email, #username"
+            )
+            password_selector = str(arguments.get("password_selector") or "input[type='password']")
+            browser.fill_field(username_selector, secret.username, secret=True)
+            browser.fill_field(password_selector, secret.password, secret=True)
+            return {
+                "status": "credential_received_and_filled",
+                "origin": current_origin,
+                "fields": ["username", "password"],
+                "credential_id": str(credential_id),
+                "secret_exposed_to_model": False,
+            }
+        if not secret.totp_seed:
+            return _error("not_found", "credential has no TOTP seed")
+        totp_selector = str(arguments.get("totp_selector") or "input[autocomplete='one-time-code'], input[name='otp'], input[name='code'], #otp, #code")
+        browser.fill_field(totp_selector, _totp_code(secret.totp_seed), secret=True)
         return {
-            "status": "not_filled",
-            "reason": "vault-backed MCP fill is not configured in this process; request credentials through credential.request_from_user",
+            "status": "totp_filled",
+            "origin": current_origin,
+            "fields": ["totp"],
+            "credential_id": str(credential_id),
             "secret_exposed_to_model": False,
         }
     if name == "challenge.request_user_interaction":
