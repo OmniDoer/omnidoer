@@ -22,7 +22,8 @@ from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.secure_channel import decrypt_control_envelope, encrypt_for_broker, load_or_create_keypair
 from omnidoer.omni_takeover.browser_worker import BrowserContextWorker
 from omnidoer.omni_takeover.input_events import parse_actions
-from omnidoer.omni_takeover.relay import apply_input_event, release_control, request_user_control, start_stream
+from omnidoer.omni_takeover.models import InputEvent
+from omnidoer.omni_takeover.relay import apply_input_event, release_control, request_registration_handoff, request_user_control, start_stream
 from omnidoer.omni_takeover.sessions import registered_browser_context
 from omnidoer.omni_vault.models import CredentialSecret
 from omnidoer.omni_vault.vault import Vault, _passphrase_from_env
@@ -193,6 +194,39 @@ def _takeover_task(args) -> int:
     return 0
 
 
+def _registration_task(args) -> int:
+    origin = args.demo_origin.rstrip("/")
+    request = request_registration_handoff(
+        origin=origin,
+        top_level_url=f"{origin}/register",
+        reason="Demo site requires user account registration",
+        browser_context_id="demo-registration",
+        risk_level="medium",
+    )
+    if os.environ.get("OMNIDOER_TAKEOVER_TEST_MODE") == "1":
+        with BrowserContextWorker(f"{origin}/register") as browser:
+            with registered_browser_context("demo-registration", browser):
+                start_stream(request.request_id, browser_controller=browser)
+                interactions = [
+                    ("#reg_email", os.environ.get("OMNIDOER_TEST_USERNAME", "new-demo@example.test")),
+                    ("#reg_password", os.environ.get("OMNIDOER_TEST_PASSWORD", "demo-password-change-me")),
+                    ("#reg_code", os.environ.get("OMNIDOER_TEST_EMAIL_CODE", "654321")),
+                ]
+                for selector, value in interactions:
+                    browser.click(selector)
+                    apply_input_event(request.request_id, InputEvent("type", text=value), browser_controller=browser)
+                browser.click("#reg_terms")
+                browser.click("#register-submit")
+                if "/dashboard" not in browser.current_url():
+                    raise RuntimeError("registration handoff did not reach dashboard")
+                release_control(request.request_id)
+    else:
+        start_stream(request.request_id)
+    AuditLog().append("registration_handoff_completed", origin=origin, request_id=request.request_id, status="ok")
+    print("registration completed by user handoff; agent resumed")
+    return 0
+
+
 def _checkout_task(args) -> int:
     client = DemoHttpClient(args.demo_origin)
     _login(args, client)
@@ -255,6 +289,8 @@ def run_task(args) -> int:
         return _captcha_task(args)
     if "反机器人" in task or "anti" in task.lower():
         return _takeover_task(args)
+    if "注册" in task or "register" in task.lower() or "signup" in task.lower():
+        return _registration_task(args)
     if "checkout" in task.lower() or "支付" in task or "付款" in task:
         return _checkout_task(args)
     print("unsupported demo task")

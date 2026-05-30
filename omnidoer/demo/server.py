@@ -29,6 +29,7 @@ DEMO_3DS = "123456"
 SESSION_COOKIE = "omnidoer_demo_session"
 SESSIONS: set[str] = set()
 TOTP_PENDING: set[str] = set()
+REGISTERED_USERS: set[str] = set()
 
 
 def page(title: str, body: str) -> bytes:
@@ -57,6 +58,7 @@ def page(title: str, body: str) -> bytes:
     <strong>OmniDoer local demo</strong>
     <nav>
       <a href="/">login</a>
+      <a href="/register">register</a>
       <a href="/dashboard">dashboard</a>
       <a href="/invoice">invoice</a>
       <a href="/checkout">checkout</a>
@@ -87,6 +89,7 @@ class DemoHandler(BaseHTTPRequestHandler):
         routes = {
             "/": self.login_page,
             "/login": self.login_page,
+            "/register": self.register_page,
             "/totp": self.totp_page,
             "/dashboard": self.dashboard_page,
             "/invoice": self.invoice_page,
@@ -128,6 +131,8 @@ class DemoHandler(BaseHTTPRequestHandler):
         data = self.read_form()
         if path == "/login":
             self.handle_login(data)
+        elif path == "/register":
+            self.handle_register(data)
         elif path == "/totp":
             self.handle_totp(data)
         elif path == "/sms":
@@ -199,6 +204,7 @@ class DemoHandler(BaseHTTPRequestHandler):
                 """
 <h1>Login</h1>
 <p>This page is only a local mock for credential-fill tests.</p>
+<p>Need a new demo account? <a href="/register">Register through Control Client handoff</a>.</p>
 <form method="post" action="/login" autocomplete="on">
   <label for="email">Email</label>
   <input id="email" name="email" autocomplete="username" required>
@@ -227,6 +233,45 @@ class DemoHandler(BaseHTTPRequestHandler):
             )
             return
         self.send_html(HTTPStatus.UNAUTHORIZED, page("login failed", "<h1>Login failed</h1>"))
+
+    def register_page(self) -> None:
+        self.send_html(
+            HTTPStatus.OK,
+            page(
+                "register",
+                """
+<h1>Register</h1>
+<p class="warning">Registration Handoff mock. The user completes this page directly through the Control Client; the Agent must not automate fake or bulk registration.</p>
+<form method="post" action="/register" autocomplete="on">
+  <label for="reg_email">Email</label>
+  <input id="reg_email" name="email" autocomplete="username" required>
+  <label for="reg_password">Password</label>
+  <input id="reg_password" name="password" type="password" autocomplete="new-password" required>
+  <label for="reg_code">Email verification code</label>
+  <input id="reg_code" name="email_code" inputmode="numeric" autocomplete="one-time-code" required>
+  <label><input id="reg_terms" name="terms" type="checkbox" value="yes" required> I accept the mock demo terms</label>
+  <button id="register-submit" type="submit">Create demo account</button>
+</form>
+""",
+            ),
+        )
+
+    def handle_register(self, data: dict[str, str]) -> None:
+        email = data.get("email", "")
+        if email and data.get("password") and data.get("email_code") == DEMO_EMAIL and data.get("terms") == "yes":
+            REGISTERED_USERS.add(email)
+            sid = secrets.token_urlsafe(24)
+            SESSIONS.add(sid)
+            self.send_html(
+                HTTPStatus.SEE_OTHER,
+                page("registered", "<h1>Registered</h1>"),
+                [
+                    ("set-cookie", f"{SESSION_COOKIE}={sid}; HttpOnly; SameSite=Lax; Path=/"),
+                    ("location", "/dashboard"),
+                ],
+            )
+            return
+        self.send_html(HTTPStatus.UNAUTHORIZED, page("registration failed", "<h1>Registration failed</h1>"))
 
     def handle_code(self, data: dict[str, str], expected: str, redirect: str, field: str = "code") -> None:
         if data.get(field) == expected:

@@ -83,5 +83,8 @@ class BrowserContextWorker:
     def click(self, selector: str) -> dict:
         return self._call("click", selector)
 
+    def current_url(self) -> str:
+        return self._call("current_url")
+
     def press_key(self, key: str) -> dict:
         return self._call("apply_user_input_event", InputEvent("key", key=key))

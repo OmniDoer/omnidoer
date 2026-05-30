@@ -4,7 +4,7 @@ from threading import Thread
 from urllib.parse import urlencode
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 
-from omnidoer.demo.server import DEMO_PASSWORD, DEMO_USER, DemoHandler, ThreadingHTTPServer
+from omnidoer.demo.server import DEMO_EMAIL, DEMO_PASSWORD, DEMO_USER, DemoHandler, ThreadingHTTPServer
 
 
 class DemoSiteTest(unittest.TestCase):
@@ -34,6 +34,23 @@ class DemoSiteTest(unittest.TestCase):
             self.assertEqual(self.opener.open(self.base + path, timeout=5).status, 200)
         self.assertEqual(self.post("/captcha", {"ack": "user-completed"}).status, 200)
         self.assertEqual(self.post("/antibot", {"takeover": "user-completed"}).status, 200)
+
+    def test_registration_logs_user_in_without_exposing_secret(self) -> None:
+        self.assertEqual(self.opener.open(self.base + "/register", timeout=5).status, 200)
+        self.assertEqual(
+            self.post(
+                "/register",
+                {
+                    "email": "new-demo@example.test",
+                    "password": "new-demo-password",
+                    "email_code": DEMO_EMAIL,
+                    "terms": "yes",
+                },
+            ).status,
+            200,
+        )
+        invoice = self.opener.open(self.base + "/invoice/download", timeout=5).read().decode()
+        self.assertIn("INV-LOCAL-0001", invoice)
 
     def test_malicious_aliases(self) -> None:
         for path in (
