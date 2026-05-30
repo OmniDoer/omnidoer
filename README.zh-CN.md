@@ -6,6 +6,9 @@
 
 落地页： [https://omnidoer.github.io/](https://omnidoer.github.io/)
 
+项目页默认会带上仓库路径；如果你要纯根域 `omnidoer.github.io`，可以使用
+`omnidoer.github.io` 用户站仓库（推荐）或将该 Pages 绑定到自定义域。
+
 OmniDoer 目标是把“人类能在网页上完成的动作”安全地交给智能体延续执行：如果用户有权限在网页上完成一个流程，OmniDoer 在不越界的前提下可把该流程接上去。
 关键规则是：模型负责推理与决策，执行在用户自己控制的 Linux 服务器里完成，任何密钥、验证码、支付决策都不允许离开安全边界。
 

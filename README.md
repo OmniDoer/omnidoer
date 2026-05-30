@@ -30,6 +30,10 @@ handles credential use, challenge completion, and high-risk approvals.
 
 Live page: [https://omnidoer.github.io/](https://omnidoer.github.io/)
 
+Project Pages default URL includes this repository path. If you need a pure
+`omnidoer.github.io` root URL, publish from a user-site repository
+(`omnidoer.github.io`) or set a custom domain to this Pages site.
+
 ## One-Command Install
 
 Local developer install:
