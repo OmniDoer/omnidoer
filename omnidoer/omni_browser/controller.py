@@ -74,6 +74,9 @@ class BrowserController:
                 type: el.getAttribute('type') || '',
                 name: el.getAttribute('name') || '',
                 id: el.getAttribute('id') || '',
+                autocomplete: el.getAttribute('autocomplete') || '',
+                placeholder: el.getAttribute('placeholder') || '',
+                aria_label: el.getAttribute('aria-label') || '',
                 text: el.innerText || el.getAttribute('value') || '',
                 value: el.matches('input, textarea') ? el.value : '',
                 href: el.getAttribute('href') || ''
