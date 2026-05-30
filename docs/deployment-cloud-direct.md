@@ -54,6 +54,9 @@ omnidoer control pair --print-qr --expires 10m --public-url https://agent.exampl
 Only pair devices you control. Pairing codes are one-time and short TTL. After
 pairing, clients use device identity plus short-lived sessions. Protected API
 requests are signed by the paired device key and replay-protected with nonces.
+When the PWA opens from the QR code, it shows the server URL, pairing code,
+broker fingerprint, web broker fingerprint, and expiry before the user confirms
+pairing. The metadata used for that preview is public but not secret-bearing.
 Revoke access:
 
 ```sh

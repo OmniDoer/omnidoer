@@ -66,6 +66,12 @@ let takeoverFrameTimer = null;
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get("code")) {
   document.querySelector("#pairing-code").value = urlParams.get("code");
+  document.querySelector("#pairing-code-preview").textContent = urlParams.get("code");
+}
+if (urlParams.get("pairing_id")) {
+  loadPairingDetails(urlParams.get("pairing_id"));
+} else {
+  document.querySelector("#pairing-server-url").textContent = window.location.origin;
 }
 
 function csrfHeaders() {
@@ -103,6 +109,22 @@ function requestKind(request) {
 function setStatus(message, detail = "") {
   document.querySelector("#runtime-mode").textContent = message;
   document.querySelector("#runtime-detail").textContent = detail;
+}
+
+async function loadPairingDetails(pairingId) {
+  document.querySelector("#pairing-server-url").textContent = window.location.origin;
+  try {
+    const response = await fetch(`/api/pairing/${encodeURIComponent(pairingId)}`, { cache: "no-store" });
+    if (!response.ok) throw new Error("pairing unavailable");
+    const pairing = await response.json();
+    document.querySelector("#pairing-server-url").textContent = pairing.public_url || window.location.origin;
+    document.querySelector("#pairing-broker-fingerprint").textContent = pairing.broker_fingerprint || "not loaded";
+    document.querySelector("#pairing-web-broker-fingerprint").textContent = pairing.web_broker_fingerprint || "not loaded";
+    document.querySelector("#pairing-expires-at").textContent = formatTimestamp(pairing.expires_at);
+  } catch {
+    document.querySelector("#pairing-broker-fingerprint").textContent = "pairing metadata unavailable";
+    document.querySelector("#pairing-web-broker-fingerprint").textContent = "pairing metadata unavailable";
+  }
 }
 
 async function deviceKeyPair() {
@@ -185,7 +207,7 @@ async function pairDevice() {
   localStorage.setItem("omnidoer_device_id", payload.device.device_id);
   localStorage.setItem("omnidoer_session_id", payload.session.session_id);
   localStorage.setItem("omnidoer_csrf_token", payload.csrf_token);
-  document.querySelector("#pairing-status").textContent = `Paired ${payload.device.name}. Device identity created.`;
+  document.querySelector("#pairing-status").textContent = `Paired ${payload.device.name}. Device identity created. Device fingerprint: ${payload.device.fingerprint || "not visible"}.`;
   await loadRequests();
   await loadDevicesAndSessions();
 }

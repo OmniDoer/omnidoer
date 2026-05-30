@@ -34,6 +34,7 @@ from omnidoer.omni_control.device_signing import (
 from omnidoer.omni_control.rate_limit import RateLimiter
 from omnidoer.omni_control.security_headers import apply_security_headers
 from omnidoer.omni_control.requests import RequestStore
+from omnidoer.omni_control.pairing import PairingStore
 from omnidoer.omni_control.secure_channel import load_or_create_keypair, load_or_create_web_keypair
 from omnidoer.omni_control.sessions import ControlSession, SessionStore
 from omnidoer.omni_control.tasks import TaskStore
@@ -288,6 +289,15 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     "agent_llm_receives_secrets": False,
                 },
             )
+            return
+        if path.startswith("/api/pairing/"):
+            pairing_id = path.rsplit("/", 1)[-1]
+            try:
+                pairing = PairingStore().get(pairing_id)
+            except KeyError:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "pairing not found"})
+                return
+            self._send_json(HTTPStatus.OK, pairing.to_public_dict())
             return
         if path == "/api/broker-key":
             try:

@@ -51,6 +51,13 @@ headers; plain `EventSource` is intentionally avoided because browsers do not
 allow custom authentication headers there. Each streamed snapshot is filtered by
 the authenticated device session before it leaves the Control Service.
 
+The QR pairing URL includes a short-lived `code` and opaque `pairing_id`. Before
+the user confirms pairing, the PWA can fetch public pairing metadata by
+`pairing_id` so the screen shows the server URL, broker fingerprint, web broker
+fingerprint, and expiry. That metadata endpoint does not return the pairing
+code, code hash, session token, device private key, secret payload, challenge
+answer, or vault data.
+
 If a website requires account registration before the Agent can continue, the
 Control Service uses Registration Handoff rather than model-driven signup. The
 cloud browser remains the real website session; the Control Client receives the

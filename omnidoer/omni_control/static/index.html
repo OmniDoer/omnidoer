@@ -31,6 +31,13 @@
       <h2>Pair Device</h2>
       <p>Pairing connects this Control Client directly to your own OmniDoer Control Service. Only pair devices you control.</p>
       <p>After pairing, secret and challenge submissions are encrypted locally before they are sent.</p>
+      <dl class="metadata" id="pairing-details">
+        <dt>Server URL</dt><dd id="pairing-server-url">This browser origin</dd>
+        <dt>Pairing code</dt><dd id="pairing-code-preview">not loaded</dd>
+        <dt>Broker fingerprint</dt><dd id="pairing-broker-fingerprint">not loaded</dd>
+        <dt>Web broker fingerprint</dt><dd id="pairing-web-broker-fingerprint">not loaded</dd>
+        <dt>Expires at</dt><dd id="pairing-expires-at">not loaded</dd>
+      </dl>
       <label>Pairing code <input id="pairing-code" autocomplete="one-time-code"></label>
       <label>Device name <input id="device-name" value="PWA Control Client"></label>
       <button id="pair-device">Pair Device</button>

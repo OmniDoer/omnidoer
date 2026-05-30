@@ -35,6 +35,18 @@ class PairingFlowTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 store.consume(pairing.code)
 
+    def test_pairing_public_metadata_never_contains_code_or_hash(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = PairingStore(Path(tmp) / "pairing.json")
+            pairing = store.create(public_url="https://agent.example.com", ttl_seconds=60)
+            public = store.get(pairing.pairing_id).to_public_dict()
+            self.assertEqual(public["public_url"], "https://agent.example.com")
+            self.assertIn("broker_fingerprint", public)
+            self.assertIn("web_broker_fingerprint", public)
+            self.assertNotIn("code", public)
+            self.assertNotIn("code_hash", public)
+            self.assertNotIn(pairing.code, repr(public))
+
     def test_pairing_expiry(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             store = PairingStore(Path(tmp) / "pairing.json")

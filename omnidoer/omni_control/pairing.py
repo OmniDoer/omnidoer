@@ -128,6 +128,18 @@ class PairingStore:
                 return pairing
         raise ValueError("invalid pairing code")
 
+    def get(self, pairing_id: str, now: float | None = None) -> PairingCode:
+        pairings = self._load()
+        try:
+            pairing = pairings[pairing_id]
+        except KeyError as exc:
+            raise KeyError(f"pairing not found: {pairing_id}") from exc
+        if pairing.is_expired(now) and not pairing.used:
+            pairing.used = True
+            pairings[pairing.pairing_id] = pairing
+            self._save(pairings)
+        return pairing
+
     def list(self) -> list[PairingCode]:
         return sorted(self._load().values(), key=lambda item: item.created_at)
 
