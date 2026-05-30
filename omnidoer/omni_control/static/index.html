@@ -40,6 +40,7 @@
       <p>Secret destination: Secret Broker. Not sent to Agent/LLM context, MCP return values, logs, or DOM observation.</p>
       <p>Challenge destination: Challenge Relay / target website. OmniDoer does not bypass CAPTCHA/MFA/Passkey/WebAuthn/3DS.</p>
       <p>Human Takeover destination: controlled browser. Agent paused. User in control until Release Control.</p>
+      <p>Registration Handoff: if a site needs a new account, the registration page is proxied to you. You complete registration directly; OmniDoer does not automate fake or bulk registration, and registration secrets/challenges are not sent to the LLM.</p>
     </section>
     <section id="task-panel">
       <h2>Chat / Task</h2>
@@ -51,7 +52,7 @@
     </section>
     <section id="takeover-panel">
       <h2>Human Takeover</h2>
-      <p>Agent paused. User in control. Release Control when finished. Touch, scroll, type, and key events are sent only to the controlled browser.</p>
+      <p>Agent paused. User in control. Release Control when finished. Touch, scroll, type, and key events are sent only to the controlled browser. Registration pages can use the same handoff so users complete signup themselves.</p>
       <div id="browser-stream" role="img" aria-label="Browser stream placeholder"></div>
     </section>
     <section id="payment-approval">

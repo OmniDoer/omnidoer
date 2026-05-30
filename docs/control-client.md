@@ -34,6 +34,14 @@ answers are handled by the Challenge Relay or target browser, not by the model.
 Human Takeover pauses the Agent and gives the user browser control until
 release.
 
+Registration Handoff is a specialized Human Takeover request for legitimate
+user account creation. The Agent opens the registration page and pauses; the
+Control Client streams the browser and forwards the user's touch, keyboard, and
+mouse input back to the cloud browser. After the user completes registration
+and clicks Release Control, the Agent observes the resulting login state and
+continues. Registration form contents, verification answers, passkeys, and
+CAPTCHA interactions are never returned through MCP.
+
 The PWA uses browser WebCrypto in local mode: P-256 ECDH, HKDF-SHA256, and
 AES-GCM with request-bound associated data. The Python CLI uses the native
 X25519 secure channel. Both envelope formats are decrypted only by the local

@@ -15,6 +15,8 @@ OmniDoer MCP tools expose actions, not secrets.
 - `credential.create_interactive()`
 - `credential.fill_current_origin_login(credential_id)`
 - `credential.fill_current_origin_totp(credential_id)`
+- `registration.request_user_handoff(origin, reason)`
+- `takeover.request_user_control(origin, reason)`
 - `approval.request(action_summary, risk_level, structured_details)`
 - `payment.prepare_review()`
 - `payment.request_user_approval()`

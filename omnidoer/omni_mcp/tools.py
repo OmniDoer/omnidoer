@@ -20,6 +20,7 @@ ALLOWED_TOOLS = [
     "credential.fill_current_origin_totp",
     "challenge.request_user_interaction",
     "challenge.status",
+    "registration.request_user_handoff",
     "takeover.request_user_control",
     "takeover.status",
     "approval.request",
@@ -317,6 +318,27 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
             "request": request.to_public_dict(),
             "completed_by_user": request.completed_by_user,
             "bypassed": request.bypassed,
+            "secret_exposed_to_model": False,
+        }
+    if name == "registration.request_user_handoff":
+        from omnidoer.omni_takeover.relay import request_registration_handoff
+
+        origin, top_level_url = _origin_and_url(arguments)
+        if not origin or not top_level_url:
+            return _error("error", "origin or active browser required")
+        request = request_registration_handoff(
+            origin=origin,
+            top_level_url=top_level_url,
+            reason=str(arguments.get("reason") or "account registration must be completed by the user"),
+            browser_context_id="mcp-browser",
+            risk_level=str(arguments.get("risk_level") or "medium"),
+            allowed_device_id=arguments.get("allowed_device_id"),
+        )
+        return {
+            "status": "registration_handoff_created",
+            "request": request.to_public_dict(),
+            "agent_paused": True,
+            "completed_by_user": False,
             "secret_exposed_to_model": False,
         }
     if name == "takeover.request_user_control":

@@ -78,6 +78,23 @@ class ControlRequestTest(unittest.TestCase):
         self.assertTrue(released.completed_by_user)
         self.assertFalse(released.bypassed)
 
+    def test_account_registration_uses_user_control_flow(self) -> None:
+        req = self.store.create(
+            "account_registration",
+            origin="https://example.com",
+            top_level_url="https://example.com/register",
+            action_summary="user completes registration",
+            takeover_reason="site requires a new account",
+        )
+        self.assertEqual(req.status, "user_control")
+        self.assertEqual(req.control_owner, "user")
+        public = req.to_public_dict()
+        self.assertEqual(public["request_type"], "account_registration")
+        self.assertFalse(public["secret_exposed_to_model"])
+        released = self.store.release_takeover(req.request_id)
+        self.assertEqual(released.status, "released")
+        self.assertTrue(released.completed_by_user)
+
 
 if __name__ == "__main__":
     unittest.main()

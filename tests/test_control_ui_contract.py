@@ -29,6 +29,8 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("Agent paused", self.html)
         self.assertIn("User in control", self.html)
         self.assertIn("Release Control", self.html)
+        self.assertIn("Registration Handoff", self.html)
+        self.assertIn("does not automate fake or bulk registration", self.html)
 
     def test_payment_fields_present(self) -> None:
         for label in (
@@ -90,6 +92,12 @@ class ControlUiContractTest(unittest.TestCase):
             self.assertIn(f'event_type: "{event_type}"', app)
         self.assertIn("Text to controlled browser", app)
         self.assertIn("installTakeoverPointerHandlers", app)
+        self.assertIn("startTakeoverFramePolling", app)
+        self.assertIn("fetchTakeoverFrame", app)
+        self.assertIn("setInterval(() => fetchTakeoverFrame", app)
+        self.assertIn("stopTakeoverFramePolling", app)
+        self.assertIn("account_registration", app)
+        self.assertIn("Registration Handoff", app)
 
     def test_payment_request_renderer_uses_structured_details(self) -> None:
         app = (static_root() / "app.js").read_text()

@@ -14,6 +14,7 @@ class McpToolsTest(unittest.TestCase):
         self.assertTrue(forbidden_tool_names().isdisjoint(ALLOWED_TOOLS))
         self.assertIn("credential.request_from_user", ALLOWED_TOOLS)
         self.assertIn("takeover.request_user_control", ALLOWED_TOOLS)
+        self.assertIn("registration.request_user_handoff", ALLOWED_TOOLS)
         self.assertIn("browser.select", ALLOWED_TOOLS)
         self.assertIn("control.next_user_task", ALLOWED_TOOLS)
 
@@ -67,6 +68,15 @@ class McpToolsTest(unittest.TestCase):
                 self.assertEqual(takeover["status"], "takeover_request_created")
                 takeover_status = call_tool("takeover.status", {"request_id": takeover["request"]["request_id"]})
                 self.assertEqual(takeover_status["control_owner"], "user")
+
+                registration = call_tool(
+                    "registration.request_user_handoff",
+                    {**common, "top_level_url": "http://127.0.0.1:8765/register", "reason": "new account required"},
+                )
+                self.assertEqual(registration["status"], "registration_handoff_created")
+                self.assertEqual(registration["request"]["request_type"], "account_registration")
+                self.assertTrue(registration["agent_paused"])
+                self.assertNotIn("password", repr(registration))
 
                 approval = call_tool(
                     "approval.request",

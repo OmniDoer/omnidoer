@@ -32,6 +32,11 @@ OmniDoer product and branding notes:
   Client connects directly to the user's own cloud server over HTTPS/WSS with
   pairing, device identity, session auth, origin protection, rate limiting, and
   E2EE secret submission. Localhost mode is development mode.
+- If a target site requires account registration, use Registration Handoff:
+  pause the Agent, proxy the live browser to the Control Client, let the user
+  complete signup/challenges/terms directly, then resume after Release Control.
+  Do not automate fake or bulk registration, and do not expose registration
+  secrets or challenge answers to Codex/MCP.
 
 OmniDoer 产品与品牌说明：
 
@@ -46,6 +51,10 @@ OmniDoer 产品与品牌说明：
 - Cloud Direct Mode 是默认远程部署模型：Control Client 直接连接用户自己的
   云服务器，必须使用 HTTPS/WSS、配对、设备身份、会话认证、Origin 防护、
   限速和端到端加密提交 secret；localhost 仅是开发模式。
+- 如果目标网站要求新用户注册，必须使用 Registration Handoff：暂停 Agent，
+  将真实浏览器页面代理到 Control Client，由用户本人完成注册、验证和条款确认，
+  Release Control 后再继续。不要自动批量/虚假注册，也不要让注册 secret 或
+  challenge answer 进入 Codex/MCP。
 
 The upstream Codex guidance below still applies when touching upstream files.
 

@@ -39,3 +39,10 @@ Request push uses a signed HTTPS event stream. The PWA opens
 headers; plain `EventSource` is intentionally avoided because browsers do not
 allow custom authentication headers there. Each streamed snapshot is filtered by
 the authenticated device session before it leaves the Control Service.
+
+If a website requires account registration before the Agent can continue, the
+Control Service uses Registration Handoff rather than model-driven signup. The
+cloud browser remains the real website session; the Control Client receives the
+browser stream and sends user input events back to that session. The Agent is
+paused until the user releases control, and registration secrets, verification
+answers, and CAPTCHA/passkey interactions are not available to MCP or Codex.

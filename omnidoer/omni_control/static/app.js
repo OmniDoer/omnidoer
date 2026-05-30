@@ -55,6 +55,8 @@ const decoder = new TextDecoder();
 let cachedRequests = [];
 let requestStreamActive = false;
 let requestStreamRestart = null;
+let activeTakeoverFrameRequest = null;
+let takeoverFrameTimer = null;
 
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get("code")) {
@@ -87,7 +89,7 @@ function formatTimestamp(value) {
 
 function requestKind(request) {
   if (request.request_type === "credential") return "credential";
-  if (request.request_type === "human_takeover") return "takeover";
+  if (request.request_type === "human_takeover" || request.request_type === "account_registration") return "takeover";
   if (request.request_type.endsWith("_approval") || request.request_type.includes("approval")) return "approval";
   return "challenge";
 }
@@ -387,6 +389,49 @@ function installTakeoverPointerHandlers(request, stream) {
   };
 }
 
+function stopTakeoverFramePolling(requestId = null) {
+  if (requestId && activeTakeoverFrameRequest !== requestId) return;
+  if (takeoverFrameTimer) clearInterval(takeoverFrameTimer);
+  takeoverFrameTimer = null;
+  activeTakeoverFrameRequest = null;
+}
+
+async function fetchTakeoverFrame(request, stream) {
+  if (activeTakeoverFrameRequest !== request.request_id) return;
+  try {
+    const frame = await signedFetch(`/api/requests/${request.request_id}/frame`, { cache: "no-store" }).then((r) => r.json());
+    if (activeTakeoverFrameRequest !== request.request_id) return;
+    if (frame.data_b64) {
+      stream.innerHTML = `<img id="takeover-frame" alt="Controlled browser frame" src="data:${frame.content_type};base64,${frame.data_b64}">`;
+      stream.dataset.frameUrl = frame.url || "";
+      stream.dataset.frameOrigin = frame.origin || "";
+    } else {
+      stream.textContent = "Browser context is not connected in this process.";
+    }
+  } catch {
+    if (activeTakeoverFrameRequest === request.request_id) {
+      stream.textContent = "Waiting for the controlled browser frame...";
+    }
+  }
+}
+
+function startTakeoverFramePolling(request, stream) {
+  if (request.status !== "user_control") {
+    stopTakeoverFramePolling(request.request_id);
+    stream.textContent = "Takeover is not active. Agent control can resume after release.";
+    return;
+  }
+  if (activeTakeoverFrameRequest && activeTakeoverFrameRequest !== request.request_id) {
+    stopTakeoverFramePolling();
+  }
+  if (activeTakeoverFrameRequest === request.request_id && takeoverFrameTimer) return;
+  activeTakeoverFrameRequest = request.request_id;
+  stream.textContent = "Loading control-only browser frame...";
+  installTakeoverPointerHandlers(request, stream);
+  fetchTakeoverFrame(request, stream);
+  takeoverFrameTimer = setInterval(() => fetchTakeoverFrame(request, stream), 1500);
+}
+
 function requestHeader(request) {
   const header = document.createElement("div");
   header.className = "request-header";
@@ -470,17 +515,15 @@ function renderChallengeControls(request, item) {
 
 function renderTakeoverControls(request, item) {
   const stream = document.querySelector("#browser-stream");
-  stream.textContent = "Loading control-only browser frame...";
-  signedFetch(`/api/requests/${request.request_id}/frame`, { cache: "no-store" })
-    .then((r) => r.json())
-    .then((frame) => {
-      if (frame.data_b64) {
-        stream.innerHTML = `<img id="takeover-frame" alt="Controlled browser frame" src="data:${frame.content_type};base64,${frame.data_b64}">`;
-        installTakeoverPointerHandlers(request, stream);
-      } else {
-        stream.textContent = "Browser context is not connected in this process.";
-      }
-    });
+  startTakeoverFramePolling(request, stream);
+  if (request.request_type === "account_registration") {
+    appendText(
+      item,
+      "p",
+      "Registration Handoff: the registration page is proxied to this Control Client. Agent paused. You complete account creation directly; OmniDoer does not automate fake or bulk registration, and registration secrets or challenge answers are not sent to the LLM.",
+      "flow-note"
+    );
+  }
   appendText(item, "p", "The browser is streamed to this Control Client. Agent paused. User in control. Sensitive input is not recorded.", "flow-note");
   const controls = document.createElement("div");
   controls.className = "takeover-controls";
@@ -559,6 +602,9 @@ function renderRequestList(requests, filter = activeFilter()) {
   const list = document.querySelector("#requests-list");
   list.innerHTML = "";
   const visible = filter === "all" ? requests : requests.filter((request) => requestKind(request) === filter);
+  if (activeTakeoverFrameRequest && !requests.some((request) => request.request_id === activeTakeoverFrameRequest && request.status === "user_control")) {
+    stopTakeoverFramePolling();
+  }
   document.querySelector("#runtime-counts").textContent = `Requests: ${requests.length}`;
   if (!visible.length) {
     list.textContent = requests.length ? "No requests match this filter." : "No pending requests.";

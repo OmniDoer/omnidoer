@@ -41,10 +41,49 @@ def request_user_control(
     return request
 
 
+def request_registration_handoff(
+    *,
+    origin: str,
+    top_level_url: str,
+    reason: str = "user account registration required",
+    browser_context_id: str = "demo",
+    risk_level: str = "medium",
+    allowed_device_id: str | None = None,
+    store: RequestStore | None = None,
+) -> ControlRequest:
+    store = store or RequestStore()
+    request = store.create(
+        "account_registration",
+        origin=origin,
+        top_level_url=top_level_url,
+        action_summary=reason,
+        risk_level=risk_level,
+        takeover_reason=reason,
+        browser_context_id=browser_context_id,
+        allowed_device_id=allowed_device_id,
+        structured_details={
+            "handoff_type": "account_registration",
+            "agent_status": "paused",
+            "completed_by": "user",
+            "bulk_or_fake_registration": False,
+            "secret_exposed_to_model": False,
+        },
+    )
+    AuditLog().append(
+        "registration_handoff_started",
+        request_id=request.request_id,
+        origin=origin,
+        takeover_reason=reason,
+        risk_level=risk_level,
+        status=request.status,
+    )
+    return request
+
+
 def start_stream(request_id: str, *, browser_controller=None) -> dict:
     request = RequestStore().get(request_id)
-    if request.request_type != "human_takeover":
-        raise ValueError("not a takeover request")
+    if request.request_type not in {"human_takeover", "account_registration"}:
+        raise ValueError("not a takeover or registration handoff request")
     if request.status != "user_control":
         raise ValueError("user is not in control")
     if browser_controller is not None:

@@ -128,6 +128,13 @@ OmniDoer Control Client is the unified user surface for tasks, credential
 requests, one-time codes, CAPTCHA/MFA/Passkey/WebAuthn/3DS handoff, Human
 Takeover, payment approvals, vault metadata, and audit summaries.
 
+Registration Handoff handles the case where the target website requires a new
+user account. The Agent can open the registration page, then pause and proxy
+that live browser session to the Control Client. The user completes signup,
+verification, CAPTCHA/passkey prompts, and terms acceptance directly. OmniDoer
+does not automate fake or bulk registration, and registration secrets or
+challenge answers are not returned to Codex/MCP.
+
 Local development can run on `127.0.0.1`. Cloud Direct Mode lets Android,
 Windows 11, and PWA clients connect directly to the user's own cloud server
 over HTTPS/WSS with pairing, device identity, session auth, origin protection,

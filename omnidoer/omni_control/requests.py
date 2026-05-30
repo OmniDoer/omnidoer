@@ -32,6 +32,7 @@ REQUEST_TYPES = {
     "two_factor_change",
     "file_upload",
     "message_send",
+    "account_registration",
 }
 
 
@@ -140,7 +141,7 @@ class RequestStore:
             save_to_vault=save_to_vault,
             structured_details=dict(structured_details or {}),
         )
-        if request_type == "human_takeover":
+        if request_type in {"human_takeover", "account_registration"}:
             request.control_owner = "user"
             request.status = "user_control"
         requests = self._load()
@@ -212,8 +213,8 @@ class RequestStore:
 
     def release_takeover(self, request_id: str) -> ControlRequest:
         request = self.get(request_id)
-        if request.request_type != "human_takeover":
-            raise ValueError("request is not human takeover")
+        if request.request_type not in {"human_takeover", "account_registration"}:
+            raise ValueError("request is not human takeover or registration handoff")
         request.status = "released"
         request.control_owner = "agent"
         request.completed_by_user = True

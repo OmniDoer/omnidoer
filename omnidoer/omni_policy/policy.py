@@ -99,6 +99,8 @@ def requires_approval(action_type: str) -> PolicyDecision:
 def evaluate_challenge(action_type: str) -> PolicyDecision:
     if action_type == "high_intensity_antibot":
         return PolicyDecision(Decision.REQUIRE_TAKEOVER, "high-intensity anti-bot requires human takeover")
+    if action_type == "account_registration":
+        return PolicyDecision(Decision.REQUIRE_TAKEOVER, "account registration requires user handoff")
     if action_type in CHALLENGE_ACTIONS:
         return PolicyDecision(Decision.REQUIRE_USER_INTERACTION, f"{action_type} requires user interaction")
     return PolicyDecision(Decision.ALLOW, "no challenge policy required")
@@ -108,3 +110,4 @@ def policy_self_test() -> None:
     assert requires_approval("payment_submit").decision == Decision.REQUIRE_APPROVAL
     assert evaluate_challenge("captcha").decision == Decision.REQUIRE_USER_INTERACTION
     assert evaluate_challenge("high_intensity_antibot").decision == Decision.REQUIRE_TAKEOVER
+    assert evaluate_challenge("account_registration").decision == Decision.REQUIRE_TAKEOVER

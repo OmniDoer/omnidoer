@@ -63,6 +63,7 @@ class PolicyTest(unittest.TestCase):
         self.assertEqual(evaluate_challenge("captcha").decision, Decision.REQUIRE_USER_INTERACTION)
         self.assertEqual(evaluate_challenge("payment_3ds").decision, Decision.REQUIRE_USER_INTERACTION)
         self.assertEqual(evaluate_challenge("high_intensity_antibot").decision, Decision.REQUIRE_TAKEOVER)
+        self.assertEqual(evaluate_challenge("account_registration").decision, Decision.REQUIRE_TAKEOVER)
 
 
 if __name__ == "__main__":
