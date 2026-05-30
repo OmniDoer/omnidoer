@@ -121,6 +121,18 @@ The agent can ask to use a credential. It cannot read the credential.
 
 ![OmniDoer feature matrix](./docs/assets/omnidoer-feature-matrix.jpg)
 
+## System Blueprints
+
+These diagrams define the product direction for the Linux-based all-purpose
+web action runtime: secure credential storage and login, human takeover for
+2FA/anti-bot/registration, and Cloud Direct deployment on a user-owned server.
+
+![OmniDoer secure credential lifecycle](./docs/assets/omnidoer-secure-credential-flow.svg)
+
+![OmniDoer human takeover state machine](./docs/assets/omnidoer-human-takeover-state-machine.svg)
+
+![OmniDoer Linux Cloud Direct runtime](./docs/assets/omnidoer-linux-cloud-runtime.svg)
+
 ## Repository Layout
 
 - `codex-rs/`, `codex-cli/`: upstream Codex CLI code kept mergeable.

@@ -29,6 +29,9 @@ class BrandingDocsTest(unittest.TestCase):
             "docs/assets/omnidoer-human-loop-web-agent.png",
             "docs/assets/omnidoer-omni-action-poster.jpg",
             "docs/assets/omnidoer-omni-action-poster.png",
+            "docs/assets/omnidoer-secure-credential-flow.svg",
+            "docs/assets/omnidoer-human-takeover-state-machine.svg",
+            "docs/assets/omnidoer-linux-cloud-runtime.svg",
             "docs/assets/omnidoer-mark.svg",
             "docs/assets/omnidoer-cloud-direct.svg",
             "omnidoer/omni_control/static/icon-192.png",
@@ -76,6 +79,7 @@ class BrandingDocsTest(unittest.TestCase):
         self.assertIn("OmniDoer", page)
         self.assertIn("Secrets Stay Out Of The Model", page)
         self.assertIn("Cloud Direct Architecture", page)
+        self.assertIn("System Blueprints", page)
         self.assertIn("Agent Runtime Visuals", page)
         self.assertIn("多语言简介", page)
         self.assertIn("assets/omnidoer-cinematic-poster.jpg", page)
@@ -84,6 +88,9 @@ class BrandingDocsTest(unittest.TestCase):
         self.assertIn("assets/omnidoer-cloud-control-service.jpg", page)
         self.assertIn("assets/omnidoer-feature-matrix.jpg", page)
         self.assertIn("assets/omnidoer-omni-action-poster.jpg", page)
+        self.assertIn("assets/omnidoer-secure-credential-flow.svg", page)
+        self.assertIn("assets/omnidoer-human-takeover-state-machine.svg", page)
+        self.assertIn("assets/omnidoer-linux-cloud-runtime.svg", page)
         self.assertIn("Localized README Posters", page)
         self.assertIn("assets/localized/omnidoer-readme-zh-CN.jpg", page)
 

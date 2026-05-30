@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 620" role="img" aria-labelledby="title desc">
+  <title id="title">OmniDoer Linux cloud runtime boundaries</title>
+  <desc id="desc">A user-owned Linux server hosts the Control Service, Codex CLI MCP sidecar, browser worker, Secret Broker, Vault, policy, and audit components while external users connect through HTTPS and WSS.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2l8 4-8 4z" fill="#0891b2"/>
+    </marker>
+    <style>
+      .label { fill: #111827; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-weight: 800; }
+      .text { fill: #475569; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+      .box { fill: #ffffff; stroke: #cbd5e1; stroke-width: 2; }
+      .dark { fill: #111827; }
+      .control { fill: #ecfeff; stroke: #0891b2; stroke-width: 2; }
+      .vault { fill: #f0fdf4; stroke: #22c55e; stroke-width: 2; }
+      .site { fill: #fff7ed; stroke: #f59e0b; stroke-width: 2; }
+      .line { stroke: #0891b2; stroke-width: 4; fill: none; marker-end: url(#arrow); }
+      .local { stroke: #334155; stroke-width: 3; fill: none; marker-end: url(#arrow); stroke-dasharray: 8 8; }
+      .egress { stroke: #f59e0b; stroke-width: 4; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1120" height="620" rx="28" fill="#f8fafc"/>
+  <text x="54" y="62" class="label" font-size="32">Linux Cloud Direct runtime</text>
+  <text x="54" y="94" class="text" font-size="17">The server is user-owned. Control APIs are authenticated; Broker, Vault, Browser, and MCP remain internal.</text>
+
+  <rect x="54" y="150" width="190" height="108" rx="14" class="box"/>
+  <text x="80" y="190" class="label" font-size="22">User devices</text>
+  <text x="80" y="220" class="text" font-size="15">Android, Windows, PWA</text>
+  <text x="80" y="244" class="text" font-size="15">pair once, sign requests</text>
+
+  <rect x="320" y="118" width="480" height="420" rx="24" fill="#e2e8f0" stroke="#94a3b8" stroke-width="2"/>
+  <text x="348" y="156" class="label" font-size="24">User-owned Linux server</text>
+  <text x="348" y="184" class="text" font-size="15">Cloud VPS, workstation, or private host</text>
+
+  <rect x="354" y="216" width="190" height="96" rx="14" class="dark"/>
+  <text x="378" y="254" fill="#ffffff" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="20" font-weight="800">Control Service</text>
+  <text x="378" y="282" fill="#cbd5e1" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14">HTTPS / WSS edge</text>
+
+  <rect x="584" y="216" width="180" height="96" rx="14" class="control"/>
+  <text x="608" y="254" class="label" font-size="20">Codex CLI</text>
+  <text x="608" y="282" class="text" font-size="14">MCP sidecar tools</text>
+
+  <rect x="354" y="348" width="180" height="96" rx="14" class="control"/>
+  <text x="378" y="386" class="label" font-size="20">Browser Worker</text>
+  <text x="378" y="414" class="text" font-size="14">Chromium session</text>
+
+  <rect x="584" y="348" width="180" height="96" rx="14" class="vault"/>
+  <text x="608" y="386" class="label" font-size="20">Broker + Vault</text>
+  <text x="608" y="414" class="text" font-size="14">Secrets and policy</text>
+
+  <rect x="454" y="472" width="210" height="44" rx="12" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="482" y="501" class="text" font-size="15">Audit log: redacted evidence only</text>
+
+  <rect x="884" y="164" width="180" height="108" rx="14" class="site"/>
+  <text x="910" y="204" class="label" font-size="22">Target website</text>
+  <text x="910" y="234" class="text" font-size="15">Login, forms, files,</text>
+  <text x="910" y="258" class="text" font-size="15">2FA, anti-bot pages</text>
+
+  <rect x="884" y="356" width="180" height="108" rx="14" class="box"/>
+  <text x="910" y="396" class="label" font-size="22">Public network</text>
+  <text x="910" y="426" class="text" font-size="15">Only web traffic leaves</text>
+  <text x="910" y="450" class="text" font-size="15">the server boundary</text>
+
+  <path d="M244 204h110" class="line"/>
+  <text x="258" y="184" class="text" font-size="15">HTTPS / WSS</text>
+  <path d="M544 264h40" class="local"/>
+  <path d="M674 312v36" class="local"/>
+  <path d="M544 396h40" class="local"/>
+  <path d="M444 444c20 32 58 35 115 28" class="local"/>
+  <path d="M764 386c92-14 85-114 120-154" class="egress"/>
+  <path d="M534 372c105-85 232-88 350-132" class="egress"/>
+
+  <rect x="54" y="344" width="218" height="142" rx="14" class="box"/>
+  <text x="80" y="384" class="label" font-size="21">Deployment rule</text>
+  <text x="80" y="414" class="text" font-size="15">Cloud Direct requires TLS,</text>
+  <text x="80" y="438" class="text" font-size="15">pairing, sessions, CSRF,</text>
+  <text x="80" y="462" class="text" font-size="15">origin checks, rate limits.</text>
+
+  <rect x="54" y="540" width="1012" height="48" rx="12" fill="#e0f2fe"/>
+  <text x="78" y="570" class="label" font-size="17">Boundary:</text>
+  <text x="164" y="570" class="text" font-size="17">Control Service is public; Browser, MCP, Broker, Vault, Policy, and Audit stay internal to the user's Linux server.</text>
+</svg>
