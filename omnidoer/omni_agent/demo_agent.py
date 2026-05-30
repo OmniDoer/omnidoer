@@ -207,7 +207,13 @@ def _checkout_task(args) -> int:
             "amount": "12.34",
             "currency": "USD",
             "origin": args.demo_origin,
+            "recipient": "OmniDoer Local Demo Store",
+            "shipping_address": "No shipping required",
+            "billing_method_summary": "Mock local payment method only",
+            "subscription": "No subscription or auto-renewal",
+            "refund_terms": "Demo payment has no real charge",
             "final_button": "Pay 12.34 USD",
+            "after_approval": "Submit local mock payment and then request mock 3DS confirmation if shown",
         },
     )
     decision = decide(request.request_id)

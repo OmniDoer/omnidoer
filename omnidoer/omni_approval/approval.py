@@ -25,6 +25,7 @@ def request_approval(
         action_summary=action_summary,
         risk_level=risk_level,
         requested_fields=sorted(structured_details.keys()),
+        structured_details=structured_details,
     )
 
 

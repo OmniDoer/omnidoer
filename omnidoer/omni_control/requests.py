@@ -9,6 +9,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from omnidoer.omni_observer.redactor import redact_dom_snapshot
 from omnidoer.paths import state_file
 
 
@@ -52,6 +53,7 @@ class ControlRequest:
     takeover_reason: str | None = None
     browser_context_id: str | None = None
     control_owner: str = "agent"
+    structured_details: dict[str, Any] = field(default_factory=dict)
     response_ciphertext: dict[str, Any] | None = None
     approval_decision: str | None = None
     completed_by_user: bool = False
@@ -66,6 +68,7 @@ class ControlRequest:
     def to_public_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data.pop("response_ciphertext", None)
+        data["structured_details"] = redact_dom_snapshot(data.get("structured_details") or {})
         data["secret_exposed_to_model"] = False
         return data
 
@@ -114,6 +117,7 @@ class RequestStore:
         takeover_reason: str | None = None,
         browser_context_id: str | None = None,
         save_to_vault: bool = False,
+        structured_details: dict[str, Any] | None = None,
     ) -> ControlRequest:
         if request_type not in REQUEST_TYPES:
             raise ValueError(f"unsupported request type: {request_type}")
@@ -131,6 +135,7 @@ class RequestStore:
             takeover_reason=takeover_reason,
             browser_context_id=browser_context_id,
             save_to_vault=save_to_vault,
+            structured_details=dict(structured_details or {}),
         )
         if request_type == "human_takeover":
             request.control_owner = "user"

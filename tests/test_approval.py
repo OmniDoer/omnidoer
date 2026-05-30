@@ -22,6 +22,8 @@ class ApprovalTest(unittest.TestCase):
                     structured_details={"merchant": "Demo", "amount": "12.34", "currency": "USD"},
                     store=store,
                 )
+                self.assertEqual(req.structured_details["merchant"], "Demo")
+                self.assertEqual(req.to_public_dict()["structured_details"]["amount"], "12.34")
                 os.environ["OMNIDOER_APPROVAL_MODE"] = "deny"
                 self.assertEqual(decide(req.request_id, store=store), "denied")
             finally:

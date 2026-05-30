@@ -27,6 +27,18 @@ class ControlRequestTest(unittest.TestCase):
         self.assertNotIn("response_ciphertext", public)
         self.assertFalse(public["secret_exposed_to_model"])
 
+    def test_public_structured_details_are_redacted(self) -> None:
+        req = self.store.create(
+            "payment_approval",
+            origin="http://127.0.0.1:8765",
+            top_level_url="http://127.0.0.1:8765/checkout",
+            action_summary="pay",
+            structured_details={"merchant": "Demo", "card": "4111 1111 1111 1111"},
+        )
+        public = req.to_public_dict()
+        self.assertEqual(public["structured_details"]["merchant"], "Demo")
+        self.assertNotIn("4111", repr(public))
+
     def test_ttl_expiry(self) -> None:
         req = self.store.create(
             "sms_code",

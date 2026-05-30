@@ -258,6 +258,30 @@ function renderRequest(request) {
     item.append(textInput, sendText, enter, release);
   }
   if (request.request_type.endsWith("_approval") || request.request_type === "payment_approval") {
+    const details = request.structured_details || {};
+    const detailList = document.createElement("dl");
+    const fields = [
+      ["Merchant", details.merchant],
+      ["Amount", details.amount],
+      ["Currency", details.currency],
+      ["Recipient", details.recipient || details.payee],
+      ["Shipping address", details.shipping_address],
+      ["Billing method summary", details.billing_method_summary],
+      ["Subscription / renewal", details.subscription || details.renewal],
+      ["Refund / cancellation terms", details.refund_terms || details.cancellation_terms],
+      ["Origin", details.origin || request.origin],
+      ["Final button text", details.final_button],
+      ["Agent prepared action", request.action_summary],
+      ["After approval", details.after_approval || "Submit only after approval"]
+    ];
+    fields.forEach(([label, value]) => {
+      const dt = document.createElement("dt");
+      dt.textContent = label;
+      const dd = document.createElement("dd");
+      dd.textContent = value || "not visible";
+      detailList.append(dt, dd);
+    });
+    item.append(detailList);
     const approve = document.createElement("button");
     approve.textContent = "Approve";
     approve.onclick = () => postAction(request, "approve");

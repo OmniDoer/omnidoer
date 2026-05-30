@@ -73,6 +73,7 @@ class McpToolsTest(unittest.TestCase):
                     {**common, "action_summary": "mock payment", "risk_level": "high", "structured_details": {"amount": "12.34"}},
                 )
                 self.assertEqual(approval["status"], "approval_request_created")
+                self.assertEqual(approval["request"]["structured_details"]["amount"], "12.34")
                 payment = call_tool("payment.prepare_review", common)
                 self.assertTrue(payment["requires_user_approval"])
             finally:

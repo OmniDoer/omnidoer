@@ -28,7 +28,19 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("Release Control", self.html)
 
     def test_payment_fields_present(self) -> None:
-        for label in ("Merchant", "Amount", "Currency", "Origin"):
+        for label in (
+            "Merchant",
+            "Amount",
+            "Currency",
+            "Origin",
+            "Recipient",
+            "Shipping address",
+            "Billing method summary",
+            "Subscription / renewal",
+            "Refund / cancellation terms",
+            "Final button text",
+            "After approval",
+        ):
             self.assertIn(label, self.html)
 
     def test_app_uses_webcrypto_and_request_api(self) -> None:
@@ -53,6 +65,12 @@ class ControlUiContractTest(unittest.TestCase):
             self.assertIn(f'event_type: "{event_type}"', app)
         self.assertIn("Text to controlled browser", app)
         self.assertIn("installTakeoverPointerHandlers", app)
+
+    def test_payment_request_renderer_uses_structured_details(self) -> None:
+        app = (static_root() / "app.js").read_text()
+        self.assertIn("request.structured_details", app)
+        self.assertIn("Agent prepared action", app)
+        self.assertIn("Submit only after approval", app)
 
 
 if __name__ == "__main__":
