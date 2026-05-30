@@ -565,6 +565,14 @@
       }
     };
     const languageAliases = {
+      "zh_cn": "zh-CN",
+      "zh_hans": "zh-CN",
+      "zh_hans_cn": "zh-CN",
+      "zh-hans": "zh-CN",
+      "zh-hans-cn": "zh-CN",
+      "zh_hant": "zh-CN",
+      "zh-hant-tw": "zh-CN",
+      "zh_hant_hk": "zh-CN",
       "zh": "zh-CN",
       "zh-cn": "zh-CN",
       "zh-tw": "zh-CN",
@@ -585,7 +593,7 @@
       if (aliased && copy[aliased]) {
         return aliased;
       }
-      const base = requested.split("-")[0];
+      const base = requested.split(/[-_]/)[0];
       if (copy[base]) {
         return base;
       }
@@ -614,7 +622,11 @@
     }
     const requestedLanguage = new URLSearchParams(window.location.search).get("lang")
       || localStorage.getItem("omnidoer_pages_language")
-      || (navigator.languages || [navigator.language || "en"]).find((lang) => copy[lang] || copy[lang.split("-")[0]] || languageAliases[lang.toLowerCase()])
+      || (navigator.languages || [navigator.language || "en"]).find((lang) => {
+        const baseLang = lang.split(/[-_]/)[0];
+        const langKey = lang.toLowerCase();
+        return copy[lang] || copy[baseLang] || copy[baseLang.toLowerCase()] || languageAliases[langKey];
+      })
       || "en";
     const normalizedLanguage = normalizeLanguage(requestedLanguage);
     document.querySelectorAll("[data-lang]").forEach((button) => {
