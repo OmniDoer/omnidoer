@@ -551,7 +551,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     self._validate_envelope_for_session(envelope, control_request, session)
                     request = store.submit_ciphertext(request_id, envelope)
                 elif action == "input":
-                    request = store.get(request_id)
+                    request = control_request
                     browser = get_browser_context(request.browser_context_id)
                     if browser is None:
                         self._send_json(HTTPStatus.CONFLICT, {"error": "browser context is not connected"})

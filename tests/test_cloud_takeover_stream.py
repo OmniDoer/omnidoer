@@ -9,6 +9,7 @@ from urllib import request as urllib_request
 from cryptography.hazmat.primitives.asymmetric import ec
 
 from omnidoer.omni_control.cloud import build_config
+from omnidoer.omni_control.csrf import CSRF_HEADER
 from omnidoer.omni_control.device_signing import DEVICE_ID_HEADER, DEVICE_NONCE_HEADER, DEVICE_SIG_HEADER, DEVICE_TS_HEADER
 from omnidoer.omni_control.pairing import PairingStore
 from omnidoer.omni_control.requests import RequestStore
@@ -150,6 +151,83 @@ class CloudTakeoverStreamTest(unittest.TestCase):
                     payload = json.loads(response.read().decode())
                 self.assertTrue(payload["for_control_client_only"])
                 self.assertTrue(payload["not_for_llm"])
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_cloud_registration_input_is_scoped_to_allowed_device(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            config = build_config(
+                host="127.0.0.1",
+                port=8787,
+                cloud_direct=True,
+                public_url="https://agent.example.com",
+                behind_reverse_proxy=True,
+            )
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_config = config  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+
+            def pair(name: str):
+                pairing = PairingStore().create(public_url=config.public_url, ttl_seconds=600)
+                key = ec.generate_private_key(ec.SECP256R1())
+                pair_request = urllib_request.Request(
+                    f"{base}/api/pair",
+                    data=json.dumps({"code": pairing.code, "device_name": name, "device_public_key": public_jwk(key)}).encode(),
+                    headers={"content-type": "application/json", "origin": config.public_origin, **PROXY_HEADERS},
+                    method="POST",
+                )
+                with urllib_request.urlopen(pair_request, timeout=5) as response:
+                    return key, response.headers["set-cookie"], json.loads(response.read().decode())
+
+            def input_request(key, cookie: str, body: dict, request_id: str, nonce: str):
+                device_id = body["device"]["device_id"]
+                session_id = body["session"]["session_id"]
+                csrf = body["csrf_token"]
+                input_path = f"/api/requests/{request_id}/input"
+                signed = sign_request(key, device_id=device_id, session_id=session_id, method="POST", path=input_path, nonce=nonce)
+                return urllib_request.Request(
+                    f"{base}{input_path}",
+                    data=json.dumps({"event_type": "type", "text": "not logged"}).encode(),
+                    headers={
+                        "content-type": "application/json",
+                        "origin": config.public_origin,
+                        "cookie": cookie,
+                        CSRF_HEADER: csrf,
+                        **PROXY_HEADERS,
+                        DEVICE_ID_HEADER: device_id,
+                        DEVICE_TS_HEADER: signed["timestamp"],
+                        DEVICE_NONCE_HEADER: signed["nonce"],
+                        DEVICE_SIG_HEADER: signed["signature"],
+                    },
+                    method="POST",
+                )
+
+            try:
+                key_a, cookie_a, body_a = pair("Phone A")
+                key_b, cookie_b, body_b = pair("Phone B")
+                registration = RequestStore().create(
+                    "account_registration",
+                    origin="https://example.com",
+                    top_level_url="https://example.com/register",
+                    action_summary="registration handoff",
+                    browser_context_id="missing",
+                    allowed_device_id=body_a["device"]["device_id"],
+                )
+                with self.assertRaises(Exception):
+                    urllib_request.urlopen(input_request(key_b, cookie_b, body_b, registration.request_id, "nonce-input-b"), timeout=5)
+
+                with self.assertRaises(Exception) as allowed_but_no_browser:
+                    urllib_request.urlopen(input_request(key_a, cookie_a, body_a, registration.request_id, "nonce-input-a"), timeout=5)
+                self.assertIn("409", str(allowed_but_no_browser.exception))
             finally:
                 server.shutdown()
                 server.server_close()
