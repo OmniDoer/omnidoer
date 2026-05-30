@@ -16,6 +16,37 @@ Security rules for this fork:
   secrets do not leak into model-visible outputs, logs, DOM observations,
   accessibility observations, screenshots, or errors.
 
+OmniDoer product and branding notes:
+
+- Preserve Codex CLI auth, billing, token refresh, and model-provider behavior.
+  OmniDoer is an MCP/sidecar runtime, not a default OpenAI API client.
+- Keep README, AGENTS, docs, and the GitHub Pages intro bilingual at minimum
+  with English and Chinese. Use concise extra mainstream language summaries
+  when changing public introduction copy.
+- The canonical project icon is `icon.png` at the repository root. Additional
+  public visuals live under `docs/assets/` and Control Client PWA icons live
+  under `omnidoer/omni_control/static/`.
+- The HTML5/PWA Control Client should be packaged and uploaded to GitHub
+  Releases as a static client artifact when release-facing client files change.
+- Cloud Direct Mode is the primary remote deployment assumption: the Control
+  Client connects directly to the user's own cloud server over HTTPS/WSS with
+  pairing, device identity, session auth, origin protection, rate limiting, and
+  E2EE secret submission. Localhost mode is development mode.
+
+OmniDoer 产品与品牌说明：
+
+- 不要把 OmniDoer 做成默认 OpenAI API 客户端；必须保留 Codex CLI 的登录、
+  计费、token 刷新和模型提供方逻辑。
+- README、AGENTS、docs 和 GitHub Pages 介绍页至少保持英文与中文同步；更新
+  对外介绍时可以补充西班牙语、日语等主流语言的简短摘要。
+- 根目录 `icon.png` 是项目标准图标；`docs/assets/` 存放公开视觉资源，
+  `omnidoer/omni_control/static/` 存放 PWA 图标。
+- Control Client 文件变更后，应将 HTML5/PWA 静态客户端打包并上传到 GitHub
+  Releases。
+- Cloud Direct Mode 是默认远程部署模型：Control Client 直接连接用户自己的
+  云服务器，必须使用 HTTPS/WSS、配对、设备身份、会话认证、Origin 防护、
+  限速和端到端加密提交 secret；localhost 仅是开发模式。
+
 The upstream Codex guidance below still applies when touching upstream files.
 
 # Rust/codex-rs

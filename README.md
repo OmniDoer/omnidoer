@@ -2,6 +2,8 @@
 
 The agent that does.
 
+![OmniDoer brand mark](./icon.png)
+
 OmniDoer is a local-first autonomous web agent runtime that can operate websites on your behalf. It can log in, navigate, fill forms, download files, prepare purchases, and ask for approval before sensitive actions — while passwords and secrets never enter the model context.
 
 The agent may request an action.
@@ -25,6 +27,28 @@ and preserves your Codex authentication mode. If Codex is logged in with
 ChatGPT, OmniDoer uses that Codex path through Codex CLI. If Codex is using an
 API key, `omnidoer doctor` warns that this is OpenAI Platform API billing, but
 OmniDoer does not switch modes or create a new API client.
+
+![OmniDoer secure action pipeline](./docs/assets/omnidoer-card.png)
+
+## Languages / 多语言
+
+**English.** OmniDoer is a Codex CLI sidecar, MCP tool server, secure browser
+runtime, Secret Broker, Control Client, and approval layer. Codex remains the
+only model entrypoint; OmniDoer handles local/cloud-controlled actions without
+revealing secrets to the model.
+
+**中文。** OmniDoer 是 Codex CLI 的 sidecar / MCP 扩展层，不是新的 OpenAI
+API 客户端。它通过 Secret Broker、Vault、Control Client、Challenge Relay、
+Human Takeover 和审计日志让 Agent 可以行动，但密码、验证码、Cookie、私钥和
+支付凭据不会进入模型上下文。
+
+**Español.** OmniDoer amplía Codex CLI con herramientas MCP para acciones web
+seguras. Las credenciales se usan por medio del broker local y las acciones
+sensibles requieren aprobación humana.
+
+**日本語.** OmniDoer は Codex CLI を MCP/sidecar として拡張するローカル優先
+の実行基盤です。モデルは秘密を読み取らず、認証情報やチャレンジ処理は Control
+Client と Broker の安全境界内で扱われます。
 
 ## Status
 
@@ -97,6 +121,40 @@ omnidoer mcp serve --self-test
 The Control Client task panel writes to a local queue. Codex can read queued
 tasks with `control.next_user_task` over MCP while keeping Codex CLI as the
 only model inference entrypoint.
+
+## Control Client
+
+OmniDoer Control Client is the unified user surface for tasks, credential
+requests, one-time codes, CAPTCHA/MFA/Passkey/WebAuthn/3DS handoff, Human
+Takeover, payment approvals, vault metadata, and audit summaries.
+
+Local development can run on `127.0.0.1`. Cloud Direct Mode lets Android,
+Windows 11, and PWA clients connect directly to the user's own cloud server
+over HTTPS/WSS with pairing, device identity, session auth, origin protection,
+rate limiting, and end-to-end encrypted secret submission.
+
+```sh
+omnidoer control serve --cloud-direct \
+  --host 0.0.0.0 \
+  --port 8787 \
+  --public-url https://agent.example.com \
+  --behind-reverse-proxy
+
+omnidoer control pair --print-qr
+```
+
+MCP remains local to Codex CLI. Vault, Broker, Challenge Relay, and browser
+internal interfaces are not public Control Service APIs.
+
+![OmniDoer Cloud Direct architecture](./docs/assets/omnidoer-cloud-direct.svg)
+
+## Client Release
+
+The PWA Control Client is packaged from `omnidoer/omni_control/static/` and
+published as a GitHub Release asset named `omnidoer-control-client-pwa.zip`.
+The release artifact is static UI only; it does not contain model credentials,
+Codex auth data, vault data, pairing tokens, session tokens, secrets, or
+challenge answers.
 
 ## MVP Target
 

@@ -1,6 +1,10 @@
 * { box-sizing: border-box; }
 body { margin: 0; font-family: system-ui, sans-serif; background: #f8fafc; color: #111827; }
 main { max-width: 920px; margin: 0 auto; padding: 16px; }
+.app-header { display: flex; align-items: center; gap: 16px; padding: 18px 0 10px; }
+.app-header h1 { margin: 0; font-size: 2rem; }
+.app-header p { margin: 6px 0 0; color: #475569; }
+.app-header img { flex: 0 0 auto; border-radius: 8px; border: 1px solid #e2e8f0; background: white; }
 section { border: 1px solid #cbd5e1; background: white; padding: 16px; margin: 12px 0; border-radius: 8px; }
 label { display: block; margin: 12px 0; }
 input, button, textarea { font: inherit; min-height: 44px; padding: 8px; }
@@ -13,5 +17,8 @@ button { min-width: 120px; }
 #browser-stream img { display: block; max-width: 100%; height: auto; touch-action: none; }
 @media (max-width: 640px) {
   main { padding: 8px; }
+  .app-header { gap: 12px; padding: 10px 0 6px; }
+  .app-header h1 { font-size: 1.5rem; }
+  .app-header img { width: 52px; height: 52px; }
   section { border-radius: 0; margin: 8px 0; }
 }

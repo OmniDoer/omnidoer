@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-labelledby="title desc">
+  <title id="title">OmniDoer mark</title>
+  <desc id="desc">A monochrome OD control mark with a central broker node and directional action arrows.</desc>
+  <rect width="640" height="220" rx="24" fill="#f8fafc"/>
+  <g transform="translate(52 28)" fill="#050505">
+    <path d="M82 0h42v48l-32 32h-10a42 42 0 0 0 0 84h42v42H82A82 82 0 0 1 82 0Z"/>
+    <path d="M184 0h42a82 82 0 0 1 0 164h-42v-42h42a40 40 0 0 0 0-80h-42Z"/>
+    <path d="M152 48h24v110h-24z"/>
+    <circle cx="164" cy="106" r="32" fill="#f8fafc"/>
+    <path d="M66 96h64v20H66v22L28 106l38-32Z"/>
+    <path d="M198 96h64l38-22v64l-38-22h-64Z"/>
+    <path d="M154 18h20v46h24l-34 34-34-34h24Z"/>
+    <path d="M154 194h20v-46h24l-34-34-34 34h24Z"/>
+  </g>
+  <g transform="translate(390 61)">
+    <text x="0" y="36" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="40" font-weight="700" fill="#111827">OmniDoer</text>
+    <text x="0" y="78" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" fill="#334155">The agent that does.</text>
+    <path d="M0 106h176" stroke="#06b6d4" stroke-width="4" stroke-linecap="round"/>
+  </g>
+</svg>
