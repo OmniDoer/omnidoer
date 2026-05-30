@@ -11,6 +11,7 @@ from typing import Any
 
 from omnidoer.omni_challenge.detector import detect_challenge_from_url
 from omnidoer.omni_observer import redact_dom_snapshot, redact_text
+from omnidoer.omni_observer.redactor import SECRET_FIELD_RE
 from omnidoer.omni_policy.policy import origin_from_url
 from omnidoer.omni_takeover.models import InputEvent
 from omnidoer.omni_takeover.stream import frame_from_png
@@ -102,12 +103,35 @@ class BrowserController:
         return {"status": "clicked", "secret_exposed_to_model": False}
 
     def type_text(self, selector: str, text: str) -> dict:
+        if self._selector_targets_sensitive_field(selector):
+            return {
+                "status": "rejected",
+                "reason": "sensitive fields require Secret Broker or Challenge Relay",
+                "secret_exposed_to_model": False,
+            }
         self.page.fill(selector, text)
         return {"status": "typed", "secret_exposed_to_model": False}
 
     def fill_field(self, selector: str, value: str, *, secret: bool = False) -> dict:
         self.page.fill(selector, value)
         return {"status": "filled", "secret": bool(secret), "secret_exposed_to_model": False}
+
+    def _selector_targets_sensitive_field(self, selector: str) -> bool:
+        try:
+            metadata = self.page.locator(selector).first.evaluate(
+                """(el) => ({
+                    type: el.getAttribute('type') || '',
+                    name: el.getAttribute('name') || '',
+                    id: el.getAttribute('id') || '',
+                    autocomplete: el.getAttribute('autocomplete') || '',
+                    placeholder: el.getAttribute('placeholder') || '',
+                    aria_label: el.getAttribute('aria-label') || ''
+                })"""
+            )
+        except Exception:
+            return False
+        haystack = " ".join(str(value) for value in metadata.values())
+        return bool(SECRET_FIELD_RE.search(haystack))
 
     def apply_user_input_event(self, event: InputEvent) -> dict:
         if event.event_type in {"tap", "click"}:
