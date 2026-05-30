@@ -1,10 +1,12 @@
 import os
+import re
 import stat
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.request import urlopen
 
 from omnidoer.omni_audit.audit import AuditLog
 from omnidoer.omni_broker.broker import SecretBroker
@@ -181,6 +183,23 @@ class CliTest(unittest.TestCase):
             revoked = self.run_cli(["control", "revoke-device", device.device_id], env=env)
             self.assertEqual(revoked.returncode, 0, revoked.stderr)
             self.assertIn("revoked_sessions=1", revoked.stdout)
+
+    def test_demo_background_waits_until_port_is_ready(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            env = {"OMNIDOER_HOME": tmp}
+            result = self.run_cli(["demo", "start", "--host", "127.0.0.1", "--port", "8876", "--background"], env=env)
+            pid_match = re.search(r"pid=(\d+)", result.stdout)
+            try:
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIsNotNone(pid_match, result.stdout)
+                with urlopen("http://127.0.0.1:8876/", timeout=5) as response:
+                    self.assertEqual(response.status, 200)
+            finally:
+                if pid_match:
+                    try:
+                        os.kill(int(pid_match.group(1)), 15)
+                    except ProcessLookupError:
+                        pass
 
 
 if __name__ == "__main__":

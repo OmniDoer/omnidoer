@@ -4,14 +4,38 @@ from __future__ import annotations
 
 import argparse
 import os
+import socket
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from omnidoer.paths import ensure_home
 
 
-def _background(args: list[str]) -> int:
+def _connect_host(host: str) -> str:
+    if host in {"0.0.0.0", "::"}:
+        return "127.0.0.1"
+    if host == "localhost":
+        return "127.0.0.1"
+    return host
+
+
+def _wait_for_tcp(host: str, port: int, proc: subprocess.Popen, *, timeout_seconds: float = 10.0) -> bool:
+    deadline = time.time() + timeout_seconds
+    connect_host = _connect_host(host)
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            return False
+        try:
+            with socket.create_connection((connect_host, port), timeout=0.25):
+                return True
+        except OSError:
+            time.sleep(0.1)
+    return False
+
+
+def _background(args: list[str], *, wait_host: str | None = None, wait_port: int | None = None) -> int:
     ensure_home()
     log_path = ensure_home() / "background.log"
     with log_path.open("ab") as log:
@@ -22,6 +46,10 @@ def _background(args: list[str]) -> int:
             stdin=subprocess.DEVNULL,
             start_new_session=True,
         )
+    if wait_host is not None and wait_port is not None and not _wait_for_tcp(wait_host, wait_port, proc):
+        return_code = proc.poll()
+        print(f"background process failed readiness pid={proc.pid} exit={return_code} log={log_path}", file=sys.stderr)
+        return 1
     print(f"started background process pid={proc.pid} log={log_path}")
     return 0
 
@@ -147,7 +175,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "demo" and args.demo_command == "start":
         if args.background:
-            return _background(["demo", "start", "--host", args.host, "--port", str(args.port)])
+            return _background(["demo", "start", "--host", args.host, "--port", str(args.port)], wait_host=args.host, wait_port=args.port)
         from omnidoer.demo.server import run_server
 
         run_server(args.host, args.port)
@@ -190,7 +218,7 @@ def main(argv: list[str] | None = None) -> int:
             ):
                 if enabled:
                     background_args.append(flag)
-            return _background(background_args)
+            return _background(background_args, wait_host=args.host, wait_port=args.port)
         return handle_control_command(args)
 
     if args.command == "vault":
