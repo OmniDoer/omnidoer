@@ -8,10 +8,14 @@ from http.server import ThreadingHTTPServer
 from threading import Thread
 from urllib import request as urllib_request
 
+from cryptography.hazmat.primitives.asymmetric import ec
+
 from omnidoer.omni_control.cloud import build_config, security_status
 from omnidoer.omni_control.csrf import CSRF_HEADER
+from omnidoer.omni_control.device_signing import DEVICE_ID_HEADER, DEVICE_NONCE_HEADER, DEVICE_SIG_HEADER, DEVICE_TS_HEADER
 from omnidoer.omni_control.pairing import PairingStore
 from omnidoer.omni_control.server import ControlHandler, sanitize_log_value
+from tests.test_control_auth import public_jwk, sign_request
 
 
 class CloudControlServiceTest(unittest.TestCase):
@@ -101,9 +105,10 @@ class CloudControlServiceTest(unittest.TestCase):
                     urllib_request.urlopen(f"{base}/api/requests", timeout=5)
 
                 pairing = PairingStore().create(public_url=config.public_url, ttl_seconds=600)
+                device_key = ec.generate_private_key(ec.SECP256R1())
                 pair_request = urllib_request.Request(
                     f"{base}/api/pair",
-                    data=json.dumps({"code": pairing.code, "device_name": "Phone", "device_public_key": "phone-key"}).encode(),
+                    data=json.dumps({"code": pairing.code, "device_name": "Phone", "device_public_key": public_jwk(device_key)}).encode(),
                     headers={"content-type": "application/json", "origin": config.public_origin},
                     method="POST",
                 )
@@ -114,19 +119,44 @@ class CloudControlServiceTest(unittest.TestCase):
                 self.assertIn("HttpOnly", cookie)
                 self.assertNotIn("session_token", repr(body))
                 csrf = body["csrf_token"]
-                authed = urllib_request.Request(f"{base}/api/requests", headers={"cookie": cookie})
+                device_id = body["device"]["device_id"]
+                session_id = body["session"]["session_id"]
+                with self.assertRaises(Exception):
+                    urllib_request.urlopen(urllib_request.Request(f"{base}/api/requests", headers={"cookie": cookie}), timeout=5)
+
+                signed = sign_request(device_key, device_id=device_id, session_id=session_id, method="GET", path="/api/requests")
+                signed_headers = {
+                    "cookie": cookie,
+                    DEVICE_ID_HEADER: device_id,
+                    DEVICE_TS_HEADER: signed["timestamp"],
+                    DEVICE_NONCE_HEADER: signed["nonce"],
+                    DEVICE_SIG_HEADER: signed["signature"],
+                }
+                authed = urllib_request.Request(f"{base}/api/requests", headers=signed_headers)
                 with urllib_request.urlopen(authed, timeout=5) as response:
                     self.assertEqual(response.status, 200)
+                with self.assertRaises(Exception):
+                    urllib_request.urlopen(authed, timeout=5)
 
+                signed = sign_request(device_key, device_id=device_id, session_id=session_id, method="POST", path="/api/tasks", nonce="nonce-no-csrf")
                 no_csrf = urllib_request.Request(
                     f"{base}/api/tasks",
                     data=json.dumps({"text": "run"}).encode(),
-                    headers={"content-type": "application/json", "cookie": cookie, "origin": config.public_origin},
+                    headers={
+                        "content-type": "application/json",
+                        "cookie": cookie,
+                        "origin": config.public_origin,
+                        DEVICE_ID_HEADER: device_id,
+                        DEVICE_TS_HEADER: signed["timestamp"],
+                        DEVICE_NONCE_HEADER: signed["nonce"],
+                        DEVICE_SIG_HEADER: signed["signature"],
+                    },
                     method="POST",
                 )
                 with self.assertRaises(Exception):
                     urllib_request.urlopen(no_csrf, timeout=5)
 
+                signed = sign_request(device_key, device_id=device_id, session_id=session_id, method="POST", path="/api/tasks", nonce="nonce-with-csrf")
                 with_csrf = urllib_request.Request(
                     f"{base}/api/tasks",
                     data=json.dumps({"text": "run"}).encode(),
@@ -135,13 +165,27 @@ class CloudControlServiceTest(unittest.TestCase):
                         "cookie": cookie,
                         "origin": config.public_origin,
                         CSRF_HEADER: csrf,
+                        DEVICE_ID_HEADER: device_id,
+                        DEVICE_TS_HEADER: signed["timestamp"],
+                        DEVICE_NONCE_HEADER: signed["nonce"],
+                        DEVICE_SIG_HEADER: signed["signature"],
                     },
                     method="POST",
                 )
                 with urllib_request.urlopen(with_csrf, timeout=5) as response:
                     self.assertEqual(response.status, 201)
 
-                events = urllib_request.Request(f"{base}/api/events", headers={"cookie": cookie})
+                signed = sign_request(device_key, device_id=device_id, session_id=session_id, method="GET", path="/api/events", nonce="nonce-events")
+                events = urllib_request.Request(
+                    f"{base}/api/events",
+                    headers={
+                        "cookie": cookie,
+                        DEVICE_ID_HEADER: device_id,
+                        DEVICE_TS_HEADER: signed["timestamp"],
+                        DEVICE_NONCE_HEADER: signed["nonce"],
+                        DEVICE_SIG_HEADER: signed["signature"],
+                    },
+                )
                 with urllib_request.urlopen(events, timeout=5) as response:
                     self.assertEqual(response.headers["content-type"].split(";")[0], "text/event-stream")
             finally:

@@ -43,7 +43,9 @@ omnidoer control pair --print-qr --expires 10m --public-url https://agent.exampl
 ```
 
 Only pair devices you control. Pairing codes are one-time and short TTL. After
-pairing, clients use device identity plus short-lived sessions. Revoke access:
+pairing, clients use device identity plus short-lived sessions. Protected API
+requests are signed by the paired device key and replay-protected with nonces.
+Revoke access:
 
 ```sh
 omnidoer control devices

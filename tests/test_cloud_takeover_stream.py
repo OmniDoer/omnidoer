@@ -6,10 +6,14 @@ from http.server import ThreadingHTTPServer
 from threading import Thread
 from urllib import request as urllib_request
 
+from cryptography.hazmat.primitives.asymmetric import ec
+
 from omnidoer.omni_control.cloud import build_config
+from omnidoer.omni_control.device_signing import DEVICE_ID_HEADER, DEVICE_NONCE_HEADER, DEVICE_SIG_HEADER, DEVICE_TS_HEADER
 from omnidoer.omni_control.pairing import PairingStore
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.server import ControlHandler
+from tests.test_control_auth import public_jwk, sign_request
 
 
 class CloudTakeoverStreamTest(unittest.TestCase):
@@ -41,15 +45,30 @@ class CloudTakeoverStreamTest(unittest.TestCase):
                     urllib_request.urlopen(f"{base}/api/requests/{request.request_id}/frame", timeout=5)
 
                 pairing = PairingStore().create(public_url=config.public_url, ttl_seconds=600)
+                device_key = ec.generate_private_key(ec.SECP256R1())
                 pair = urllib_request.Request(
                     f"{base}/api/pair",
-                    data=json.dumps({"code": pairing.code, "device_name": "Phone", "device_public_key": "phone-key"}).encode(),
+                    data=json.dumps({"code": pairing.code, "device_name": "Phone", "device_public_key": public_jwk(device_key)}).encode(),
                     headers={"content-type": "application/json", "origin": config.public_origin},
                     method="POST",
                 )
                 with urllib_request.urlopen(pair, timeout=5) as response:
                     cookie = response.headers["set-cookie"]
-                frame = urllib_request.Request(f"{base}/api/requests/{request.request_id}/frame", headers={"cookie": cookie})
+                    body = json.loads(response.read().decode())
+                device_id = body["device"]["device_id"]
+                session_id = body["session"]["session_id"]
+                frame_path = f"/api/requests/{request.request_id}/frame"
+                signed = sign_request(device_key, device_id=device_id, session_id=session_id, method="GET", path=frame_path)
+                frame = urllib_request.Request(
+                    f"{base}{frame_path}",
+                    headers={
+                        "cookie": cookie,
+                        DEVICE_ID_HEADER: device_id,
+                        DEVICE_TS_HEADER: signed["timestamp"],
+                        DEVICE_NONCE_HEADER: signed["nonce"],
+                        DEVICE_SIG_HEADER: signed["signature"],
+                    },
+                )
                 with urllib_request.urlopen(frame, timeout=5) as response:
                     payload = json.loads(response.read().decode())
                 self.assertTrue(payload["for_control_client_only"])

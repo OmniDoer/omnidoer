@@ -20,10 +20,16 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 
-from omnidoer.omni_control.auth import authenticate_session, pair_device
+from omnidoer.omni_control.auth import authenticate_session, authenticate_signed_session_request, pair_device
 from omnidoer.omni_control.cloud import ControlServiceConfig, build_config
 from omnidoer.omni_control.csrf import CSRF_HEADER, verify_csrf
 from omnidoer.omni_control.devices import DeviceStore
+from omnidoer.omni_control.device_signing import (
+    DEVICE_ID_HEADER,
+    DEVICE_NONCE_HEADER,
+    DEVICE_SIG_HEADER,
+    DEVICE_TS_HEADER,
+)
 from omnidoer.omni_control.rate_limit import RateLimiter
 from omnidoer.omni_control.security_headers import apply_security_headers
 from omnidoer.omni_control.requests import RequestStore
@@ -161,6 +167,19 @@ class ControlHandler(SimpleHTTPRequestHandler):
         session_id, token = self._session_cookie()
         if not session_id or not token:
             raise PermissionError("session required")
+        if self.config.mode == "cloud_direct":
+            return authenticate_signed_session_request(
+                session_id=session_id,
+                session_token=token,
+                device_id=self.headers.get(DEVICE_ID_HEADER, ""),
+                method=self.command,
+                path=urlparse(self.path).path,
+                timestamp=self.headers.get(DEVICE_TS_HEADER, ""),
+                nonce=self.headers.get(DEVICE_NONCE_HEADER, ""),
+                signature=self.headers.get(DEVICE_SIG_HEADER, ""),
+                device_store=DeviceStore(),
+                session_store=SessionStore(),
+            )
         return authenticate_session(session_id=session_id, session_token=token, device_store=DeviceStore(), session_store=SessionStore())
 
     def _require_access(self, *, mutating: bool = False):

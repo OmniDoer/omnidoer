@@ -10,6 +10,9 @@ Pairing establishes device identity; it is not a secret-submission channel.
 - The client keeps its private key locally.
 - Pairing creates a short-lived session cookie for the web client.
 - Session tokens are stored hashed and are not returned in public API payloads.
+- Protected Cloud Direct requests must include a device-key signature over the
+  device id, session id, HTTP method, path, timestamp, and nonce.
+- Signature nonces are single-use. Replayed signed requests are rejected.
 - CSRF tokens protect mutating HTTP requests.
 - Revoked devices and sessions cannot access requests, audit metadata,
   takeover frames, approvals, or secret submission endpoints.

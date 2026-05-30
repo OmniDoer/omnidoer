@@ -5,6 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from omnidoer.omni_control.devices import Device, DeviceStore
+from omnidoer.omni_control.device_signing import (
+    DeviceNonceStore,
+    device_signature_message,
+    verify_ecdsa_signature,
+)
 from omnidoer.omni_control.pairing import PairingStore
 from omnidoer.omni_control.sessions import ControlSession, SessionStore
 
@@ -53,4 +58,42 @@ def authenticate_session(
     session_store = session_store or SessionStore()
     session = session_store.authenticate(session_id, session_token)
     device_store.touch(session.device_id)
+    return session
+
+
+def authenticate_signed_session_request(
+    *,
+    session_id: str,
+    session_token: str,
+    device_id: str,
+    method: str,
+    path: str,
+    timestamp: str,
+    nonce: str,
+    signature: str,
+    device_store: DeviceStore | None = None,
+    session_store: SessionStore | None = None,
+    nonce_store: DeviceNonceStore | None = None,
+) -> ControlSession:
+    device_store = device_store or DeviceStore()
+    session = authenticate_session(
+        session_id=session_id,
+        session_token=session_token,
+        device_store=device_store,
+        session_store=session_store,
+    )
+    if session.device_id != device_id:
+        raise PermissionError("device does not own session")
+    device = device_store.get(device_id)
+    message = device_signature_message(
+        device_id=device_id,
+        session_id=session_id,
+        method=method,
+        path=path,
+        timestamp=timestamp,
+        nonce=nonce,
+    )
+    verify_ecdsa_signature(public_key=device.public_key, signature_b64=signature, message=message)
+    nonce_store = nonce_store or DeviceNonceStore()
+    nonce_store.consume(device_id=device_id, nonce=nonce, timestamp=timestamp)
     return session

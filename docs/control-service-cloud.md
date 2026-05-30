@@ -23,3 +23,8 @@ pairing, device identity, session auth, CSRF/origin checks, security headers,
 and rate limiting. Secrets and challenge answers are encrypted in the Control
 Client before submission. TLS protects transport, but Secret Broker and
 Challenge Relay E2EE remain the sensitive-data boundary.
+
+After pairing, protected Control Service APIs require both the httpOnly session
+cookie and a request signature from the paired device private key. The signature
+binds device id, session id, HTTP method, path, timestamp, and nonce; nonces are
+single-use to reject replay. Mutating requests also require the CSRF header.

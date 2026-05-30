@@ -63,6 +63,16 @@ function csrfHeaders() {
   return token ? { "x-omnidoer-csrf": token } : {};
 }
 
+function bytesToB64url(bytes) {
+  return b64url(bytes);
+}
+
+function b64urlToBytes(value) {
+  const padded = value + "=".repeat((4 - value.length % 4) % 4);
+  const binary = atob(padded.replaceAll("-", "+").replaceAll("_", "/"));
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
 function activeFilter() {
   return document.querySelector("[data-filter].active")?.dataset.filter || "all";
 }
@@ -88,14 +98,62 @@ async function deviceKeyPair() {
   const storedPrivate = localStorage.getItem("omnidoer_device_private_jwk");
   const storedPublic = localStorage.getItem("omnidoer_device_public_jwk");
   if (storedPrivate && storedPublic) {
-    return { publicJwk: JSON.parse(storedPublic) };
+    const privateJwk = JSON.parse(storedPrivate);
+    const privateKey = await crypto.subtle.importKey(
+      "jwk",
+      privateJwk,
+      { name: "ECDSA", namedCurve: "P-256" },
+      true,
+      ["sign"]
+    );
+    return { publicJwk: JSON.parse(storedPublic), privateKey };
   }
   const key = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
   const privateJwk = await crypto.subtle.exportKey("jwk", key.privateKey);
   const publicJwk = await crypto.subtle.exportKey("jwk", key.publicKey);
   localStorage.setItem("omnidoer_device_private_jwk", JSON.stringify(privateJwk));
   localStorage.setItem("omnidoer_device_public_jwk", JSON.stringify(publicJwk));
-  return { publicJwk };
+  return { publicJwk, privateKey: key.privateKey };
+}
+
+async function deviceSignatureHeaders(method, path) {
+  const deviceId = localStorage.getItem("omnidoer_device_id");
+  const sessionId = localStorage.getItem("omnidoer_session_id");
+  const storedPrivate = localStorage.getItem("omnidoer_device_private_jwk");
+  if (!deviceId || !sessionId || !storedPrivate) return {};
+  const { privateKey } = await deviceKeyPair();
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const nonce = bytesToB64url(crypto.getRandomValues(new Uint8Array(16)));
+  const message = [
+    "omnidoer-device-v1",
+    deviceId,
+    sessionId,
+    method.toUpperCase(),
+    path,
+    timestamp,
+    nonce
+  ].join("\n");
+  const signature = await crypto.subtle.sign(
+    { name: "ECDSA", hash: "SHA-256" },
+    privateKey,
+    encoder.encode(message)
+  );
+  return {
+    "x-omnidoer-device-id": deviceId,
+    "x-omnidoer-device-ts": timestamp,
+    "x-omnidoer-device-nonce": nonce,
+    "x-omnidoer-device-sig": bytesToB64url(signature)
+  };
+}
+
+async function signedFetch(url, options = {}) {
+  const target = new URL(url, window.location.origin);
+  const method = (options.method || "GET").toUpperCase();
+  const headers = {
+    ...(options.headers || {}),
+    ...(await deviceSignatureHeaders(method, target.pathname))
+  };
+  return fetch(url, { ...options, method, headers });
 }
 
 async function pairDevice() {
@@ -114,6 +172,7 @@ async function pairDevice() {
     return;
   }
   localStorage.setItem("omnidoer_device_id", payload.device.device_id);
+  localStorage.setItem("omnidoer_session_id", payload.session.session_id);
   localStorage.setItem("omnidoer_csrf_token", payload.csrf_token);
   document.querySelector("#pairing-status").textContent = `Paired ${payload.device.name}. Device identity created.`;
   await loadRequests();
@@ -189,7 +248,7 @@ async function encryptForBroker(payload, request) {
 
 async function submitEncrypted(request, payload) {
   const envelope = await encryptForBroker(payload, request);
-  const response = await fetch(`/api/requests/${request.request_id}/submit`, {
+  const response = await signedFetch(`/api/requests/${request.request_id}/submit`, {
     method: "POST",
     headers: { "content-type": "application/json", ...csrfHeaders() },
     body: JSON.stringify({ envelope })
@@ -201,7 +260,7 @@ async function submitEncrypted(request, payload) {
 }
 
 async function postAction(request, action) {
-  const response = await fetch(`/api/requests/${request.request_id}/${action}`, { method: "POST", headers: csrfHeaders() });
+  const response = await signedFetch(`/api/requests/${request.request_id}/${action}`, { method: "POST", headers: csrfHeaders() });
   if (!response.ok) {
     setStatus("Action failed", `${request.request_type} ${action}`);
   }
@@ -212,7 +271,7 @@ async function submitTask() {
   const input = document.querySelector("#task-text");
   const text = input.value.trim();
   if (!text) return;
-  await fetch("/api/tasks", {
+  await signedFetch("/api/tasks", {
     method: "POST",
     headers: { "content-type": "application/json", ...csrfHeaders() },
     body: JSON.stringify({ text })
@@ -222,7 +281,7 @@ async function submitTask() {
 }
 
 async function updateTask(task, action) {
-  await fetch(`/api/tasks/${task.task_id}/${action}`, { method: "POST", headers: csrfHeaders() });
+  await signedFetch(`/api/tasks/${task.task_id}/${action}`, { method: "POST", headers: csrfHeaders() });
   await loadTasks();
 }
 
@@ -261,7 +320,7 @@ async function loadTasks() {
   const list = document.querySelector("#tasks-list");
   if (!list) return;
   try {
-    const tasks = await fetch("/api/tasks", { cache: "no-store" }).then((r) => r.json());
+    const tasks = await signedFetch("/api/tasks", { cache: "no-store" }).then((r) => r.json());
     list.innerHTML = "";
     if (!tasks.length) {
       list.textContent = "No queued tasks.";
@@ -274,7 +333,7 @@ async function loadTasks() {
 }
 
 async function sendTakeoverInput(request, eventPayload) {
-  await fetch(`/api/requests/${request.request_id}/input`, {
+  await signedFetch(`/api/requests/${request.request_id}/input`, {
     method: "POST",
     headers: { "content-type": "application/json", ...csrfHeaders() },
     body: JSON.stringify(eventPayload)
@@ -408,7 +467,7 @@ function renderChallengeControls(request, item) {
 function renderTakeoverControls(request, item) {
   const stream = document.querySelector("#browser-stream");
   stream.textContent = "Loading control-only browser frame...";
-  fetch(`/api/requests/${request.request_id}/frame`, { cache: "no-store" })
+  signedFetch(`/api/requests/${request.request_id}/frame`, { cache: "no-store" })
     .then((r) => r.json())
     .then((frame) => {
       if (frame.data_b64) {
@@ -515,7 +574,7 @@ async function loadRuntimeStatus() {
 
 async function loadRequests() {
   try {
-    const requests = await fetch("/api/requests", { cache: "no-store" }).then((r) => {
+    const requests = await signedFetch("/api/requests", { cache: "no-store" }).then((r) => {
       if (!r.ok) throw new Error("unauthorized");
       return r.json();
     });

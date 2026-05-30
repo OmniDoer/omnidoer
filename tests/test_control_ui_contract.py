@@ -68,7 +68,11 @@ class ControlUiContractTest(unittest.TestCase):
         app = (static_root() / "app.js").read_text()
         self.assertIn("/api/pair", app)
         self.assertIn("omnidoer_device_id", app)
+        self.assertIn("omnidoer_session_id", app)
         self.assertIn("x-omnidoer-csrf", app)
+        self.assertIn("x-omnidoer-device-sig", app)
+        self.assertIn("omnidoer-device-v1", app)
+        self.assertIn("signedFetch", app)
         self.assertIn("device_id", app)
         self.assertIn("expires_at", app)
 
