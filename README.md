@@ -23,6 +23,8 @@ the user whenever a site requires human authentication, judgment, or consent.
 
 ![OmniDoer English edition cinematic poster](./docs/assets/localized/omnidoer-readme-en.jpg)
 
+Live page: [https://omnidoer.github.io/](https://omnidoer.github.io/)
+
 ## One-Command Install
 
 Local developer install:
