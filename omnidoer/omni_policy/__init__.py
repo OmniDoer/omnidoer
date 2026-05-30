@@ -1,6 +1,6 @@
 """Policy helpers."""
 
-from .policy import Decision, PolicyDecision, evaluate_challenge, evaluate_credential_fill, origin_from_url, requires_approval
+from .policy import Decision, PolicyDecision, evaluate_challenge, evaluate_credential_fill, origin_from_url, requires_approval, suspicious_origin_reason
 
 __all__ = [
     "Decision",
@@ -9,4 +9,5 @@ __all__ = [
     "evaluate_credential_fill",
     "origin_from_url",
     "requires_approval",
+    "suspicious_origin_reason",
 ]

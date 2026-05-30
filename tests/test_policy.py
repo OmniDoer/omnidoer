@@ -1,6 +1,6 @@
 import unittest
 
-from omnidoer.omni_policy import Decision, evaluate_credential_fill, origin_from_url, requires_approval
+from omnidoer.omni_policy import Decision, evaluate_credential_fill, origin_from_url, requires_approval, suspicious_origin_reason
 from omnidoer.omni_policy.policy import evaluate_challenge
 
 
@@ -53,6 +53,30 @@ class PolicyTest(unittest.TestCase):
             form_action_url="https://evil.example/steal",
         )
         self.assertEqual(decision.decision, Decision.BLOCK)
+
+    def test_blocks_punycode_origin_for_credential_fill(self) -> None:
+        origin = "https://xn--exmple-cua.com"
+        self.assertIn("punycode", suspicious_origin_reason(origin) or "")
+        decision = evaluate_credential_fill(
+            current_url=f"{origin}/login",
+            allowed_origins={origin},
+            top_level_frame=True,
+            form_action_url=f"{origin}/login",
+        )
+        self.assertEqual(decision.decision, Decision.BLOCK)
+        self.assertIn("punycode", decision.reason)
+
+    def test_blocks_mixed_script_homograph_origin_for_credential_fill(self) -> None:
+        origin = "https://exаmple.com"
+        self.assertIn("homograph", suspicious_origin_reason(origin) or "")
+        decision = evaluate_credential_fill(
+            current_url=f"{origin}/login",
+            allowed_origins={origin},
+            top_level_frame=True,
+            form_action_url=f"{origin}/login",
+        )
+        self.assertEqual(decision.decision, Decision.BLOCK)
+        self.assertIn("homograph", decision.reason)
 
     def test_sensitive_actions_require_approval(self) -> None:
         self.assertEqual(requires_approval("payment_submit").decision, Decision.REQUIRE_APPROVAL)

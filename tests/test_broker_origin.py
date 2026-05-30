@@ -23,6 +23,14 @@ class BrokerOriginTest(unittest.TestCase):
         with self.assertRaises(PermissionError):
             validate_fill("https://evil.example/login", ["https://example.com"])
 
+    def test_rejects_punycode_credential_origin(self) -> None:
+        with self.assertRaises(PermissionError):
+            validate_fill("https://xn--exmple-cua.com/login", ["https://xn--exmple-cua.com"])
+
+    def test_rejects_homograph_credential_origin(self) -> None:
+        with self.assertRaises(PermissionError):
+            validate_fill("https://exаmple.com/login", ["https://exаmple.com"])
+
     def test_fill_result_contains_status_only(self) -> None:
         result = fill_login_status(
             "http://127.0.0.1:8765/login",

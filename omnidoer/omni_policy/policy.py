@@ -61,6 +61,33 @@ def _is_loopback(origin: str) -> bool:
     return parsed.hostname in {"localhost", "127.0.0.1", "::1"}
 
 
+def _script_bucket(ch: str) -> str | None:
+    code = ord(ch)
+    if "a" <= ch <= "z" or "A" <= ch <= "Z":
+        return "latin"
+    if 0x0370 <= code <= 0x03FF:
+        return "greek"
+    if 0x0400 <= code <= 0x052F:
+        return "cyrillic"
+    return None
+
+
+def suspicious_origin_reason(origin: str) -> str | None:
+    parsed = urlparse(origin)
+    hostname = (parsed.hostname or "").rstrip(".").lower()
+    if not hostname or _is_loopback(origin):
+        return None
+    labels = [label for label in hostname.split(".") if label]
+    if any(label.startswith("xn--") for label in labels):
+        return "punycode origin requires manual review before credential fill"
+    for label in labels:
+        scripts = {_script_bucket(ch) for ch in label}
+        scripts.discard(None)
+        if "latin" in scripts and ({"cyrillic", "greek"} & scripts):
+            return "mixed-script homograph origin requires manual review before credential fill"
+    return None
+
+
 def evaluate_credential_fill(
     *,
     current_url: str,
@@ -72,6 +99,10 @@ def evaluate_credential_fill(
     origin = origin_from_url(current_url)
     if origin is None:
         return PolicyDecision(Decision.BLOCK, "current URL has no origin")
+
+    suspicious = suspicious_origin_reason(origin)
+    if suspicious:
+        return PolicyDecision(Decision.BLOCK, suspicious, origin)
 
     if origin not in allowed_origins:
         return PolicyDecision(Decision.BLOCK, "origin is not allowed for credential", origin)
@@ -111,3 +142,4 @@ def policy_self_test() -> None:
     assert evaluate_challenge("captcha").decision == Decision.REQUIRE_USER_INTERACTION
     assert evaluate_challenge("high_intensity_antibot").decision == Decision.REQUIRE_TAKEOVER
     assert evaluate_challenge("account_registration").decision == Decision.REQUIRE_TAKEOVER
+    assert suspicious_origin_reason("https://xn--example-9d0b.com") is not None

@@ -16,7 +16,7 @@ debug output.
 1. MCP receives `credential.fill_current_origin_login(credential_id)`.
 2. Broker asks the browser controller for current URL, top-level origin, frame tree, target fields, and form action.
 3. Broker loads only credential metadata first.
-4. Policy checks exact origin, HTTPS or loopback demo HTTP, top-level frame, form-action origin, and credential `allowed_origins`.
+4. Policy checks exact origin, HTTPS or loopback demo HTTP, top-level frame, form-action origin, suspicious punycode/homograph domains, and credential `allowed_origins`.
 5. Vault decrypts only after policy allows the action.
 6. Browser receives the username/password through a non-observed injection path.
 7. Broker returns status, field count, origin, policy decision, and audit event ID.
@@ -34,3 +34,5 @@ debug output.
 
 Loopback HTTP can be allowed for the local demo only. Non-loopback HTTP should
 be blocked for credential fill.
+Punycode domains and mixed-script homograph-looking domains are blocked for
+credential fill until a future policy layer can require stronger manual review.
