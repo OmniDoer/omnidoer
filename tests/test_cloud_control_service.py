@@ -273,6 +273,79 @@ class CloudControlServiceTest(unittest.TestCase):
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
 
+    def test_cloud_direct_stream_filters_requests_by_signed_device(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            config = build_config(
+                host="127.0.0.1",
+                port=8787,
+                cloud_direct=True,
+                public_url="https://agent.example.com",
+                behind_reverse_proxy=True,
+            )
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_config = config  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+
+            def pair(name: str):
+                pairing = PairingStore().create(public_url=config.public_url, ttl_seconds=600)
+                key = ec.generate_private_key(ec.SECP256R1())
+                request = urllib_request.Request(
+                    f"{base}/api/pair",
+                    data=json.dumps({"code": pairing.code, "device_name": name, "device_public_key": public_jwk(key)}).encode(),
+                    headers={"content-type": "application/json", "origin": config.public_origin},
+                    method="POST",
+                )
+                with urllib_request.urlopen(request, timeout=5) as response:
+                    return key, response.headers["set-cookie"], json.loads(response.read().decode())
+
+            def signed_stream_headers(key, body: dict, cookie: str, nonce: str) -> dict[str, str]:
+                device_id = body["device"]["device_id"]
+                session_id = body["session"]["session_id"]
+                signed = sign_request(key, device_id=device_id, session_id=session_id, method="GET", path="/api/events", nonce=nonce)
+                return {
+                    "cookie": cookie,
+                    DEVICE_ID_HEADER: device_id,
+                    DEVICE_TS_HEADER: signed["timestamp"],
+                    DEVICE_NONCE_HEADER: signed["nonce"],
+                    DEVICE_SIG_HEADER: signed["signature"],
+                }
+
+            try:
+                key_a, cookie_a, body_a = pair("Phone A")
+                key_b, cookie_b, body_b = pair("Phone B")
+                control_request = RequestStore().create(
+                    "credential",
+                    origin="https://example.com",
+                    top_level_url="https://example.com/login",
+                    action_summary="streamed login",
+                    allowed_device_id=body_a["device"]["device_id"],
+                )
+
+                stream_url = f"{base}/api/events?stream=1&snapshots=1&interval=0"
+                headers_b = signed_stream_headers(key_b, body_b, cookie_b, "nonce-stream-b")
+                with urllib_request.urlopen(urllib_request.Request(stream_url, headers=headers_b), timeout=5) as response:
+                    self.assertEqual(response.headers["content-type"].split(";")[0], "text/event-stream")
+                    hidden = response.read().decode()
+                self.assertIn('"requests":[]', hidden)
+                self.assertNotIn(control_request.request_id, hidden)
+
+                headers_a = signed_stream_headers(key_a, body_a, cookie_a, "nonce-stream-a")
+                with urllib_request.urlopen(urllib_request.Request(stream_url, headers=headers_a), timeout=5) as response:
+                    visible = response.read().decode()
+                self.assertIn("event: requests", visible)
+                self.assertIn(control_request.request_id, visible)
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -7,13 +7,14 @@ import re
 import ssl
 import tempfile
 import ipaddress
+import time
 import datetime as dt
 from http.cookies import SimpleCookie
 from importlib import resources
 from pathlib import Path
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -138,6 +139,9 @@ class ControlHandler(SimpleHTTPRequestHandler):
     def config(self) -> ControlServiceConfig:
         return getattr(self.server, "omnidoer_config", build_config(host="127.0.0.1", port=8787))
 
+    def _sse_payload(self, store: RequestStore, session: ControlSession | None) -> dict:
+        return {"requests": [request.to_public_dict() for request in self._visible_requests(store, session)]}
+
     def _send_sse(self, payload: dict) -> None:
         from omnidoer.omni_control.websocket import sse_event
 
@@ -148,6 +152,21 @@ class ControlHandler(SimpleHTTPRequestHandler):
         self.send_header("content-length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _send_sse_stream(self, store: RequestStore, session: ControlSession | None, *, snapshots: int, interval: float) -> None:
+        from omnidoer.omni_control.websocket import sse_event
+
+        self.send_response(HTTPStatus.OK)
+        self.send_header("content-type", "text/event-stream; charset=utf-8")
+        self.send_header("cache-control", "no-store")
+        self.send_header("connection", "close")
+        self.end_headers()
+        for index in range(max(1, min(snapshots, 30))):
+            if index:
+                time.sleep(max(0.0, min(interval, 10.0)))
+            self.wfile.write(sse_event("requests", self._sse_payload(store, session)))
+            self.wfile.flush()
+        self.close_connection = True
 
     def _session_cookie(self) -> tuple[str | None, str | None]:
         cookie = SimpleCookie(self.headers.get("cookie", ""))
@@ -214,7 +233,8 @@ class ControlHandler(SimpleHTTPRequestHandler):
         return self.client_address[0] if self.client_address else "unknown"
 
     def do_GET(self) -> None:
-        path = urlparse(self.path).path
+        parsed_url = urlparse(self.path)
+        path = parsed_url.path
         store = RequestStore()
         if path == "/api/status":
             config = getattr(self.server, "omnidoer_config", None)
@@ -250,9 +270,19 @@ class ControlHandler(SimpleHTTPRequestHandler):
         if path == "/api/events":
             try:
                 session = self._require_access()
-                self._send_sse({"requests": [request.to_public_dict() for request in self._visible_requests(store, session)]})
+                query = parse_qs(parsed_url.query)
+                if query.get("stream", ["0"])[0] == "1":
+                    snapshots = int(query.get("snapshots", ["12"])[0])
+                    interval = float(query.get("interval", ["2"])[0])
+                    self._send_sse_stream(store, session, snapshots=snapshots, interval=interval)
+                else:
+                    self._send_sse(self._sse_payload(store, session))
             except PermissionError:
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            except ValueError:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid stream options"})
             return
         if path == "/api/devices":
             try:

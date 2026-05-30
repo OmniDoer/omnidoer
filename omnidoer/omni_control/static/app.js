@@ -51,7 +51,10 @@ document.querySelectorAll("[data-filter]").forEach((button) => {
 });
 
 const encoder = new TextEncoder();
+const decoder = new TextDecoder();
 let cachedRequests = [];
+let requestStreamActive = false;
+let requestStreamRestart = null;
 
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get("code")) {
@@ -586,9 +589,54 @@ async function loadRequests() {
   }
 }
 
+function applyRequestEvent(payload) {
+  cachedRequests = payload.requests || [];
+  renderRequestList(cachedRequests);
+}
+
+function handleSseBlock(block) {
+  let eventName = "message";
+  let data = "";
+  block.split("\n").forEach((line) => {
+    if (line.startsWith("event:")) eventName = line.slice(6).trim();
+    if (line.startsWith("data:")) data += line.slice(5).trim();
+  });
+  if (eventName === "requests" && data) {
+    applyRequestEvent(JSON.parse(data));
+  }
+}
+
+async function startRequestStream() {
+  if (requestStreamActive || !window.ReadableStream) return;
+  requestStreamActive = true;
+  if (requestStreamRestart) clearTimeout(requestStreamRestart);
+  try {
+    const response = await signedFetch("/api/events?stream=1&snapshots=30&interval=2", { cache: "no-store" });
+    if (!response.ok || !response.body) throw new Error("request stream unavailable");
+    const reader = response.body.getReader();
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const blocks = buffer.split("\n\n");
+      buffer = blocks.pop();
+      blocks.filter(Boolean).forEach(handleSseBlock);
+    }
+  } catch {
+    if (!cachedRequests.length) {
+      document.querySelector("#requests-list").textContent = "Pair this device to receive signed request events in Cloud Direct Mode.";
+    }
+  } finally {
+    requestStreamActive = false;
+    requestStreamRestart = setTimeout(startRequestStream, 3000);
+  }
+}
+
 loadRuntimeStatus();
 loadRequests();
 loadTasks();
+startRequestStream();
 setInterval(loadRuntimeStatus, 10000);
-setInterval(loadRequests, 3000);
+setInterval(loadRequests, 15000);
 setInterval(loadTasks, 5000);

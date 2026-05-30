@@ -33,3 +33,9 @@ Requests may be scoped to a specific paired `device_id`. In Cloud Direct Mode,
 devices only see and act on requests assigned to them, plus unassigned requests
 intended for any paired device. This lets high-risk approvals or takeover
 sessions be pinned to the user's phone or another trusted client.
+
+Request push uses a signed HTTPS event stream. The PWA opens
+`/api/events?stream=1` with `fetch()` so it can attach the device-signature
+headers; plain `EventSource` is intentionally avoided because browsers do not
+allow custom authentication headers there. Each streamed snapshot is filtered by
+the authenticated device session before it leaves the Control Service.

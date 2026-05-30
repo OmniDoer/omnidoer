@@ -76,6 +76,14 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("device_id", app)
         self.assertIn("expires_at", app)
 
+    def test_request_stream_uses_signed_fetch_not_eventsource(self) -> None:
+        app = (static_root() / "app.js").read_text()
+        self.assertIn("startRequestStream", app)
+        self.assertIn("/api/events?stream=1", app)
+        self.assertIn("ReadableStream", app)
+        self.assertIn("signedFetch(\"/api/events?stream=1", app)
+        self.assertNotIn("new EventSource", app)
+
     def test_takeover_ui_sends_rich_input_events(self) -> None:
         app = (static_root() / "app.js").read_text()
         for event_type in ("drag", "long_press", "scroll", "type", "key"):
