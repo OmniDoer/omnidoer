@@ -63,6 +63,10 @@
 - Human Takeover and Registration Handoff stream the live browser to the
   Control Client, pause the Agent, route allowed touch/keyboard/text events
   back to the controlled browser, and release control back to the Agent.
+- Agent resume waits are explicit state gates: challenge relay resumes only
+  after encrypted response delivery, and takeover resumes only after Release
+  Control; expired, denied, cancelled, rejected, or failed requests abort with
+  sanitized audit status rather than timing out silently.
 - Takeover events are allowlisted, length-limited, audited by event category
   only, and rejected without echoing user-provided text.
 - Takeover browser frames now carry `frame_id`, `captured_at`, viewport

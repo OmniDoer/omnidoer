@@ -57,3 +57,7 @@ an untrusted background state.
 Frames are for the Control Client only and are not sent to the LLM. User input
 events are allowlisted, length-limited, and audited by type only; text content,
 challenge answers, passkey material, and registration secrets are not logged.
+The Agent resumes only after Release Control changes the request to the
+`released` state. Expired, denied, cancelled, rejected, or failed handoffs abort
+with sanitized status and do not emit an `agent_resumed_after_takeover` audit
+event.

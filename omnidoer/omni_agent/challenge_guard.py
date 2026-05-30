@@ -68,6 +68,8 @@ TAKEOVER_FOCUS_SELECTOR = {
     "device_confirmation": "#passkey",
 }
 
+ABORTED_REQUEST_STATUSES = {"denied", "expired", "cancelled", "rejected", "failed"}
+
 
 @dataclass(frozen=True)
 class ChallengeResolution:
@@ -255,16 +257,26 @@ def _submit_current_form(browser: GuardBrowser) -> None:
 def _wait_for_ciphertext(store: RequestStore, request_id: str, *, timeout_seconds: int) -> None:
     deadline = time.time() + timeout_seconds
     while time.time() < deadline:
-        if store.get(request_id).response_ciphertext is not None:
+        request = store.get(request_id)
+        if request.response_ciphertext is not None:
             return
+        if request.status in ABORTED_REQUEST_STATUSES:
+            AuditLog().append("agent_challenge_wait_aborted", request_id=request_id, status=request.status)
+            raise RuntimeError(f"Control Client challenge request ended: {request.status}")
         time.sleep(0.5)
+    AuditLog().append("agent_challenge_wait_timeout", request_id=request_id, status="timeout")
     raise TimeoutError("timed out waiting for Control Client challenge response")
 
 
 def _wait_for_release(store: RequestStore, request_id: str, *, timeout_seconds: int) -> None:
     deadline = time.time() + timeout_seconds
     while time.time() < deadline:
-        if store.get(request_id).status == "released":
+        request = store.get(request_id)
+        if request.status == "released":
             return
+        if request.status in ABORTED_REQUEST_STATUSES:
+            AuditLog().append("agent_takeover_wait_aborted", request_id=request_id, status=request.status)
+            raise RuntimeError(f"Control Client takeover request ended: {request.status}")
         time.sleep(0.5)
+    AuditLog().append("agent_takeover_wait_timeout", request_id=request_id, status="timeout")
     raise TimeoutError("timed out waiting for Control Client release")

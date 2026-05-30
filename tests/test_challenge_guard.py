@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from omnidoer.omni_agent.challenge_guard import resolve_current_browser_challenge
+from omnidoer.omni_agent.challenge_guard import _wait_for_ciphertext, _wait_for_release, resolve_current_browser_challenge
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_takeover.models import InputEvent
 
@@ -115,6 +115,56 @@ class ChallengeGuardTest(unittest.TestCase):
                         os.environ.pop(key, None)
                     else:
                         os.environ[key] = value
+
+    def test_agent_waits_abort_on_expired_challenge_without_resuming(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                store = RequestStore(Path(tmp) / "requests.json")
+                request = store.create(
+                    "sms_code",
+                    origin="https://example.test",
+                    top_level_url="https://example.test/sms",
+                    action_summary="expired challenge",
+                    ttl_seconds=-1,
+                )
+                with self.assertRaises(RuntimeError) as raised:
+                    _wait_for_ciphertext(store, request.request_id, timeout_seconds=5)
+                self.assertEqual(str(raised.exception), "Control Client challenge request ended: expired")
+                raw_audit = (Path(tmp) / "audit.jsonl").read_text()
+                self.assertIn("agent_challenge_wait_aborted", raw_audit)
+                self.assertNotIn("agent_resumed_after_challenge", raw_audit)
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_agent_waits_abort_on_expired_takeover_without_resuming(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                store = RequestStore(Path(tmp) / "requests.json")
+                request = store.create(
+                    "human_takeover",
+                    origin="https://example.test",
+                    top_level_url="https://example.test/antibot",
+                    action_summary="expired takeover",
+                    ttl_seconds=-1,
+                )
+                with self.assertRaises(RuntimeError) as raised:
+                    _wait_for_release(store, request.request_id, timeout_seconds=5)
+                self.assertEqual(str(raised.exception), "Control Client takeover request ended: expired")
+                raw_audit = (Path(tmp) / "audit.jsonl").read_text()
+                self.assertIn("agent_takeover_wait_aborted", raw_audit)
+                self.assertNotIn("agent_resumed_after_takeover", raw_audit)
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
 
 
 if __name__ == "__main__":
