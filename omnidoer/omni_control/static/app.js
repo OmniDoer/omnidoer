@@ -220,7 +220,7 @@ async function encryptForBroker(payload, request) {
     device_id: localStorage.getItem("omnidoer_device_id") || undefined,
     expires_at: request.expires_at
   };
-  const broker = await fetch("/api/broker-key", { cache: "no-store" }).then((r) => r.json());
+  const broker = await signedFetch("/api/broker-key", { cache: "no-store" }).then((r) => r.json());
   const brokerKey = await crypto.subtle.importKey(
     "jwk",
     broker.web_public_jwk,

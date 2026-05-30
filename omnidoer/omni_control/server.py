@@ -290,6 +290,11 @@ class ControlHandler(SimpleHTTPRequestHandler):
             )
             return
         if path == "/api/broker-key":
+            try:
+                self._require_access()
+            except PermissionError:
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                return
             keypair = load_or_create_keypair()
             web_keypair = load_or_create_web_keypair()
             self._send_json(

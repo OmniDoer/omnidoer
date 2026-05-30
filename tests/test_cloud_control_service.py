@@ -67,6 +67,8 @@ class CloudControlServiceTest(unittest.TestCase):
             try:
                 with self.assertRaises(Exception):
                     urllib_request.urlopen(f"{base}/api/requests", timeout=5)
+                with self.assertRaises(Exception):
+                    urllib_request.urlopen(f"{base}/api/broker-key", timeout=5)
 
                 pairing = PairingStore().create(public_url=config.public_url, ttl_seconds=600)
                 device_key = ec.generate_private_key(ec.SECP256R1())
@@ -85,6 +87,8 @@ class CloudControlServiceTest(unittest.TestCase):
                 self.assertNotIn("session_token", repr(body))
 
                 with urllib_request.urlopen(urllib_request.Request(f"{base}/api/requests", headers={"cookie": cookie}), timeout=5) as response:
+                    self.assertEqual(response.status, 200)
+                with urllib_request.urlopen(urllib_request.Request(f"{base}/api/broker-key", headers={"cookie": cookie}), timeout=5) as response:
                     self.assertEqual(response.status, 200)
 
                 wrong_origin = urllib_request.Request(f"{base}/api/requests", headers={"cookie": cookie, "origin": "http://evil.example"})
@@ -299,6 +303,8 @@ class CloudControlServiceTest(unittest.TestCase):
             try:
                 with self.assertRaises(Exception):
                     urllib_request.urlopen(f"{base}/api/requests", timeout=5)
+                with self.assertRaises(Exception):
+                    urllib_request.urlopen(f"{base}/api/broker-key", timeout=5)
 
                 pairing = PairingStore().create(public_url=config.public_url, ttl_seconds=600)
                 device_key = ec.generate_private_key(ec.SECP256R1())
@@ -342,6 +348,21 @@ class CloudControlServiceTest(unittest.TestCase):
                     self.assertEqual(response.status, 200)
                 with self.assertRaises(Exception):
                     urllib_request.urlopen(authed, timeout=5)
+
+                signed = sign_request(device_key, device_id=device_id, session_id=session_id, method="GET", path="/api/broker-key", nonce="nonce-broker-key")
+                broker_key = urllib_request.Request(
+                    f"{base}/api/broker-key",
+                    headers={
+                        "cookie": cookie,
+                        **PROXY_HEADERS,
+                        DEVICE_ID_HEADER: device_id,
+                        DEVICE_TS_HEADER: signed["timestamp"],
+                        DEVICE_NONCE_HEADER: signed["nonce"],
+                        DEVICE_SIG_HEADER: signed["signature"],
+                    },
+                )
+                with urllib_request.urlopen(broker_key, timeout=5) as response:
+                    self.assertEqual(response.status, 200)
 
                 signed = sign_request(device_key, device_id=device_id, session_id=session_id, method="POST", path="/api/tasks", nonce="nonce-no-csrf")
                 no_csrf = urllib_request.Request(

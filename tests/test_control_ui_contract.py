@@ -69,6 +69,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("Only pair devices you control", self.html)
         app = (static_root() / "app.js").read_text()
         self.assertIn("/api/pair", app)
+        self.assertIn('signedFetch("/api/broker-key"', app)
         self.assertIn("omnidoer_device_id", app)
         self.assertIn("omnidoer_session_id", app)
         self.assertIn("x-omnidoer-csrf", app)
