@@ -588,7 +588,7 @@ function renderRequest(request) {
   item.append(requestMetadata(request));
   if (request.request_type === "credential") {
     renderCredentialControls(request, item);
-  } else if (request.request_type === "human_takeover") {
+  } else if (request.request_type === "human_takeover" || request.request_type === "account_registration") {
     renderTakeoverControls(request, item);
   } else if (requestKind(request) === "approval") {
     renderApprovalControls(request, item);

@@ -97,6 +97,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("setInterval(() => fetchTakeoverFrame", app)
         self.assertIn("stopTakeoverFramePolling", app)
         self.assertIn("account_registration", app)
+        self.assertIn('request.request_type === "human_takeover" || request.request_type === "account_registration"', app)
         self.assertIn("Registration Handoff", app)
 
     def test_payment_request_renderer_uses_structured_details(self) -> None:
