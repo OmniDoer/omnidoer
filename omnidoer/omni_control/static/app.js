@@ -42,6 +42,11 @@ if (pairDeviceButton) {
   pairDeviceButton.onclick = () => pairDevice();
 }
 
+const refreshDevicesButton = document.querySelector("#refresh-devices");
+if (refreshDevicesButton) {
+  refreshDevicesButton.onclick = () => loadDevicesAndSessions();
+}
+
 document.querySelectorAll("[data-filter]").forEach((button) => {
   button.onclick = () => {
     document.querySelectorAll("[data-filter]").forEach((item) => item.classList.remove("active"));
@@ -181,6 +186,7 @@ async function pairDevice() {
   localStorage.setItem("omnidoer_csrf_token", payload.csrf_token);
   document.querySelector("#pairing-status").textContent = `Paired ${payload.device.name}. Device identity created.`;
   await loadRequests();
+  await loadDevicesAndSessions();
 }
 
 function b64url(bytes) {
@@ -290,6 +296,24 @@ async function updateTask(task, action) {
   await loadTasks();
 }
 
+async function revokeDevice(device) {
+  await signedFetch(`/api/devices/${device.device_id}/revoke`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...csrfHeaders() },
+    body: "{}"
+  });
+  await loadDevicesAndSessions();
+}
+
+async function revokeSession(session) {
+  await signedFetch(`/api/sessions/${session.session_id}/revoke`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...csrfHeaders() },
+    body: "{}"
+  });
+  await loadDevicesAndSessions();
+}
+
 function appendText(parent, tag, text, className) {
   const node = document.createElement(tag);
   node.textContent = text;
@@ -334,6 +358,77 @@ async function loadTasks() {
     tasks.forEach((task) => list.append(renderTask(task)));
   } catch {
     list.textContent = "Pair this device to view task queue in Cloud Direct Mode.";
+  }
+}
+
+function renderDevice(device) {
+  const item = document.createElement("article");
+  item.className = "mini-record";
+  appendText(item, "h3", device.name || "Control Client");
+  appendText(item, "p", `device_id: ${device.device_id}`);
+  appendText(item, "p", `fingerprint: ${device.fingerprint || "not visible"}`);
+  appendText(item, "p", `status: ${device.revoked ? "revoked" : "active"}`);
+  if (!device.revoked) {
+    const actions = document.createElement("div");
+    actions.className = "button-row";
+    const revoke = document.createElement("button");
+    revoke.textContent = "Revoke Device";
+    revoke.onclick = () => revokeDevice(device);
+    actions.append(revoke);
+    item.append(actions);
+  }
+  return item;
+}
+
+function renderSession(session) {
+  const item = document.createElement("article");
+  item.className = "mini-record";
+  appendText(item, "h3", session.revoked ? "revoked" : "active");
+  appendText(item, "p", `session_id: ${session.session_id}`);
+  appendText(item, "p", `device_id: ${session.device_id}`);
+  appendText(item, "p", `expires_at: ${formatTimestamp(session.expires_at)}`);
+  if (!session.revoked) {
+    const actions = document.createElement("div");
+    actions.className = "button-row";
+    const revoke = document.createElement("button");
+    revoke.textContent = "Revoke Session";
+    revoke.onclick = () => revokeSession(session);
+    actions.append(revoke);
+    item.append(actions);
+  }
+  return item;
+}
+
+async function loadDevicesAndSessions() {
+  const devicesRoot = document.querySelector("#devices-list");
+  const sessionsRoot = document.querySelector("#sessions-list");
+  if (!devicesRoot || !sessionsRoot) return;
+  try {
+    const [devices, sessions] = await Promise.all([
+      signedFetch("/api/devices", { cache: "no-store" }).then((r) => {
+        if (!r.ok) throw new Error("devices unauthorized");
+        return r.json();
+      }),
+      signedFetch("/api/sessions", { cache: "no-store" }).then((r) => {
+        if (!r.ok) throw new Error("sessions unauthorized");
+        return r.json();
+      })
+    ]);
+    devicesRoot.innerHTML = "";
+    sessionsRoot.innerHTML = "";
+    if (!devices.length) {
+      devicesRoot.textContent = "No paired devices.";
+    } else {
+      devices.forEach((device) => devicesRoot.append(renderDevice(device)));
+    }
+    if (!sessions.length) {
+      sessionsRoot.textContent = "No sessions.";
+    } else {
+      sessions.forEach((session) => sessionsRoot.append(renderSession(session)));
+    }
+  } catch {
+    devicesRoot.textContent = "Pair this device to view paired devices.";
+    sessionsRoot.textContent = "Pair this device to view sessions.";
   }
 }
 
@@ -691,7 +786,9 @@ async function startRequestStream() {
 loadRuntimeStatus();
 loadRequests();
 loadTasks();
+loadDevicesAndSessions();
 startRequestStream();
 setInterval(loadRuntimeStatus, 10000);
 setInterval(loadRequests, 15000);
 setInterval(loadTasks, 5000);
+setInterval(loadDevicesAndSessions, 15000);

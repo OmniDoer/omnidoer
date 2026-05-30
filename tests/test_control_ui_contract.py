@@ -69,8 +69,13 @@ class ControlUiContractTest(unittest.TestCase):
     def test_pairing_panel_and_cloud_csrf_contract_present(self) -> None:
         self.assertIn("Pair Device", self.html)
         self.assertIn("Only pair devices you control", self.html)
+        self.assertIn("Devices / Sessions", self.html)
         app = (static_root() / "app.js").read_text()
         self.assertIn("/api/pair", app)
+        self.assertIn("/api/devices", app)
+        self.assertIn("/api/sessions", app)
+        self.assertIn("revokeDevice", app)
+        self.assertIn("revokeSession", app)
         self.assertIn('signedFetch("/api/broker-key"', app)
         self.assertIn("omnidoer_device_id", app)
         self.assertIn("omnidoer_session_id", app)

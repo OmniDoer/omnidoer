@@ -120,7 +120,7 @@ button:hover { background: #0f172a; }
   gap: 12px;
   margin-top: 14px;
 }
-.request, .task {
+.request, .task, .mini-record {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: white;
@@ -181,8 +181,14 @@ button:hover { background: #0f172a; }
   min-height: auto;
 }
 #tasks-list { margin-top: 12px; }
-.task + .task { margin-top: 10px; }
-.task p { margin: 6px 0; overflow-wrap: anywhere; }
+.task + .task, .mini-record + .mini-record { margin-top: 10px; }
+.task p, .mini-record p { margin: 6px 0; overflow-wrap: anywhere; }
+.split-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
 #browser-stream {
   min-height: 280px;
   border: 1px solid #64748b;
@@ -220,7 +226,7 @@ button:hover { background: #0f172a; }
   .status-strip, .panel-heading, .request-header { display: block; }
   .status-strip #runtime-detail { display: block; margin: 4px 0 0; }
   .filter-row { margin-top: 12px; }
-  .request-grid { grid-template-columns: 1fr; }
+  .request-grid, .split-grid { grid-template-columns: 1fr; }
   .metadata { grid-template-columns: 1fr; }
   section { border-radius: 0; margin: 8px 0; }
   button { width: 100%; }

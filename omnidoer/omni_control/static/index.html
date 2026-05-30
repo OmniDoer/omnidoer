@@ -22,6 +22,7 @@
     <nav class="section-tabs" aria-label="Control sections">
       <a href="#requests-panel">Requests</a>
       <a href="#task-panel">Tasks</a>
+      <a href="#device-panel">Devices</a>
       <a href="#security">Security</a>
       <a href="#takeover-panel">Takeover</a>
       <a href="#payment-approval">Payments</a>
@@ -34,6 +35,25 @@
       <label>Device name <input id="device-name" value="PWA Control Client"></label>
       <button id="pair-device">Pair Device</button>
       <p id="pairing-status">Not paired.</p>
+    </section>
+    <section id="device-panel">
+      <div class="panel-heading">
+        <div>
+          <h2>Devices / Sessions</h2>
+          <p>Review paired Control Clients and active sessions. Revoking a device also revokes its sessions.</p>
+        </div>
+        <button id="refresh-devices">Refresh</button>
+      </div>
+      <div class="split-grid">
+        <div>
+          <h3>Paired Devices</h3>
+          <div id="devices-list">Pair this device to view devices.</div>
+        </div>
+        <div>
+          <h3>Sessions</h3>
+          <div id="sessions-list">Pair this device to view sessions.</div>
+        </div>
+      </div>
     </section>
     <section id="security">
       <h2>Security</h2>
