@@ -55,6 +55,11 @@ class BrandingDocsTest(unittest.TestCase):
         self.assertIn("한국어", readme)
         self.assertIn("does not call OpenAI APIs directly", readme)
         self.assertIn("Cloud Direct Mode", readme)
+        self.assertIn("The agent may act. Secrets stay inside the controlled security boundary.", readme)
+        self.assertIn("guarded browser 2FA", readme)
+        self.assertIn("Payments, purchases, account changes, OAuth grants, message sending", readme)
+        self.assertIn("OmniDoer does not bypass the mechanism", readme)
+        self.assertNotIn("智能体可以行动，但秘密必须留在本地。", readme)
         self.assertIn("不要把 OmniDoer 做成默认 OpenAI API 客户端", agents)
         self.assertIn("docs/assets/localized", agents)
 

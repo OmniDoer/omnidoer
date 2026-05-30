@@ -4,15 +4,20 @@ The agent that does.
 
 ![OmniDoer brand mark](./icon.png)
 
-OmniDoer is the execution layer for web agents that need to do more than chat.
-Codex is the brain. OmniDoer is the hands, browser, vault, broker, approval
-gate, Control Client, and human-takeover bridge.
+OmniDoer is the execution layer for agents that need to operate the web, not
+just talk about it. Its product thesis is simple: if an authorized human can
+complete a workflow in a browser, OmniDoer should be able to help complete that
+workflow inside a strict security boundary.
 
-If a human can operate a website with authorization, OmniDoer is designed to
-help execute that workflow safely: sign up, log in, navigate, fill forms,
-download files, organize information, prepare purchases, request approvals,
-and hand the live browser back to the user when a challenge or judgment call
-requires a human.
+Codex remains the reasoning engine. OmniDoer adds the controlled browser,
+Linux-side runtime, Secret Broker, encrypted Vault, Control Client, challenge
+relay, approval gate, audit trail, and human-takeover bridge that turn model
+reasoning into user-authorized web action.
+
+The target is broad web capability without unsafe shortcuts: sign up, log in,
+navigate, fill forms, download files, organize information, prepare purchases,
+review payments, and hand the live browser to the user whenever a site requires
+human authentication, judgment, or consent.
 
 ![OmniDoer English edition cinematic poster](./docs/assets/localized/omnidoer-readme-en.jpg)
 
@@ -30,14 +35,34 @@ The vault uses the secret.
 The browser receives the credential.
 The model never does.
 
+OmniDoer is designed to give cloud-model agents more operational freedom than
+chat-only or browser-only tools while preserving the user's security boundary.
+The model can plan and ask; the Broker, Vault, policy engine, browser
+isolation, approval gate, and Control Client decide what may actually happen.
+
+The Control Client connects to the user's own Linux server over Cloud Direct
+Mode. When a page requires CAPTCHA, graphical verification, MFA, passkey,
+WebAuthn, 3DS, registration confirmation, or an anti-bot interaction,
+OmniDoer does not bypass the mechanism. It pauses the Agent, projects the live
+browser session to the user's client, accepts user input through the takeover
+channel, then resumes the Agent after Release Control.
+
+Payments, purchases, account changes, OAuth grants, message sending, and other
+sensitive actions stop at an approval gate. The Agent can prepare the action;
+the user decides whether it proceeds.
+
 Compared with Codex alone, OmniDoer adds a real controlled browser, Secret
 Broker, encrypted Vault, Challenge Relay, Human Takeover, Cloud Direct Control
-Service, Approval Gate, and tamper-evident audit trail. Compared with
-browser-only automation demos, OmniDoer treats secrets, CAPTCHA/MFA/passkey
-handoff, payments, registration, remote control, and logs as first-class
-security boundaries.
+Service, Approval Gate, and tamper-evident audit trail. Compared with local
+browser automation demos, OmniDoer treats credential storage, CAPTCHA/MFA/
+passkey handoff, payment approval, registration, remote control, and logs as
+first-class security boundaries.
 
-Sensitive actions such as payments, purchases, account changes, OAuth grants, and message sending require explicit human approval.
+The result is a cloud-Codex architecture for high-freedom web action: it can
+inherit Codex/GPT model capability, multimodal reasoning, and existing Codex
+authentication or billing paths, while keeping passwords, OTP seeds, cookies,
+private keys, payment credentials, challenge answers, and takeover inputs out
+of model-visible context.
 
 OmniDoer is not a credential stealer.
 OmniDoer is not a CAPTCHA bypasser.
@@ -45,7 +70,7 @@ OmniDoer is not a fraud tool.
 OmniDoer is not an autonomous spender.
 OmniDoer is a user-authorized local execution layer.
 
-智能体可以行动，但秘密必须留在本地。
+The agent may act. Secrets stay inside the controlled security boundary.
 
 OmniDoer does not call OpenAI APIs directly. It extends Codex CLI through MCP
 and preserves your Codex authentication mode. If Codex is logged in with
@@ -92,16 +117,16 @@ Client 안에서만 처리됩니다.
 
 ## Status
 
-OmniDoer is starting as a minimal, upstream-friendly fork of OpenAI Codex CLI.
-The first implementation path is a sidecar runtime, MCP tool layer, browser
-controller, local vault, policy engine, approval layer, and audit log that
-Codex can call without receiving secrets.
+OmniDoer is an upstream-friendly fork of OpenAI Codex CLI with a separate
+sidecar runtime for web action. The fork keeps Codex auth, model selection, and
+billing behavior intact while adding the execution system Codex needs in order
+to operate websites safely.
 
-This branch is intentionally early, but the target is not a toy browser script.
-The local demo site and redaction/policy tests are the proving ground for an
-omni-capable runtime: real browser control, registration handoff, credential
-fill, file download, challenge handoff, payment review, remote takeover, and
-audit verification without leaking secrets.
+The project is still early, but the target is intentionally ambitious: an
+omni-capable web runtime with real browser control, secure credential storage,
+automatic login, 2FA and anti-bot handoff, registration handoff, file download,
+payment review, remote takeover, audit verification, and redaction tests that
+prove secrets do not enter model-visible outputs.
 
 ## Core Rule
 
@@ -229,6 +254,16 @@ omnidoer demo start
 omnidoer agent run "登录 demo 网站并下载我的发票"
 ```
 
+The guarded browser flow extends that target:
+
+```sh
+omnidoer agent run "guarded browser 2FA 智能切换"
+```
+
+It logs in with a Vault credential, detects the TOTP page, routes it through
+Challenge Relay, resumes at the dashboard, opens the anti-bot mock page, hands
+control to the user, then resumes the Agent after Release Control.
+
 Expected safety properties:
 
 - The broker verifies the current origin before filling credentials.
@@ -237,6 +272,8 @@ Expected safety properties:
 - DOM and accessibility observations redact password fields and secret-like values.
 - Audit logs record actions and policy decisions without secrets.
 - Mock payment submission stops for human approval.
+- 2FA and anti-bot pages trigger user completion instead of automated bypass.
+- Human takeover frames are for the Control Client only and are not sent to the model.
 
 ## Upstream
 
