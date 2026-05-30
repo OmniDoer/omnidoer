@@ -221,6 +221,10 @@ button:disabled {
   touch-action: pan-x pan-y;
   cursor: grab;
 }
+#browser-stream.frame-reconnecting {
+  border-color: #a16207;
+  box-shadow: inset 0 0 0 2px rgba(161, 98, 7, 0.22);
+}
 #browser-stream img {
   display: block;
   max-width: 100%;
@@ -253,6 +257,8 @@ button:disabled {
 }
 .frame-fresh { color: var(--ok); font-weight: 700; }
 .frame-stale { color: var(--danger); font-weight: 700; }
+.frame-connected { color: var(--ok); font-weight: 700; }
+.frame-connecting, .frame-reconnecting { color: var(--warn); font-weight: 700; }
 .takeover-controls {
   border-top: 1px solid #e2e8f0;
   margin-top: 12px;

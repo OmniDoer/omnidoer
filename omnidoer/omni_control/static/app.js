@@ -112,6 +112,7 @@ let requestStreamRestart = null;
 let activeTakeoverFrameRequest = null;
 let takeoverFrameTimer = null;
 let takeoverFreshnessTimer = null;
+let takeoverFrameMisses = 0;
 let takeoverFrameZoom = TAKEOVER_ZOOM_MIN;
 let takeoverFramePanMode = false;
 let activePaymentApprovalRequest = null;
@@ -214,6 +215,13 @@ function updateTakeoverFrameFreshness(stream = document.querySelector("#browser-
   const stale = age > TAKEOVER_FRAME_MAX_AGE_MS;
   field.textContent = stale ? `stale ${seconds}s - refresh before input` : `fresh ${seconds}s`;
   field.className = stale ? "frame-stale" : "frame-fresh";
+}
+
+function updateTakeoverFrameConnection(state, message) {
+  const field = document.querySelector("#takeover-frame-connection");
+  if (!field) return;
+  field.textContent = message;
+  field.className = state ? `frame-${state}` : "";
 }
 
 function takeoverIsActive() {
@@ -848,14 +856,34 @@ function stopTakeoverFramePolling(requestId = null) {
   if (takeoverFreshnessTimer) clearInterval(takeoverFreshnessTimer);
   takeoverFrameTimer = null;
   takeoverFreshnessTimer = null;
+  takeoverFrameMisses = 0;
   activeTakeoverFrameRequest = null;
   const stream = document.querySelector("#browser-stream");
   if (stream) {
     delete stream.dataset.frameId;
     delete stream.dataset.frameCapturedAt;
+    stream.classList.remove("frame-reconnecting");
   }
   resetTakeoverFrameView();
+  updateTakeoverFrameConnection("", "waiting for browser handoff");
   updateTakeoverFrameFreshness(stream);
+}
+
+function markTakeoverFrameReconnect(request, stream, message) {
+  if (!stream) return;
+  takeoverFrameMisses += 1;
+  const hasLastFrame = Boolean(stream.querySelector("#takeover-frame") && stream.dataset.frameId);
+  const retryLabel = `reconnecting - retry ${takeoverFrameMisses}`;
+  if (hasLastFrame) {
+    stream.classList.add("frame-reconnecting");
+    updateTakeoverFrameConnection("reconnecting", `${retryLabel}, keeping last frame`);
+    updateTakeoverPanel(request, null, `${message} Keeping the last frame visible; stale frames remain blocked for input.`);
+    updateTakeoverFrameFreshness(stream);
+    return;
+  }
+  stream.textContent = "Waiting for the controlled browser frame...";
+  updateTakeoverFrameConnection("connecting", retryLabel);
+  updateTakeoverPanel(request, null, "Waiting for the controlled browser frame...");
 }
 
 async function fetchTakeoverFrame(request, stream) {
@@ -875,17 +903,18 @@ async function fetchTakeoverFrame(request, stream) {
       stream.dataset.frameCapturedAt = frame.captured_at || "";
       stream.dataset.frameUrl = frame.url || "";
       stream.dataset.frameOrigin = frame.origin || "";
+      takeoverFrameMisses = 0;
+      stream.classList.remove("frame-reconnecting");
       applyTakeoverFrameZoom(stream);
+      updateTakeoverFrameConnection("connected", "connected");
       updateTakeoverPanel(request, frame, "Live browser frame ready. Input is bound to the frame currently visible here.");
       updateTakeoverFrameFreshness(stream);
     } else {
-      stream.textContent = "Browser context is not connected in this process.";
-      updateTakeoverPanel(request, frame, "Browser context is not connected in this process.");
+      markTakeoverFrameReconnect(request, stream, "Browser context is not connected in this process.");
     }
   } catch {
     if (activeTakeoverFrameRequest === request.request_id) {
-      stream.textContent = "Waiting for the controlled browser frame...";
-      updateTakeoverPanel(request, null, "Waiting for the controlled browser frame...");
+      markTakeoverFrameReconnect(request, stream, "Browser frame fetch failed.");
     }
   }
 }
@@ -902,8 +931,11 @@ function startTakeoverFramePolling(request, stream) {
   }
   if (activeTakeoverFrameRequest === request.request_id && takeoverFrameTimer) return;
   activeTakeoverFrameRequest = request.request_id;
+  takeoverFrameMisses = 0;
   resetTakeoverFrameView();
   stream.textContent = "Loading control-only browser frame...";
+  stream.classList.remove("frame-reconnecting");
+  updateTakeoverFrameConnection("connecting", "connecting");
   updateTakeoverPanel(request, null, "Loading control-only browser frame...");
   installTakeoverPointerHandlers(request, stream);
   fetchTakeoverFrame(request, stream);

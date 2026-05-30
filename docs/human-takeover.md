@@ -32,6 +32,10 @@ For small mobile screens, the Control Client can zoom the visible browser frame
 up to 300% and switch into view-pan mode. Zoom and pan affect only the
 control-only projection; touch coordinates are still mapped back to the
 original screenshot pixel space and sent with the visible `frame_id`.
+If frame polling drops during a mobile network transition, the Control Client
+keeps the last browser frame visible and marks the stream as reconnecting
+instead of blanking the challenge. The same freshness guard still turns that
+retained frame stale and blocks input until a new current frame arrives.
 
 Frames are for the Control Client only and are not sent to the LLM. User input
 events are allowlisted, length-limited, and audited by type only; text content,

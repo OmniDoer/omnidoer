@@ -58,6 +58,10 @@ view-pan mode for reading dense CAPTCHA, passkey, or registration prompts.
 Those controls change only the projection displayed in the PWA. Input events
 remain bound to the visible frame id and are mapped back to screenshot pixel
 coordinates before they reach the browser worker.
+During transient frame fetch failures, the panel keeps the last delivered
+browser frame visible, shows a reconnecting stream state, and relies on frame
+freshness to block stale input until the Control Service delivers a current
+frame again.
 
 The PWA uses browser WebCrypto in local mode: P-256 ECDH, HKDF-SHA256, and
 AES-GCM with request-bound associated data. The Python CLI uses the native
