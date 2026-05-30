@@ -124,6 +124,28 @@ class CliTest(unittest.TestCase):
             refused = self.run_cli(["control", "serve", "--host", "0.0.0.0", "--port", "8787"], env=env)
             self.assertNotEqual(refused.returncode, 0)
             self.assertIn("0.0.0.0 requires explicit --cloud-direct", refused.stderr + refused.stdout)
+            refused_background = self.run_cli(["control", "serve", "--host", "0.0.0.0", "--port", "8787", "--background"], env=env)
+            self.assertNotEqual(refused_background.returncode, 0)
+            self.assertIn("0.0.0.0 requires explicit --cloud-direct", refused_background.stderr + refused_background.stdout)
+            self.assertNotIn("started background process", refused_background.stdout)
+            refused_no_tls = self.run_cli(
+                [
+                    "control",
+                    "serve",
+                    "--cloud-direct",
+                    "--host",
+                    "0.0.0.0",
+                    "--port",
+                    "8787",
+                    "--public-url",
+                    "https://agent.example.com",
+                    "--background",
+                ],
+                env=env,
+            )
+            self.assertNotEqual(refused_no_tls.returncode, 0)
+            self.assertIn("--cloud-direct requires TLS", refused_no_tls.stderr + refused_no_tls.stdout)
+            self.assertNotIn("started background process", refused_no_tls.stdout)
             pair = self.run_cli(
                 ["control", "pair", "--print-qr", "--expires", "10m", "--public-url", "https://agent.example.com"],
                 env=env,

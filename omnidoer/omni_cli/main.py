@@ -157,6 +157,23 @@ def main(argv: list[str] | None = None) -> int:
         from omnidoer.omni_control.client_cli import handle_control_command
 
         if args.control_command == "serve" and args.background:
+            from omnidoer.omni_control.cloud import build_config
+
+            try:
+                build_config(
+                    host=args.host,
+                    port=args.port,
+                    public_url=args.public_url,
+                    cloud_direct=args.cloud_direct,
+                    tls_cert=args.tls_cert,
+                    tls_key=args.tls_key,
+                    tls_self_signed_dev=args.tls_self_signed_dev,
+                    behind_reverse_proxy=args.behind_reverse_proxy,
+                    insecure_dev_public=args.insecure_dev_public,
+                )
+            except ValueError as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
             background_args = ["control", "serve", "--host", args.host, "--port", str(args.port)]
             for flag, value in (
                 ("--public-url", args.public_url),
