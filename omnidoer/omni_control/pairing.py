@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import secrets
 import time
 import uuid
@@ -19,6 +20,10 @@ from omnidoer.paths import state_file
 
 def generate_pairing_code() -> str:
     return "-".join(secrets.token_hex(2) for _ in range(3))
+
+
+def pairing_code_hash(code: str) -> str:
+    return hashlib.sha256(f"omnidoer-pairing-v1:{code}".encode("utf-8")).hexdigest()
 
 
 def parse_duration_seconds(value: str | int | None, default: int = 600) -> int:
@@ -39,11 +44,12 @@ def parse_duration_seconds(value: str | int | None, default: int = 600) -> int:
 @dataclass
 class PairingCode:
     pairing_id: str
-    code: str
+    code_hash: str
     public_url: str
     broker_fingerprint: str
     web_broker_fingerprint: str
     expires_at: float
+    code: str = ""
     used: bool = False
     created_at: float = field(default_factory=time.time)
 
@@ -70,20 +76,33 @@ class PairingStore:
         if not self.path.exists():
             return {}
         raw = json.loads(self.path.read_text())
-        return {key: PairingCode(**value) for key, value in raw.items()}
+        pairings: dict[str, PairingCode] = {}
+        for key, value in raw.items():
+            if "code_hash" not in value and value.get("code"):
+                value = {**value, "code_hash": pairing_code_hash(value["code"])}
+            value = {**value, "code": ""}
+            pairings[key] = PairingCode(**value)
+        return pairings
 
     def _save(self, pairings: dict[str, PairingCode]) -> None:
         tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({key: asdict(value) for key, value in pairings.items()}, indent=2, sort_keys=True))
+        payload = {}
+        for key, value in pairings.items():
+            item = asdict(value)
+            item["code"] = ""
+            payload[key] = item
+        tmp.write_text(json.dumps(payload, indent=2, sort_keys=True))
         tmp.replace(self.path)
         self.path.chmod(0o600)
 
     def create(self, *, public_url: str, ttl_seconds: int = 600) -> PairingCode:
         keypair = load_or_create_keypair()
         web_keypair = load_or_create_web_keypair()
+        code = generate_pairing_code()
         pairing = PairingCode(
             pairing_id=f"pair_{uuid.uuid4().hex}",
-            code=generate_pairing_code(),
+            code=code,
+            code_hash=pairing_code_hash(code),
             public_url=public_url.rstrip("/"),
             broker_fingerprint=keypair.fingerprint,
             web_broker_fingerprint=web_keypair.fingerprint,
@@ -96,8 +115,9 @@ class PairingStore:
 
     def consume(self, code: str, now: float | None = None) -> PairingCode:
         pairings = self._load()
+        code_hash = pairing_code_hash(code)
         for pairing in pairings.values():
-            if pairing.code == code:
+            if pairing.code_hash == code_hash:
                 if pairing.used:
                     raise ValueError("pairing code already used")
                 if pairing.is_expired(now):

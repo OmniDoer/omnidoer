@@ -5,7 +5,14 @@ from pathlib import Path
 
 from omnidoer.omni_control.auth import pair_device
 from omnidoer.omni_control.devices import DeviceStore
-from omnidoer.omni_control.pairing import PairingStore, ascii_qr, parse_duration_seconds, pairing_url, qr_text
+from omnidoer.omni_control.pairing import (
+    PairingStore,
+    ascii_qr,
+    pairing_code_hash,
+    parse_duration_seconds,
+    pairing_url,
+    qr_text,
+)
 from omnidoer.omni_control.sessions import SessionStore
 
 
@@ -15,9 +22,13 @@ class PairingFlowTest(unittest.TestCase):
             store = PairingStore(Path(tmp) / "pairing.json")
             pairing = store.create(public_url="https://agent.example.com", ttl_seconds=60)
             self.assertIn(pairing.code, pairing_url(pairing))
+            raw = (Path(tmp) / "pairing.json").read_text()
+            self.assertNotIn(pairing.code, raw)
+            self.assertIn(pairing.code_hash, raw)
             self.assertIn("Only", "Only pair devices you control.")
             consumed = store.consume(pairing.code)
             self.assertTrue(consumed.used)
+            self.assertEqual(consumed.code, "")
             with self.assertRaises(ValueError):
                 store.consume(pairing.code)
 
@@ -53,6 +64,11 @@ class PairingFlowTest(unittest.TestCase):
     def test_duration_parser(self) -> None:
         self.assertEqual(parse_duration_seconds("10m"), 600)
         self.assertEqual(parse_duration_seconds("30s"), 30)
+
+    def test_pairing_code_hash_is_stable_and_non_plaintext(self) -> None:
+        digest = pairing_code_hash("1234-5678-90ab")
+        self.assertEqual(digest, pairing_code_hash("1234-5678-90ab"))
+        self.assertNotIn("1234-5678-90ab", digest)
 
     def test_ascii_qr_is_deterministic_for_same_payload(self) -> None:
         first = ascii_qr("https://agent.example.com/pair?code=demo")
