@@ -18,6 +18,9 @@ from omnidoer.omni_control.server import CONTROL_MUTATION_RATE_LIMIT, ControlHan
 from tests.test_control_auth import public_jwk, sign_request
 
 
+PROXY_HEADERS = {"x-forwarded-proto": "https"}
+
+
 class ControlRateLimitTest(unittest.TestCase):
     def test_lockout_after_failures(self) -> None:
         limiter = RateLimiter(max_attempts=2, window_seconds=60, lockout_seconds=120)
@@ -65,7 +68,7 @@ class ControlRateLimitTest(unittest.TestCase):
                 pair_request = urllib_request.Request(
                     f"{base}/api/pair",
                     data=json.dumps({"code": pairing.code, "device_name": "Phone", "device_public_key": public_jwk(device_key)}).encode(),
-                    headers={"content-type": "application/json", "origin": config.public_origin},
+                    headers={"content-type": "application/json", "origin": config.public_origin, **PROXY_HEADERS},
                     method="POST",
                 )
                 with urllib_request.urlopen(pair_request, timeout=5) as response:
@@ -85,6 +88,7 @@ class ControlRateLimitTest(unittest.TestCase):
                             "origin": config.public_origin,
                             "cookie": cookie,
                             CSRF_HEADER: csrf,
+                            **PROXY_HEADERS,
                             DEVICE_ID_HEADER: device_id,
                             DEVICE_TS_HEADER: signed["timestamp"],
                             DEVICE_NONCE_HEADER: signed["nonce"],

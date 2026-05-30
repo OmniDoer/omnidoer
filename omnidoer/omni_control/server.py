@@ -183,6 +183,15 @@ class ControlHandler(SimpleHTTPRequestHandler):
         origin = self.headers.get("origin")
         return not origin or origin == self.config.public_origin
 
+    def _transport_allowed(self) -> bool:
+        if self.config.mode != "cloud_direct" or not self.config.behind_reverse_proxy:
+            return True
+        forwarded_proto = (self.headers.get("x-forwarded-proto") or "").split(",", 1)[0].strip().lower()
+        if forwarded_proto == "https":
+            return True
+        forwarded = self.headers.get("forwarded") or ""
+        return bool(re.search(r"(?i)(^|[;,]\s*)proto=https($|[;,])", forwarded))
+
     def _authenticated_session(self):
         session_id, token = self._session_cookie()
         if not session_id or not token:
@@ -205,6 +214,8 @@ class ControlHandler(SimpleHTTPRequestHandler):
     def _require_access(self, *, mutating: bool = False):
         if self.config.mode != "cloud_direct":
             return None
+        if not self._transport_allowed():
+            raise PermissionError("https proxy header required")
         if not self._origin_allowed():
             raise PermissionError("origin rejected")
         session = self._authenticated_session()
@@ -377,6 +388,8 @@ class ControlHandler(SimpleHTTPRequestHandler):
         if path == "/api/pair":
             remote_key = f"pair:{self._remote_key()}"
             try:
+                if not self._transport_allowed():
+                    raise PermissionError("https proxy header required")
                 if not self._origin_allowed():
                     raise PermissionError("origin rejected")
                 PAIR_RATE_LIMIT.check(remote_key)

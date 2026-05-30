@@ -24,6 +24,12 @@ and rate limiting. Secrets and challenge answers are encrypted in the Control
 Client before submission. TLS protects transport, but Secret Broker and
 Challenge Relay E2EE remain the sensitive-data boundary.
 
+When TLS is terminated by Nginx, Caddy, Traefik, or another reverse proxy, the
+proxy must forward `X-Forwarded-Proto: https` or `Forwarded: proto=https`.
+OmniDoer checks that marker before pairing or serving authenticated Control API
+requests in `--behind-reverse-proxy` mode. This prevents direct HTTP access to
+the backend listener from acting as a Cloud Direct control path.
+
 After pairing, protected Control Service APIs require both the httpOnly session
 cookie and a request signature from the paired device private key. The signature
 binds device id, session id, HTTP method, path, timestamp, and nonce; nonces are

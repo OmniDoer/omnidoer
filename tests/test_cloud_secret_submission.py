@@ -25,6 +25,9 @@ from omnidoer.omni_control.server import ControlHandler
 from tests.test_control_auth import public_jwk, sign_request
 
 
+PROXY_HEADERS = {"x-forwarded-proto": "https"}
+
+
 class CloudSecretSubmissionTest(unittest.TestCase):
     def test_cloud_secret_envelope_binds_device_and_expiry(self) -> None:
         keypair = generate_keypair()
@@ -116,7 +119,7 @@ class CloudSecretSubmissionTest(unittest.TestCase):
                 pair_request = urllib_request.Request(
                     f"{base}/api/pair",
                     data=json.dumps({"code": pairing.code, "device_name": "Phone", "device_public_key": public_jwk(device_key)}).encode(),
-                    headers={"content-type": "application/json", "origin": config.public_origin},
+                    headers={"content-type": "application/json", "origin": config.public_origin, **PROXY_HEADERS},
                     method="POST",
                 )
                 with urllib_request.urlopen(pair_request, timeout=5) as response:
@@ -145,6 +148,7 @@ class CloudSecretSubmissionTest(unittest.TestCase):
                             "origin": config.public_origin,
                             "cookie": cookie,
                             CSRF_HEADER: csrf,
+                            **PROXY_HEADERS,
                             DEVICE_ID_HEADER: device_id,
                             DEVICE_TS_HEADER: signed["timestamp"],
                             DEVICE_NONCE_HEADER: signed["nonce"],

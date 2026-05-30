@@ -27,6 +27,11 @@ omnidoer control serve \
 non-HTTPS `public-url` unless `--insecure-dev-public` is explicitly provided
 for temporary testing. Local development can use:
 
+When `--behind-reverse-proxy` is used, configure the proxy to send
+`X-Forwarded-Proto: https` or `Forwarded: proto=https` to the OmniDoer backend.
+Cloud Direct pairing and authenticated Control API requests are rejected if the
+backend does not see one of those HTTPS markers.
+
 ```sh
 omnidoer control serve \
   --cloud-direct \

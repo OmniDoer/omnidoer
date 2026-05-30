@@ -19,6 +19,9 @@ from omnidoer.omni_control.server import ControlHandler, sanitize_log_value
 from tests.test_control_auth import public_jwk, sign_request
 
 
+PROXY_HEADERS = {"x-forwarded-proto": "https"}
+
+
 class CloudControlServiceTest(unittest.TestCase):
     def test_refuses_public_bind_without_cloud_direct(self) -> None:
         with self.assertRaises(ValueError):
@@ -107,10 +110,18 @@ class CloudControlServiceTest(unittest.TestCase):
 
                 pairing = PairingStore().create(public_url=config.public_url, ttl_seconds=600)
                 device_key = ec.generate_private_key(ec.SECP256R1())
-                pair_request = urllib_request.Request(
+                missing_proto_pair = urllib_request.Request(
                     f"{base}/api/pair",
                     data=json.dumps({"code": pairing.code, "device_name": "Phone", "device_public_key": public_jwk(device_key)}).encode(),
                     headers={"content-type": "application/json", "origin": config.public_origin},
+                    method="POST",
+                )
+                with self.assertRaises(Exception):
+                    urllib_request.urlopen(missing_proto_pair, timeout=5)
+                pair_request = urllib_request.Request(
+                    f"{base}/api/pair",
+                    data=json.dumps({"code": pairing.code, "device_name": "Phone", "device_public_key": public_jwk(device_key)}).encode(),
+                    headers={"content-type": "application/json", "origin": config.public_origin, **PROXY_HEADERS},
                     method="POST",
                 )
                 with urllib_request.urlopen(pair_request, timeout=5) as response:
@@ -128,6 +139,7 @@ class CloudControlServiceTest(unittest.TestCase):
                 signed = sign_request(device_key, device_id=device_id, session_id=session_id, method="GET", path="/api/requests")
                 signed_headers = {
                     "cookie": cookie,
+                    **PROXY_HEADERS,
                     DEVICE_ID_HEADER: device_id,
                     DEVICE_TS_HEADER: signed["timestamp"],
                     DEVICE_NONCE_HEADER: signed["nonce"],
@@ -147,6 +159,7 @@ class CloudControlServiceTest(unittest.TestCase):
                         "content-type": "application/json",
                         "cookie": cookie,
                         "origin": config.public_origin,
+                        **PROXY_HEADERS,
                         DEVICE_ID_HEADER: device_id,
                         DEVICE_TS_HEADER: signed["timestamp"],
                         DEVICE_NONCE_HEADER: signed["nonce"],
@@ -166,6 +179,7 @@ class CloudControlServiceTest(unittest.TestCase):
                         "cookie": cookie,
                         "origin": config.public_origin,
                         CSRF_HEADER: csrf,
+                        **PROXY_HEADERS,
                         DEVICE_ID_HEADER: device_id,
                         DEVICE_TS_HEADER: signed["timestamp"],
                         DEVICE_NONCE_HEADER: signed["nonce"],
@@ -181,6 +195,7 @@ class CloudControlServiceTest(unittest.TestCase):
                     f"{base}/api/events",
                     headers={
                         "cookie": cookie,
+                        **PROXY_HEADERS,
                         DEVICE_ID_HEADER: device_id,
                         DEVICE_TS_HEADER: signed["timestamp"],
                         DEVICE_NONCE_HEADER: signed["nonce"],
@@ -189,6 +204,41 @@ class CloudControlServiceTest(unittest.TestCase):
                 )
                 with urllib_request.urlopen(events, timeout=5) as response:
                     self.assertEqual(response.headers["content-type"].split(";")[0], "text/event-stream")
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_cloud_direct_behind_proxy_accepts_forwarded_proto_header(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            config = build_config(
+                host="127.0.0.1",
+                port=8787,
+                cloud_direct=True,
+                public_url="https://agent.example.com",
+                behind_reverse_proxy=True,
+            )
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_config = config  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                pairing = PairingStore().create(public_url=config.public_url, ttl_seconds=600)
+                device_key = ec.generate_private_key(ec.SECP256R1())
+                pair_request = urllib_request.Request(
+                    f"{base}/api/pair",
+                    data=json.dumps({"code": pairing.code, "device_name": "Phone", "device_public_key": public_jwk(device_key)}).encode(),
+                    headers={"content-type": "application/json", "origin": config.public_origin, "forwarded": "for=127.0.0.1;proto=https;host=agent.example.com"},
+                    method="POST",
+                )
+                with urllib_request.urlopen(pair_request, timeout=5) as response:
+                    self.assertEqual(response.status, 201)
             finally:
                 server.shutdown()
                 server.server_close()
@@ -220,7 +270,7 @@ class CloudControlServiceTest(unittest.TestCase):
                 request = urllib_request.Request(
                     f"{base}/api/pair",
                     data=json.dumps({"code": pairing.code, "device_name": name, "device_public_key": public_jwk(key)}).encode(),
-                    headers={"content-type": "application/json", "origin": config.public_origin},
+                    headers={"content-type": "application/json", "origin": config.public_origin, **PROXY_HEADERS},
                     method="POST",
                 )
                 with urllib_request.urlopen(request, timeout=5) as response:
@@ -232,6 +282,7 @@ class CloudControlServiceTest(unittest.TestCase):
                 signed = sign_request(key, device_id=device_id, session_id=session_id, method="GET", path=path, nonce=nonce)
                 return {
                     "cookie": body["cookie"],
+                    **PROXY_HEADERS,
                     DEVICE_ID_HEADER: device_id,
                     DEVICE_TS_HEADER: signed["timestamp"],
                     DEVICE_NONCE_HEADER: signed["nonce"],
@@ -296,7 +347,7 @@ class CloudControlServiceTest(unittest.TestCase):
                 request = urllib_request.Request(
                     f"{base}/api/pair",
                     data=json.dumps({"code": pairing.code, "device_name": name, "device_public_key": public_jwk(key)}).encode(),
-                    headers={"content-type": "application/json", "origin": config.public_origin},
+                    headers={"content-type": "application/json", "origin": config.public_origin, **PROXY_HEADERS},
                     method="POST",
                 )
                 with urllib_request.urlopen(request, timeout=5) as response:
@@ -308,6 +359,7 @@ class CloudControlServiceTest(unittest.TestCase):
                 signed = sign_request(key, device_id=device_id, session_id=session_id, method="GET", path="/api/events", nonce=nonce)
                 return {
                     "cookie": cookie,
+                    **PROXY_HEADERS,
                     DEVICE_ID_HEADER: device_id,
                     DEVICE_TS_HEADER: signed["timestamp"],
                     DEVICE_NONCE_HEADER: signed["nonce"],
