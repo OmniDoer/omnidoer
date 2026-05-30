@@ -92,6 +92,15 @@
   final-button, after-approval, and review-fingerprint details. Final sensitive
   browser clicks are gated on scoped approval, and approved sensitive actions
   are consumed before release so the same approval id cannot be replayed.
+- README lead copy has been tightened around the product promise: all-purpose
+  web action inside the security boundary, with Codex kept as the model entry
+  point and the Control Client handling human authentication, consent, payment,
+  and anti-bot judgment. The English lead now has a regression test against
+  stray Chinese body copy.
+- Redaction now treats error-message, raw-error, exception, traceback, and
+  stack-trace fields as sensitive surfaces so failed browser, challenge, or
+  takeover operations cannot echo typed user input into audit or model-visible
+  outputs.
 
 ## Immediate Next Work
 

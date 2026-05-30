@@ -46,6 +46,20 @@ class RedactorTest(unittest.TestCase):
         self.assertNotIn("typed-sensitive-value", repr(redacted))
         self.assertNotIn("another-sensitive-value", repr(redacted))
 
+    def test_redacts_error_fields_that_may_echo_user_input(self) -> None:
+        event = {
+            "event_type": "takeover_input_failed",
+            "error_message": "remote browser echoed typed-sensitive-value",
+            "exception": "challenge answer user-completed",
+            "status": "rejected",
+        }
+        redacted = redact_dom_snapshot(event)
+        self.assertEqual(redacted["error_message"], REDACTED)
+        self.assertEqual(redacted["exception"], REDACTED)
+        self.assertEqual(redacted["status"], "rejected")
+        self.assertNotIn("typed-sensitive-value", repr(redacted))
+        self.assertNotIn("user-completed", repr(redacted))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -18,7 +18,8 @@ SECRET_FIELD_RE = re.compile(
     r"(password|passwd|pwd|totp|otp|mfa|2fa|token|cookie|authorization|api[-_ ]?key|"
     r"secret|private[-_ ]?key|recovery|backup[-_ ]?code|one[-_ ]?time|sms|email[-_ ]?code|"
     r"verification[-_ ]?code|passcode|challenge[-_ ]?answer|captcha[-_ ]?answer|3ds[-_ ]?code|"
-    r"user[-_ ]?input|input[-_ ]?text|typed[-_ ]?text|challenge|card|cvv|cvc|iban|account)",
+    r"user[-_ ]?input|input[-_ ]?text|typed[-_ ]?text|error[-_ ]?message|raw[-_ ]?error|"
+    r"exception|traceback|stack[-_ ]?trace|challenge|card|cvv|cvc|iban|account)",
     re.IGNORECASE,
 )
 

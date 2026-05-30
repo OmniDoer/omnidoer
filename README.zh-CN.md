@@ -27,11 +27,13 @@ curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scr
 ```
 
 安装脚本会创建 `~/omnidoer/.venv`、初始化 OmniDoer、安装浏览器 worker、
-自检 MCP server，并在 `codex` CLI 可用时注册 `omnidoer mcp serve`。
+自检 MCP server，并在 `codex` CLI 可用时注册 `omnidoer mcp serve`。它会
+保留现有 Codex 登录、模型选择和计费路径，不把 OmniDoer 变成新的默认 OpenAI
+API 客户端。
 
 OmniDoer 是 Codex CLI 的 MCP/sidecar 全能网页行动层，不是新的 OpenAI API 客户端。Codex 负责推理，OmniDoer 负责真实执行：打开网页、注册账号、登录、填写表单、下载文件、整理资料、准备订单、请求审批，并在挑战或高风险页面前把控制权交还给用户。
 
-如果一件事需要人类授权后在网页上完成，OmniDoer 的目标就是在安全边界内接力完成。它补上原版 Codex 缺少的真实浏览器、Secret Broker、Vault、Control Client、Challenge Relay、Human Takeover、Cloud Direct、Approval Gate 和审计链。
+如果一件事需要人类授权后在网页上完成，OmniDoer 的目标就是在安全边界内接力完成。它补上原版 Codex 缺少的真实浏览器、Secret Broker、Vault、Control Client、Challenge Relay、Human Takeover、Cloud Direct、Approval Gate、错误脱敏和审计链。
 
 核心规则：Agent 可以请求使用 secret，但不能读取 secret。Codex 仍然是唯一模型推理入口，OmniDoer 不默认要求 `OPENAI_API_KEY`，不创建新的 OpenAI API billing path，也不修改 Codex 的 ChatGPT 登录、计费或模型提供方逻辑。
 

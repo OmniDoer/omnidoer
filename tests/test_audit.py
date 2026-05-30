@@ -15,6 +15,11 @@ class AuditTest(unittest.TestCase):
             audit.append("challenge_completed", sms_code="123456", status="ok")
             audit.append("challenge_text", message="SMS code: 654321", challenge_answer="user-completed")
             audit.append("takeover_input_event", user_input="typed-sensitive-value", input_event_type="type")
+            audit.append(
+                "tool_error",
+                error_message="browser echoed typed-sensitive-value",
+                exception="challenge answer user-completed",
+            )
             self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
             raw = path.read_text()
             self.assertNotIn("fake-password", raw)
@@ -22,6 +27,7 @@ class AuditTest(unittest.TestCase):
             self.assertNotIn("654321", raw)
             self.assertNotIn("user-completed", raw)
             self.assertNotIn("typed-sensitive-value", raw)
+            self.assertNotIn("browser echoed", raw)
             self.assertTrue(audit.verify())
 
     def test_tamper_detected(self) -> None:

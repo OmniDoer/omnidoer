@@ -1,5 +1,6 @@
 import json
 import pathlib
+import re
 import stat
 import unittest
 
@@ -67,6 +68,18 @@ class BrandingDocsTest(unittest.TestCase):
         self.assertNotIn("智能体可以行动，但秘密必须留在本地。", readme)
         self.assertIn("不要把 OmniDoer 做成默认 OpenAI API 客户端", agents)
         self.assertIn("docs/assets/localized", agents)
+
+    def test_english_readme_lead_has_no_stray_chinese_body_copy(self) -> None:
+        readme = (self.root / "README.md").read_text()
+        lead = readme.split("## Languages / 多语言", 1)[0]
+        allowed_labels = (
+            "Quick Install / 一键部署",
+            "[中文](./README.zh-CN.md)",
+            "[日本語](./README.ja.md)",
+        )
+        for allowed in allowed_labels:
+            lead = lead.replace(allowed, "")
+        self.assertIsNone(re.search(r"[\u4e00-\u9fff]", lead), lead)
 
     def test_one_command_installer_is_documented_and_executable(self) -> None:
         installer = self.root / "omnidoer" / "scripts" / "install-cloud-direct.sh"

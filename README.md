@@ -4,21 +4,22 @@ All-purpose web action, inside the security boundary.
 
 ![OmniDoer brand mark](./icon.png)
 
-OmniDoer is the execution layer for agents that need to operate the web, not
-just talk about it. Its product thesis is simple: if an authorized human can
-complete a workflow in a browser, OmniDoer should be able to help complete that
-workflow inside a strict security boundary, with the user taking over whenever
-authentication, consent, payment, or anti-bot judgment must stay human.
+OmniDoer is the secure execution layer for agents that need to operate real
+websites, not just describe them. Its product thesis is simple: if an
+authorized human can complete a workflow in a browser, OmniDoer should be able
+to help complete that workflow on the user's Linux runtime inside a strict
+security boundary. The user takes over whenever authentication, consent,
+payment, registration, or anti-bot judgment must stay human.
 
 Codex remains the reasoning engine. OmniDoer adds the controlled browser,
 Linux-side runtime, Secret Broker, encrypted Vault, Control Client, challenge
 relay, approval gate, audit trail, and human-takeover bridge that turn model
 reasoning into user-authorized web action.
 
-The target is broad web capability without unsafe shortcuts: sign up, log in,
-navigate, fill forms, download files, organize information, prepare purchases,
-review payments, and hand the live browser to the user whenever a site requires
-human authentication, judgment, or consent.
+The target is broad web capability without unsafe shortcuts: open sites, sign
+up, log in, navigate, fill forms, upload and download files, organize
+information, prepare purchases, review payments, and hand the live browser to
+the user whenever a site requires human authentication, judgment, or consent.
 
 ![OmniDoer English edition cinematic poster](./docs/assets/localized/omnidoer-readme-en.jpg)
 
@@ -62,16 +63,27 @@ Localized README editions:
 [日本語](./README.ja.md) |
 [한국어](./README.ko.md)
 
-The agent may request an action.
-The broker checks the origin.
-The vault uses the secret.
-The browser receives the credential.
-The model never does.
+## Product Promise
+
+OmniDoer exists to make cloud-model web action practical without moving the
+security boundary into the model. The Control Client connects to the user's own
+Linux server. Codex plans the work. OmniDoer executes through a controlled
+browser, Secret Broker, encrypted Vault, approval gate, challenge relay, human
+takeover channel, and tamper-evident audit log.
+
+The security loop is deliberately narrow:
+
+1. The Agent may request an action.
+2. The Broker checks origin, request scope, and policy.
+3. The Vault releases only the use of the secret, not the secret itself.
+4. The browser receives the credential or user input through the controlled path.
+5. The model receives only redacted status and observations.
 
 OmniDoer is designed to give cloud-model agents more operational freedom than
 chat-only or browser-only tools while preserving the user's security boundary.
-The model can plan and ask; the Broker, Vault, policy engine, browser
-isolation, approval gate, and Control Client decide what may actually happen.
+The model can plan and ask. The Broker, Vault, policy engine, browser
+isolation, approval gate, audit log, and Control Client decide what may
+actually happen.
 
 The Control Client connects to the user's own Linux server over Cloud Direct
 Mode. When a page requires CAPTCHA, graphical verification, MFA, passkey,
@@ -84,12 +96,12 @@ Payments, purchases, account changes, OAuth grants, message sending, and other
 sensitive actions stop at an approval gate. The Agent can prepare the action;
 the user decides whether it proceeds.
 
-Compared with Codex alone, OmniDoer adds a real controlled browser, Secret
-Broker, encrypted Vault, Challenge Relay, Human Takeover, Cloud Direct Control
-Service, Approval Gate, and tamper-evident audit trail. Compared with local
-browser automation demos, OmniDoer treats credential storage, CAPTCHA/MFA/
-passkey handoff, payment approval, registration, remote control, and logs as
-first-class security boundaries.
+Compared with Codex alone, OmniDoer adds a controlled browser, Secret Broker,
+encrypted Vault, Challenge Relay, Human Takeover, Cloud Direct Control Service,
+Approval Gate, and tamper-evident audit trail. Compared with local browser
+automation demos, OmniDoer treats credential storage, CAPTCHA/MFA/passkey
+handoff, payment approval, registration, remote control, screenshots, errors,
+and logs as first-class security surfaces.
 
 The result is a cloud-Codex architecture for high-freedom web action: it can
 inherit Codex/GPT model capability, multimodal reasoning, and existing Codex
@@ -101,7 +113,7 @@ OmniDoer is not a credential stealer.
 OmniDoer is not a CAPTCHA bypasser.
 OmniDoer is not a fraud tool.
 OmniDoer is not an autonomous spender.
-OmniDoer is a user-authorized local execution layer.
+OmniDoer is a user-authorized execution layer for the user's own runtime.
 
 The agent can act only through the controlled security boundary. Secrets stay
 with the Broker, Vault, browser isolation layer, and user-controlled client.

@@ -22,6 +22,8 @@ observer redactor first.
 - OAuth authorization codes.
 - Private keys and seed phrases.
 - Card numbers, bank account numbers, and payment credentials.
+- Error-message, exception, traceback, and raw-error fields, because failed
+  browser or takeover operations can accidentally echo typed user input.
 
 ## Password Reveal Rule
 
