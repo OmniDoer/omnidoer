@@ -17,7 +17,8 @@ REDACTED = "[REDACTED]"
 SECRET_FIELD_RE = re.compile(
     r"(password|passwd|pwd|totp|otp|mfa|2fa|token|cookie|authorization|api[-_ ]?key|"
     r"secret|private[-_ ]?key|recovery|backup[-_ ]?code|one[-_ ]?time|sms|email[-_ ]?code|"
-    r"challenge|card|cvv|cvc|iban|account)",
+    r"verification[-_ ]?code|passcode|challenge[-_ ]?answer|captcha[-_ ]?answer|3ds[-_ ]?code|"
+    r"user[-_ ]?input|input[-_ ]?text|typed[-_ ]?text|challenge|card|cvv|cvc|iban|account)",
     re.IGNORECASE,
 )
 
@@ -27,6 +28,12 @@ TEXT_PATTERNS = [
     re.compile(r"\b(?:\d[ -]?){13,19}\b"),
     re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE),
     re.compile(r"(?i)(password|token|api[-_ ]?key|secret|cookie)\s*[:=]\s*[^\\s<]+"),
+    re.compile(
+        r"(?i)\b("
+        r"totp|otp|mfa|2fa|sms[-_ ]?code|email[-_ ]?code|one[-_ ]?time[-_ ]?code|"
+        r"verification[-_ ]?code|captcha[-_ ]?answer|challenge[-_ ]?answer|3ds[-_ ]?code|passcode"
+        r")\b\s*[:=]?\s*[A-Za-z0-9-]{4,}",
+    ),
 ]
 
 

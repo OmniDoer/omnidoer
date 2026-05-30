@@ -11,6 +11,10 @@ class RedactorTest(unittest.TestCase):
     def test_redacts_card_like_text(self) -> None:
         self.assertEqual(redact_text("card 4111 1111 1111 1111"), f"card {REDACTED}")
 
+    def test_redacts_challenge_answer_text(self) -> None:
+        self.assertEqual(redact_text("SMS code: 654321"), REDACTED)
+        self.assertEqual(redact_text("challenge answer user-completed"), REDACTED)
+
     def test_redacts_password_input_value(self) -> None:
         snapshot = {
             "tag": "input",
@@ -33,6 +37,14 @@ class RedactorTest(unittest.TestCase):
         self.assertEqual(redacted["description"], REDACTED)
         self.assertNotIn("123456", repr(redacted))
         self.assertNotIn("demo@example.test", repr(redacted))
+
+    def test_redacts_takeover_user_input_keys(self) -> None:
+        event = {"event_type": "type", "user_input": "typed-sensitive-value", "input_text": "another-sensitive-value"}
+        redacted = redact_dom_snapshot(event)
+        self.assertEqual(redacted["user_input"], REDACTED)
+        self.assertEqual(redacted["input_text"], REDACTED)
+        self.assertNotIn("typed-sensitive-value", repr(redacted))
+        self.assertNotIn("another-sensitive-value", repr(redacted))
 
 
 if __name__ == "__main__":
