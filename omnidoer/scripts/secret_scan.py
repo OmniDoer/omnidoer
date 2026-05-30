@@ -34,7 +34,11 @@ SKIP_DIRS = {".git", "target", "node_modules", ".venv"}
 def iter_files() -> list[pathlib.Path]:
     files: list[pathlib.Path] = []
     for root in SCAN_ROOTS:
-        for path in root.rglob("*"):
+        try:
+            paths = list(root.rglob("*"))
+        except FileNotFoundError:
+            continue
+        for path in paths:
             if not path.is_file():
                 continue
             if any(part in SKIP_DIRS for part in path.parts):
