@@ -16,7 +16,8 @@ REDACTED = "[REDACTED]"
 
 SECRET_FIELD_RE = re.compile(
     r"(password|passwd|pwd|totp|otp|mfa|2fa|token|cookie|authorization|api[-_ ]?key|"
-    r"secret|private[-_ ]?key|recovery|backup[-_ ]?code|one[-_ ]?time|card|cvv|cvc|iban|account)",
+    r"secret|private[-_ ]?key|recovery|backup[-_ ]?code|one[-_ ]?time|sms|email[-_ ]?code|"
+    r"challenge|card|cvv|cvc|iban|account)",
     re.IGNORECASE,
 )
 
