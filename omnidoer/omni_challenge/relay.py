@@ -96,11 +96,15 @@ class ChallengeRelay:
             raise ValueError("request is not a user challenge response")
         if not request.response_ciphertext:
             raise ValueError("challenge request has no encrypted response")
+        expected_device_id = request.allowed_device_id
+        expected_expires_at = request.expires_at if request.response_ciphertext.get("expires_at") is not None else None
         payload = decrypt_control_envelope(
             request.response_ciphertext,
             request_id=request.request_id,
             origin=request.origin,
             request_type=request.request_type,
+            device_id=expected_device_id,
+            expires_at=expected_expires_at,
             replay_guard=self.replay_guard,
         )
         self._payloads[request_id] = payload

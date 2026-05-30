@@ -32,6 +32,40 @@ class BrokerOriginTest(unittest.TestCase):
         self.assertNotIn("fake-password-never-returned", repr(result))
         self.assertFalse(result["secret_exposed_to_model"])
 
+    def test_broker_rejects_wrong_cloud_device_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                keypair = load_or_create_keypair()
+                store = RequestStore(Path(tmp) / "requests.json")
+                request = store.create(
+                    "credential",
+                    origin="https://example.com",
+                    top_level_url="https://example.com/login",
+                    action_summary="login",
+                    allowed_device_id="dev_expected",
+                )
+                envelope = encrypt_for_broker(
+                    keypair.public_key_b64,
+                    {"username": "demo", "password": "broker-secret-password"},
+                    request_id=request.request_id,
+                    origin=request.origin,
+                    request_type=request.request_type,
+                    device_id="dev_other",
+                    expires_at=request.expires_at,
+                )
+                store.submit_ciphertext(request.request_id, envelope)
+                broker = SecretBroker(store=store, replay_guard=ReplayGuard(Path(tmp) / "replay.json"), audit=AuditLog(Path(tmp) / "audit.jsonl"))
+                with self.assertRaises(ValueError):
+                    broker.receive_from_control_client(request.request_id)
+                self.assertNotIn("broker-secret-password", Path(tmp, "audit.jsonl").read_text() if Path(tmp, "audit.jsonl").exists() else "")
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     @unittest.skipIf(importlib.util.find_spec("playwright") is None, "playwright not installed")
     def test_secret_broker_receives_stores_and_fills_without_returning_secret(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, DemoServerFixture() as demo:

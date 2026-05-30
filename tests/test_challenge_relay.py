@@ -19,6 +19,41 @@ class ChallengeRelayTest(unittest.TestCase):
         self.assertEqual(detect_challenge_from_url("http://127.0.0.1:8765/checkout/3ds"), "3ds")
         self.assertIsNone(detect_challenge_from_url("http://127.0.0.1:8765/dashboard"))
 
+    def test_challenge_rejects_wrong_cloud_expiry_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                keypair = load_or_create_keypair()
+                store = RequestStore(Path(tmp) / "requests.json")
+                request = request_user_interaction(
+                    origin="https://example.com",
+                    top_level_url="https://example.com/sms",
+                    challenge_type="sms",
+                    reason="SMS code",
+                    fields=["code"],
+                    store=store,
+                )
+                envelope = encrypt_for_broker(
+                    keypair.public_key_b64,
+                    {"code": "123456"},
+                    request_id=request.request_id,
+                    origin=request.origin,
+                    request_type=request.request_type,
+                    device_id="dev_phone",
+                    expires_at=request.expires_at + 60,
+                )
+                store.submit_ciphertext(request.request_id, envelope)
+                relay = ChallengeRelay(store=store, replay_guard=ReplayGuard(Path(tmp) / "replay.json"), audit=AuditLog(Path(tmp) / "audit.jsonl"))
+                with self.assertRaises(ValueError):
+                    relay.receive_user_response(request.request_id)
+                self.assertNotIn("123456", Path(tmp, "audit.jsonl").read_text() if Path(tmp, "audit.jsonl").exists() else "")
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     @unittest.skipIf(importlib.util.find_spec("playwright") is None, "playwright not installed")
     def test_challenge_relay_receives_and_injects_code_without_returning_it(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, DemoServerFixture() as demo:
