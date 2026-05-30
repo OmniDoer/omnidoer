@@ -171,7 +171,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
             self.wfile.flush()
         self.close_connection = True
 
-    def _send_websocket_stream(self, store: RequestStore, session: ControlSession | None, *, snapshots: int, interval: float) -> None:
+    def _open_websocket(self):
         from omnidoer.omni_control.websocket import decode_device_auth_subprotocol, websocket_accept_key, websocket_text_frame
 
         client_key = self.headers.get("sec-websocket-key")
@@ -185,10 +185,36 @@ class ControlHandler(SimpleHTTPRequestHandler):
         if protocol and protocol.get("subprotocol"):
             self.send_header("sec-websocket-protocol", protocol["subprotocol"])
         self.end_headers()
+        return websocket_text_frame
+
+    def _send_websocket_stream(self, store: RequestStore, session: ControlSession | None, *, snapshots: int, interval: float) -> None:
+        websocket_text_frame = self._open_websocket()
         for index in range(max(1, min(snapshots, 30))):
             if index:
                 time.sleep(max(0.0, min(interval, 10.0)))
             self.wfile.write(websocket_text_frame({"event": "requests", "data": self._sse_payload(store, session)}))
+            self.wfile.flush()
+        self.close_connection = True
+
+    def _send_takeover_frame_websocket_stream(
+        self,
+        store: RequestStore,
+        session: ControlSession | None,
+        request_id: str,
+        *,
+        snapshots: int,
+        interval: float,
+    ) -> None:
+        self._get_request_for_session(store, request_id, session)
+        websocket_text_frame = self._open_websocket()
+        for index in range(max(1, min(snapshots, 120))):
+            if index:
+                time.sleep(max(0.0, min(interval, 10.0)))
+            request = self._get_request_for_session(store, request_id, session)
+            browser = get_browser_context(request.browser_context_id)
+            frame = start_stream(request_id, browser_controller=browser)
+            store.record_takeover_frame(request_id, frame)
+            self.wfile.write(websocket_text_frame({"event": "takeover_frame", "request_id": request_id, "data": frame}))
             self.wfile.flush()
         self.close_connection = True
 
@@ -373,6 +399,33 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 pass
             except ValueError:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid stream options"})
+            return
+        if path.startswith("/api/ws/requests/") and path.endswith("/frames"):
+            try:
+                from omnidoer.omni_control.websocket import websocket_origin_allowed
+
+                if self._requires_pairing() and not websocket_origin_allowed(self.headers.get("origin"), self.config.public_origin):
+                    raise PermissionError("websocket origin rejected")
+                if (self.headers.get("upgrade") or "").lower() != "websocket":
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"error": "websocket upgrade required"})
+                    return
+                session = self._require_access()
+                parts = path.strip("/").split("/")
+                if len(parts) != 5 or parts[:3] != ["api", "ws", "requests"] or parts[4] != "frames":
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "unknown websocket stream"})
+                    return
+                query = parse_qs(parsed_url.query)
+                snapshots = int(query.get("snapshots", ["60"])[0])
+                interval = float(query.get("interval", ["0.75"])[0])
+                self._send_takeover_frame_websocket_stream(store, session, parts[3], snapshots=snapshots, interval=interval)
+            except PermissionError:
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            except KeyError:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "request not found"})
+            except ValueError:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid frame websocket options"})
             return
         if path == "/api/ws/requests":
             try:

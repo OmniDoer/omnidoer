@@ -69,6 +69,9 @@ Successful takeover input also schedules a fast follow-up frame refresh so
 mobile users see page reactions without waiting for the next fixed polling
 interval. Overlapping frame fetches are coalesced; the Control Service still
 records the delivered frame id before later input can be accepted.
+The PWA prefers an authenticated WebSocket takeover-frame stream when the
+browser and server path support it, then falls back to signed HTTP frame
+polling without changing the visible-frame binding contract.
 If the mobile browser is backgrounded or the phone locks, takeover frame
 polling pauses and resumes with an immediate current-frame fetch when the PWA
 becomes visible again. Takeover input is blocked while the PWA is hidden or

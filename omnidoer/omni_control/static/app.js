@@ -105,6 +105,8 @@ const decoder = new TextDecoder();
 const TAKEOVER_FRAME_MAX_AGE_MS = 30000;
 const TAKEOVER_FRAME_POLL_MS = 1500;
 const TAKEOVER_FRAME_AFTER_INPUT_MS = 180;
+const TAKEOVER_FRAME_WS_SNAPSHOTS = 120;
+const TAKEOVER_FRAME_WS_INTERVAL_SECONDS = 0.75;
 const TAKEOVER_ZOOM_MIN = 1;
 const TAKEOVER_ZOOM_MAX = 3;
 const TAKEOVER_ZOOM_STEP = 0.25;
@@ -117,6 +119,9 @@ let takeoverFreshnessTimer = null;
 let takeoverFrameRefreshTimer = null;
 let takeoverFrameFetchInFlight = false;
 let takeoverFrameFetchQueued = false;
+let takeoverFrameSocket = null;
+let takeoverFrameSocketRequest = null;
+let takeoverFrameSocketRestart = null;
 let takeoverFrameMisses = 0;
 let takeoverFrameVisibilityPaused = false;
 let takeoverFrameZoom = TAKEOVER_ZOOM_MIN;
@@ -341,6 +346,31 @@ function releaseActiveTakeover() {
   const request = activeTakeoverRequest();
   if (!request) return;
   postAction(request, "release");
+}
+
+function renderTakeoverFrame(request, stream, frame, message = "Live browser frame ready. Input is bound to the frame currently visible here.") {
+  if (!frame.data_b64) {
+    markTakeoverFrameReconnect(request, stream, "Browser context is not connected in this process.");
+    return;
+  }
+  const image = document.createElement("img");
+  image.id = "takeover-frame";
+  image.alt = "Controlled browser frame";
+  image.src = `data:${frame.content_type};base64,${frame.data_b64}`;
+  image.dataset.frameId = frame.frame_id || "";
+  image.dataset.frameCapturedAt = frame.captured_at || "";
+  stream.replaceChildren(image);
+  stream.dataset.frameId = frame.frame_id || "";
+  stream.dataset.frameCapturedAt = frame.captured_at || "";
+  stream.dataset.frameUrl = frame.url || "";
+  stream.dataset.frameOrigin = frame.origin || "";
+  takeoverFrameMisses = 0;
+  takeoverFrameVisibilityPaused = false;
+  stream.classList.remove("frame-reconnecting");
+  applyTakeoverFrameZoom(stream);
+  updateTakeoverFrameConnection("connected", "connected");
+  updateTakeoverPanel(request, frame, message);
+  updateTakeoverFrameFreshness(stream);
 }
 
 function detailValue(details, ...keys) {
@@ -933,12 +963,96 @@ function installTakeoverPointerHandlers(request, stream) {
   };
 }
 
-function startTakeoverFrameTimers(request, stream) {
-  if (!takeoverFrameTimer) {
+function startTakeoverFrameTimers(request, stream, options = {}) {
+  const framePolling = options.framePolling !== false;
+  if (framePolling && !takeoverFrameTimer) {
     takeoverFrameTimer = setInterval(() => fetchTakeoverFrame(request, stream), TAKEOVER_FRAME_POLL_MS);
   }
   if (!takeoverFreshnessTimer) {
     takeoverFreshnessTimer = setInterval(() => updateTakeoverFrameFreshness(stream), 1000);
+  }
+}
+
+function closeTakeoverFrameWebSocket() {
+  if (takeoverFrameSocketRestart) clearTimeout(takeoverFrameSocketRestart);
+  takeoverFrameSocketRestart = null;
+  if (takeoverFrameSocket) {
+    takeoverFrameSocket.onclose = null;
+    takeoverFrameSocket.onerror = null;
+    takeoverFrameSocket.onmessage = null;
+    takeoverFrameSocket.close();
+  }
+  takeoverFrameSocket = null;
+  takeoverFrameSocketRequest = null;
+}
+
+function restartTakeoverFrameWebSocket(request, stream) {
+  if (takeoverFrameSocketRestart || document.hidden) return;
+  takeoverFrameSocketRestart = setTimeout(() => {
+    takeoverFrameSocketRestart = null;
+    const activeRequest = activeTakeoverRequest();
+    const activeStream = document.querySelector("#browser-stream");
+    if (activeRequest?.request_id === request.request_id && activeStream && activeRequest.status === "user_control") {
+      startTakeoverFrameWebSocket(activeRequest, activeStream);
+    }
+  }, 3000);
+}
+
+async function startTakeoverFrameWebSocket(request, stream) {
+  if (!window.WebSocket || document.hidden || request.status !== "user_control") return false;
+  if (
+    takeoverFrameSocket
+    && takeoverFrameSocketRequest === request.request_id
+    && [WebSocket.CONNECTING, WebSocket.OPEN].includes(takeoverFrameSocket.readyState)
+  ) {
+    return true;
+  }
+  closeTakeoverFrameWebSocket();
+  const path = `/api/ws/requests/${encodeURIComponent(request.request_id)}/frames`;
+  try {
+    const protocol = await deviceAuthSubprotocol("GET", path);
+    const target = `${path}?snapshots=${TAKEOVER_FRAME_WS_SNAPSHOTS}&interval=${TAKEOVER_FRAME_WS_INTERVAL_SECONDS}`;
+    const socket = protocol ? new WebSocket(websocketUrl(target), [protocol]) : new WebSocket(websocketUrl(target));
+    takeoverFrameSocket = socket;
+    takeoverFrameSocketRequest = request.request_id;
+    socket.onopen = () => {
+      if (activeTakeoverFrameRequest !== request.request_id) {
+        closeTakeoverFrameWebSocket();
+        return;
+      }
+      if (takeoverFrameTimer) clearInterval(takeoverFrameTimer);
+      takeoverFrameTimer = null;
+      startTakeoverFrameTimers(request, stream, { framePolling: false });
+      updateTakeoverFrameConnection("connected", "connected - websocket");
+    };
+    socket.onmessage = (event) => {
+      if (activeTakeoverFrameRequest !== request.request_id) return;
+      const payload = JSON.parse(event.data);
+      if (payload.event === "takeover_frame" && payload.request_id === request.request_id) {
+        renderTakeoverFrame(request, stream, payload.data || {}, "Live browser frame ready over WebSocket. Input is bound to the frame currently visible here.");
+      }
+    };
+    socket.onerror = () => {
+      socket.close();
+    };
+    socket.onclose = () => {
+      if (takeoverFrameSocket === socket) {
+        takeoverFrameSocket = null;
+        takeoverFrameSocketRequest = null;
+      }
+      const activeRequest = activeTakeoverRequest();
+      const activeStream = document.querySelector("#browser-stream");
+      if (activeRequest?.request_id === request.request_id && activeStream && activeRequest.status === "user_control" && !document.hidden) {
+        markTakeoverFrameReconnect(request, stream, "Live frame WebSocket disconnected.");
+        startTakeoverFrameTimers(request, stream);
+        fetchTakeoverFrame(request, stream);
+        restartTakeoverFrameWebSocket(request, stream);
+      }
+    };
+    return true;
+  } catch {
+    closeTakeoverFrameWebSocket();
+    return false;
   }
 }
 
@@ -949,6 +1063,7 @@ function pauseTakeoverFramePollingForVisibility() {
   if (takeoverFrameTimer) clearInterval(takeoverFrameTimer);
   if (takeoverFreshnessTimer) clearInterval(takeoverFreshnessTimer);
   if (takeoverFrameRefreshTimer) clearTimeout(takeoverFrameRefreshTimer);
+  closeTakeoverFrameWebSocket();
   takeoverFrameTimer = null;
   takeoverFreshnessTimer = null;
   takeoverFrameRefreshTimer = null;
@@ -970,8 +1085,13 @@ function resumeTakeoverFramePollingFromVisibility() {
   updateTakeoverFrameConnection("connecting", "resuming");
   updateTakeoverPanel(request, null, "Control Client visible again; refreshing current browser frame.");
   installTakeoverPointerHandlers(request, stream);
-  startTakeoverFrameTimers(request, stream);
-  fetchTakeoverFrame(request, stream);
+  startTakeoverFrameTimers(request, stream, { framePolling: false });
+  startTakeoverFrameWebSocket(request, stream).then((started) => {
+    if (!started) {
+      fetchTakeoverFrame(request, stream);
+      startTakeoverFrameTimers(request, stream);
+    }
+  });
 }
 
 function handleTakeoverVisibilityChange() {
@@ -987,6 +1107,7 @@ function stopTakeoverFramePolling(requestId = null) {
   if (takeoverFrameTimer) clearInterval(takeoverFrameTimer);
   if (takeoverFreshnessTimer) clearInterval(takeoverFreshnessTimer);
   if (takeoverFrameRefreshTimer) clearTimeout(takeoverFrameRefreshTimer);
+  closeTakeoverFrameWebSocket();
   takeoverFrameTimer = null;
   takeoverFreshnessTimer = null;
   takeoverFrameRefreshTimer = null;
@@ -1037,24 +1158,7 @@ async function fetchTakeoverFrame(request, stream) {
     const frame = await signedFetch(`/api/requests/${request.request_id}/frame`, { cache: "no-store" }).then((r) => r.json());
     if (activeTakeoverFrameRequest !== request.request_id) return;
     if (frame.data_b64) {
-      const image = document.createElement("img");
-      image.id = "takeover-frame";
-      image.alt = "Controlled browser frame";
-      image.src = `data:${frame.content_type};base64,${frame.data_b64}`;
-      image.dataset.frameId = frame.frame_id || "";
-      image.dataset.frameCapturedAt = frame.captured_at || "";
-      stream.replaceChildren(image);
-      stream.dataset.frameId = frame.frame_id || "";
-      stream.dataset.frameCapturedAt = frame.captured_at || "";
-      stream.dataset.frameUrl = frame.url || "";
-      stream.dataset.frameOrigin = frame.origin || "";
-      takeoverFrameMisses = 0;
-      takeoverFrameVisibilityPaused = false;
-      stream.classList.remove("frame-reconnecting");
-      applyTakeoverFrameZoom(stream);
-      updateTakeoverFrameConnection("connected", "connected");
-      updateTakeoverPanel(request, frame, "Live browser frame ready. Input is bound to the frame currently visible here.");
-      updateTakeoverFrameFreshness(stream);
+      renderTakeoverFrame(request, stream, frame);
     } else {
       markTakeoverFrameReconnect(request, stream, "Browser context is not connected in this process.");
     }
@@ -1103,8 +1207,13 @@ function startTakeoverFramePolling(request, stream) {
   updateTakeoverFrameConnection("connecting", "connecting");
   updateTakeoverPanel(request, null, "Loading control-only browser frame...");
   installTakeoverPointerHandlers(request, stream);
-  fetchTakeoverFrame(request, stream);
-  startTakeoverFrameTimers(request, stream);
+  startTakeoverFrameTimers(request, stream, { framePolling: false });
+  startTakeoverFrameWebSocket(request, stream).then((started) => {
+    if (!started && activeTakeoverFrameRequest === request.request_id) {
+      fetchTakeoverFrame(request, stream);
+      startTakeoverFrameTimers(request, stream);
+    }
+  });
 }
 
 function requestHeader(request) {

@@ -76,7 +76,9 @@
   failures keep the last frame visible with a reconnecting state while
   stale-frame input remains blocked. Accepted takeover input now schedules a
   near-immediate frame refresh and coalesces overlapping frame fetches to
-  reduce mobile perceived latency.
+  reduce mobile perceived latency. The PWA now prefers an authenticated
+  takeover-frame WebSocket stream and falls back to signed HTTP frame polling
+  while preserving the same `frame_id` binding.
   Mobile background/lock transitions pause frame polling and resume with an
   immediate current-frame fetch when the Control Client becomes visible again;
   takeover input is blocked while hidden or paused, and typed handoff text is
@@ -87,8 +89,9 @@
 
 ## Immediate Next Work
 
-- Continue improving mobile takeover ergonomics with WebSocket/WebRTC-ready
-  frame transport while preserving the same security boundary.
+- Continue improving mobile takeover ergonomics toward WebRTC-ready frame
+  transport, adaptive quality, and stronger live-rendering tests while
+  preserving the same security boundary.
 - Expand end-to-end tests proving that registration, CAPTCHA/passkey handoff,
   payment approval, and frame-bound takeover input never leak secrets or
   challenge answers to logs, MCP, model-visible observations, screenshots, or

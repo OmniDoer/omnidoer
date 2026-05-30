@@ -84,6 +84,11 @@ freshness guard blocks stale input until a new frame is delivered.
 After accepted takeover input, the PWA triggers a short-delay frame refresh
 and coalesces overlapping frame requests. This reduces perceived latency
 without changing the server-side frame id binding requirement.
+For lower-latency projection, Cloud Direct exposes an authenticated
+`/api/ws/requests/{request_id}/frames` WebSocket stream. The stream uses the
+same device subprotocol signature, request visibility checks, frame metadata,
+and `record_takeover_frame` binding as the signed HTTP frame endpoint; HTTP
+polling remains the fallback.
 Mobile page visibility is also part of the client transport contract: hidden
 PWAs pause frame polling, retain the last visible frame, and refresh
 immediately when visible again. The PWA blocks takeover input while hidden or
