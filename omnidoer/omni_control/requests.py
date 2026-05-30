@@ -169,13 +169,18 @@ class RequestStore:
         self._save(requests)
         return request
 
-    def submit_ciphertext(self, request_id: str, envelope: dict[str, Any]) -> ControlRequest:
-        request = self.get(request_id)
+    def _ensure_actionable(self, request: ControlRequest, *, allow_fulfilled: bool = False) -> None:
         if request.is_expired():
             request.status = "expired"
             self.update(request)
             raise ValueError("request expired")
-        if request.used or request.response_ciphertext is not None:
+        if request.used and not (allow_fulfilled and request.status == "fulfilled"):
+            raise ValueError("request already used")
+
+    def submit_ciphertext(self, request_id: str, envelope: dict[str, Any]) -> ControlRequest:
+        request = self.get(request_id)
+        self._ensure_actionable(request)
+        if request.response_ciphertext is not None:
             raise ValueError("request already used")
         request.response_ciphertext = envelope
         request.status = "fulfilled"
@@ -185,8 +190,7 @@ class RequestStore:
 
     def approve(self, request_id: str) -> ControlRequest:
         request = self.get(request_id)
-        if request.used:
-            raise ValueError("request already used")
+        self._ensure_actionable(request)
         request.approval_decision = "approved"
         request.status = "approved"
         request.used = request.one_time_use
@@ -195,8 +199,7 @@ class RequestStore:
 
     def deny(self, request_id: str) -> ControlRequest:
         request = self.get(request_id)
-        if request.used:
-            raise ValueError("request already used")
+        self._ensure_actionable(request)
         request.approval_decision = "denied"
         request.status = "denied"
         request.used = request.one_time_use
@@ -205,6 +208,7 @@ class RequestStore:
 
     def mark_challenge_completed(self, request_id: str) -> ControlRequest:
         request = self.get(request_id)
+        self._ensure_actionable(request, allow_fulfilled=True)
         request.status = "challenge_completed"
         request.completed_by_user = True
         request.bypassed = False
@@ -215,6 +219,7 @@ class RequestStore:
         request = self.get(request_id)
         if request.request_type not in {"human_takeover", "account_registration"}:
             raise ValueError("request is not human takeover or registration handoff")
+        self._ensure_actionable(request)
         request.status = "released"
         request.control_owner = "agent"
         request.completed_by_user = True
