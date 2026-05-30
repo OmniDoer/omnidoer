@@ -32,6 +32,8 @@ For small mobile screens, the Control Client can zoom the visible browser frame
 up to 300% and switch into view-pan mode. Zoom and pan affect only the
 control-only projection; touch coordinates are still mapped back to the
 original screenshot pixel space and sent with the visible `frame_id`.
+Two-finger pinch gestures are treated as local projection zoom and are never
+forwarded to the controlled browser as taps or drags.
 If frame polling drops during a mobile network transition, the Control Client
 keeps the last browser frame visible and marks the stream as reconnecting
 instead of blanking the challenge. The same freshness guard still turns that

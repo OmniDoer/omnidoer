@@ -830,16 +830,65 @@ function framePoint(event, image) {
 
 function installTakeoverPointerHandlers(request, stream) {
   let start = null;
+  const activeTouchPointers = new Map();
+  let pinchGesture = null;
+  let suppressTouchInput = false;
+  const trackTouchPointer = (event) => {
+    if (event.pointerType !== "touch") return;
+    activeTouchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  };
+  const forgetTouchPointer = (event) => {
+    if (event.pointerType !== "touch") return;
+    activeTouchPointers.delete(event.pointerId);
+    if (!activeTouchPointers.size) {
+      pinchGesture = null;
+      suppressTouchInput = false;
+    }
+  };
+  const touchDistance = () => {
+    const points = Array.from(activeTouchPointers.values());
+    if (points.length < 2) return 0;
+    return Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+  };
   stream.tabIndex = 0;
   stream.onpointerdown = (event) => {
     if (takeoverFramePanMode) return;
     const img = document.querySelector("#takeover-frame");
     if (!img) return;
+    if (event.pointerType === "touch") {
+      trackTouchPointer(event);
+      if (activeTouchPointers.size >= 2) {
+        event.preventDefault();
+        start = null;
+        suppressTouchInput = true;
+        pinchGesture = { startDistance: Math.max(1, touchDistance()), startZoom: takeoverFrameZoom };
+        updateTakeoverPanel(request, null, "Pinch zooming local browser frame. Input is not sent to the controlled browser.");
+        return;
+      }
+    }
     stream.setPointerCapture(event.pointerId);
     start = { ...framePoint(event, img), frame_id: img.dataset.frameId || "", at: Date.now() };
   };
+  stream.onpointermove = (event) => {
+    if (event.pointerType !== "touch") return;
+    if (!activeTouchPointers.has(event.pointerId)) return;
+    trackTouchPointer(event);
+    if (pinchGesture && activeTouchPointers.size >= 2) {
+      event.preventDefault();
+      const distance = Math.max(1, touchDistance());
+      setTakeoverFrameZoom(pinchGesture.startZoom * (distance / pinchGesture.startDistance));
+      updateTakeoverPanel(request, null, "Pinch zooming local browser frame. Input is not sent to the controlled browser.");
+    }
+  };
   stream.onpointerup = (event) => {
     if (takeoverFramePanMode) return;
+    const suppressed = event.pointerType === "touch" && suppressTouchInput;
+    forgetTouchPointer(event);
+    if (suppressed) {
+      event.preventDefault();
+      start = null;
+      return;
+    }
     const img = document.querySelector("#takeover-frame");
     if (!img || !start) return;
     const end = framePoint(event, img);
@@ -852,6 +901,16 @@ function installTakeoverPointerHandlers(request, stream) {
     } else {
       sendTakeoverInput(request, { event_type: "tap", frame_id: end.frame_id || start.frame_id, x: end.x, y: end.y });
     }
+    start = null;
+  };
+  stream.onpointercancel = (event) => {
+    forgetTouchPointer(event);
+    start = null;
+  };
+  stream.onlostpointercapture = () => {
+    activeTouchPointers.clear();
+    pinchGesture = null;
+    suppressTouchInput = false;
     start = null;
   };
   stream.onkeydown = (event) => {

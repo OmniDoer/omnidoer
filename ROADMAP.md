@@ -71,10 +71,12 @@
   before it reaches the browser worker. The Human Takeover panel also displays
   frame freshness, refreshes stale projections before sending input, and lets
   mobile users zoom and pan dense browser frames without changing the
-  screenshot-pixel input mapping. Transient frame fetch failures keep the last
-  frame visible with a reconnecting state while stale-frame input remains
-  blocked. Accepted takeover input now schedules a near-immediate frame refresh
-  and coalesces overlapping frame fetches to reduce mobile perceived latency.
+  screenshot-pixel input mapping. Two-finger pinch zoom is handled locally so
+  it cannot be misdelivered as a browser tap or drag. Transient frame fetch
+  failures keep the last frame visible with a reconnecting state while
+  stale-frame input remains blocked. Accepted takeover input now schedules a
+  near-immediate frame refresh and coalesces overlapping frame fetches to
+  reduce mobile perceived latency.
   Mobile background/lock transitions pause frame polling and resume with an
   immediate current-frame fetch when the Control Client becomes visible again.
 - Payment approvals include structured merchant, amount, recipient, origin,

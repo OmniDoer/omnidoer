@@ -76,7 +76,9 @@ to the browser worker. The Control Client mirrors that rule with a visible
 freshness indicator and client-side stale-input refresh. Mobile users can zoom
 and pan the frame projection in the PWA, but those view-only transforms do not
 change the frame id binding or screenshot-pixel coordinate mapping used by the
-Control Service. If a mobile client briefly loses frame fetch connectivity,
+Control Service. Two-finger pinch gestures are consumed by the PWA as local
+projection zoom and are not forwarded as browser input events. If a mobile
+client briefly loses frame fetch connectivity,
 the PWA retains the last delivered frame for visual continuity while the
 freshness guard blocks stale input until a new frame is delivered.
 After accepted takeover input, the PWA triggers a short-delay frame refresh

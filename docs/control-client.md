@@ -58,6 +58,9 @@ view-pan mode for reading dense CAPTCHA, passkey, or registration prompts.
 Those controls change only the projection displayed in the PWA. Input events
 remain bound to the visible frame id and are mapped back to screenshot pixel
 coordinates before they reach the browser worker.
+Two-finger pinch is handled locally as projection zoom, so a user trying to
+inspect small challenge text does not accidentally send a tap or drag to the
+remote browser.
 During transient frame fetch failures, the panel keeps the last delivered
 browser frame visible, shows a reconnecting stream state, and relies on frame
 freshness to block stale input until the Control Service delivers a current
