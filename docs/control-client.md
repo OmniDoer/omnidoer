@@ -51,6 +51,8 @@ Each streamed browser frame includes a frame id and capture timestamp. Touch,
 keyboard, and text events sent from the Control Client are bound to the visible
 frame id, and stale or mismatched frame input is rejected so a tap intended for
 one page is not replayed onto a different page after navigation.
+Pointer input is also checked against the viewport dimensions recorded for the
+last delivered frame before it can reach the browser worker.
 The Human Takeover panel displays frame freshness and blocks stale input
 client-side before refreshing the projection.
 On small screens the same panel can zoom the browser frame and switch to a

@@ -22,9 +22,10 @@ Playwright mouse/keyboard input.
 Each streamed frame includes `frame_id`, `captured_at`, viewport metadata, and
 `input_binding_required`. The Control Client attaches the visible `frame_id` to
 touch, keyboard, and text input. The Control Service records the last delivered
-frame and rejects stale or mismatched input before it reaches the browser
-worker, preventing a tap from an old phone frame from being replayed onto a
-newly navigated page.
+frame and rejects stale, mismatched, or viewport-out-of-bounds pointer input
+before it reaches the browser worker, preventing a tap from an old phone frame
+or an impossible screen coordinate from being replayed onto a newly navigated
+page.
 The Control Client also shows frame freshness and refuses to send user input
 from a stale frame, refreshing the browser projection before the user tries
 again.

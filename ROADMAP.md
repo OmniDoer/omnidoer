@@ -67,8 +67,9 @@
   only, and rejected without echoing user-provided text.
 - Takeover browser frames now carry `frame_id`, `captured_at`, viewport
   metadata, and `input_binding_required`; Control Client input is bound to the
-  currently visible frame, and stale or mismatched frame input is rejected
-  before it reaches the browser worker. The Human Takeover panel also displays
+  currently visible frame, and stale, mismatched, or viewport-out-of-bounds
+  pointer input is rejected before it reaches the browser worker. The Human
+  Takeover panel also displays
   frame freshness, refreshes stale projections before sending input, and lets
   mobile users zoom and pan dense browser frames without changing the
   screenshot-pixel input mapping. Two-finger pinch zoom is handled locally so

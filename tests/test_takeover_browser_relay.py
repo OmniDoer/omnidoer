@@ -115,6 +115,22 @@ class TakeoverBrowserRelayTest(unittest.TestCase):
                                 timeout=5,
                             )
                         self.assertEqual(stale.exception.code, 409)
+                        out_of_bounds_body = json.dumps(
+                            {"event_type": "tap", "frame_id": frame["frame_id"], "x": frame["viewport"]["width"], "y": 0}
+                        ).encode()
+                        with self.assertRaises(HTTPError) as out_of_bounds:
+                            urlopen(
+                                Request(
+                                    f"{base}/api/requests/{request.request_id}/input",
+                                    data=out_of_bounds_body,
+                                    headers={"content-type": "application/json"},
+                                    method="POST",
+                                ),
+                                timeout=5,
+                            )
+                        self.assertEqual(out_of_bounds.exception.code, 400)
+                        error_payload = json.loads(out_of_bounds.exception.read().decode())
+                        self.assertEqual(error_payload["error"], "takeover_coordinates_out_of_bounds")
                 finally:
                     worker.stop()
                 raw_audit = (Path(tmp) / "audit.jsonl").read_text()

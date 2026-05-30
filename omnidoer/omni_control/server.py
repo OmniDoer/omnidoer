@@ -708,8 +708,9 @@ class ControlHandler(SimpleHTTPRequestHandler):
                         self._send_json(HTTPStatus.CONFLICT, {"error": "browser context is not connected"})
                         return
                     body = self._read_json()
+                    event = event_from_dict(body)
                     try:
-                        store.validate_takeover_frame(request_id, body.get("frame_id"))
+                        store.validate_takeover_input(request_id, event)
                     except ValueError as exc:
                         if str(exc) == "stale takeover frame":
                             self._send_json(
@@ -720,8 +721,17 @@ class ControlHandler(SimpleHTTPRequestHandler):
                                 },
                             )
                             return
+                        if str(exc) == "takeover coordinates out of frame bounds":
+                            self._send_json(
+                                HTTPStatus.BAD_REQUEST,
+                                {
+                                    "error": "takeover_coordinates_out_of_bounds",
+                                    "secret_exposed_to_model": False,
+                                },
+                            )
+                            return
                         raise
-                    self._send_json(HTTPStatus.OK, apply_input_event(request_id, event_from_dict(body), browser_controller=browser))
+                    self._send_json(HTTPStatus.OK, apply_input_event(request_id, event, browser_controller=browser))
                     return
                 else:
                     self._send_json(HTTPStatus.NOT_FOUND, {"error": "unknown action"})

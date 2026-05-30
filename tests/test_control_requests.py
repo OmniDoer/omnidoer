@@ -5,6 +5,7 @@ import stat
 from pathlib import Path
 
 from omnidoer.omni_control.requests import RequestStore
+from omnidoer.omni_takeover.models import InputEvent
 
 
 class ControlRequestTest(unittest.TestCase):
@@ -162,10 +163,19 @@ class ControlRequestTest(unittest.TestCase):
             top_level_url="http://127.0.0.1:8765/antibot",
             action_summary="take over",
         )
-        frame = {"frame_id": "frame-current", "captured_at": time.time()}
+        frame = {"frame_id": "frame-current", "captured_at": time.time(), "viewport": {"width": 320, "height": 180}}
         updated = self.store.record_takeover_frame(req.request_id, frame)
         self.assertEqual(updated.takeover_frame_id, "frame-current")
+        self.assertEqual(updated.takeover_frame_viewport_width, 320)
+        self.assertEqual(updated.takeover_frame_viewport_height, 180)
         self.assertEqual(self.store.validate_takeover_frame(req.request_id, "frame-current").request_id, req.request_id)
+        self.assertEqual(self.store.validate_takeover_input(req.request_id, InputEvent("tap", frame_id="frame-current", x=319, y=179)).request_id, req.request_id)
+        with self.assertRaises(ValueError) as out_of_bounds:
+            self.store.validate_takeover_input(req.request_id, InputEvent("tap", frame_id="frame-current", x=320, y=179))
+        self.assertEqual(str(out_of_bounds.exception), "takeover coordinates out of frame bounds")
+        with self.assertRaises(ValueError) as drag_out_of_bounds:
+            self.store.validate_takeover_input(req.request_id, InputEvent("drag", frame_id="frame-current", x=0, y=0, to_x=-1, to_y=10))
+        self.assertEqual(str(drag_out_of_bounds.exception), "takeover coordinates out of frame bounds")
         with self.assertRaises(ValueError) as mismatch:
             self.store.validate_takeover_frame(req.request_id, "frame-old")
         self.assertEqual(str(mismatch.exception), "stale takeover frame")

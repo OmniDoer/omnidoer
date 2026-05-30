@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from omnidoer.omni_observer.redactor import redact_dom_snapshot
+from omnidoer.omni_takeover.models import InputEvent
 from omnidoer.paths import state_file
 
 
@@ -58,6 +59,8 @@ class ControlRequest:
     browser_context_id: str | None = None
     takeover_frame_id: str | None = None
     takeover_frame_captured_at: float | None = None
+    takeover_frame_viewport_width: int | None = None
+    takeover_frame_viewport_height: int | None = None
     allowed_device_id: str | None = None
     control_owner: str = "agent"
     structured_details: dict[str, Any] = field(default_factory=dict)
@@ -244,8 +247,11 @@ class RequestStore:
         if request.request_type not in {"human_takeover", "account_registration"}:
             raise ValueError("request is not human takeover or registration handoff")
         self._ensure_actionable(request)
+        viewport = frame.get("viewport") or {}
         request.takeover_frame_id = str(frame.get("frame_id") or "")
         request.takeover_frame_captured_at = float(frame.get("captured_at") or time.time())
+        request.takeover_frame_viewport_width = int(viewport.get("width") or 0) or None
+        request.takeover_frame_viewport_height = int(viewport.get("height") or 0) or None
         return self.update(request)
 
     def validate_takeover_frame(self, request_id: str, frame_id: str | None, *, now: float | None = None) -> ControlRequest:
@@ -260,4 +266,20 @@ class RequestStore:
         captured_at = request.takeover_frame_captured_at or 0.0
         if (now or time.time()) - captured_at > TAKEOVER_FRAME_MAX_AGE_SECONDS:
             raise ValueError("stale takeover frame")
+        return request
+
+    def validate_takeover_input(self, request_id: str, event: InputEvent, *, now: float | None = None) -> ControlRequest:
+        request = self.validate_takeover_frame(request_id, event.frame_id, now=now)
+        width = request.takeover_frame_viewport_width
+        height = request.takeover_frame_viewport_height
+        if not width or not height:
+            return request
+
+        def in_bounds(x: int | None, y: int | None) -> bool:
+            return x is not None and y is not None and 0 <= x < width and 0 <= y < height
+
+        if event.event_type in {"tap", "click", "double_click", "long_press"} and not in_bounds(event.x, event.y):
+            raise ValueError("takeover coordinates out of frame bounds")
+        if event.event_type == "drag" and (not in_bounds(event.x, event.y) or not in_bounds(event.to_x, event.to_y)):
+            raise ValueError("takeover coordinates out of frame bounds")
         return request

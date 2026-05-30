@@ -39,6 +39,11 @@ class TakeoverStreamTest(unittest.TestCase):
             event_from_dict({"event_type": "tap", "frame_id": "x" * 129, "x": 1, "y": 2})
         self.assertEqual(str(raised.exception), "takeover frame id too long")
 
+    def test_event_from_dict_rejects_non_integer_coordinates_without_echo(self) -> None:
+        with self.assertRaises(ValueError) as raised:
+            event_from_dict({"event_type": "tap", "frame_id": "frame", "x": "secret-x", "y": 2})
+        self.assertEqual(str(raised.exception), "takeover coordinates must be integers")
+
     def test_registration_handoff_stream_is_control_only(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             old_home = os.environ.get("OMNIDOER_HOME")

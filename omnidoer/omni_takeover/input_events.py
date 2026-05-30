@@ -25,6 +25,16 @@ def _event_type(value: object) -> str:
     return str(value or "").strip()
 
 
+def _is_int_coordinate(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _require_coordinates(event: InputEvent, *names: str) -> None:
+    for name in names:
+        if not _is_int_coordinate(getattr(event, name)):
+            raise ValueError("takeover coordinates must be integers")
+
+
 def validate_input_event(event: InputEvent) -> None:
     """Validate control-only browser input without echoing user-provided text."""
 
@@ -36,6 +46,15 @@ def validate_input_event(event: InputEvent) -> None:
         raise ValueError("takeover text too long")
     if event.key is not None and len(event.key) > MAX_TAKEOVER_KEY_CHARS:
         raise ValueError("takeover key too long")
+    if event.event_type in {"tap", "click", "double_click", "long_press"}:
+        _require_coordinates(event, "x", "y")
+    if event.event_type == "drag":
+        _require_coordinates(event, "x", "y", "to_x", "to_y")
+    if event.event_type == "scroll":
+        if event.delta_x is not None and not _is_int_coordinate(event.delta_x):
+            raise ValueError("takeover coordinates must be integers")
+        if event.delta_y is not None and not _is_int_coordinate(event.delta_y):
+            raise ValueError("takeover coordinates must be integers")
 
 
 def event_from_dict(data: dict) -> InputEvent:
