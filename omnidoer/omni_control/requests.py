@@ -60,6 +60,7 @@ class ControlRequest:
     structured_details: dict[str, Any] = field(default_factory=dict)
     response_ciphertext: dict[str, Any] | None = None
     approval_decision: str | None = None
+    approval_fingerprint: str | None = None
     completed_by_user: bool = False
     bypassed: bool = False
     used: bool = False
@@ -129,6 +130,7 @@ class RequestStore:
         allowed_device_id: str | None = None,
         save_to_vault: bool = False,
         structured_details: dict[str, Any] | None = None,
+        approval_fingerprint: str | None = None,
     ) -> ControlRequest:
         if request_type not in REQUEST_TYPES:
             raise ValueError(f"unsupported request type: {request_type}")
@@ -148,6 +150,7 @@ class RequestStore:
             allowed_device_id=allowed_device_id,
             save_to_vault=save_to_vault,
             structured_details=dict(structured_details or {}),
+            approval_fingerprint=approval_fingerprint,
         )
         if request_type in {"human_takeover", "account_registration"}:
             request.control_owner = "user"

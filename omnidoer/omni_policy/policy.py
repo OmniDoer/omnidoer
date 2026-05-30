@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any
 from urllib.parse import urlparse
 
 
@@ -46,6 +48,19 @@ CHALLENGE_ACTIONS = {
     "payment_3ds",
     "device_confirmation",
 }
+
+SENSITIVE_CLICK_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    (
+        "payment_submit",
+        re.compile(
+            r"\b(pay|purchase|buy now|place order|complete order|submit payment|checkout|subscribe|confirm payment)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    ("transfer", re.compile(r"\b(send money|transfer|wire transfer|withdraw)\b", re.IGNORECASE)),
+    ("oauth_grant", re.compile(r"\b(authorize|allow access|grant access|approve access)\b", re.IGNORECASE)),
+    ("account_deletion", re.compile(r"\b(delete account|close account|remove account|terminate account)\b", re.IGNORECASE)),
+)
 
 
 def origin_from_url(url: str) -> str | None:
@@ -137,9 +152,34 @@ def evaluate_challenge(action_type: str) -> PolicyDecision:
     return PolicyDecision(Decision.ALLOW, "no challenge policy required")
 
 
+def classify_sensitive_click(metadata: dict[str, Any]) -> str | None:
+    """Classify clicks that must not proceed without human approval."""
+
+    fields = metadata.get("form_fields") if isinstance(metadata.get("form_fields"), list) else []
+    field_text = " ".join(
+        " ".join(str(field.get(key, "")) for key in ("name", "id", "type", "value"))
+        for field in fields
+        if isinstance(field, dict)
+    )
+    haystack = " ".join(
+        str(metadata.get(key, ""))
+        for key in ("text", "value", "name", "id", "aria_label", "form_action", "current_url")
+    )
+    haystack = f"{haystack} {field_text}"
+    for action_type, pattern in SENSITIVE_CLICK_PATTERNS:
+        if pattern.search(haystack):
+            return action_type
+    if metadata.get("tag") == "button" and metadata.get("type") == "submit":
+        lowered = haystack.lower()
+        if "amount" in lowered and "currency" in lowered:
+            return "payment_submit"
+    return None
+
+
 def policy_self_test() -> None:
     assert requires_approval("payment_submit").decision == Decision.REQUIRE_APPROVAL
     assert evaluate_challenge("captcha").decision == Decision.REQUIRE_USER_INTERACTION
     assert evaluate_challenge("high_intensity_antibot").decision == Decision.REQUIRE_TAKEOVER
     assert evaluate_challenge("account_registration").decision == Decision.REQUIRE_TAKEOVER
     assert suspicious_origin_reason("https://xn--example-9d0b.com") is not None
+    assert classify_sensitive_click({"text": "Pay 12.34 USD"}) == "payment_submit"

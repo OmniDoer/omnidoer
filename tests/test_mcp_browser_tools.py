@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from urllib.parse import quote
 
-from omnidoer.omni_mcp.runtime import reset_runtime_for_tests
+from omnidoer.omni_mcp.runtime import get_browser, reset_runtime_for_tests
 from omnidoer.omni_mcp.tools import call_tool
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_vault.vault import Vault
@@ -102,6 +102,52 @@ class McpBrowserToolsTest(unittest.TestCase):
                 )
                 self.assertEqual(approved["status"], "uploaded")
                 self.assertNotIn("sensitive upload body", repr(approved))
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_sensitive_payment_click_requires_matching_approval_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                html = quote(
+                    """
+<form id="pay-form" action="/pay" onsubmit="event.preventDefault(); window.clicked = true;">
+  <input type="hidden" name="merchant" value="Demo Store">
+  <input type="hidden" name="amount" value="12.34">
+  <input type="hidden" name="currency" value="USD">
+  <button id="pay" type="submit">Pay 12.34 USD</button>
+</form>
+<script>window.clicked = false;</script>
+"""
+                )
+                opened = call_tool("browser.open", {"url": f"data:text/html,{html}"})
+                if opened.get("status") == "unavailable":
+                    self.skipTest("playwright chromium unavailable")
+
+                blocked = call_tool("browser.click", {"selector": "#pay"})
+                self.assertEqual(blocked["status"], "approval_required")
+                self.assertEqual(blocked["blocked_action"], "payment_submit")
+                request = blocked["request"]
+                self.assertEqual(request["request_type"], "payment_approval")
+                self.assertEqual(request["structured_details"]["merchant"], "Demo Store")
+                self.assertEqual(request["structured_details"]["amount"], "12.34")
+                self.assertRegex(request["approval_fingerprint"], r"^[0-9a-f]{64}$")
+                self.assertFalse(get_browser().page.evaluate("window.clicked"))
+
+                RequestStore().approve(request["request_id"])
+                get_browser().page.evaluate("document.querySelector('[name=amount]').value = '99.00'")
+                mismatch = call_tool("browser.click", {"selector": "#pay", "approval_request_id": request["request_id"]})
+                self.assertEqual(mismatch["status"], "approval_scope_mismatch")
+                self.assertFalse(get_browser().page.evaluate("window.clicked"))
+
+                get_browser().page.evaluate("document.querySelector('[name=amount]').value = '12.34'")
+                clicked = call_tool("browser.click", {"selector": "#pay", "approval_request_id": request["request_id"]})
+                self.assertEqual(clicked["status"], "clicked")
+                self.assertTrue(get_browser().page.evaluate("window.clicked"))
             finally:
                 if old_home is None:
                     os.environ.pop("OMNIDOER_HOME", None)

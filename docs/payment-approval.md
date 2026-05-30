@@ -26,6 +26,15 @@ approves the structured review.
 
 Approval is scoped to the reviewed details. If amount, merchant, origin, form
 action, button text, or payment method summary changes, the approval is invalid.
+OmniDoer records a SHA-256 review fingerprint over the scoped details and
+recomputes it immediately before the approved click is allowed.
+
+`browser.click` is policy-gated for sensitive final actions. Buttons that look
+like payment submission, purchase, transfer, subscription, OAuth authorization,
+or account deletion do not click immediately. The tool creates an approval
+request with merchant/payee, amount, currency, origin, form action, final
+button text, and after-approval result when those details are visible. Only an
+approved request with the same review fingerprint can release that exact click.
 
 ## Local Demo
 

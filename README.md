@@ -21,6 +21,38 @@ human authentication, judgment, or consent.
 
 ![OmniDoer English edition cinematic poster](./docs/assets/localized/omnidoer-readme-en.jpg)
 
+## Quick Install / 一键部署
+
+Local developer install:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scripts/install-cloud-direct.sh | sh
+```
+
+Cloud Direct server install behind your own HTTPS reverse proxy:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scripts/install-cloud-direct.sh | \
+  OMNIDOER_CLOUD_DIRECT=1 OMNIDOER_PUBLIC_URL=https://agent.example.com sh
+```
+
+The installer clones OmniDoer, creates `~/omnidoer/.venv`, installs the Python
+sidecar runtime, installs the Chromium browser worker, runs `omnidoer init`,
+self-tests the MCP server, registers `omnidoer mcp serve` with Codex when the
+`codex` CLI is available, and starts the Control Service. It preserves your
+existing Codex login, model selection, and billing path.
+
+After install:
+
+```sh
+~/omnidoer/.venv/bin/omnidoer control pair --print-qr
+~/omnidoer/.venv/bin/omnidoer control submit-task "Use OmniDoer on the local demo"
+```
+
+Set `OMNIDOER_INSTALL_DIR`, `OMNIDOER_HOST`, `OMNIDOER_PORT`, `OMNIDOER_START=0`,
+`OMNIDOER_REGISTER_MCP=0`, or `OMNIDOER_SKIP_PLAYWRIGHT=1` to customize the
+bootstrap.
+
 Localized README editions:
 [中文](./README.zh-CN.md) |
 [Español](./README.es.md) |

@@ -4,6 +4,32 @@
 
 [English](./README.md) | [中文](./README.zh-CN.md) | [Español](./README.es.md) | [Deutsch](./README.de.md) | [日本語](./README.ja.md) | [한국어](./README.ko.md)
 
+## Installation rapide
+
+Installation locale :
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scripts/install-cloud-direct.sh | sh
+```
+
+Serveur Cloud Direct derrière votre proxy HTTPS :
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scripts/install-cloud-direct.sh | \
+  OMNIDOER_CLOUD_DIRECT=1 OMNIDOER_PUBLIC_URL=https://agent.example.com sh
+```
+
+Après installation :
+
+```sh
+~/omnidoer/.venv/bin/omnidoer control pair --print-qr
+~/omnidoer/.venv/bin/omnidoer control submit-task "Use OmniDoer on the local demo"
+```
+
+L’installateur crée `~/omnidoer/.venv`, initialise OmniDoer, installe le browser
+worker, teste le serveur MCP et enregistre `omnidoer mcp serve` si `codex` CLI
+est disponible.
+
 OmniDoer étend Codex CLI au moyen d’un serveur MCP et d’un sidecar local/cloud-direct. Ce n’est pas un nouveau client OpenAI API. Codex raisonne ; OmniDoer agit avec un navigateur réel, Secret Broker, Vault, Control Client, Challenge Relay, Human Takeover, Cloud Direct, Approval Gate et audit.
 
 Si un humain peut l’autoriser et l’effectuer sur le web, OmniDoer vise à l’exécuter en sécurité : inscription, connexion, navigation, formulaires, téléchargements, factures, revue d’achat, approbation de paiement et reprise humaine lorsqu’un site exige l’utilisateur.

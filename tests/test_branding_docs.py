@@ -1,5 +1,6 @@
 import json
 import pathlib
+import stat
 import unittest
 
 
@@ -59,9 +60,23 @@ class BrandingDocsTest(unittest.TestCase):
         self.assertIn("guarded browser 2FA", readme)
         self.assertIn("Payments, purchases, account changes, OAuth grants, message sending", readme)
         self.assertIn("OmniDoer does not bypass the mechanism", readme)
+        self.assertIn("Quick Install / 一键部署", readme)
+        self.assertIn("install-cloud-direct.sh", readme)
+        self.assertIn("OMNIDOER_CLOUD_DIRECT=1", readme)
         self.assertNotIn("智能体可以行动，但秘密必须留在本地。", readme)
         self.assertIn("不要把 OmniDoer 做成默认 OpenAI API 客户端", agents)
         self.assertIn("docs/assets/localized", agents)
+
+    def test_one_command_installer_is_documented_and_executable(self) -> None:
+        installer = self.root / "omnidoer" / "scripts" / "install-cloud-direct.sh"
+        content = installer.read_text()
+        self.assertTrue(installer.is_file())
+        self.assertTrue(installer.stat().st_mode & stat.S_IXUSR)
+        self.assertIn("OMNIDOER_CLOUD_DIRECT", content)
+        self.assertIn("OMNIDOER_PUBLIC_URL", content)
+        self.assertIn("mcp serve --self-test", content)
+        self.assertIn("control pair --print-qr", content)
+        self.assertIn("codex mcp add omnidoer", content)
 
     def test_localized_readmes_use_distinct_cinematic_images(self) -> None:
         expected = {
@@ -78,6 +93,8 @@ class BrandingDocsTest(unittest.TestCase):
             self.assertIn(image, content, readme_name)
             self.assertIn("Codex", content, readme_name)
             self.assertIn("OpenAI API", content, readme_name)
+            self.assertIn("install-cloud-direct.sh", content, readme_name)
+            self.assertIn("OMNIDOER_CLOUD_DIRECT=1", content, readme_name)
 
     def test_github_pages_intro_exists(self) -> None:
         page = (self.root / "docs" / "index.html").read_text()
@@ -86,7 +103,10 @@ class BrandingDocsTest(unittest.TestCase):
         self.assertIn("Cloud Direct Architecture", page)
         self.assertIn("System Blueprints", page)
         self.assertIn("Agent Runtime Visuals", page)
-        self.assertIn("多语言简介", page)
+        self.assertIn("One-Command Deploy", page)
+        self.assertIn("install-cloud-direct.sh", page)
+        self.assertIn("OMNIDOER_CLOUD_DIRECT=1", page)
+        self.assertIn('href="#install"', page)
         self.assertIn('class="language-switcher"', page)
         self.assertIn('data-lang="zh-CN"', page)
         self.assertIn('data-lang="es"', page)
@@ -101,8 +121,9 @@ class BrandingDocsTest(unittest.TestCase):
         self.assertIn("assets/omnidoer-secure-credential-flow.svg", page)
         self.assertIn("assets/omnidoer-human-takeover-state-machine.svg", page)
         self.assertIn("assets/omnidoer-linux-cloud-runtime.svg", page)
-        self.assertIn("Localized README Posters", page)
-        self.assertIn("assets/localized/omnidoer-readme-zh-CN.jpg", page)
+        self.assertNotIn("Localized README Posters", page)
+        self.assertNotIn("多语言简介", page)
+        self.assertNotIn("Try The Control Client", page)
 
     def test_pwa_manifest_declares_icons(self) -> None:
         manifest = json.loads((self.root / "omnidoer/omni_control/static/manifest.json").read_text())

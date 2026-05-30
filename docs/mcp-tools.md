@@ -52,6 +52,13 @@ field appears to be a password, OTP, token, recovery code, payment, or other
 sensitive field, the browser controller rejects the call and requires the
 Secret Broker or Challenge Relay path instead.
 
+`browser.click` is also policy-gated. Sensitive final-action clicks such as
+payment submission, purchase, transfer, subscription, OAuth authorization, or
+account deletion return `approval_required` with a scoped review fingerprint
+instead of clicking. After the user approves, OmniDoer recomputes the
+fingerprint from the live page and only clicks if the reviewed details are
+unchanged.
+
 `browser.observe_accessibility` returns a redacted accessibility snapshot for
 model-visible reasoning. It must not include password values, verification
 codes, payment details, or challenge answers.

@@ -127,6 +127,36 @@ class BrowserController:
         self.page.click(selector)
         return {"status": "clicked", "secret_exposed_to_model": False}
 
+    def click_target_metadata(self, selector: str) -> dict[str, Any]:
+        return self.page.locator(selector).first.evaluate(
+            """(el) => {
+                const form = el.form || el.closest('form');
+                const text = (el.innerText || el.textContent || '').trim();
+                const value = el.getAttribute('value') || '';
+                return {
+                    tag: el.tagName.toLowerCase(),
+                    type: el.getAttribute('type') || '',
+                    name: el.getAttribute('name') || '',
+                    id: el.getAttribute('id') || '',
+                    aria_label: el.getAttribute('aria-label') || '',
+                    text,
+                    value,
+                    current_url: window.location.href,
+                    form_action: form ? form.action : '',
+                    form_method: form ? form.method : '',
+                    form_fields: form ? Array.from(form.elements).map((field) => ({
+                        tag: field.tagName.toLowerCase(),
+                        type: field.getAttribute('type') || '',
+                        name: field.getAttribute('name') || '',
+                        id: field.getAttribute('id') || '',
+                        autocomplete: field.getAttribute('autocomplete') || '',
+                        aria_label: field.getAttribute('aria-label') || '',
+                        value: field.matches('input[type="hidden"], input[type="submit"], button') ? (field.value || field.innerText || '') : ''
+                    })) : []
+                };
+            }"""
+        )
+
     def type_text(self, selector: str, text: str) -> dict:
         if self._selector_targets_sensitive_field(selector):
             return {

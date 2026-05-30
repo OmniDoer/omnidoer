@@ -254,6 +254,7 @@ function updatePaymentApprovalPanel(requests) {
   setFieldText("#subscription-renewal", detailValue(details, "subscription", "renewal"));
   setFieldText("#refund-terms", detailValue(details, "refund_terms", "cancellation_terms"));
   setFieldText("#final-button", detailValue(details, "final_button"));
+  setFieldText("#review-fingerprint", request?.approval_fingerprint);
   setFieldText("#after-approval", detailValue(details, "after_approval") || (request ? "Submit only after approval" : ""));
   setFieldText("#approval-status", request ? `${request.status}: ${request.action_summary || request.request_id}` : "No pending payment approval.", "");
   const confirm = document.querySelector("#approval-confirm");
@@ -883,6 +884,7 @@ function renderApprovalControls(request, item) {
     ["Refund / cancellation terms", details.refund_terms || details.cancellation_terms],
     ["Origin", details.origin || request.origin],
     ["Final button text", details.final_button],
+    ["Review fingerprint", request.approval_fingerprint],
     ["Agent prepared action", request.action_summary],
     ["After approval", details.after_approval || "Submit only after approval"]
   ].forEach(([label, value]) => {

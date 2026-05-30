@@ -46,6 +46,7 @@ class ControlUiContractTest(unittest.TestCase):
             "Subscription / renewal",
             "Refund / cancellation terms",
             "Final button text",
+            "Review fingerprint",
             "After approval",
         ):
             self.assertIn(label, self.html)
@@ -133,6 +134,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("Submit only after approval", app)
         self.assertIn("explicit_user_confirmation", app)
         self.assertIn("paymentApprovalConfirmationPayload", app)
+        self.assertIn("approval_fingerprint", app)
         self.assertIn("I reviewed the merchant, amount, recipient, origin, final button text, and after-approval result.", self.html)
         self.assertIn("approval-confirm", self.html)
         self.assertIn('"file_upload"', app)

@@ -2,6 +2,7 @@ import unittest
 
 from omnidoer.omni_policy import Decision, evaluate_credential_fill, origin_from_url, requires_approval, suspicious_origin_reason
 from omnidoer.omni_policy.policy import evaluate_challenge
+from omnidoer.omni_policy.policy import classify_sensitive_click
 
 
 class PolicyTest(unittest.TestCase):
@@ -88,6 +89,12 @@ class PolicyTest(unittest.TestCase):
         self.assertEqual(evaluate_challenge("payment_3ds").decision, Decision.REQUIRE_USER_INTERACTION)
         self.assertEqual(evaluate_challenge("high_intensity_antibot").decision, Decision.REQUIRE_TAKEOVER)
         self.assertEqual(evaluate_challenge("account_registration").decision, Decision.REQUIRE_TAKEOVER)
+
+    def test_sensitive_click_classifier_requires_approval_for_final_actions(self) -> None:
+        self.assertEqual(classify_sensitive_click({"text": "Pay 12.34 USD"}), "payment_submit")
+        self.assertEqual(classify_sensitive_click({"text": "Authorize Demo App"}), "oauth_grant")
+        self.assertEqual(classify_sensitive_click({"text": "Delete account"}), "account_deletion")
+        self.assertIsNone(classify_sensitive_click({"text": "Continue", "form_fields": [{"name": "email"}]}))
 
 
 if __name__ == "__main__":

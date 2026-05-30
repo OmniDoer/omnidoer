@@ -180,6 +180,111 @@ def _file_upload_allowed(arguments: dict, *, origin: str | None, top_level_url: 
     }
 
 
+def _field_value(metadata: dict, *names: str) -> str:
+    wanted = {name.lower() for name in names}
+    fields = metadata.get("form_fields") if isinstance(metadata.get("form_fields"), list) else []
+    for field in fields:
+        if not isinstance(field, dict):
+            continue
+        keys = {str(field.get("name", "")).lower(), str(field.get("id", "")).lower()}
+        if keys & wanted:
+            return str(field.get("value") or "")
+    return ""
+
+
+def _approval_request_type(action_type: str) -> str:
+    if action_type in {"payment_submit", "purchase", "transfer", "subscription"}:
+        return "payment_approval"
+    if action_type == "oauth_grant":
+        return "oauth_approval"
+    if action_type == "account_deletion":
+        return "account_delete"
+    if action_type == "send_sensitive_message":
+        return "message_send"
+    return "payment_approval"
+
+
+def _sensitive_click_review(browser, selector: str, metadata: dict, action_type: str) -> tuple[str, str, str, dict]:
+    from omnidoer.omni_policy.policy import origin_from_url
+
+    origin = browser.current_origin() or ""
+    top_level_url = browser.current_url()
+    final_button = str(metadata.get("text") or metadata.get("value") or selector)
+    form_action = str(metadata.get("form_action") or "")
+    form_action_origin = origin_from_url(form_action) or ""
+    structured_details = {
+        "sensitive_action_type": action_type,
+        "origin": origin,
+        "form_action": form_action,
+        "form_action_origin": form_action_origin,
+        "final_button": final_button,
+        "selector": selector,
+        "merchant": _field_value(metadata, "merchant", "payee", "recipient"),
+        "recipient": _field_value(metadata, "recipient", "payee", "merchant"),
+        "amount": _field_value(metadata, "amount", "total"),
+        "currency": _field_value(metadata, "currency"),
+        "billing_method_summary": _field_value(metadata, "billing_method_summary", "payment_method_summary"),
+        "subscription": _field_value(metadata, "subscription", "renewal"),
+        "after_approval": f"Click '{final_button}' in the controlled browser only if these reviewed details are unchanged.",
+    }
+    action_summary = f"Approve {action_type.replace('_', ' ')}: {final_button}"
+    return origin, top_level_url, action_summary, {key: value for key, value in structured_details.items() if value}
+
+
+def _sensitive_click_allowed(arguments: dict, *, browser, selector: str) -> dict | None:
+    from omnidoer.omni_approval.approval import approval_fingerprint, verify_approval_scope
+    from omnidoer.omni_control.requests import RequestStore
+    from omnidoer.omni_observer.redactor import redact_dom_snapshot
+    from omnidoer.omni_policy.policy import classify_sensitive_click
+
+    metadata = browser.click_target_metadata(selector)
+    action_type = classify_sensitive_click(metadata)
+    if not action_type:
+        return None
+    origin, top_level_url, action_summary, structured_details = _sensitive_click_review(browser, selector, metadata, action_type)
+    store = RequestStore()
+    request_id = arguments.get("approval_request_id") or arguments.get("request_id")
+    if request_id:
+        try:
+            request = verify_approval_scope(
+                str(request_id),
+                origin=origin,
+                top_level_url=top_level_url,
+                action_summary=action_summary,
+                structured_details=structured_details,
+                store=store,
+            )
+        except KeyError:
+            return _error("not_found", "approval request not found")
+        except PermissionError as exc:
+            return {"status": "approval_scope_mismatch", "reason": str(exc), "secret_exposed_to_model": False}
+        if request.request_type != _approval_request_type(action_type):
+            return _error("rejected", "approval request type does not match click action")
+        return None
+
+    fingerprint = approval_fingerprint(
+        origin=origin,
+        top_level_url=top_level_url,
+        action_summary=action_summary,
+        structured_details=structured_details,
+    )
+    request = store.create(
+        _approval_request_type(action_type),
+        origin=origin,
+        top_level_url=top_level_url,
+        action_summary=action_summary,
+        risk_level=str(arguments.get("risk_level") or "high"),
+        structured_details=redact_dom_snapshot(structured_details),
+        approval_fingerprint=fingerprint,
+    )
+    return {
+        "status": "approval_required",
+        "request": request.to_public_dict(),
+        "blocked_action": action_type,
+        "secret_exposed_to_model": False,
+    }
+
+
 def _totp_code(seed: str) -> str:
     import base64
     import hashlib
@@ -219,6 +324,9 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
                 selector = arguments.get("selector") or arguments.get("selector_or_description")
                 if not selector:
                     return _error("error", "selector required")
+                approval = _sensitive_click_allowed(arguments, browser=browser, selector=str(selector))
+                if approval is not None:
+                    return approval
                 return browser.click(str(selector))
             if name == "browser.type_text":
                 if arguments.get("secret"):

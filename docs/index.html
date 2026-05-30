@@ -182,33 +182,50 @@
       line-height: 1.5;
       padding: 12px 14px;
     }
-    .localized-posters {
+    .deploy-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 16px;
       margin-top: 20px;
     }
-    .localized-posters a {
-      color: inherit;
-      text-decoration: none;
-    }
-    .localized-posters img {
-      display: block;
-      width: 100%;
-      height: auto;
+    .command-panel {
+      background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: #020617;
+      min-width: 0;
+      padding: 18px;
+    }
+    .command-panel h3 {
+      margin: 0 0 10px;
+      font-size: 1.02rem;
+    }
+    .command-panel pre {
+      margin: 0;
+      overflow-x: auto;
+      background: #0f172a;
+      color: #e2e8f0;
+      border-radius: 8px;
+      padding: 14px;
+      line-height: 1.55;
+      font-size: 0.92rem;
+    }
+    .command-panel pre code {
+      background: transparent;
+      border-radius: 0;
+      color: inherit;
+      padding: 0;
     }
     code {
       background: #e2e8f0;
       border-radius: 6px;
       padding: 2px 5px;
     }
-    .language-list {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 16px;
+    .next-commands {
+      margin-top: 16px;
+      max-width: 820px;
+    }
+    .install-note {
+      margin-top: 16px;
     }
     footer {
       border-top: 1px solid var(--line);
@@ -227,7 +244,7 @@
       .hero-copy { padding: 34svh 16px 34px; }
       .tagline { max-width: 100%; }
       main, nav { padding-left: 16px; padding-right: 16px; }
-      .grid, .language-list, .localized-posters, .visual-grid { grid-template-columns: 1fr; }
+      .grid, .deploy-grid, .visual-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -249,6 +266,7 @@
   </header>
   <nav aria-label="Primary">
     <a href="https://github.com/OmniDoer/omnidoer" data-i18n="nav_github">GitHub</a>
+    <a href="#install" data-i18n="nav_install">Install</a>
     <a href="control-service-cloud.md" data-i18n="nav_cloud">Cloud Direct</a>
     <a href="control-client.md" data-i18n="nav_control">Control Client</a>
     <a href="security-model.md" data-i18n="nav_security">Security Model</a>
@@ -276,6 +294,28 @@
           <p data-i18n="card_registration_copy">When a site needs a new account, the live registration page is proxied to the Control Client so the user completes signup and verification directly.</p>
         </article>
       </div>
+    </section>
+
+    <section id="install">
+      <h2 data-i18n="install_heading">One-Command Deploy</h2>
+      <p data-i18n="install_copy">Install OmniDoer on a Linux server or local development machine with one shell command. The bootstrap keeps Codex as the model and auth entrypoint, then starts the Control Service and registers the MCP sidecar when Codex CLI is available.</p>
+      <div class="deploy-grid">
+        <article class="command-panel">
+          <h3 data-i18n="install_local_title">Local Developer Runtime</h3>
+          <pre><code>curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scripts/install-cloud-direct.sh | sh</code></pre>
+        </article>
+        <article class="command-panel">
+          <h3 data-i18n="install_cloud_title">Cloud Direct Server</h3>
+          <pre><code>curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scripts/install-cloud-direct.sh | \
+  OMNIDOER_CLOUD_DIRECT=1 OMNIDOER_PUBLIC_URL=https://agent.example.com sh</code></pre>
+        </article>
+      </div>
+      <article class="command-panel next-commands">
+        <h3 data-i18n="install_after_title">Pair And Submit</h3>
+        <pre><code>~/omnidoer/.venv/bin/omnidoer control pair --print-qr
+~/omnidoer/.venv/bin/omnidoer control submit-task "Use OmniDoer on the local demo"</code></pre>
+      </article>
+      <p class="install-note" data-i18n="install_note">Set <code>OMNIDOER_INSTALL_DIR</code>, <code>OMNIDOER_HOST</code>, <code>OMNIDOER_PORT</code>, <code>OMNIDOER_START=0</code>, <code>OMNIDOER_REGISTER_MCP=0</code>, or <code>OMNIDOER_SKIP_PLAYWRIGHT=1</code> to customize the bootstrap.</p>
     </section>
 
     <section>
@@ -324,61 +364,6 @@
         </figure>
       </div>
     </section>
-
-    <section>
-      <h2 data-i18n="multilingual_heading">多语言简介 / Multilingual Intro</h2>
-      <div class="language-list">
-        <article class="card">
-          <h3>English</h3>
-          <p>OmniDoer is a local-first and cloud-direct action runtime for Codex CLI. It helps operate websites while credentials, challenge answers, and payment approvals stay outside model context.</p>
-        </article>
-        <article class="card">
-          <h3>中文</h3>
-          <p>OmniDoer 是 Codex CLI 的 MCP/sidecar 扩展。Agent 可以行动，但密码、验证码、Cookie、私钥和支付凭据必须留在 Broker、Vault 与 Control Client 的安全边界内。</p>
-        </article>
-        <article class="card">
-          <h3>Español</h3>
-          <p>OmniDoer permite acciones web autorizadas por el usuario mediante Codex CLI, con aprobaciones humanas y sin entregar secretos al modelo.</p>
-        </article>
-        <article class="card">
-          <h3>Français</h3>
-          <p>OmniDoer ajoute à Codex CLI une couche MCP/sidecar pour agir sur le web avec un navigateur contrôlé, un coffre local et des approbations humaines.</p>
-        </article>
-        <article class="card">
-          <h3>Deutsch</h3>
-          <p>OmniDoer erweitert Codex CLI um eine sichere MCP/Sidecar-Laufzeit. Geheimnisse bleiben im Broker, Vault und Control Client statt im Modellkontext.</p>
-        </article>
-        <article class="card">
-          <h3>日本語</h3>
-          <p>OmniDoer は Codex CLI の安全な実行レイヤーです。秘密情報は Broker と Vault で扱われ、モデルには渡されません。</p>
-        </article>
-        <article class="card">
-          <h3>한국어</h3>
-          <p>OmniDoer는 Codex CLI를 MCP/sidecar 방식으로 확장합니다. 비밀번호와 인증 코드는 Broker, Vault, Control Client 안에서만 처리됩니다.</p>
-        </article>
-      </div>
-    </section>
-
-    <section>
-      <h2 data-i18n="posters_heading">Localized README Posters</h2>
-      <p data-i18n="posters_copy">Each language edition uses a dedicated cinematic CG poster with exact locally typeset text, so the visual system stays polished without sending secrets or relying on model-rendered copy.</p>
-      <div class="localized-posters">
-        <a href="https://github.com/OmniDoer/omnidoer/blob/main/README.md"><img src="assets/localized/omnidoer-readme-en.jpg" alt="OmniDoer English README poster"></a>
-        <a href="https://github.com/OmniDoer/omnidoer/blob/main/README.zh-CN.md"><img src="assets/localized/omnidoer-readme-zh-CN.jpg" alt="OmniDoer Chinese README poster"></a>
-        <a href="https://github.com/OmniDoer/omnidoer/blob/main/README.es.md"><img src="assets/localized/omnidoer-readme-es.jpg" alt="OmniDoer Spanish README poster"></a>
-        <a href="https://github.com/OmniDoer/omnidoer/blob/main/README.fr.md"><img src="assets/localized/omnidoer-readme-fr.jpg" alt="OmniDoer French README poster"></a>
-        <a href="https://github.com/OmniDoer/omnidoer/blob/main/README.de.md"><img src="assets/localized/omnidoer-readme-de.jpg" alt="OmniDoer German README poster"></a>
-        <a href="https://github.com/OmniDoer/omnidoer/blob/main/README.ja.md"><img src="assets/localized/omnidoer-readme-ja.jpg" alt="OmniDoer Japanese README poster"></a>
-        <a href="https://github.com/OmniDoer/omnidoer/blob/main/README.ko.md"><img src="assets/localized/omnidoer-readme-ko.jpg" alt="OmniDoer Korean README poster"></a>
-      </div>
-    </section>
-
-    <section>
-      <h2 data-i18n="try_heading">Try The Control Client</h2>
-      <p data-i18n="try_copy">Local development uses <code>127.0.0.1</code>. Cloud Direct Mode is explicit and requires HTTPS/WSS, pairing, device identity, sessions, CSRF/origin protection, rate limits, and encrypted secret submission.</p>
-      <p><code>omnidoer control serve --cloud-direct --host 0.0.0.0 --port 8787 --public-url https://agent.example.com --behind-reverse-proxy</code></p>
-      <p><code>omnidoer control pair --print-qr</code></p>
-    </section>
   </main>
   <footer data-i18n="footer_copy">OmniDoer is a user-authorized local execution layer, not a credential stealer, CAPTCHA bypasser, or autonomous spender.</footer>
   <script>
@@ -394,7 +379,7 @@
     const copy = {
       "en": {
         hero_tagline: "The agent that does. A Codex CLI MCP sidecar for secure web actions where secrets remain with the broker, vault, and user-controlled client.",
-        nav_github: "GitHub", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Security Model", nav_tools: "MCP Tools",
+        nav_github: "GitHub", nav_install: "Install", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Security Model", nav_tools: "MCP Tools",
         secrets_heading: "Secrets Stay Out Of The Model",
         secrets_copy: "The agent may request an action. The broker checks the origin. The vault uses the secret. The browser receives the credential. The model never does.",
         card_codex_title: "Codex Preserved", card_codex_copy: "OmniDoer extends Codex CLI through MCP and does not create a default OpenAI API client or billing path.",
@@ -411,14 +396,17 @@
         visual_cloud_caption: "Cloud Direct control service for paired devices, sessions, broker, vault, and browser control.",
         visual_matrix_caption: "Feature matrix covering browser actions, secret handling, approvals, registration handoff, and audit.",
         visual_action_caption: "Omni action positioning for authorized signup, login, forms, downloads, purchases, and user takeover.",
-        multilingual_heading: "Multilingual Intro",
-        posters_heading: "Localized README Posters", posters_copy: "Each language edition uses a dedicated cinematic CG poster with exact locally typeset text, so the visual system stays polished without relying on model-rendered copy.",
-        try_heading: "Try The Control Client", try_copy: "Local development uses <code>127.0.0.1</code>. Cloud Direct Mode is explicit and requires HTTPS/WSS, pairing, device identity, sessions, CSRF/origin protection, rate limits, and encrypted secret submission.",
+        install_heading: "One-Command Deploy",
+        install_copy: "Install OmniDoer on a Linux server or local development machine with one shell command. The bootstrap keeps Codex as the model and auth entrypoint, then starts the Control Service and registers the MCP sidecar when Codex CLI is available.",
+        install_local_title: "Local Developer Runtime",
+        install_cloud_title: "Cloud Direct Server",
+        install_after_title: "Pair And Submit",
+        install_note: "Set <code>OMNIDOER_INSTALL_DIR</code>, <code>OMNIDOER_HOST</code>, <code>OMNIDOER_PORT</code>, <code>OMNIDOER_START=0</code>, <code>OMNIDOER_REGISTER_MCP=0</code>, or <code>OMNIDOER_SKIP_PLAYWRIGHT=1</code> to customize the bootstrap.",
         footer_copy: "OmniDoer is a user-authorized local execution layer, not a credential stealer, CAPTCHA bypasser, or autonomous spender."
       },
       "zh-CN": {
         hero_tagline: "真正执行任务的网页行动 Agent。Codex CLI 的 MCP/sidecar 安全执行层，secret 留在 Broker、Vault 和用户控制的 Control Client 内。",
-        nav_github: "GitHub", nav_cloud: "Cloud Direct", nav_control: "控制客户端", nav_security: "安全模型", nav_tools: "MCP 工具",
+        nav_github: "GitHub", nav_install: "安装", nav_cloud: "Cloud Direct", nav_control: "控制客户端", nav_security: "安全模型", nav_tools: "MCP 工具",
         secrets_heading: "Secret 不进入模型上下文",
         secrets_copy: "Agent 可以请求行动；Broker 校验来源；Vault 使用 secret；浏览器接收凭据；模型永远只看到脱敏状态。",
         card_codex_title: "保留 Codex", card_codex_copy: "OmniDoer 通过 MCP 扩展 Codex CLI，不创建默认 OpenAI API 客户端，也不改变计费路径。",
@@ -435,14 +423,17 @@
         visual_cloud_caption: "Cloud Direct 控制服务管理配对设备、会话、Broker、Vault 和浏览器控制。",
         visual_matrix_caption: "覆盖浏览器行动、secret 处理、审批、注册接管和审计的功能矩阵。",
         visual_action_caption: "用于授权注册、登录、表单、下载、购买和用户接管的全能行动定位。",
-        multilingual_heading: "多语言简介",
-        posters_heading: "本地化 README 海报", posters_copy: "每个语言版本都使用独立电影质感 CG 海报，并本地精确排版文字，避免依赖生成模型直接渲染公开文案。",
-        try_heading: "试用 Control Client", try_copy: "本地开发使用 <code>127.0.0.1</code>。Cloud Direct Mode 必须显式启用 HTTPS/WSS、pairing、设备身份、会话、CSRF/Origin 防护、限速和端到端加密 secret submission。",
+        install_heading: "一键部署",
+        install_copy: "用一条 shell 命令把 OmniDoer 安装到 Linux 服务器或本地开发机。bootstrap 会保留 Codex 作为模型与认证入口，启动 Control Service，并在可用时把 MCP sidecar 注册到 Codex CLI。",
+        install_local_title: "本地开发运行时",
+        install_cloud_title: "Cloud Direct 服务器",
+        install_after_title: "配对并提交任务",
+        install_note: "可设置 <code>OMNIDOER_INSTALL_DIR</code>、<code>OMNIDOER_HOST</code>、<code>OMNIDOER_PORT</code>、<code>OMNIDOER_START=0</code>、<code>OMNIDOER_REGISTER_MCP=0</code> 或 <code>OMNIDOER_SKIP_PLAYWRIGHT=1</code> 来调整安装流程。",
         footer_copy: "OmniDoer 是用户授权的本地执行层，不是窃取凭据、绕过 CAPTCHA 或自主消费的工具。"
       },
       "es": {
         hero_tagline: "El agente que actúa. Un sidecar MCP para Codex CLI que ejecuta acciones web seguras mientras los secretos permanecen en Broker, Vault y Control Client.",
-        nav_github: "GitHub", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Modelo de seguridad", nav_tools: "Herramientas MCP",
+        nav_github: "GitHub", nav_install: "Instalar", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Modelo de seguridad", nav_tools: "Herramientas MCP",
         secrets_heading: "Los secretos no entran al modelo", secrets_copy: "El agente solicita una acción; el Broker valida el origen; Vault usa el secreto; el navegador recibe la credencial; el modelo no.",
         card_codex_title: "Codex preservado", card_codex_copy: "OmniDoer extiende Codex CLI con MCP sin crear un cliente OpenAI API ni una ruta de facturación predeterminada.",
         card_control_title: "Control Client", card_control_copy: "El usuario gestiona credenciales, aprobaciones, desafíos y takeover humano en una interfaz PWA.",
@@ -457,13 +448,17 @@
         visual_cloud_caption: "Servicio Cloud Direct para dispositivos, sesiones, Broker, Vault y control del navegador.",
         visual_matrix_caption: "Matriz de funciones para acciones web, secretos, aprobaciones, registro y auditoría.",
         visual_action_caption: "Posicionamiento para registro, login, formularios, descargas, compras y takeover autorizados.",
-        multilingual_heading: "Introducción multilingüe", posters_heading: "Pósters README localizados", posters_copy: "Cada idioma usa un póster CG cinematográfico con texto compuesto localmente.",
-        try_heading: "Probar Control Client", try_copy: "El desarrollo local usa <code>127.0.0.1</code>. Cloud Direct exige HTTPS/WSS, pairing, identidad de dispositivo, sesiones, CSRF/Origin, límites de tasa y secretos E2EE.",
+        install_heading: "Despliegue con un comando",
+        install_copy: "Instala OmniDoer en un servidor Linux o entorno local con un solo comando shell. El bootstrap conserva Codex como entrada de modelo y autenticación, inicia Control Service y registra el sidecar MCP cuando Codex CLI está disponible.",
+        install_local_title: "Runtime local",
+        install_cloud_title: "Servidor Cloud Direct",
+        install_after_title: "Emparejar y enviar",
+        install_note: "Define <code>OMNIDOER_INSTALL_DIR</code>, <code>OMNIDOER_HOST</code>, <code>OMNIDOER_PORT</code>, <code>OMNIDOER_START=0</code>, <code>OMNIDOER_REGISTER_MCP=0</code> o <code>OMNIDOER_SKIP_PLAYWRIGHT=1</code> para ajustar el bootstrap.",
         footer_copy: "OmniDoer es una capa de ejecución autorizada por el usuario, no una herramienta para robar credenciales, evadir CAPTCHA o gastar sola."
       },
       "fr": {
         hero_tagline: "L'agent qui agit. Un sidecar MCP pour Codex CLI qui sécurise les actions web tandis que les secrets restent dans Broker, Vault et Control Client.",
-        nav_github: "GitHub", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Modèle de sécurité", nav_tools: "Outils MCP",
+        nav_github: "GitHub", nav_install: "Installer", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Modèle de sécurité", nav_tools: "Outils MCP",
         secrets_heading: "Les secrets restent hors du modèle", secrets_copy: "L'agent demande une action; le Broker vérifie l'origine; Vault utilise le secret; le navigateur reçoit l'identifiant; le modèle jamais.",
         card_codex_title: "Codex préservé", card_codex_copy: "OmniDoer étend Codex CLI via MCP sans créer de client OpenAI API ni de chemin de facturation par défaut.",
         card_control_title: "Control Client", card_control_copy: "L'utilisateur gère identifiants, approbations, défis et takeover humain depuis une interface PWA.",
@@ -478,13 +473,17 @@
         visual_cloud_caption: "Service Cloud Direct pour appareils, sessions, Broker, Vault et contrôle navigateur.",
         visual_matrix_caption: "Matrice des actions navigateur, secrets, approbations, inscription et audit.",
         visual_action_caption: "Positionnement pour inscription, connexion, formulaires, téléchargements, achats et takeover autorisés.",
-        multilingual_heading: "Introduction multilingue", posters_heading: "Posters README localisés", posters_copy: "Chaque langue utilise un poster CG cinématique avec texte composé localement.",
-        try_heading: "Essayer Control Client", try_copy: "Le développement local utilise <code>127.0.0.1</code>. Cloud Direct exige HTTPS/WSS, pairing, identité d'appareil, sessions, CSRF/Origin, rate limit et secrets E2EE.",
+        install_heading: "Déploiement en une commande",
+        install_copy: "Installez OmniDoer sur un serveur Linux ou une machine locale avec une seule commande shell. Le bootstrap garde Codex comme point d'entrée modèle et auth, lance Control Service et enregistre le sidecar MCP si Codex CLI est disponible.",
+        install_local_title: "Runtime local",
+        install_cloud_title: "Serveur Cloud Direct",
+        install_after_title: "Pairing et tâche",
+        install_note: "Définissez <code>OMNIDOER_INSTALL_DIR</code>, <code>OMNIDOER_HOST</code>, <code>OMNIDOER_PORT</code>, <code>OMNIDOER_START=0</code>, <code>OMNIDOER_REGISTER_MCP=0</code> ou <code>OMNIDOER_SKIP_PLAYWRIGHT=1</code> pour ajuster le bootstrap.",
         footer_copy: "OmniDoer est une couche d'exécution autorisée par l'utilisateur, pas un voleur d'identifiants, un contournement CAPTCHA ou un dépensier autonome."
       },
       "de": {
         hero_tagline: "Der Agent, der handelt. Ein MCP-Sidecar für Codex CLI, bei dem Webaktionen sicher laufen und Geheimnisse in Broker, Vault und Control Client bleiben.",
-        nav_github: "GitHub", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Sicherheitsmodell", nav_tools: "MCP-Tools",
+        nav_github: "GitHub", nav_install: "Installieren", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Sicherheitsmodell", nav_tools: "MCP-Tools",
         secrets_heading: "Geheimnisse bleiben aus dem Modell", secrets_copy: "Der Agent fordert eine Aktion an; der Broker prüft den Ursprung; Vault nutzt das Secret; der Browser erhält die Anmeldedaten; das Modell nie.",
         card_codex_title: "Codex bleibt erhalten", card_codex_copy: "OmniDoer erweitert Codex CLI per MCP und erstellt keinen Standard-OpenAI-API-Client oder Billing-Pfad.",
         card_control_title: "Control Client", card_control_copy: "Nutzer steuern Zugangsdaten, Freigaben, Challenges und Human Takeover in einer PWA-Oberfläche.",
@@ -499,13 +498,17 @@
         visual_cloud_caption: "Cloud-Direct-Service für Geräte, Sitzungen, Broker, Vault und Browsersteuerung.",
         visual_matrix_caption: "Funktionsmatrix für Browseraktionen, Secrets, Freigaben, Registrierung und Audit.",
         visual_action_caption: "Positionierung für autorisierte Registrierung, Login, Formulare, Downloads, Käufe und Takeover.",
-        multilingual_heading: "Mehrsprachige Einführung", posters_heading: "Lokalisierte README-Poster", posters_copy: "Jede Sprache nutzt ein eigenes CG-Poster mit lokal gesetztem Text.",
-        try_heading: "Control Client ausprobieren", try_copy: "Lokale Entwicklung nutzt <code>127.0.0.1</code>. Cloud Direct verlangt HTTPS/WSS, Pairing, Geräteidentität, Sitzungen, CSRF/Origin-Schutz, Rate Limits und E2EE-Secrets.",
+        install_heading: "Ein-Befehl-Deployment",
+        install_copy: "Installiere OmniDoer auf einem Linux-Server oder lokalen Entwicklungsrechner mit einem Shell-Befehl. Das Bootstrap behält Codex als Modell- und Auth-Einstieg, startet den Control Service und registriert das MCP-Sidecar, wenn Codex CLI verfügbar ist.",
+        install_local_title: "Lokale Runtime",
+        install_cloud_title: "Cloud-Direct-Server",
+        install_after_title: "Pairing und Aufgabe",
+        install_note: "Setze <code>OMNIDOER_INSTALL_DIR</code>, <code>OMNIDOER_HOST</code>, <code>OMNIDOER_PORT</code>, <code>OMNIDOER_START=0</code>, <code>OMNIDOER_REGISTER_MCP=0</code> oder <code>OMNIDOER_SKIP_PLAYWRIGHT=1</code>, um das Bootstrap anzupassen.",
         footer_copy: "OmniDoer ist eine vom Nutzer autorisierte Ausführungsschicht, kein Credential-Stealer, CAPTCHA-Bypass oder autonomer Käufer."
       },
       "ja": {
         hero_tagline: "実行する Agent。Codex CLI 向け MCP sidecar として、secret を Broker、Vault、Control Client に閉じ込めたまま安全に Web 操作を行います。",
-        nav_github: "GitHub", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "セキュリティモデル", nav_tools: "MCP ツール",
+        nav_github: "GitHub", nav_install: "インストール", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "セキュリティモデル", nav_tools: "MCP ツール",
         secrets_heading: "Secret はモデルに渡さない", secrets_copy: "Agent は操作を要求し、Broker が origin を検証し、Vault が secret を使い、ブラウザだけが資格情報を受け取ります。",
         card_codex_title: "Codex を維持", card_codex_copy: "OmniDoer は MCP で Codex CLI を拡張し、既定の OpenAI API クライアントや課金経路を作りません。",
         card_control_title: "Control Client", card_control_copy: "資格情報、承認、チャレンジ、Human Takeover を PWA 対応 UI で扱います。",
@@ -520,13 +523,17 @@
         visual_cloud_caption: "ペアリング端末、session、Broker、Vault、ブラウザ制御の Cloud Direct サービス。",
         visual_matrix_caption: "ブラウザ操作、secret、承認、登録ハンドオフ、監査の機能マトリクス。",
         visual_action_caption: "許可された登録、ログイン、フォーム、ダウンロード、購入、ユーザー接管の位置づけ。",
-        multilingual_heading: "多言語紹介", posters_heading: "ローカライズ README ポスター", posters_copy: "各言語はローカル組版された専用のシネマ調 CG ポスターを使います。",
-        try_heading: "Control Client を試す", try_copy: "ローカル開発は <code>127.0.0.1</code> を使います。Cloud Direct は HTTPS/WSS、pairing、端末 ID、session、CSRF/Origin、rate limit、E2EE secret submission が必要です。",
+        install_heading: "ワンコマンド配備",
+        install_copy: "1 つの shell コマンドで OmniDoer を Linux サーバーまたはローカル開発環境へインストールします。bootstrap は Codex をモデルと認証の入口として維持し、Control Service を起動し、Codex CLI がある場合は MCP sidecar を登録します。",
+        install_local_title: "ローカル Runtime",
+        install_cloud_title: "Cloud Direct サーバー",
+        install_after_title: "Pairing とタスク投入",
+        install_note: "<code>OMNIDOER_INSTALL_DIR</code>、<code>OMNIDOER_HOST</code>、<code>OMNIDOER_PORT</code>、<code>OMNIDOER_START=0</code>、<code>OMNIDOER_REGISTER_MCP=0</code>、<code>OMNIDOER_SKIP_PLAYWRIGHT=1</code> を設定して bootstrap を調整できます。",
         footer_copy: "OmniDoer はユーザー承認のローカル実行層であり、資格情報窃取、CAPTCHA 回避、自律支払いの道具ではありません。"
       },
       "ko": {
         hero_tagline: "실제로 행동하는 Agent. Codex CLI용 MCP sidecar로, secret은 Broker, Vault, Control Client 안에 둔 채 안전한 웹 작업을 수행합니다.",
-        nav_github: "GitHub", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "보안 모델", nav_tools: "MCP 도구",
+        nav_github: "GitHub", nav_install: "설치", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "보안 모델", nav_tools: "MCP 도구",
         secrets_heading: "Secret은 모델로 가지 않습니다", secrets_copy: "Agent는 작업을 요청하고, Broker가 origin을 확인하고, Vault가 secret을 사용하며, 브라우저만 자격 증명을 받습니다.",
         card_codex_title: "Codex 유지", card_codex_copy: "OmniDoer는 MCP로 Codex CLI를 확장하며 기본 OpenAI API 클라이언트나 별도 결제 경로를 만들지 않습니다.",
         card_control_title: "Control Client", card_control_copy: "사용자는 PWA 친화 UI에서 자격 증명, 승인, challenge, Human Takeover를 처리합니다.",
@@ -541,8 +548,12 @@
         visual_cloud_caption: "페어링 장치, 세션, Broker, Vault, 브라우저 제어를 위한 Cloud Direct 서비스.",
         visual_matrix_caption: "브라우저 작업, secret 처리, 승인, 등록 핸드오프, 감사를 다루는 기능 매트릭스.",
         visual_action_caption: "허가된 가입, 로그인, 폼, 다운로드, 구매, 사용자 Takeover를 위한 포지셔닝.",
-        multilingual_heading: "다국어 소개", posters_heading: "현지화 README 포스터", posters_copy: "각 언어는 로컬 조판된 전용 시네마틱 CG 포스터를 사용합니다.",
-        try_heading: "Control Client 사용해 보기", try_copy: "로컬 개발은 <code>127.0.0.1</code>을 사용합니다. Cloud Direct는 HTTPS/WSS, pairing, 장치 ID, session, CSRF/Origin, rate limit, E2EE secret submission이 필요합니다.",
+        install_heading: "원커맨드 배포",
+        install_copy: "하나의 shell 명령으로 OmniDoer를 Linux 서버나 로컬 개발 머신에 설치합니다. bootstrap은 Codex를 모델 및 인증 진입점으로 유지하고 Control Service를 시작하며, Codex CLI가 있으면 MCP sidecar를 등록합니다.",
+        install_local_title: "로컬 Runtime",
+        install_cloud_title: "Cloud Direct 서버",
+        install_after_title: "Pairing 및 작업 제출",
+        install_note: "<code>OMNIDOER_INSTALL_DIR</code>, <code>OMNIDOER_HOST</code>, <code>OMNIDOER_PORT</code>, <code>OMNIDOER_START=0</code>, <code>OMNIDOER_REGISTER_MCP=0</code> 또는 <code>OMNIDOER_SKIP_PLAYWRIGHT=1</code>로 bootstrap을 조정할 수 있습니다.",
         footer_copy: "OmniDoer는 사용자 승인 로컬 실행 계층이며 자격 증명 탈취, CAPTCHA 우회, 자율 결제 도구가 아닙니다."
       }
     };
