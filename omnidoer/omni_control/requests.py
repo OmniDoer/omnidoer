@@ -91,6 +91,7 @@ class RequestStore:
         tmp = self.path.with_suffix(".tmp")
         tmp.write_text(json.dumps(serializable, indent=2, sort_keys=True))
         tmp.replace(self.path)
+        self.path.chmod(0o600)
 
     def list(self, include_expired: bool = False) -> list[ControlRequest]:
         requests = self._load()

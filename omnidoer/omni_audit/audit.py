@@ -39,6 +39,7 @@ class AuditLog:
         event["event_hash"] = hashlib.sha256(event_without_hash.encode()).hexdigest()
         with self.path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(event, sort_keys=True) + "\n")
+        self.path.chmod(0o600)
         return event
 
     def tail(self, limit: int = 20) -> list[dict[str, Any]]:

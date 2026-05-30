@@ -50,6 +50,7 @@ class TaskStore:
         tmp = self.path.with_suffix(".tmp")
         tmp.write_text(json.dumps(serializable, indent=2, sort_keys=True))
         tmp.replace(self.path)
+        self.path.chmod(0o600)
 
     def list(self, include_completed: bool = False) -> list[UserTask]:
         tasks = sorted(self._load().values(), key=lambda task: task.created_at)

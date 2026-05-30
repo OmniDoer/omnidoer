@@ -1,6 +1,7 @@
 import tempfile
 import time
 import unittest
+import stat
 from pathlib import Path
 
 from omnidoer.omni_control.requests import RequestStore
@@ -28,6 +29,8 @@ class ControlRequestTest(unittest.TestCase):
         self.assertNotIn("response_ciphertext", public)
         self.assertEqual(public["allowed_device_id"], "dev_phone")
         self.assertFalse(public["secret_exposed_to_model"])
+        mode = stat.S_IMODE(self.store.path.stat().st_mode)
+        self.assertEqual(mode, 0o600)
 
     def test_public_structured_details_are_redacted(self) -> None:
         req = self.store.create(

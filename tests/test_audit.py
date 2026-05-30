@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import stat
 from pathlib import Path
 
 from omnidoer.omni_audit.audit import AuditLog
@@ -14,6 +15,7 @@ class AuditTest(unittest.TestCase):
             audit.append("challenge_completed", sms_code="123456", status="ok")
             audit.append("challenge_text", message="SMS code: 654321", challenge_answer="user-completed")
             audit.append("takeover_input_event", user_input="typed-sensitive-value", input_event_type="type")
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
             raw = path.read_text()
             self.assertNotIn("fake-password", raw)
             self.assertNotIn("123456", raw)

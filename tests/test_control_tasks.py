@@ -1,5 +1,6 @@
 import json
 import os
+import stat
 import tempfile
 import unittest
 from http.server import ThreadingHTTPServer
@@ -16,6 +17,7 @@ class ControlTaskStoreTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = TaskStore(Path(tmp) / "tasks.json")
             task = store.create("Download the local demo invoice")
+            self.assertEqual(stat.S_IMODE(store.path.stat().st_mode), 0o600)
             self.assertEqual(task.status, "pending")
             claimed = store.next_pending()
             self.assertIsNotNone(claimed)
