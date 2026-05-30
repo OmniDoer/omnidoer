@@ -158,6 +158,14 @@ class BrowserController:
         self.page.fill(selector, value)
         return {"status": "filled", "secret": bool(secret), "secret_exposed_to_model": False}
 
+    def press_key(self, key: str) -> dict:
+        self.page.keyboard.press(key)
+        return {"status": "key_pressed", "secret_exposed_to_model": False}
+
+    def wait_for_load_state(self) -> dict:
+        self.page.wait_for_load_state("domcontentloaded")
+        return {"status": "loaded", "url": self.current_url(), "secret_exposed_to_model": False}
+
     def _selector_targets_sensitive_field(self, selector: str) -> bool:
         try:
             metadata = self.page.locator(selector).first.evaluate(

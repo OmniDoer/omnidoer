@@ -80,8 +80,9 @@ def request_registration_handoff(
     return request
 
 
-def start_stream(request_id: str, *, browser_controller=None) -> dict:
-    request = RequestStore().get(request_id)
+def start_stream(request_id: str, *, browser_controller=None, store: RequestStore | None = None) -> dict:
+    store = store or RequestStore()
+    request = store.get(request_id)
     if request.request_type not in {"human_takeover", "account_registration"}:
         raise ValueError("not a takeover or registration handoff request")
     if request.status != "user_control":
@@ -91,8 +92,9 @@ def start_stream(request_id: str, *, browser_controller=None) -> dict:
     return current_frame()
 
 
-def apply_input_event(request_id: str, event: InputEvent, *, browser_controller=None) -> dict:
-    request = RequestStore().get(request_id)
+def apply_input_event(request_id: str, event: InputEvent, *, browser_controller=None, store: RequestStore | None = None) -> dict:
+    store = store or RequestStore()
+    request = store.get(request_id)
     if request.status != "user_control":
         raise ValueError("user is not in control")
     result = {"status": "event_applied", "secret_exposed_to_model": False}

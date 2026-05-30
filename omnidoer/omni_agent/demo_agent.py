@@ -15,6 +15,7 @@ from urllib.parse import urlencode
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 
 from omnidoer.omni_approval.approval import decide, request_approval
+from omnidoer.omni_agent.challenge_guard import resolve_current_browser_challenge
 from omnidoer.omni_audit.audit import AuditLog
 from omnidoer.omni_challenge.relay import complete_in_test_mode as complete_challenge
 from omnidoer.omni_challenge.relay import request_user_interaction
@@ -230,6 +231,48 @@ def _registration_task(args) -> int:
     return 0
 
 
+def _guarded_browser_task(args) -> int:
+    origin = args.demo_origin.rstrip("/")
+    credential_id, secret = _credential_from_control_or_vault(args, origin)
+    browser_context_id = "demo-guarded-browser"
+    with BrowserContextWorker(f"{origin}/login") as browser:
+        with registered_browser_context(browser_context_id, browser):
+            browser.fill_field("#email", secret.username, secret=True)
+            browser.fill_field("#password", secret.password, secret=True)
+            browser.click("button[type='submit']")
+            browser.wait_for_load_state()
+            first = resolve_current_browser_challenge(
+                origin=origin,
+                browser=browser,
+                browser_context_id=browser_context_id,
+                reason="Demo login requires user 2FA completion",
+            )
+            browser.wait_for_load_state()
+            if "/dashboard" not in browser.current_url():
+                raise RuntimeError("guarded browser login did not reach dashboard")
+
+            browser.open(f"{origin}/antibot")
+            second = resolve_current_browser_challenge(
+                origin=origin,
+                browser=browser,
+                browser_context_id=browser_context_id,
+                reason="Demo anti-bot requires user takeover",
+            )
+            browser.wait_for_load_state()
+    AuditLog().append(
+        "guarded_browser_task_completed",
+        origin=origin,
+        credential_id=credential_id,
+        first_mode=first.mode,
+        first_challenge_type=first.challenge_type,
+        second_mode=second.mode,
+        second_challenge_type=second.challenge_type,
+        status="ok",
+    )
+    print("guarded browser task completed; 2FA and takeover handled; agent resumed")
+    return 0
+
+
 def _checkout_task(args) -> int:
     client = DemoHttpClient(args.demo_origin)
     _login(args, client)
@@ -286,15 +329,18 @@ def _checkout_task(args) -> int:
 
 def run_task(args) -> int:
     task = args.task
+    lowered = task.lower()
+    if "guarded" in lowered or "2fa" in lowered or "二次验证" in task or "智能切换" in task:
+        return _guarded_browser_task(args)
     if "下载" in task or "invoice" in task or "发票" in task:
         return _invoice_task(args)
-    if "人机验证" in task or "captcha" in task.lower():
+    if "人机验证" in task or "captcha" in lowered:
         return _captcha_task(args)
-    if "反机器人" in task or "anti" in task.lower():
+    if "反机器人" in task or "anti" in lowered:
         return _takeover_task(args)
-    if "注册" in task or "register" in task.lower() or "signup" in task.lower():
+    if "注册" in task or "register" in lowered or "signup" in lowered:
         return _registration_task(args)
-    if "checkout" in task.lower() or "支付" in task or "付款" in task:
+    if "checkout" in lowered or "支付" in task or "付款" in task:
         return _checkout_task(args)
     print("unsupported demo task")
     return 2
