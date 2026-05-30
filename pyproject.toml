@@ -28,3 +28,7 @@ include = ["omnidoer*"]
 
 [tool.setuptools.package-data]
 "omnidoer.omni_control" = ["static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

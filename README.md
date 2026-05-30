@@ -20,6 +20,12 @@ OmniDoer is a user-authorized local execution layer.
 
 智能体可以行动，但秘密必须留在本地。
 
+OmniDoer does not call OpenAI APIs directly. It extends Codex CLI through MCP
+and preserves your Codex authentication mode. If Codex is logged in with
+ChatGPT, OmniDoer uses that Codex path through Codex CLI. If Codex is using an
+API key, `omnidoer doctor` warns that this is OpenAI Platform API billing, but
+OmniDoer does not switch modes or create a new API client.
+
 ## Status
 
 OmniDoer is starting as a minimal, upstream-friendly fork of OpenAI Codex CLI.
@@ -70,6 +76,22 @@ The demo includes login, TOTP, dashboard, invoice download, checkout, malicious
 prompt injection, malicious iframe, form-action mismatch, HTTP downgrade,
 password reveal, fake token leak, fake card number, OAuth grant, and account
 deletion pages. It uses only fake local data.
+
+## Codex Integration
+
+Add OmniDoer to Codex as an MCP sidecar:
+
+```sh
+codex mcp add omnidoer -- omnidoer mcp serve
+```
+
+Control Client and demo agent commands do not require `OPENAI_API_KEY`.
+
+```sh
+omnidoer doctor
+omnidoer control serve --host 127.0.0.1 --port 8787
+omnidoer mcp serve --self-test
+```
 
 ## MVP Target
 
