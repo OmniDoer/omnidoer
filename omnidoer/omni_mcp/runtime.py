@@ -5,6 +5,7 @@ from __future__ import annotations
 import atexit
 
 from omnidoer.omni_browser.controller import BrowserController
+from omnidoer.omni_takeover.sessions import register_browser_context, unregister_browser_context
 
 
 _browser: BrowserController | None = None
@@ -16,6 +17,7 @@ def get_browser() -> BrowserController:
         browser = BrowserController()
         browser.__enter__()
         _browser = browser
+        register_browser_context("mcp-browser", browser)
         atexit.register(close_browser)
     return _browser
 
@@ -26,6 +28,7 @@ def close_browser() -> None:
         return
     browser = _browser
     _browser = None
+    unregister_browser_context("mcp-browser")
     browser.__exit__(None, None, None)
 
 

@@ -40,6 +40,46 @@ class McpToolsTest(unittest.TestCase):
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
 
+    def test_request_tools_create_control_requests_without_secrets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                common = {"origin": "http://127.0.0.1:8765", "top_level_url": "http://127.0.0.1:8765/login"}
+                credential = call_tool(
+                    "credential.request_from_user",
+                    {**common, "reason": "login", "fields": ["username", "password"]},
+                )
+                self.assertEqual(credential["status"], "credential_request_created")
+                self.assertNotIn("super-secret", repr(credential))
+
+                challenge = call_tool(
+                    "challenge.request_user_interaction",
+                    {**common, "challenge_type": "sms", "reason": "verify user"},
+                )
+                self.assertEqual(challenge["status"], "challenge_request_created")
+                status = call_tool("challenge.status", {"request_id": challenge["request"]["request_id"]})
+                self.assertEqual(status["status"], "pending")
+                self.assertNotIn("code", status)
+
+                takeover = call_tool("takeover.request_user_control", {**common, "reason": "anti-bot page"})
+                self.assertEqual(takeover["status"], "takeover_request_created")
+                takeover_status = call_tool("takeover.status", {"request_id": takeover["request"]["request_id"]})
+                self.assertEqual(takeover_status["control_owner"], "user")
+
+                approval = call_tool(
+                    "approval.request",
+                    {**common, "action_summary": "mock payment", "risk_level": "high", "structured_details": {"amount": "12.34"}},
+                )
+                self.assertEqual(approval["status"], "approval_request_created")
+                payment = call_tool("payment.prepare_review", common)
+                self.assertTrue(payment["requires_user_approval"])
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     def test_mcp_self_test_command(self) -> None:
         result = subprocess.run(
             [sys.executable, "-m", "omnidoer.omni_cli.main", "mcp", "serve", "--self-test"],
