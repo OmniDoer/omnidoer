@@ -80,10 +80,22 @@
     <section id="takeover-panel">
       <h2>Human Takeover</h2>
       <p>Agent paused. User in control. Release Control when finished. Touch, scroll, type, and key events are sent only to the controlled browser. Registration pages can use the same handoff so users complete signup themselves.</p>
+      <dl class="metadata takeover-metadata">
+        <dt>Status</dt><dd id="takeover-status-label">No active takeover</dd>
+        <dt>Request</dt><dd id="takeover-active-request">pending</dd>
+        <dt>URL</dt><dd id="takeover-current-url">pending</dd>
+        <dt>Frame</dt><dd id="takeover-frame-meta">waiting for browser handoff</dd>
+      </dl>
+      <div class="takeover-toolbar" aria-label="Live browser handoff controls">
+        <button id="refresh-takeover-frame" type="button" disabled>Refresh Frame</button>
+        <button id="release-active-takeover" type="button" disabled>Release Control</button>
+      </div>
       <div id="browser-stream" role="img" aria-label="Browser stream placeholder"></div>
+      <p id="takeover-input-state" class="flow-note">No active browser handoff.</p>
     </section>
     <section id="payment-approval">
       <h2>Payment Approval</h2>
+      <p id="approval-status" class="flow-note">No pending payment approval.</p>
       <dl class="metadata approval-details">
         <dt>Merchant</dt><dd id="merchant">pending</dd>
         <dt>Amount</dt><dd id="amount">pending</dd>
@@ -97,9 +109,10 @@
         <dt>Final button text</dt><dd id="final-button">pending</dd>
         <dt>After approval</dt><dd id="after-approval">pending</dd>
       </dl>
+      <label class="check-row approval-confirm"><input id="approval-confirm" type="checkbox" disabled> I reviewed the merchant, amount, recipient, origin, final button text, and after-approval result.</label>
       <div class="button-row">
-        <button id="deny">Deny</button>
-        <button id="approve">Approve</button>
+        <button id="deny" disabled>Deny</button>
+        <button id="approve" disabled>Approve</button>
       </div>
     </section>
   </main>

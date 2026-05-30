@@ -29,8 +29,35 @@
       min-height: 92svh;
       display: grid;
       align-items: end;
-      background: #fff url("assets/omnidoer-cinematic-poster.jpg") center / cover no-repeat;
+      background: #fff var(--hero-image, url("assets/localized/omnidoer-readme-en.jpg")) center / cover no-repeat;
       border-bottom: 1px solid var(--line);
+      position: relative;
+    }
+    .language-switcher {
+      position: absolute;
+      top: 18px;
+      right: max(18px, calc((100vw - 1120px) / 2 + 24px));
+      left: max(18px, calc((100vw - 1120px) / 2 + 24px));
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+      z-index: 1;
+    }
+    .language-switcher button {
+      border: 1px solid rgba(255, 255, 255, 0.48);
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.72);
+      color: white;
+      min-height: 36px;
+      padding: 6px 11px;
+      font: inherit;
+      cursor: pointer;
+    }
+    .language-switcher button[aria-pressed="true"] {
+      background: #ffffff;
+      color: var(--ink);
+      border-color: #ffffff;
     }
     .hero-copy {
       max-width: 1120px;
@@ -191,7 +218,13 @@
     }
     @media (max-width: 760px) {
       header { min-height: 86svh; background-position: 49% 28%; }
-      .hero-copy { padding: 38svh 16px 34px; }
+      .language-switcher {
+        position: static;
+        justify-content: flex-start;
+        padding: 12px 16px 0;
+      }
+      .language-switcher button { min-height: 34px; padding: 5px 9px; }
+      .hero-copy { padding: 34svh 16px 34px; }
       .tagline { max-width: 100%; }
       main, nav { padding-left: 16px; padding-right: 16px; }
       .grid, .language-list, .localized-posters, .visual-grid { grid-template-columns: 1fr; }
@@ -200,91 +233,100 @@
 </head>
 <body>
   <header>
+    <div class="language-switcher" aria-label="Language">
+      <button type="button" data-lang="en" aria-pressed="true">English</button>
+      <button type="button" data-lang="zh-CN" aria-pressed="false">中文</button>
+      <button type="button" data-lang="es" aria-pressed="false">Español</button>
+      <button type="button" data-lang="fr" aria-pressed="false">Français</button>
+      <button type="button" data-lang="de" aria-pressed="false">Deutsch</button>
+      <button type="button" data-lang="ja" aria-pressed="false">日本語</button>
+      <button type="button" data-lang="ko" aria-pressed="false">한국어</button>
+    </div>
     <div class="hero-copy">
       <h1>OmniDoer</h1>
-      <p class="tagline">The agent that does. A Codex CLI MCP sidecar for secure web actions where secrets remain with the broker, vault, and user-controlled client.</p>
+      <p class="tagline" data-i18n="hero_tagline">The agent that does. A Codex CLI MCP sidecar for secure web actions where secrets remain with the broker, vault, and user-controlled client.</p>
     </div>
   </header>
   <nav aria-label="Primary">
-    <a href="https://github.com/OmniDoer/omnidoer">GitHub</a>
-    <a href="control-service-cloud.md">Cloud Direct</a>
-    <a href="control-client.md">Control Client</a>
-    <a href="security-model.md">Security Model</a>
-    <a href="mcp-tools.md">MCP Tools</a>
+    <a href="https://github.com/OmniDoer/omnidoer" data-i18n="nav_github">GitHub</a>
+    <a href="control-service-cloud.md" data-i18n="nav_cloud">Cloud Direct</a>
+    <a href="control-client.md" data-i18n="nav_control">Control Client</a>
+    <a href="security-model.md" data-i18n="nav_security">Security Model</a>
+    <a href="mcp-tools.md" data-i18n="nav_tools">MCP Tools</a>
   </nav>
   <main>
     <section>
-      <h2>Secrets Stay Out Of The Model</h2>
-      <p>The agent may request an action. The broker checks the origin. The vault uses the secret. The browser receives the credential. The model never does.</p>
+      <h2 data-i18n="secrets_heading">Secrets Stay Out Of The Model</h2>
+      <p data-i18n="secrets_copy">The agent may request an action. The broker checks the origin. The vault uses the secret. The browser receives the credential. The model never does.</p>
       <div class="grid">
         <article class="card">
-          <h3>Codex Preserved</h3>
-          <p>OmniDoer extends Codex CLI through MCP and does not create a default OpenAI API client or billing path.</p>
+          <h3 data-i18n="card_codex_title">Codex Preserved</h3>
+          <p data-i18n="card_codex_copy">OmniDoer extends Codex CLI through MCP and does not create a default OpenAI API client or billing path.</p>
         </article>
         <article class="card">
-          <h3>Control Client</h3>
-          <p>Users handle credentials, approvals, challenges, and human takeover from one PWA-friendly interface.</p>
+          <h3 data-i18n="card_control_title">Control Client</h3>
+          <p data-i18n="card_control_copy">Users handle credentials, approvals, challenges, and human takeover from one PWA-friendly interface.</p>
         </article>
         <article class="card">
-          <h3>Cloud Direct</h3>
-          <p>Android, Windows, and browser clients connect directly to the user's own cloud server with pairing and E2EE secret submission.</p>
+          <h3 data-i18n="card_cloud_title">Cloud Direct</h3>
+          <p data-i18n="card_cloud_copy">Android, Windows, and browser clients connect directly to the user's own cloud server with pairing and E2EE secret submission.</p>
         </article>
         <article class="card">
-          <h3>Registration Handoff</h3>
-          <p>When a site needs a new account, the live registration page is proxied to the Control Client so the user completes signup and verification directly.</p>
+          <h3 data-i18n="card_registration_title">Registration Handoff</h3>
+          <p data-i18n="card_registration_copy">When a site needs a new account, the live registration page is proxied to the Control Client so the user completes signup and verification directly.</p>
         </article>
       </div>
     </section>
 
     <section>
-      <h2>Cloud Direct Architecture</h2>
+      <h2 data-i18n="cloud_arch_heading">Cloud Direct Architecture</h2>
       <img class="diagram" src="assets/omnidoer-cloud-direct.svg" alt="Control Client connects over HTTPS and WSS to the user's cloud Control Service, which connects internally to Broker, Vault, Browser Controller, and Codex MCP.">
     </section>
 
     <section>
-      <h2>System Blueprints</h2>
-      <p>These exact-text diagrams define the core OmniDoer runtime: secure credential storage, human takeover for 2FA and anti-bot pages, and Linux Cloud Direct deployment.</p>
+      <h2 data-i18n="blueprints_heading">System Blueprints</h2>
+      <p data-i18n="blueprints_copy">These exact-text diagrams define the core OmniDoer runtime: secure credential storage, human takeover for 2FA and anti-bot pages, and Linux Cloud Direct deployment.</p>
       <div class="blueprint-list">
         <figure>
           <img class="diagram" src="assets/omnidoer-secure-credential-flow.svg" alt="Secure credential lifecycle from Control Client to Broker, Vault, policy, browser fill, and redacted model view.">
-          <figcaption>Passwords and TOTP seeds move through encrypted envelopes, Broker, Vault, and origin policy before the browser receives them. The model gets only status.</figcaption>
+          <figcaption data-i18n="blueprint_secret_caption">Passwords and TOTP seeds move through encrypted envelopes, Broker, Vault, and origin policy before the browser receives them. The model gets only status.</figcaption>
         </figure>
         <figure>
           <img class="diagram" src="assets/omnidoer-human-takeover-state-machine.svg" alt="Human takeover state machine for 2FA, anti-bot, passkey, registration, and payment judgment.">
-          <figcaption>When automation is unsafe, the Agent pauses, the Control Client receives the live browser stream, the user completes the challenge, and the Agent resumes after release.</figcaption>
+          <figcaption data-i18n="blueprint_takeover_caption">When automation is unsafe, the Agent pauses, the Control Client receives the live browser stream, the user completes the challenge, and the Agent resumes after release.</figcaption>
         </figure>
         <figure>
           <img class="diagram" src="assets/omnidoer-linux-cloud-runtime.svg" alt="Linux Cloud Direct runtime boundaries for Control Service, Codex CLI, browser worker, Broker, Vault, target website, and user devices.">
-          <figcaption>The public Control Service runs on the user's Linux server while MCP, Browser, Broker, Vault, Policy, and Audit stay inside the server boundary.</figcaption>
+          <figcaption data-i18n="blueprint_runtime_caption">The public Control Service runs on the user's Linux server while MCP, Browser, Broker, Vault, Policy, and Audit stay inside the server boundary.</figcaption>
         </figure>
       </div>
     </section>
 
     <section>
-      <h2>Agent Runtime Visuals</h2>
-      <p>OmniDoer is built around a real controlled browser, cloud control service, user handoff, policy approvals, and audit evidence rather than a browser-only demo.</p>
+      <h2 data-i18n="visuals_heading">Agent Runtime Visuals</h2>
+      <p data-i18n="visuals_copy">OmniDoer is built around a real controlled browser, cloud control service, user handoff, policy approvals, and audit evidence rather than a browser-only demo.</p>
       <div class="visual-grid">
         <figure>
           <img src="assets/omnidoer-human-loop-web-agent.jpg" alt="OmniDoer human-in-the-loop web agent pipeline">
-          <figcaption>Human-in-the-loop web action with challenge relay, approval gates, and takeover.</figcaption>
+          <figcaption data-i18n="visual_human_caption">Human-in-the-loop web action with challenge relay, approval gates, and takeover.</figcaption>
         </figure>
         <figure>
           <img src="assets/omnidoer-cloud-control-service.jpg" alt="OmniDoer cloud control service architecture">
-          <figcaption>Cloud Direct control service for paired devices, sessions, broker, vault, and browser control.</figcaption>
+          <figcaption data-i18n="visual_cloud_caption">Cloud Direct control service for paired devices, sessions, broker, vault, and browser control.</figcaption>
         </figure>
         <figure>
           <img src="assets/omnidoer-feature-matrix.jpg" alt="OmniDoer feature matrix across browser, vault, control, and audit">
-          <figcaption>Feature matrix covering browser actions, secret handling, approvals, registration handoff, and audit.</figcaption>
+          <figcaption data-i18n="visual_matrix_caption">Feature matrix covering browser actions, secret handling, approvals, registration handoff, and audit.</figcaption>
         </figure>
         <figure>
           <img src="assets/omnidoer-omni-action-poster.jpg" alt="OmniDoer omni action poster">
-          <figcaption>Omni action positioning for authorized signup, login, forms, downloads, purchases, and user takeover.</figcaption>
+          <figcaption data-i18n="visual_action_caption">Omni action positioning for authorized signup, login, forms, downloads, purchases, and user takeover.</figcaption>
         </figure>
       </div>
     </section>
 
     <section>
-      <h2>多语言简介 / Multilingual Intro</h2>
+      <h2 data-i18n="multilingual_heading">多语言简介 / Multilingual Intro</h2>
       <div class="language-list">
         <article class="card">
           <h3>English</h3>
@@ -318,26 +360,218 @@
     </section>
 
     <section>
-      <h2>Localized README Posters</h2>
-      <p>Each language edition uses a dedicated cinematic CG poster with exact locally typeset text, so the visual system stays polished without sending secrets or relying on model-rendered copy.</p>
+      <h2 data-i18n="posters_heading">Localized README Posters</h2>
+      <p data-i18n="posters_copy">Each language edition uses a dedicated cinematic CG poster with exact locally typeset text, so the visual system stays polished without sending secrets or relying on model-rendered copy.</p>
       <div class="localized-posters">
-        <a href="../README.md"><img src="assets/localized/omnidoer-readme-en.jpg" alt="OmniDoer English README poster"></a>
-        <a href="../README.zh-CN.md"><img src="assets/localized/omnidoer-readme-zh-CN.jpg" alt="OmniDoer Chinese README poster"></a>
-        <a href="../README.es.md"><img src="assets/localized/omnidoer-readme-es.jpg" alt="OmniDoer Spanish README poster"></a>
-        <a href="../README.fr.md"><img src="assets/localized/omnidoer-readme-fr.jpg" alt="OmniDoer French README poster"></a>
-        <a href="../README.de.md"><img src="assets/localized/omnidoer-readme-de.jpg" alt="OmniDoer German README poster"></a>
-        <a href="../README.ja.md"><img src="assets/localized/omnidoer-readme-ja.jpg" alt="OmniDoer Japanese README poster"></a>
-        <a href="../README.ko.md"><img src="assets/localized/omnidoer-readme-ko.jpg" alt="OmniDoer Korean README poster"></a>
+        <a href="https://github.com/OmniDoer/omnidoer/blob/main/README.md"><img src="assets/localized/omnidoer-readme-en.jpg" alt="OmniDoer English README poster"></a>
+        <a href="https://github.com/OmniDoer/omnidoer/blob/main/README.zh-CN.md"><img src="assets/localized/omnidoer-readme-zh-CN.jpg" alt="OmniDoer Chinese README poster"></a>
+        <a href="https://github.com/OmniDoer/omnidoer/blob/main/README.es.md"><img src="assets/localized/omnidoer-readme-es.jpg" alt="OmniDoer Spanish README poster"></a>
+        <a href="https://github.com/OmniDoer/omnidoer/blob/main/README.fr.md"><img src="assets/localized/omnidoer-readme-fr.jpg" alt="OmniDoer French README poster"></a>
+        <a href="https://github.com/OmniDoer/omnidoer/blob/main/README.de.md"><img src="assets/localized/omnidoer-readme-de.jpg" alt="OmniDoer German README poster"></a>
+        <a href="https://github.com/OmniDoer/omnidoer/blob/main/README.ja.md"><img src="assets/localized/omnidoer-readme-ja.jpg" alt="OmniDoer Japanese README poster"></a>
+        <a href="https://github.com/OmniDoer/omnidoer/blob/main/README.ko.md"><img src="assets/localized/omnidoer-readme-ko.jpg" alt="OmniDoer Korean README poster"></a>
       </div>
     </section>
 
     <section>
-      <h2>Try The Control Client</h2>
-      <p>Local development uses <code>127.0.0.1</code>. Cloud Direct Mode is explicit and requires HTTPS/WSS, pairing, device identity, sessions, CSRF/origin protection, rate limits, and encrypted secret submission.</p>
+      <h2 data-i18n="try_heading">Try The Control Client</h2>
+      <p data-i18n="try_copy">Local development uses <code>127.0.0.1</code>. Cloud Direct Mode is explicit and requires HTTPS/WSS, pairing, device identity, sessions, CSRF/origin protection, rate limits, and encrypted secret submission.</p>
       <p><code>omnidoer control serve --cloud-direct --host 0.0.0.0 --port 8787 --public-url https://agent.example.com --behind-reverse-proxy</code></p>
       <p><code>omnidoer control pair --print-qr</code></p>
     </section>
   </main>
-  <footer>OmniDoer is a user-authorized local execution layer, not a credential stealer, CAPTCHA bypasser, or autonomous spender.</footer>
+  <footer data-i18n="footer_copy">OmniDoer is a user-authorized local execution layer, not a credential stealer, CAPTCHA bypasser, or autonomous spender.</footer>
+  <script>
+    const heroImages = {
+      "en": "url('assets/localized/omnidoer-readme-en.jpg')",
+      "zh-CN": "url('assets/localized/omnidoer-readme-zh-CN.jpg')",
+      "es": "url('assets/localized/omnidoer-readme-es.jpg')",
+      "fr": "url('assets/localized/omnidoer-readme-fr.jpg')",
+      "de": "url('assets/localized/omnidoer-readme-de.jpg')",
+      "ja": "url('assets/localized/omnidoer-readme-ja.jpg')",
+      "ko": "url('assets/localized/omnidoer-readme-ko.jpg')"
+    };
+    const copy = {
+      "en": {
+        hero_tagline: "The agent that does. A Codex CLI MCP sidecar for secure web actions where secrets remain with the broker, vault, and user-controlled client.",
+        nav_github: "GitHub", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Security Model", nav_tools: "MCP Tools",
+        secrets_heading: "Secrets Stay Out Of The Model",
+        secrets_copy: "The agent may request an action. The broker checks the origin. The vault uses the secret. The browser receives the credential. The model never does.",
+        card_codex_title: "Codex Preserved", card_codex_copy: "OmniDoer extends Codex CLI through MCP and does not create a default OpenAI API client or billing path.",
+        card_control_title: "Control Client", card_control_copy: "Users handle credentials, approvals, challenges, and human takeover from one PWA-friendly interface.",
+        card_cloud_title: "Cloud Direct", card_cloud_copy: "Android, Windows, and browser clients connect directly to the user's own cloud server with pairing and E2EE secret submission.",
+        card_registration_title: "Registration Handoff", card_registration_copy: "When a site needs a new account, the live registration page is proxied to the Control Client so the user completes signup and verification directly.",
+        cloud_arch_heading: "Cloud Direct Architecture",
+        blueprints_heading: "System Blueprints", blueprints_copy: "These exact-text diagrams define the core OmniDoer runtime: secure credential storage, human takeover for 2FA and anti-bot pages, and Linux Cloud Direct deployment.",
+        blueprint_secret_caption: "Passwords and TOTP seeds move through encrypted envelopes, Broker, Vault, and origin policy before the browser receives them. The model gets only status.",
+        blueprint_takeover_caption: "When automation is unsafe, the Agent pauses, the Control Client receives the live browser stream, the user completes the challenge, and the Agent resumes after release.",
+        blueprint_runtime_caption: "The public Control Service runs on the user's Linux server while MCP, Browser, Broker, Vault, Policy, and Audit stay inside the server boundary.",
+        visuals_heading: "Agent Runtime Visuals", visuals_copy: "OmniDoer is built around a real controlled browser, cloud control service, user handoff, policy approvals, and audit evidence rather than a browser-only demo.",
+        visual_human_caption: "Human-in-the-loop web action with challenge relay, approval gates, and takeover.",
+        visual_cloud_caption: "Cloud Direct control service for paired devices, sessions, broker, vault, and browser control.",
+        visual_matrix_caption: "Feature matrix covering browser actions, secret handling, approvals, registration handoff, and audit.",
+        visual_action_caption: "Omni action positioning for authorized signup, login, forms, downloads, purchases, and user takeover.",
+        multilingual_heading: "Multilingual Intro",
+        posters_heading: "Localized README Posters", posters_copy: "Each language edition uses a dedicated cinematic CG poster with exact locally typeset text, so the visual system stays polished without relying on model-rendered copy.",
+        try_heading: "Try The Control Client", try_copy: "Local development uses <code>127.0.0.1</code>. Cloud Direct Mode is explicit and requires HTTPS/WSS, pairing, device identity, sessions, CSRF/origin protection, rate limits, and encrypted secret submission.",
+        footer_copy: "OmniDoer is a user-authorized local execution layer, not a credential stealer, CAPTCHA bypasser, or autonomous spender."
+      },
+      "zh-CN": {
+        hero_tagline: "真正执行任务的网页行动 Agent。Codex CLI 的 MCP/sidecar 安全执行层，secret 留在 Broker、Vault 和用户控制的 Control Client 内。",
+        nav_github: "GitHub", nav_cloud: "Cloud Direct", nav_control: "控制客户端", nav_security: "安全模型", nav_tools: "MCP 工具",
+        secrets_heading: "Secret 不进入模型上下文",
+        secrets_copy: "Agent 可以请求行动；Broker 校验来源；Vault 使用 secret；浏览器接收凭据；模型永远只看到脱敏状态。",
+        card_codex_title: "保留 Codex", card_codex_copy: "OmniDoer 通过 MCP 扩展 Codex CLI，不创建默认 OpenAI API 客户端，也不改变计费路径。",
+        card_control_title: "Control Client", card_control_copy: "用户在一个 PWA 友好的界面中处理凭据、审批、挑战和 Human Takeover。",
+        card_cloud_title: "Cloud Direct", card_cloud_copy: "Android、Windows 和浏览器客户端可直接连接用户自己的云服务器，并使用 pairing 与端到端加密提交 secret。",
+        card_registration_title: "注册接管", card_registration_copy: "目标网站需要新账号时，真实注册页面会代理到 Control Client，由用户本人完成注册和验证。",
+        cloud_arch_heading: "Cloud Direct 架构",
+        blueprints_heading: "系统蓝图", blueprints_copy: "这些精确文字图定义 OmniDoer 核心运行时：安全凭据存储、2FA/anti-bot 人工接管，以及 Linux Cloud Direct 部署。",
+        blueprint_secret_caption: "密码和 TOTP seed 通过加密信封、Broker、Vault 与来源策略后才进入浏览器。模型只得到状态。",
+        blueprint_takeover_caption: "自动化不安全时，Agent 暂停，Control Client 接收实时浏览器画面，用户完成挑战，释放后 Agent 恢复。",
+        blueprint_runtime_caption: "公开 Control Service 运行在用户的 Linux 服务器上，MCP、Browser、Broker、Vault、Policy 和 Audit 留在服务器边界内。",
+        visuals_heading: "Agent 运行时视觉", visuals_copy: "OmniDoer 面向真实受控浏览器、云控制服务、用户接管、策略审批和审计证据，而不是浏览器演示玩具。",
+        visual_human_caption: "带 Challenge Relay、Approval Gate 和 Takeover 的人在回路网页行动。",
+        visual_cloud_caption: "Cloud Direct 控制服务管理配对设备、会话、Broker、Vault 和浏览器控制。",
+        visual_matrix_caption: "覆盖浏览器行动、secret 处理、审批、注册接管和审计的功能矩阵。",
+        visual_action_caption: "用于授权注册、登录、表单、下载、购买和用户接管的全能行动定位。",
+        multilingual_heading: "多语言简介",
+        posters_heading: "本地化 README 海报", posters_copy: "每个语言版本都使用独立电影质感 CG 海报，并本地精确排版文字，避免依赖生成模型直接渲染公开文案。",
+        try_heading: "试用 Control Client", try_copy: "本地开发使用 <code>127.0.0.1</code>。Cloud Direct Mode 必须显式启用 HTTPS/WSS、pairing、设备身份、会话、CSRF/Origin 防护、限速和端到端加密 secret submission。",
+        footer_copy: "OmniDoer 是用户授权的本地执行层，不是窃取凭据、绕过 CAPTCHA 或自主消费的工具。"
+      },
+      "es": {
+        hero_tagline: "El agente que actúa. Un sidecar MCP para Codex CLI que ejecuta acciones web seguras mientras los secretos permanecen en Broker, Vault y Control Client.",
+        nav_github: "GitHub", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Modelo de seguridad", nav_tools: "Herramientas MCP",
+        secrets_heading: "Los secretos no entran al modelo", secrets_copy: "El agente solicita una acción; el Broker valida el origen; Vault usa el secreto; el navegador recibe la credencial; el modelo no.",
+        card_codex_title: "Codex preservado", card_codex_copy: "OmniDoer extiende Codex CLI con MCP sin crear un cliente OpenAI API ni una ruta de facturación predeterminada.",
+        card_control_title: "Control Client", card_control_copy: "El usuario gestiona credenciales, aprobaciones, desafíos y takeover humano en una interfaz PWA.",
+        card_cloud_title: "Cloud Direct", card_cloud_copy: "Clientes Android, Windows y navegador se conectan al servidor cloud propio del usuario con pairing y envío E2EE de secretos.",
+        card_registration_title: "Handoff de registro", card_registration_copy: "Si un sitio requiere una cuenta nueva, la página real de registro se entrega al Control Client para que el usuario la complete.",
+        cloud_arch_heading: "Arquitectura Cloud Direct", blueprints_heading: "Planos del sistema", blueprints_copy: "Diagramas con texto exacto para credenciales seguras, takeover humano y despliegue Linux Cloud Direct.",
+        blueprint_secret_caption: "Contraseñas y semillas TOTP pasan por sobres cifrados, Broker, Vault y política de origen antes de llegar al navegador.",
+        blueprint_takeover_caption: "Cuando automatizar no es seguro, el Agent se pausa, el Control Client recibe el navegador en vivo y el usuario completa el reto.",
+        blueprint_runtime_caption: "El Control Service público corre en el servidor Linux del usuario; MCP, Browser, Broker, Vault, Policy y Audit quedan dentro.",
+        visuals_heading: "Visuales del runtime", visuals_copy: "OmniDoer usa navegador controlado real, servicio cloud, handoff de usuario, aprobaciones y auditoría.",
+        visual_human_caption: "Acción web con humano en el circuito, Challenge Relay, Approval Gate y takeover.",
+        visual_cloud_caption: "Servicio Cloud Direct para dispositivos, sesiones, Broker, Vault y control del navegador.",
+        visual_matrix_caption: "Matriz de funciones para acciones web, secretos, aprobaciones, registro y auditoría.",
+        visual_action_caption: "Posicionamiento para registro, login, formularios, descargas, compras y takeover autorizados.",
+        multilingual_heading: "Introducción multilingüe", posters_heading: "Pósters README localizados", posters_copy: "Cada idioma usa un póster CG cinematográfico con texto compuesto localmente.",
+        try_heading: "Probar Control Client", try_copy: "El desarrollo local usa <code>127.0.0.1</code>. Cloud Direct exige HTTPS/WSS, pairing, identidad de dispositivo, sesiones, CSRF/Origin, límites de tasa y secretos E2EE.",
+        footer_copy: "OmniDoer es una capa de ejecución autorizada por el usuario, no una herramienta para robar credenciales, evadir CAPTCHA o gastar sola."
+      },
+      "fr": {
+        hero_tagline: "L'agent qui agit. Un sidecar MCP pour Codex CLI qui sécurise les actions web tandis que les secrets restent dans Broker, Vault et Control Client.",
+        nav_github: "GitHub", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Modèle de sécurité", nav_tools: "Outils MCP",
+        secrets_heading: "Les secrets restent hors du modèle", secrets_copy: "L'agent demande une action; le Broker vérifie l'origine; Vault utilise le secret; le navigateur reçoit l'identifiant; le modèle jamais.",
+        card_codex_title: "Codex préservé", card_codex_copy: "OmniDoer étend Codex CLI via MCP sans créer de client OpenAI API ni de chemin de facturation par défaut.",
+        card_control_title: "Control Client", card_control_copy: "L'utilisateur gère identifiants, approbations, défis et takeover humain depuis une interface PWA.",
+        card_cloud_title: "Cloud Direct", card_cloud_copy: "Android, Windows et le navigateur se connectent au serveur cloud de l'utilisateur avec pairing et secrets chiffrés de bout en bout.",
+        card_registration_title: "Handoff d'inscription", card_registration_copy: "Si un site exige un nouveau compte, la page réelle est transmise au Control Client pour que l'utilisateur la termine.",
+        cloud_arch_heading: "Architecture Cloud Direct", blueprints_heading: "Plans système", blueprints_copy: "Diagrammes à texte exact pour stockage sécurisé, takeover humain et déploiement Linux Cloud Direct.",
+        blueprint_secret_caption: "Mots de passe et graines TOTP passent par enveloppes chiffrées, Broker, Vault et politique d'origine avant le navigateur.",
+        blueprint_takeover_caption: "Quand l'automatisation n'est pas sûre, l'Agent se met en pause, le Control Client reçoit le navigateur en direct et l'utilisateur agit.",
+        blueprint_runtime_caption: "Le Control Service public tourne sur le serveur Linux de l'utilisateur; MCP, Browser, Broker, Vault, Policy et Audit restent dedans.",
+        visuals_heading: "Visuels du runtime", visuals_copy: "OmniDoer repose sur un vrai navigateur contrôlé, le cloud, le handoff utilisateur, les approbations et l'audit.",
+        visual_human_caption: "Action web avec humain dans la boucle, Challenge Relay, Approval Gate et takeover.",
+        visual_cloud_caption: "Service Cloud Direct pour appareils, sessions, Broker, Vault et contrôle navigateur.",
+        visual_matrix_caption: "Matrice des actions navigateur, secrets, approbations, inscription et audit.",
+        visual_action_caption: "Positionnement pour inscription, connexion, formulaires, téléchargements, achats et takeover autorisés.",
+        multilingual_heading: "Introduction multilingue", posters_heading: "Posters README localisés", posters_copy: "Chaque langue utilise un poster CG cinématique avec texte composé localement.",
+        try_heading: "Essayer Control Client", try_copy: "Le développement local utilise <code>127.0.0.1</code>. Cloud Direct exige HTTPS/WSS, pairing, identité d'appareil, sessions, CSRF/Origin, rate limit et secrets E2EE.",
+        footer_copy: "OmniDoer est une couche d'exécution autorisée par l'utilisateur, pas un voleur d'identifiants, un contournement CAPTCHA ou un dépensier autonome."
+      },
+      "de": {
+        hero_tagline: "Der Agent, der handelt. Ein MCP-Sidecar für Codex CLI, bei dem Webaktionen sicher laufen und Geheimnisse in Broker, Vault und Control Client bleiben.",
+        nav_github: "GitHub", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Sicherheitsmodell", nav_tools: "MCP-Tools",
+        secrets_heading: "Geheimnisse bleiben aus dem Modell", secrets_copy: "Der Agent fordert eine Aktion an; der Broker prüft den Ursprung; Vault nutzt das Secret; der Browser erhält die Anmeldedaten; das Modell nie.",
+        card_codex_title: "Codex bleibt erhalten", card_codex_copy: "OmniDoer erweitert Codex CLI per MCP und erstellt keinen Standard-OpenAI-API-Client oder Billing-Pfad.",
+        card_control_title: "Control Client", card_control_copy: "Nutzer steuern Zugangsdaten, Freigaben, Challenges und Human Takeover in einer PWA-Oberfläche.",
+        card_cloud_title: "Cloud Direct", card_cloud_copy: "Android-, Windows- und Browser-Clients verbinden sich direkt mit dem eigenen Cloud-Server mit Pairing und E2EE-Secrets.",
+        card_registration_title: "Registrierungs-Handoff", card_registration_copy: "Braucht eine Seite ein neues Konto, wird die echte Registrierungsseite an den Control Client übergeben.",
+        cloud_arch_heading: "Cloud-Direct-Architektur", blueprints_heading: "Systempläne", blueprints_copy: "Exakte Diagramme für sichere Credentials, Human Takeover und Linux-Cloud-Direct-Betrieb.",
+        blueprint_secret_caption: "Passwörter und TOTP-Seeds laufen durch verschlüsselte Umschläge, Broker, Vault und Ursprungspolitik, bevor der Browser sie nutzt.",
+        blueprint_takeover_caption: "Wenn Automatisierung unsicher ist, pausiert der Agent, der Control Client streamt den Browser und der Nutzer erledigt die Prüfung.",
+        blueprint_runtime_caption: "Der öffentliche Control Service läuft auf dem Linux-Server des Nutzers; MCP, Browser, Broker, Vault, Policy und Audit bleiben innen.",
+        visuals_heading: "Runtime-Visuals", visuals_copy: "OmniDoer nutzt echten kontrollierten Browser, Cloud-Service, Nutzer-Handoff, Freigaben und Audit-Nachweise.",
+        visual_human_caption: "Webaktion mit Mensch in der Schleife, Challenge Relay, Approval Gate und Takeover.",
+        visual_cloud_caption: "Cloud-Direct-Service für Geräte, Sitzungen, Broker, Vault und Browsersteuerung.",
+        visual_matrix_caption: "Funktionsmatrix für Browseraktionen, Secrets, Freigaben, Registrierung und Audit.",
+        visual_action_caption: "Positionierung für autorisierte Registrierung, Login, Formulare, Downloads, Käufe und Takeover.",
+        multilingual_heading: "Mehrsprachige Einführung", posters_heading: "Lokalisierte README-Poster", posters_copy: "Jede Sprache nutzt ein eigenes CG-Poster mit lokal gesetztem Text.",
+        try_heading: "Control Client ausprobieren", try_copy: "Lokale Entwicklung nutzt <code>127.0.0.1</code>. Cloud Direct verlangt HTTPS/WSS, Pairing, Geräteidentität, Sitzungen, CSRF/Origin-Schutz, Rate Limits und E2EE-Secrets.",
+        footer_copy: "OmniDoer ist eine vom Nutzer autorisierte Ausführungsschicht, kein Credential-Stealer, CAPTCHA-Bypass oder autonomer Käufer."
+      },
+      "ja": {
+        hero_tagline: "実行する Agent。Codex CLI 向け MCP sidecar として、secret を Broker、Vault、Control Client に閉じ込めたまま安全に Web 操作を行います。",
+        nav_github: "GitHub", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "セキュリティモデル", nav_tools: "MCP ツール",
+        secrets_heading: "Secret はモデルに渡さない", secrets_copy: "Agent は操作を要求し、Broker が origin を検証し、Vault が secret を使い、ブラウザだけが資格情報を受け取ります。",
+        card_codex_title: "Codex を維持", card_codex_copy: "OmniDoer は MCP で Codex CLI を拡張し、既定の OpenAI API クライアントや課金経路を作りません。",
+        card_control_title: "Control Client", card_control_copy: "資格情報、承認、チャレンジ、Human Takeover を PWA 対応 UI で扱います。",
+        card_cloud_title: "Cloud Direct", card_cloud_copy: "Android、Windows、ブラウザがユーザー自身のクラウドサーバーへ直接接続し、pairing と E2EE secret submission を使います。",
+        card_registration_title: "登録ハンドオフ", card_registration_copy: "新規アカウントが必要な場合、実際の登録ページを Control Client に渡し、ユーザー本人が完了します。",
+        cloud_arch_heading: "Cloud Direct アーキテクチャ", blueprints_heading: "システム設計図", blueprints_copy: "安全な資格情報保存、2FA/anti-bot の人間接管、Linux Cloud Direct 配備を定義する図です。",
+        blueprint_secret_caption: "パスワードと TOTP seed は暗号化 envelope、Broker、Vault、origin policy を通ってからブラウザに届きます。",
+        blueprint_takeover_caption: "自動化が危険なとき Agent は停止し、Control Client がライブブラウザを受け取り、ユーザーが処理します。",
+        blueprint_runtime_caption: "公開 Control Service はユーザーの Linux サーバーで動き、MCP、Browser、Broker、Vault、Policy、Audit は内部に残ります。",
+        visuals_heading: "Agent Runtime ビジュアル", visuals_copy: "OmniDoer は実ブラウザ、クラウド制御、ユーザー接管、承認、監査証跡を中心に作られています。",
+        visual_human_caption: "Challenge Relay、Approval Gate、Takeover を持つ human-in-the-loop Web 操作。",
+        visual_cloud_caption: "ペアリング端末、session、Broker、Vault、ブラウザ制御の Cloud Direct サービス。",
+        visual_matrix_caption: "ブラウザ操作、secret、承認、登録ハンドオフ、監査の機能マトリクス。",
+        visual_action_caption: "許可された登録、ログイン、フォーム、ダウンロード、購入、ユーザー接管の位置づけ。",
+        multilingual_heading: "多言語紹介", posters_heading: "ローカライズ README ポスター", posters_copy: "各言語はローカル組版された専用のシネマ調 CG ポスターを使います。",
+        try_heading: "Control Client を試す", try_copy: "ローカル開発は <code>127.0.0.1</code> を使います。Cloud Direct は HTTPS/WSS、pairing、端末 ID、session、CSRF/Origin、rate limit、E2EE secret submission が必要です。",
+        footer_copy: "OmniDoer はユーザー承認のローカル実行層であり、資格情報窃取、CAPTCHA 回避、自律支払いの道具ではありません。"
+      },
+      "ko": {
+        hero_tagline: "실제로 행동하는 Agent. Codex CLI용 MCP sidecar로, secret은 Broker, Vault, Control Client 안에 둔 채 안전한 웹 작업을 수행합니다.",
+        nav_github: "GitHub", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "보안 모델", nav_tools: "MCP 도구",
+        secrets_heading: "Secret은 모델로 가지 않습니다", secrets_copy: "Agent는 작업을 요청하고, Broker가 origin을 확인하고, Vault가 secret을 사용하며, 브라우저만 자격 증명을 받습니다.",
+        card_codex_title: "Codex 유지", card_codex_copy: "OmniDoer는 MCP로 Codex CLI를 확장하며 기본 OpenAI API 클라이언트나 별도 결제 경로를 만들지 않습니다.",
+        card_control_title: "Control Client", card_control_copy: "사용자는 PWA 친화 UI에서 자격 증명, 승인, challenge, Human Takeover를 처리합니다.",
+        card_cloud_title: "Cloud Direct", card_cloud_copy: "Android, Windows, 브라우저 클라이언트가 사용자의 클라우드 서버에 직접 연결하고 pairing 및 E2EE secret submission을 사용합니다.",
+        card_registration_title: "등록 핸드오프", card_registration_copy: "새 계정이 필요하면 실제 등록 페이지를 Control Client로 넘겨 사용자가 직접 완료합니다.",
+        cloud_arch_heading: "Cloud Direct 아키텍처", blueprints_heading: "시스템 블루프린트", blueprints_copy: "보안 자격 증명 저장, 2FA/anti-bot Human Takeover, Linux Cloud Direct 배포를 정의합니다.",
+        blueprint_secret_caption: "비밀번호와 TOTP seed는 암호화 envelope, Broker, Vault, origin policy를 거쳐 브라우저에 전달됩니다.",
+        blueprint_takeover_caption: "자동화가 안전하지 않으면 Agent가 멈추고 Control Client가 실시간 브라우저를 받아 사용자가 처리합니다.",
+        blueprint_runtime_caption: "공개 Control Service는 사용자의 Linux 서버에서 실행되고 MCP, Browser, Broker, Vault, Policy, Audit은 내부에 남습니다.",
+        visuals_heading: "Agent Runtime 시각 자료", visuals_copy: "OmniDoer는 실제 제어 브라우저, 클라우드 제어, 사용자 핸드오프, 승인, 감사 증거를 중심으로 합니다.",
+        visual_human_caption: "Challenge Relay, Approval Gate, Takeover가 있는 human-in-the-loop 웹 작업.",
+        visual_cloud_caption: "페어링 장치, 세션, Broker, Vault, 브라우저 제어를 위한 Cloud Direct 서비스.",
+        visual_matrix_caption: "브라우저 작업, secret 처리, 승인, 등록 핸드오프, 감사를 다루는 기능 매트릭스.",
+        visual_action_caption: "허가된 가입, 로그인, 폼, 다운로드, 구매, 사용자 Takeover를 위한 포지셔닝.",
+        multilingual_heading: "다국어 소개", posters_heading: "현지화 README 포스터", posters_copy: "각 언어는 로컬 조판된 전용 시네마틱 CG 포스터를 사용합니다.",
+        try_heading: "Control Client 사용해 보기", try_copy: "로컬 개발은 <code>127.0.0.1</code>을 사용합니다. Cloud Direct는 HTTPS/WSS, pairing, 장치 ID, session, CSRF/Origin, rate limit, E2EE secret submission이 필요합니다.",
+        footer_copy: "OmniDoer는 사용자 승인 로컬 실행 계층이며 자격 증명 탈취, CAPTCHA 우회, 자율 결제 도구가 아닙니다."
+      }
+    };
+    function applyLanguage(lang) {
+      const selected = copy[lang] ? lang : "en";
+      const active = copy[selected];
+      document.documentElement.lang = selected;
+      document.documentElement.style.setProperty("--hero-image", heroImages[selected]);
+      document.querySelectorAll("[data-i18n]").forEach((node) => {
+        const value = active[node.dataset.i18n] || copy.en[node.dataset.i18n];
+        if (value) node.innerHTML = value;
+      });
+      document.querySelectorAll("[data-lang]").forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.lang === selected));
+      });
+      localStorage.setItem("omnidoer_pages_language", selected);
+      const url = new URL(window.location.href);
+      url.searchParams.set("lang", selected);
+      window.history.replaceState({}, "", url);
+    }
+    const requestedLanguage = new URLSearchParams(window.location.search).get("lang")
+      || localStorage.getItem("omnidoer_pages_language")
+      || (navigator.languages || [navigator.language || "en"]).find((lang) => copy[lang] || copy[lang.split("-")[0]])
+      || "en";
+    const normalizedLanguage = copy[requestedLanguage] ? requestedLanguage : requestedLanguage.split("-")[0];
+    document.querySelectorAll("[data-lang]").forEach((button) => {
+      button.addEventListener("click", () => applyLanguage(button.dataset.lang));
+    });
+    applyLanguage(normalizedLanguage);
+  </script>
 </body>
 </html>

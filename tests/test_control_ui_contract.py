@@ -109,6 +109,13 @@ class ControlUiContractTest(unittest.TestCase):
         app = (static_root() / "app.js").read_text()
         for event_type in ("drag", "long_press", "scroll", "type", "key"):
             self.assertIn(f'event_type: "{event_type}"', app)
+        self.assertIn("refreshActiveTakeoverFrame", app)
+        self.assertIn("releaseActiveTakeover", app)
+        self.assertIn("Agent paused - user control active", app)
+        self.assertIn("Touch, keyboard, and text input are routed to the controlled browser only", app)
+        self.assertIn("takeover-status-label", self.html)
+        self.assertIn("takeover-current-url", self.html)
+        self.assertIn("Refresh Frame", self.html)
         self.assertIn("Text to controlled browser", app)
         self.assertIn("installTakeoverPointerHandlers", app)
         self.assertIn("startTakeoverFramePolling", app)
@@ -124,6 +131,10 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("request.structured_details", app)
         self.assertIn("Agent prepared action", app)
         self.assertIn("Submit only after approval", app)
+        self.assertIn("explicit_user_confirmation", app)
+        self.assertIn("paymentApprovalConfirmationPayload", app)
+        self.assertIn("I reviewed the merchant, amount, recipient, origin, final button text, and after-approval result.", self.html)
+        self.assertIn("approval-confirm", self.html)
         self.assertIn('"file_upload"', app)
 
 

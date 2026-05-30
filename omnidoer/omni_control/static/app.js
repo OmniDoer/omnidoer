@@ -47,6 +47,31 @@ if (refreshDevicesButton) {
   refreshDevicesButton.onclick = () => loadDevicesAndSessions();
 }
 
+const refreshTakeoverFrameButton = document.querySelector("#refresh-takeover-frame");
+if (refreshTakeoverFrameButton) {
+  refreshTakeoverFrameButton.onclick = () => refreshActiveTakeoverFrame();
+}
+
+const releaseActiveTakeoverButton = document.querySelector("#release-active-takeover");
+if (releaseActiveTakeoverButton) {
+  releaseActiveTakeoverButton.onclick = () => releaseActiveTakeover();
+}
+
+const approvalConfirmInput = document.querySelector("#approval-confirm");
+if (approvalConfirmInput) {
+  approvalConfirmInput.onchange = () => updatePaymentApprovalButtons();
+}
+
+const approvePaymentButton = document.querySelector("#approve");
+if (approvePaymentButton) {
+  approvePaymentButton.onclick = () => approveActivePaymentRequest();
+}
+
+const denyPaymentButton = document.querySelector("#deny");
+if (denyPaymentButton) {
+  denyPaymentButton.onclick = () => denyActivePaymentRequest();
+}
+
 document.querySelectorAll("[data-filter]").forEach((button) => {
   button.onclick = () => {
     document.querySelectorAll("[data-filter]").forEach((item) => item.classList.remove("active"));
@@ -62,6 +87,8 @@ let requestStreamActive = false;
 let requestStreamRestart = null;
 let activeTakeoverFrameRequest = null;
 let takeoverFrameTimer = null;
+let activePaymentApprovalRequest = null;
+let renderedPaymentApprovalRequestId = null;
 
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get("code")) {
@@ -109,6 +136,147 @@ function requestKind(request) {
 function setStatus(message, detail = "") {
   document.querySelector("#runtime-mode").textContent = message;
   document.querySelector("#runtime-detail").textContent = detail;
+}
+
+function displayValue(value, fallback = "pending") {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (Array.isArray(value)) return value.map((item) => displayValue(item, "")).filter(Boolean).join(", ") || fallback;
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function setFieldText(selector, value, fallback = "pending") {
+  const node = document.querySelector(selector);
+  if (node) node.textContent = displayValue(value, fallback);
+}
+
+function isTakeoverRequest(request) {
+  return request && (request.request_type === "human_takeover" || request.request_type === "account_registration");
+}
+
+function findActiveTakeoverRequest(requests) {
+  return requests.find((request) => isTakeoverRequest(request) && request.status === "user_control") || null;
+}
+
+function activeTakeoverRequest() {
+  return cachedRequests.find((request) => request.request_id === activeTakeoverFrameRequest) || findActiveTakeoverRequest(cachedRequests);
+}
+
+function updateTakeoverPanel(request, frame = null, message = null) {
+  const status = request ? (request.status === "user_control" ? "Agent paused - user control active" : request.status) : "No active takeover";
+  setFieldText("#takeover-status-label", status);
+  setFieldText("#takeover-active-request", request?.request_id, "pending");
+  setFieldText("#takeover-current-url", request?.top_level_url || request?.origin, "pending");
+  if (frame) {
+    setFieldText("#takeover-frame-meta", frame.url || frame.origin || request?.top_level_url, "waiting for browser handoff");
+  } else {
+    setFieldText("#takeover-frame-meta", request ? "waiting for next browser frame" : "waiting for browser handoff");
+  }
+  setFieldText("#takeover-input-state", message || (request ? "Touch, keyboard, and text input are routed to the controlled browser only." : "No active browser handoff."), "");
+  const isActive = Boolean(request && request.status === "user_control");
+  const refresh = document.querySelector("#refresh-takeover-frame");
+  const release = document.querySelector("#release-active-takeover");
+  if (refresh) refresh.disabled = !isActive;
+  if (release) release.disabled = !isActive;
+}
+
+function syncTakeoverPanel(requests) {
+  const stream = document.querySelector("#browser-stream");
+  const request = findActiveTakeoverRequest(requests);
+  if (!stream) return;
+  if (!request) {
+    stopTakeoverFramePolling();
+    updateTakeoverPanel(null);
+    stream.textContent = "No active browser handoff.";
+    return;
+  }
+  updateTakeoverPanel(request);
+  startTakeoverFramePolling(request, stream);
+}
+
+function refreshActiveTakeoverFrame() {
+  const request = activeTakeoverRequest();
+  const stream = document.querySelector("#browser-stream");
+  if (!request || !stream) return;
+  fetchTakeoverFrame(request, stream);
+}
+
+function releaseActiveTakeover() {
+  const request = activeTakeoverRequest();
+  if (!request) return;
+  postAction(request, "release");
+}
+
+function detailValue(details, ...keys) {
+  for (const key of keys) {
+    if (details[key] !== undefined && details[key] !== null && details[key] !== "") {
+      return details[key];
+    }
+  }
+  return "";
+}
+
+function findCurrentPaymentApproval(requests) {
+  return requests.find((request) => request.request_type === "payment_approval" && request.status === "pending")
+    || requests.find((request) => request.request_type === "payment_approval")
+    || null;
+}
+
+function paymentApprovalConfirmationPayload(request) {
+  return {
+    explicit_user_confirmation: true,
+    request_id: request.request_id,
+    confirmed_at: new Date().toISOString()
+  };
+}
+
+function updatePaymentApprovalButtons() {
+  const confirm = document.querySelector("#approval-confirm");
+  const approve = document.querySelector("#approve");
+  const deny = document.querySelector("#deny");
+  const active = Boolean(activePaymentApprovalRequest && activePaymentApprovalRequest.status === "pending");
+  if (confirm) confirm.disabled = !active;
+  if (deny) deny.disabled = !active;
+  if (approve) approve.disabled = !active || !confirm?.checked;
+}
+
+function updatePaymentApprovalPanel(requests) {
+  const request = findCurrentPaymentApproval(requests);
+  activePaymentApprovalRequest = request && request.status === "pending" ? request : null;
+  const details = request?.structured_details || {};
+  setFieldText("#merchant", detailValue(details, "merchant"));
+  setFieldText("#amount", detailValue(details, "amount"));
+  setFieldText("#currency", detailValue(details, "currency"));
+  setFieldText("#origin", detailValue(details, "origin") || request?.origin);
+  setFieldText("#recipient", detailValue(details, "recipient", "payee"));
+  setFieldText("#shipping-address", detailValue(details, "shipping_address"));
+  setFieldText("#billing-method-summary", detailValue(details, "billing_method_summary"));
+  setFieldText("#subscription-renewal", detailValue(details, "subscription", "renewal"));
+  setFieldText("#refund-terms", detailValue(details, "refund_terms", "cancellation_terms"));
+  setFieldText("#final-button", detailValue(details, "final_button"));
+  setFieldText("#after-approval", detailValue(details, "after_approval") || (request ? "Submit only after approval" : ""));
+  setFieldText("#approval-status", request ? `${request.status}: ${request.action_summary || request.request_id}` : "No pending payment approval.", "");
+  const confirm = document.querySelector("#approval-confirm");
+  if (confirm && renderedPaymentApprovalRequestId !== request?.request_id) confirm.checked = false;
+  renderedPaymentApprovalRequestId = request?.request_id || null;
+  if (!activePaymentApprovalRequest && confirm) confirm.checked = false;
+  updatePaymentApprovalButtons();
+}
+
+function approveActivePaymentRequest() {
+  if (!activePaymentApprovalRequest) return;
+  const confirm = document.querySelector("#approval-confirm");
+  if (!confirm?.checked) {
+    setStatus("Payment approval requires review", "Confirm the payment details before approving.");
+    updatePaymentApprovalButtons();
+    return;
+  }
+  postAction(activePaymentApprovalRequest, "approve", paymentApprovalConfirmationPayload(activePaymentApprovalRequest));
+}
+
+function denyActivePaymentRequest() {
+  if (!activePaymentApprovalRequest) return;
+  postAction(activePaymentApprovalRequest, "deny");
 }
 
 async function loadPairingDetails(pairingId) {
@@ -305,8 +473,11 @@ async function submitEncrypted(request, payload) {
   await loadRequests();
 }
 
-async function postAction(request, action) {
-  const response = await signedFetch(`/api/requests/${request.request_id}/${action}`, { method: "POST", headers: csrfHeaders() });
+async function postAction(request, action, payload = null) {
+  const headers = payload ? { "content-type": "application/json", ...csrfHeaders() } : csrfHeaders();
+  const options = { method: "POST", headers };
+  if (payload) options.body = JSON.stringify(payload);
+  const response = await signedFetch(`/api/requests/${request.request_id}/${action}`, options);
   if (!response.ok) {
     setStatus("Action failed", `${request.request_type} ${action}`);
   }
@@ -468,11 +639,16 @@ async function loadDevicesAndSessions() {
 }
 
 async function sendTakeoverInput(request, eventPayload) {
-  await signedFetch(`/api/requests/${request.request_id}/input`, {
+  const response = await signedFetch(`/api/requests/${request.request_id}/input`, {
     method: "POST",
     headers: { "content-type": "application/json", ...csrfHeaders() },
     body: JSON.stringify(eventPayload)
   });
+  if (response.ok) {
+    updateTakeoverPanel(request, null, `${eventPayload.event_type} delivered to controlled browser.`);
+  } else {
+    updateTakeoverPanel(request, null, "Input was not delivered. The browser context may be disconnected.");
+  }
 }
 
 function framePoint(event, image) {
@@ -532,15 +708,22 @@ async function fetchTakeoverFrame(request, stream) {
     const frame = await signedFetch(`/api/requests/${request.request_id}/frame`, { cache: "no-store" }).then((r) => r.json());
     if (activeTakeoverFrameRequest !== request.request_id) return;
     if (frame.data_b64) {
-      stream.innerHTML = `<img id="takeover-frame" alt="Controlled browser frame" src="data:${frame.content_type};base64,${frame.data_b64}">`;
+      const image = document.createElement("img");
+      image.id = "takeover-frame";
+      image.alt = "Controlled browser frame";
+      image.src = `data:${frame.content_type};base64,${frame.data_b64}`;
+      stream.replaceChildren(image);
       stream.dataset.frameUrl = frame.url || "";
       stream.dataset.frameOrigin = frame.origin || "";
+      updateTakeoverPanel(request, frame, "Live browser frame ready for direct user control.");
     } else {
       stream.textContent = "Browser context is not connected in this process.";
+      updateTakeoverPanel(request, frame, "Browser context is not connected in this process.");
     }
   } catch {
     if (activeTakeoverFrameRequest === request.request_id) {
       stream.textContent = "Waiting for the controlled browser frame...";
+      updateTakeoverPanel(request, null, "Waiting for the controlled browser frame...");
     }
   }
 }
@@ -549,6 +732,7 @@ function startTakeoverFramePolling(request, stream) {
   if (request.status !== "user_control") {
     stopTakeoverFramePolling(request.request_id);
     stream.textContent = "Takeover is not active. Agent control can resume after release.";
+    updateTakeoverPanel(request, null, "Takeover is not active. Agent control can resume after release.");
     return;
   }
   if (activeTakeoverFrameRequest && activeTakeoverFrameRequest !== request.request_id) {
@@ -557,6 +741,7 @@ function startTakeoverFramePolling(request, stream) {
   if (activeTakeoverFrameRequest === request.request_id && takeoverFrameTimer) return;
   activeTakeoverFrameRequest = request.request_id;
   stream.textContent = "Loading control-only browser frame...";
+  updateTakeoverPanel(request, null, "Loading control-only browser frame...");
   installTakeoverPointerHandlers(request, stream);
   fetchTakeoverFrame(request, stream);
   takeoverFrameTimer = setInterval(() => fetchTakeoverFrame(request, stream), 1500);
@@ -704,17 +889,36 @@ function renderApprovalControls(request, item) {
     const dt = document.createElement("dt");
     dt.textContent = label;
     const dd = document.createElement("dd");
-    dd.textContent = value || "not visible";
+    dd.textContent = displayValue(value, "not visible");
     detailList.append(dt, dd);
   });
   item.append(detailList);
+  const isActionable = request.status === "pending";
+  let confirm = null;
+  if (request.request_type === "payment_approval") {
+    const confirmLabel = document.createElement("label");
+    confirmLabel.className = "check-row approval-confirm";
+    confirmLabel.innerHTML = '<input type="checkbox" data-payment-confirm> I reviewed merchant, amount, recipient, origin, final button text, and after-approval result.';
+    confirm = confirmLabel.querySelector("[data-payment-confirm]");
+    confirm.disabled = !isActionable;
+    item.append(confirmLabel);
+  }
   const actions = document.createElement("div");
   actions.className = "button-row";
   const approve = document.createElement("button");
   approve.textContent = "Approve";
-  approve.onclick = () => postAction(request, "approve");
+  approve.disabled = confirm ? true : !isActionable;
+  if (confirm) confirm.onchange = () => { approve.disabled = !confirm.checked || !isActionable; };
+  approve.onclick = () => {
+    if (confirm && !confirm.checked) {
+      setStatus("Payment approval requires review", "Confirm the payment details before approving.");
+      return;
+    }
+    postAction(request, "approve", confirm ? paymentApprovalConfirmationPayload(request) : null);
+  };
   const deny = document.createElement("button");
   deny.textContent = "Deny";
+  deny.disabled = !isActionable;
   deny.onclick = () => postAction(request, "deny");
   actions.append(deny, approve);
   item.append(actions);
@@ -741,6 +945,8 @@ function renderRequestList(requests, filter = activeFilter()) {
   const list = document.querySelector("#requests-list");
   list.innerHTML = "";
   const visible = filter === "all" ? requests : requests.filter((request) => requestKind(request) === filter);
+  syncTakeoverPanel(requests);
+  updatePaymentApprovalPanel(requests);
   if (activeTakeoverFrameRequest && !requests.some((request) => request.request_id === activeTakeoverFrameRequest && request.status === "user_control")) {
     stopTakeoverFramePolling();
   }

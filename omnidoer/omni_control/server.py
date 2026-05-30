@@ -622,6 +622,18 @@ class ControlHandler(SimpleHTTPRequestHandler):
             try:
                 control_request = self._get_request_for_session(store, request_id, session)
                 if action == "approve":
+                    body = self._read_json()
+                    if control_request.request_type == "payment_approval" and (
+                        body.get("explicit_user_confirmation") is not True or body.get("request_id") != request_id
+                    ):
+                        self._send_json(
+                            HTTPStatus.BAD_REQUEST,
+                            {
+                                "error": "explicit_user_confirmation_required",
+                                "secret_exposed_to_model": False,
+                            },
+                        )
+                        return
                     request = store.approve(request_id)
                 elif action == "deny":
                     request = store.deny(request_id)
