@@ -48,6 +48,9 @@ Credential tools return status and policy metadata only:
 ```
 
 The actual username/password values are not present.
+Credential request tools can include field labels such as
+`password_label: "GitHub PAT"` or `credential_labels: {"password": "GitHub PAT"}`
+so the Control Client shows the right human prompt without exposing a secret.
 
 `browser.type_text` and `browser.select` are ordinary form tools. If the target
 field appears to be a password, OTP, token, recovery code, payment, or other

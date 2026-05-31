@@ -103,6 +103,18 @@ def _fields(arguments: dict) -> list[str]:
     return [str(item) for item in value]
 
 
+def _credential_structured_details(arguments: dict) -> dict:
+    labels = dict(arguments.get("credential_labels") or arguments.get("field_labels") or {})
+    for field, argument_name in (
+        ("username", "username_label"),
+        ("password", "password_label"),
+        ("totp_seed", "totp_label"),
+    ):
+        if arguments.get(argument_name):
+            labels[field] = str(arguments[argument_name])
+    return {"credential_labels": labels} if labels else {}
+
+
 def _vault_path(arguments: dict) -> str:
     return str(arguments.get("vault_path") or arguments.get("vault") or ".omnidoer/vault.json")
 
@@ -154,6 +166,7 @@ def _create_credential_request(arguments: dict) -> dict:
         broker_public_key_fingerprint=load_or_create_keypair().fingerprint,
         requested_fields=_fields(arguments) or ["username", "password"],
         save_to_vault=bool(arguments.get("save_to_vault", True)),
+        structured_details=_credential_structured_details(arguments),
     )
     return {"status": "credential_request_created", "request": request.to_public_dict(), "secret_exposed_to_model": False}
 

@@ -13,6 +13,7 @@ from typing import Any
 
 
 REDACTED = "[REDACTED]"
+LABEL_MAP_KEYS = {"credential_labels", "field_labels"}
 
 SECRET_FIELD_RE = re.compile(
     r"(password|passwd|pwd|totp|otp|mfa|2fa|token|cookie|authorization|api[-_ ]?key|"
@@ -63,6 +64,16 @@ def _field_is_sensitive(node: Mapping[str, Any]) -> bool:
     return bool(SECRET_FIELD_RE.search(haystack))
 
 
+def _redact_label_map(value: Any) -> Any:
+    if isinstance(value, str):
+        return redact_text(value)
+    if isinstance(value, list):
+        return [_redact_label_map(item) for item in value]
+    if isinstance(value, Mapping):
+        return {str(key): _redact_label_map(item) for key, item in value.items()}
+    return value
+
+
 def redact_dom_snapshot(value: Any) -> Any:
     """Redact a JSON-like DOM or accessibility snapshot."""
 
@@ -76,9 +87,12 @@ def redact_dom_snapshot(value: Any) -> Any:
         sensitive = _field_is_sensitive(value)
         output: dict[str, Any] = {}
         for key, item in value.items():
-            if sensitive and str(key).lower() in {"value", "text", "name", "description"}:
+            key_text = str(key)
+            if key_text in LABEL_MAP_KEYS:
+                output[key_text] = _redact_label_map(item)
+            elif sensitive and key_text.lower() in {"value", "text", "name", "description"}:
                 output[str(key)] = REDACTED
-            elif SECRET_FIELD_RE.search(str(key)):
+            elif SECRET_FIELD_RE.search(key_text):
                 output[str(key)] = REDACTED
             else:
                 output[str(key)] = redact_dom_snapshot(item)

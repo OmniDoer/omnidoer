@@ -89,6 +89,20 @@ class McpToolsTest(unittest.TestCase):
                 self.assertEqual(interactive["request"]["request_type"], "credential")
                 self.assertNotIn("password_value", repr(interactive))
 
+                pat = call_tool(
+                    "credential.request_from_user",
+                    {
+                        **common,
+                        "reason": "GitHub token migration",
+                        "fields": ["username", "password"],
+                        "password_label": "GitHub PAT",
+                    },
+                )
+                self.assertEqual(pat["status"], "credential_request_created")
+                self.assertEqual(pat["request"]["requested_fields"], ["username", "password"])
+                self.assertEqual(pat["request"]["structured_details"]["credential_labels"]["password"], "GitHub PAT")
+                self.assertNotIn("token-value", repr(pat))
+
                 challenge = call_tool(
                     "challenge.request_user_interaction",
                     {**common, "challenge_type": "sms", "reason": "verify user"},

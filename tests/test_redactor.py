@@ -60,6 +60,20 @@ class RedactorTest(unittest.TestCase):
         self.assertNotIn("typed-sensitive-value", repr(redacted))
         self.assertNotIn("user-completed", repr(redacted))
 
+    def test_keeps_credential_label_text_without_secret_values(self) -> None:
+        details = {
+            "credential_labels": {
+                "username": "GitHub username",
+                "password": "GitHub PAT",
+                "backup": "github_pat_secret_value_000000000000",
+            }
+        }
+        redacted = redact_dom_snapshot(details)
+        self.assertEqual(redacted["credential_labels"]["username"], "GitHub username")
+        self.assertEqual(redacted["credential_labels"]["password"], "GitHub PAT")
+        self.assertEqual(redacted["credential_labels"]["backup"], REDACTED)
+        self.assertNotIn("github_pat_secret", repr(redacted))
+
 
 if __name__ == "__main__":
     unittest.main()
