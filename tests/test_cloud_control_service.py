@@ -76,6 +76,21 @@ class CloudControlServiceTest(unittest.TestCase):
         config = build_config(host="127.0.0.1", port=8787)
         self.assertEqual(config.mode, "local_dev")
 
+    def test_pair_route_serves_pwa_index(self) -> None:
+        server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        try:
+            with urllib_request.urlopen(f"{base}/pair?code=demo&pairing_id=pair_demo", timeout=5) as response:
+                body = response.read().decode()
+            self.assertIn("OmniDoer Control Client", body)
+            self.assertIn("/app.js", body)
+            self.assertNotIn("pair_demo", body)
+        finally:
+            server.shutdown()
+            server.server_close()
+
     def test_local_bind_with_public_url_requires_cloud_direct(self) -> None:
         with self.assertRaises(ValueError):
             build_config(host="127.0.0.1", port=8787, public_url="https://agent.example.com")

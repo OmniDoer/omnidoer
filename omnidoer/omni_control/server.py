@@ -129,6 +129,15 @@ class ControlHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _send_pwa_index(self) -> None:
+        data = (static_root() / "index.html").read_bytes()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("content-type", "text/html; charset=utf-8")
+        self.send_header("cache-control", "no-store")
+        self.send_header("content-length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def end_headers(self) -> None:
         apply_security_headers(self.send_header)
         super().end_headers()
@@ -340,6 +349,9 @@ class ControlHandler(SimpleHTTPRequestHandler):
         parsed_url = urlparse(self.path)
         path = parsed_url.path
         store = RequestStore()
+        if path in {"/pair", "/pair/"}:
+            self._send_pwa_index()
+            return
         if path == "/api/status":
             config = getattr(self.server, "omnidoer_config", None)
             self._send_json(

@@ -30,6 +30,9 @@ from omnidoer.omni_vault.models import CredentialSecret
 from omnidoer.omni_vault.vault import Vault, _passphrase_from_env
 
 
+ABORTED_REQUEST_STATUSES = {"denied", "expired", "cancelled", "rejected", "failed"}
+
+
 class DemoHttpClient:
     def __init__(self, origin: str):
         self.origin = origin.rstrip("/")
@@ -53,23 +56,61 @@ def _vault(args) -> Vault:
     return Vault.load(args.vault, _passphrase_from_env(args.passphrase_env))
 
 
+def _decrypt_request_payload(request) -> dict:
+    expected_expires_at = request.expires_at if request.response_ciphertext.get("expires_at") is not None else None
+    return decrypt_control_envelope(
+        request.response_ciphertext,
+        request_id=request.request_id,
+        origin=request.origin,
+        request_type=request.request_type,
+        device_id=request.allowed_device_id,
+        expires_at=expected_expires_at,
+    )
+
+
 def _wait_for_request_payload(request_id: str, timeout_seconds: int = 300) -> dict:
     store = RequestStore()
     deadline = time.time() + timeout_seconds
     while time.time() < deadline:
         request = store.get(request_id)
         if request.response_ciphertext:
-            expected_expires_at = request.expires_at if request.response_ciphertext.get("expires_at") is not None else None
-            return decrypt_control_envelope(
-                request.response_ciphertext,
-                request_id=request.request_id,
-                origin=request.origin,
-                request_type=request.request_type,
-                device_id=request.allowed_device_id,
-                expires_at=expected_expires_at,
-            )
+            return _decrypt_request_payload(request)
         time.sleep(0.5)
     raise TimeoutError("timed out waiting for Control Client request")
+
+
+def _wait_for_challenge_payload(request_id: str, timeout_seconds: int = 300) -> dict:
+    store = RequestStore()
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        request = store.get(request_id)
+        if request.response_ciphertext:
+            payload = _decrypt_request_payload(request)
+            if request.status != "challenge_completed":
+                request = store.mark_challenge_completed(request_id)
+            fields = [field for field in ("code", "otp", "ack") if payload.get(field)]
+            AuditLog().append(
+                "challenge_response_received",
+                request_id=request_id,
+                origin=request.origin,
+                challenge_type=request.challenge_type,
+                fields=fields,
+                status="ok",
+            )
+            return payload
+        if request.status in ABORTED_REQUEST_STATUSES:
+            AuditLog().append("agent_challenge_wait_aborted", request_id=request_id, status=request.status)
+            raise RuntimeError(f"Control Client challenge request ended: {request.status}")
+        time.sleep(0.5)
+    AuditLog().append("agent_challenge_wait_timeout", request_id=request_id, status="timeout")
+    raise TimeoutError("timed out waiting for Control Client challenge response")
+
+
+def _challenge_code_from_payload(payload: dict) -> str:
+    value = payload.get("code") or payload.get("otp")
+    if not value:
+        raise ValueError("challenge payload has no code")
+    return str(value)
 
 
 def _credential_from_control_or_vault(args, origin: str) -> tuple[str, CredentialSecret]:
@@ -134,7 +175,9 @@ def _login(args, client: DemoHttpClient) -> str:
     )
     if os.environ.get("OMNIDOER_CHALLENGE_TEST_MODE") == "1":
         complete_challenge(request.request_id)
-    code = os.environ.get("OMNIDOER_TEST_SMS_CODE", "123456")
+        code = os.environ.get("OMNIDOER_TEST_SMS_CODE", "123456")
+    else:
+        code = _challenge_code_from_payload(_wait_for_challenge_payload(request.request_id))
     client.post("/totp", {"otp": code})
     AuditLog().append("login_completed", origin=origin, credential_id=credential_id, status="ok")
     return credential_id
@@ -313,7 +356,10 @@ def _checkout_task(args) -> int:
     )
     if os.environ.get("OMNIDOER_CHALLENGE_TEST_MODE") == "1":
         complete_challenge(challenge.request_id)
-    client.post("/checkout/3ds", {"code": os.environ.get("OMNIDOER_TEST_SMS_CODE", "123456")})
+        code = os.environ.get("OMNIDOER_TEST_SMS_CODE", "123456")
+    else:
+        code = _challenge_code_from_payload(_wait_for_challenge_payload(challenge.request_id))
+    client.post("/checkout/3ds", {"code": code})
     client.post(
         "/checkout/submit",
         {
