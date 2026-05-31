@@ -20,7 +20,21 @@ OmniDoer はその発見をアーキテクチャに変えます。Codex は推�
 
 ## クイックインストール
 
-ローカル開発環境:
+推奨 npm Bootstrap:
+
+```sh
+npm install -g @omnidoer/omnidoer
+omnidoer
+omnidoer pair
+```
+
+npm パッケージは軽量な Node ランチャーをインストールします。初回実行時に
+既定では OmniDoer を `~/.omnidoer/npm-install/omnidoer` へ clone し、Python
+sidecar runtime をインストールし、既存の Codex ログイン、モデル、quota、
+billing 経路を保ちます。既存 checkout を使う場合は `OMNIDOER_INSTALL_DIR` を
+設定します。
+
+ソースからの直接インストール:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scripts/install-cloud-direct.sh | sh
@@ -36,10 +50,13 @@ curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scr
 インストール後:
 
 ```sh
-~/omnidoer/.venv/bin/omnidoer
-~/omnidoer/.venv/bin/omnidoer control pair --print-qr
-~/omnidoer/.venv/bin/omnidoer control submit-task "ローカルデモを開いて請求書をダウンロードする"
+omnidoer
+omnidoer pair
+omnidoer control submit-task "ローカルデモを開いて請求書をダウンロードする"
 ```
+
+直接 shell installer を使い、`omnidoer` が `PATH` にない場合は
+`~/omnidoer/.venv/bin/omnidoer` で同じコマンドを実行できます。
 
 インストーラは `~/omnidoer/.venv` を作成し、OmniDoer を初期化し、
 browser worker をインストールし、MCP server を self-test し、`codex` CLI

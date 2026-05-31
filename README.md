@@ -51,7 +51,22 @@ Live page: [https://omnidoer.github.io/](https://omnidoer.github.io/)
 
 ## One-Command Install
 
-Local developer install:
+Recommended npm bootstrap:
+
+```sh
+npm install -g @omnidoer/omnidoer
+omnidoer
+omnidoer pair
+```
+
+The npm package installs a small Node bootstrap. On first run it clones
+`https://github.com/OmniDoer/omnidoer.git` into
+`~/.omnidoer/npm-install/omnidoer` by default, installs the Python sidecar
+runtime, and launches the OmniDoer console while preserving your existing Codex
+login, model selection, quota, and billing path. Set `OMNIDOER_INSTALL_DIR` if
+you want the npm launcher to use an existing checkout.
+
+Direct source install:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scripts/install-cloud-direct.sh | sh
@@ -73,15 +88,19 @@ existing Codex login, model selection, and billing path.
 After install:
 
 ```sh
-~/omnidoer/.venv/bin/omnidoer
-~/omnidoer/.venv/bin/omnidoer pair
-~/omnidoer/.venv/bin/omnidoer control submit-task "Open the local demo and download my invoice"
+omnidoer
+omnidoer pair
+omnidoer control submit-task "Open the local demo and download my invoice"
 ```
 
-Inside the OmniDoer native console, `/pair` asks the Agent to create a
-short-lived Control Client pairing URL through the safe `control.create_pairing`
-MCP tool. Pair once on a device you control; normal later use reuses the
-revocable device session instead of asking you to pair again.
+If you used the direct shell installer and `omnidoer` is not on `PATH`, use
+`~/omnidoer/.venv/bin/omnidoer` for the same commands.
+
+Inside the OmniDoer native console, `/pair` creates a short-lived Control Client
+pairing QR code locally through the OmniDoer sidecar and prints it in the
+terminal. Scan it from a phone browser, pair once on a device you control, and
+normal later use reuses the revocable device session instead of asking you to
+pair again.
 
 Running `omnidoer` with no subcommand opens the OmniDoer-branded interactive
 console. It inherits the existing Codex ChatGPT login and billing path, but the

@@ -21,14 +21,14 @@ def print_pairing_invite(*, public_url: str | None = None, expires: str = "10m",
     public_url = resolve_pairing_public_url(public_url)
     pairing = PairingStore().create(public_url=public_url, ttl_seconds=parse_duration_seconds(expires))
     print("OmniDoer Control Client pairing")
-    print(f"pairing_url={pairing_url(pairing)}")
-    print(f"expires_at={pairing.expires_at}")
-    print(f"broker_fingerprint={pairing.broker_fingerprint}")
-    print("warning=Only pair devices you control.")
     if print_qr:
         print("qr_ascii_begin")
         print(qr_text(pairing))
         print("qr_ascii_end")
+    print(f"pairing_url={pairing_url(pairing)}")
+    print(f"expires_at={pairing.expires_at}")
+    print(f"broker_fingerprint={pairing.broker_fingerprint}")
+    print("warning=Only pair devices you control.")
 
 
 def _secret_payload(request) -> dict[str, str | bool]:

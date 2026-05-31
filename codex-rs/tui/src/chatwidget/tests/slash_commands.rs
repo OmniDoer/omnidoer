@@ -598,42 +598,33 @@ async fn slash_init_skips_when_project_doc_exists() {
 }
 
 #[tokio::test]
-async fn slash_pair_submits_control_pairing_prompt() {
-    let (mut chat, _rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+async fn slash_pair_shows_local_pairing_qr() {
+    let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
 
     submit_composer_text(&mut chat, "/pair");
 
-    match next_submit_op(&mut op_rx) {
-        Op::UserTurn { items, .. } => match &items[..] {
-            [UserInput::Text { text, .. }] => {
-                assert!(text.contains("control.create_pairing"));
-                assert!(text.contains("ASCII QR code"));
-                assert!(text.contains("60 minute expiry"));
-                assert!(text.contains("device sessions are cached"));
-            }
-            other => panic!("expected one text item, got {other:?}"),
-        },
-        other => panic!("expected /pair to submit a user turn, got {other:?}"),
-    }
+    assert_matches!(op_rx.try_recv(), Err(TryRecvError::Empty));
+    let cells = drain_insert_history(&mut rx);
+    assert_eq!(cells.len(), 1, "expected one pairing QR output cell");
+    let rendered = lines_to_single_string(&cells[0]);
+    assert!(rendered.contains("OmniDoer Control Client pairing"));
+    assert!(rendered.contains("qr_ascii_begin"));
+    assert!(rendered.contains("pairing_url=https://agent.example.com/pair"));
     assert_eq!(recall_latest_after_clearing(&mut chat), "/pair");
 }
 
 #[tokio::test]
-async fn slash_pair_with_args_includes_pairing_options() {
-    let (mut chat, _rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+async fn slash_pair_with_args_uses_pairing_options() {
+    let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
 
     submit_composer_text(&mut chat, "/pair https://agent.example.com 30m");
 
-    match next_submit_op(&mut op_rx) {
-        Op::UserTurn { items, .. } => match &items[..] {
-            [UserInput::Text { text, .. }] => {
-                assert!(text.contains("control.create_pairing"));
-                assert!(text.contains("https://agent.example.com 30m"));
-            }
-            other => panic!("expected one text item, got {other:?}"),
-        },
-        other => panic!("expected /pair with args to submit a user turn, got {other:?}"),
-    }
+    assert_matches!(op_rx.try_recv(), Err(TryRecvError::Empty));
+    let cells = drain_insert_history(&mut rx);
+    assert_eq!(cells.len(), 1, "expected one pairing QR output cell");
+    let rendered = lines_to_single_string(&cells[0]);
+    assert!(rendered.contains("qr_ascii_begin"));
+    assert!(rendered.contains("pairing_url=https://agent.example.com/pair"));
 }
 
 #[tokio::test]

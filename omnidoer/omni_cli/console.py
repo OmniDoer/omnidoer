@@ -56,6 +56,8 @@ def build_console_env() -> dict[str, str]:
     env = os.environ.copy()
     env.update(BRAND_ENV)
     env["OMNIDOER_VERSION"] = __version__.lstrip("vV")
+    env.setdefault("OMNIDOER_PYTHON", sys.executable)
+    env.setdefault("OMNIDOER_INSTALL_DIR", str(Path(__file__).resolve().parents[2]))
     return env
 
 

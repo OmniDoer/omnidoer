@@ -67,7 +67,7 @@ input, button, textarea {
   min-height: 44px;
   padding: 9px 10px;
 }
-input, textarea {
+input, textarea, select {
   width: 100%;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
@@ -84,6 +84,22 @@ button {
   font-weight: 650;
 }
 button:hover { background: #0f172a; }
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 120px;
+  padding: 9px 10px;
+  border: 1px solid #0f172a;
+  border-radius: 8px;
+  background: #111827;
+  color: #fff;
+  text-decoration: none;
+  cursor: pointer;
+  font-weight: 650;
+}
+.button-link:hover { background: #0f172a; }
 button:disabled {
   cursor: not-allowed;
   border-color: #94a3b8;
@@ -95,7 +111,11 @@ button:disabled {
   background: white;
   color: var(--ink);
 }
-#language-toggle,
+.language-control {
+  margin: 0;
+  flex: 0 0 auto;
+}
+#language-select,
 .ghost-button {
   min-width: auto;
   flex: 0 0 auto;
@@ -103,7 +123,12 @@ button:disabled {
   background: #fff;
   color: var(--ink);
 }
-#language-toggle:hover,
+#language-select {
+  width: auto;
+  min-width: 132px;
+  font-weight: 650;
+}
+#language-select:hover,
 .ghost-button:hover {
   background: #f8fafc;
 }

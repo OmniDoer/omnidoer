@@ -20,7 +20,20 @@ Client가 민감한 동작을 모델 가시 상태 밖에 둡니다.
 
 ## 빠른 설치
 
-로컬 개발 설치:
+권장 npm Bootstrap:
+
+```sh
+npm install -g @omnidoer/omnidoer
+omnidoer
+omnidoer pair
+```
+
+npm 패키지는 가벼운 Node 런처를 설치합니다. 처음 실행할 때 기본적으로 OmniDoer를
+`~/.omnidoer/npm-install/omnidoer`에 clone하고 Python sidecar runtime을
+설치하며 기존 Codex 로그인, 모델, quota, billing 경로를 유지합니다. 기존 checkout을
+사용하려면 `OMNIDOER_INSTALL_DIR`을 설정하세요.
+
+소스 직접 설치:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scripts/install-cloud-direct.sh | sh
@@ -36,10 +49,13 @@ curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scr
 설치 후:
 
 ```sh
-~/omnidoer/.venv/bin/omnidoer
-~/omnidoer/.venv/bin/omnidoer control pair --print-qr
-~/omnidoer/.venv/bin/omnidoer control submit-task "로컬 데모를 열고 내 청구서를 다운로드"
+omnidoer
+omnidoer pair
+omnidoer control submit-task "로컬 데모를 열고 내 청구서를 다운로드"
 ```
+
+직접 shell installer를 사용했고 `omnidoer`가 `PATH`에 없다면
+`~/omnidoer/.venv/bin/omnidoer`로 같은 명령을 실행하세요.
 
 설치 스크립트는 `~/omnidoer/.venv`를 만들고, OmniDoer를 초기화하고, browser
 worker를 설치하고, MCP server를 self-test하며, `codex` CLI가 있으면

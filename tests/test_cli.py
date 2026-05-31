@@ -77,6 +77,8 @@ class CliTest(unittest.TestCase):
 
         env = build_console_env()
         self.assertEqual(env["OMNIDOER_VERSION"], __version__.lstrip("vV"))
+        self.assertEqual(env["OMNIDOER_PYTHON"], sys.executable)
+        self.assertTrue(env["OMNIDOER_INSTALL_DIR"].endswith("omnidoer"))
 
     def test_update_prompt_runs_upgrade_when_user_accepts(self) -> None:
         update = UpdateInfo(

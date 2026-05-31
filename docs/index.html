@@ -434,8 +434,14 @@
 
     <section id="install">
       <h2 data-i18n="install_heading">One-Command Install</h2>
-      <p data-i18n="install_copy">Install OmniDoer on a Linux server or local development machine with one shell command. The bootstrap keeps Codex as the model and auth entrypoint, then starts the Control Service and registers the MCP sidecar when Codex CLI is available.</p>
+      <p data-i18n="install_copy">Install OmniDoer with the public npm bootstrap, or use the direct shell installer for source and Cloud Direct server deployments. Both paths keep Codex as the model and auth entrypoint, then start the Control Service and register the MCP sidecar when Codex CLI is available.</p>
       <div class="deploy-grid">
+        <article class="command-panel">
+          <h3 data-i18n="install_npm_title">Recommended npm Bootstrap</h3>
+          <pre><code>npm install -g @omnidoer/omnidoer
+omnidoer
+omnidoer pair</code></pre>
+        </article>
         <article class="command-panel">
           <h3 data-i18n="install_local_title">Local Developer Runtime</h3>
           <pre><code>curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scripts/install-cloud-direct.sh | sh</code></pre>
@@ -448,8 +454,8 @@
       </div>
       <article class="command-panel next-commands">
         <h3 data-i18n="install_after_title">Pair And Submit</h3>
-        <pre><code data-i18n="install_after_commands">~/omnidoer/.venv/bin/omnidoer pair
-~/omnidoer/.venv/bin/omnidoer control submit-task "Open the local demo and download my invoice"</code></pre>
+        <pre><code data-i18n="install_after_commands">omnidoer pair
+omnidoer control submit-task "Open the local demo and download my invoice"</code></pre>
       </article>
       <p class="install-note" data-i18n="install_note">Set <code>OMNIDOER_INSTALL_DIR</code>, <code>OMNIDOER_HOST</code>, <code>OMNIDOER_PORT</code>, <code>OMNIDOER_START=0</code>, <code>OMNIDOER_REGISTER_MCP=0</code>, or <code>OMNIDOER_SKIP_PLAYWRIGHT=1</code> to customize the bootstrap.</p>
     </section>
@@ -561,11 +567,12 @@
         proof_tests_2: "`test_approval.py`, `test_control_payment_server.py`, `test_policy.py`",
         proof_tests_3: "`test_redactor.py`, `test_vault.py`, `test_browser_controller.py`",
         install_heading: "One-Command Install",
-        install_copy: "Install OmniDoer on a Linux server or local development machine with one shell command. The bootstrap keeps Codex as the model and auth entrypoint, then starts the Control Service and registers the MCP sidecar when Codex CLI is available.",
+        install_copy: "Install OmniDoer with the public npm bootstrap, or use the direct shell installer for source and Cloud Direct server deployments. Both paths keep Codex as the model and auth entrypoint, then start the Control Service and register the MCP sidecar when Codex CLI is available.",
+        install_npm_title: "Recommended npm Bootstrap",
         install_local_title: "Local Developer Runtime",
         install_cloud_title: "Cloud Direct Server",
         install_after_title: "Pair And Submit",
-        install_after_commands: "~/omnidoer/.venv/bin/omnidoer pair\n~/omnidoer/.venv/bin/omnidoer control submit-task \"Open the local demo and download my invoice\"",
+        install_after_commands: "omnidoer pair\nomnidoer control submit-task \"Open the local demo and download my invoice\"",
         install_note: "Set <code>OMNIDOER_INSTALL_DIR</code>, <code>OMNIDOER_HOST</code>, <code>OMNIDOER_PORT</code>, <code>OMNIDOER_START=0</code>, <code>OMNIDOER_REGISTER_MCP=0</code>, or <code>OMNIDOER_SKIP_PLAYWRIGHT=1</code> to customize the bootstrap.",
         footer_copy: "OmniDoer is a user-authorized local execution layer, not a credential stealer, CAPTCHA bypasser, or autonomous spender."
       },
@@ -617,11 +624,12 @@
         proof_tests_2: "`test_approval.py`、`test_control_payment_server.py`、`test_policy.py`",
         proof_tests_3: "`test_redactor.py`、`test_vault.py`、`test_browser_controller.py`",
         install_heading: "一键安装",
-        install_copy: "用一条 shell 命令把 OmniDoer 安装到 Linux 服务器或本地开发机。bootstrap 会保留 Codex 作为模型与认证入口，启动 Control Service，并在可用时把 MCP sidecar 注册到 Codex CLI。",
+        install_copy: "推荐使用公开 npm bootstrap 安装 OmniDoer；源码安装和 Cloud Direct 服务器部署仍可使用直接 shell 安装器。两种路径都会保留 Codex 作为模型与认证入口，启动 Control Service，并在可用时把 MCP sidecar 注册到 Codex CLI。",
+        install_npm_title: "推荐 npm Bootstrap",
         install_local_title: "本地开发运行时",
         install_cloud_title: "Cloud Direct 服务器",
         install_after_title: "配对并提交任务",
-        install_after_commands: "~/omnidoer/.venv/bin/omnidoer pair\n~/omnidoer/.venv/bin/omnidoer control submit-task \"打开本地 demo 并下载我的发票\"",
+        install_after_commands: "omnidoer pair\nomnidoer control submit-task \"打开本地 demo 并下载我的发票\"",
         install_note: "可设置 <code>OMNIDOER_INSTALL_DIR</code>、<code>OMNIDOER_HOST</code>、<code>OMNIDOER_PORT</code>、<code>OMNIDOER_START=0</code>、<code>OMNIDOER_REGISTER_MCP=0</code> 或 <code>OMNIDOER_SKIP_PLAYWRIGHT=1</code> 来调整安装流程。",
         footer_copy: "OmniDoer 是用户授权的本地执行层，不是窃取凭据、绕过 CAPTCHA 或自主消费的工具。"
       },
@@ -671,11 +679,12 @@
         proof_tests_2: "`test_approval.py`, `test_control_payment_server.py`, `test_policy.py`",
         proof_tests_3: "`test_redactor.py`, `test_vault.py`, `test_browser_controller.py`",
         install_heading: "Despliegue con un comando",
-        install_copy: "Instala OmniDoer en un servidor Linux o entorno local con un solo comando shell. El bootstrap conserva Codex como entrada de modelo y autenticación, inicia Control Service y registra el sidecar MCP cuando Codex CLI está disponible.",
+        install_copy: "Instala OmniDoer con el bootstrap npm publico, o usa el instalador shell directo para codigo fuente y servidores Cloud Direct. Ambos caminos conservan Codex como entrada de modelo y autenticacion, inician Control Service y registran el sidecar MCP cuando Codex CLI esta disponible.",
+        install_npm_title: "Bootstrap npm recomendado",
         install_local_title: "Runtime local",
         install_cloud_title: "Servidor Cloud Direct",
         install_after_title: "Emparejar y enviar",
-        install_after_commands: "~/omnidoer/.venv/bin/omnidoer pair\n~/omnidoer/.venv/bin/omnidoer control submit-task \"Abre la demo local y descarga mi factura\"",
+        install_after_commands: "omnidoer pair\nomnidoer control submit-task \"Abre la demo local y descarga mi factura\"",
         install_note: "Define <code>OMNIDOER_INSTALL_DIR</code>, <code>OMNIDOER_HOST</code>, <code>OMNIDOER_PORT</code>, <code>OMNIDOER_START=0</code>, <code>OMNIDOER_REGISTER_MCP=0</code> o <code>OMNIDOER_SKIP_PLAYWRIGHT=1</code> para ajustar el bootstrap.",
         footer_copy: "OmniDoer es una capa de ejecución autorizada por el usuario, no una herramienta para robar credenciales, evadir CAPTCHA o gastar sola."
       },
@@ -725,11 +734,12 @@
         proof_tests_2: "`test_approval.py`, `test_control_payment_server.py`, `test_policy.py`",
         proof_tests_3: "`test_redactor.py`, `test_vault.py`, `test_browser_controller.py`",
         install_heading: "Déploiement en une commande",
-        install_copy: "Installez OmniDoer sur un serveur Linux ou une machine locale avec une seule commande shell. Le bootstrap garde Codex comme point d'entrée modèle et auth, lance Control Service et enregistre le sidecar MCP si Codex CLI est disponible.",
+        install_copy: "Installez OmniDoer avec le bootstrap npm public, ou utilisez l'installateur shell direct pour le code source et les serveurs Cloud Direct. Les deux chemins gardent Codex comme point d'entree modele et auth, lancent Control Service et enregistrent le sidecar MCP si Codex CLI est disponible.",
+        install_npm_title: "Bootstrap npm recommande",
         install_local_title: "Runtime local",
         install_cloud_title: "Serveur Cloud Direct",
         install_after_title: "Pairing et tâche",
-        install_after_commands: "~/omnidoer/.venv/bin/omnidoer pair\n~/omnidoer/.venv/bin/omnidoer control submit-task \"Ouvre la démo locale et télécharge ma facture\"",
+        install_after_commands: "omnidoer pair\nomnidoer control submit-task \"Ouvre la démo locale et télécharge ma facture\"",
         install_note: "Définissez <code>OMNIDOER_INSTALL_DIR</code>, <code>OMNIDOER_HOST</code>, <code>OMNIDOER_PORT</code>, <code>OMNIDOER_START=0</code>, <code>OMNIDOER_REGISTER_MCP=0</code> ou <code>OMNIDOER_SKIP_PLAYWRIGHT=1</code> pour ajuster le bootstrap.",
         footer_copy: "OmniDoer est une couche d'exécution autorisée par l'utilisateur, pas un voleur d'identifiants, un contournement CAPTCHA ou un dépensier autonome."
       },
@@ -779,11 +789,12 @@
         proof_tests_2: "`test_approval.py`, `test_control_payment_server.py`, `test_policy.py`",
         proof_tests_3: "`test_redactor.py`, `test_vault.py`, `test_browser_controller.py`",
         install_heading: "Ein-Befehl-Deployment",
-        install_copy: "Installiere OmniDoer auf einem Linux-Server oder lokalen Entwicklungsrechner mit einem Shell-Befehl. Das Bootstrap behält Codex als Modell- und Auth-Einstieg, startet den Control Service und registriert das MCP-Sidecar, wenn Codex CLI verfügbar ist.",
+        install_copy: "Installiere OmniDoer mit dem oeffentlichen npm-Bootstrap, oder nutze den direkten Shell-Installer fuer Source- und Cloud-Direct-Server-Deployments. Beide Wege behalten Codex als Modell- und Auth-Einstieg, starten den Control Service und registrieren das MCP-Sidecar, wenn Codex CLI verfuegbar ist.",
+        install_npm_title: "Empfohlener npm-Bootstrap",
         install_local_title: "Lokale Runtime",
         install_cloud_title: "Cloud-Direct-Server",
         install_after_title: "Pairing und Aufgabe",
-        install_after_commands: "~/omnidoer/.venv/bin/omnidoer pair\n~/omnidoer/.venv/bin/omnidoer control submit-task \"Öffne die lokale Demo und lade meine Rechnung herunter\"",
+        install_after_commands: "omnidoer pair\nomnidoer control submit-task \"Öffne die lokale Demo und lade meine Rechnung herunter\"",
         install_note: "Setze <code>OMNIDOER_INSTALL_DIR</code>, <code>OMNIDOER_HOST</code>, <code>OMNIDOER_PORT</code>, <code>OMNIDOER_START=0</code>, <code>OMNIDOER_REGISTER_MCP=0</code> oder <code>OMNIDOER_SKIP_PLAYWRIGHT=1</code>, um das Bootstrap anzupassen.",
         footer_copy: "OmniDoer ist eine vom Nutzer autorisierte Ausführungsschicht, kein Credential-Stealer, CAPTCHA-Bypass oder autonomer Käufer."
       },
@@ -833,11 +844,12 @@
         proof_tests_2: "`test_approval.py`、`test_control_payment_server.py`、`test_policy.py`",
         proof_tests_3: "`test_redactor.py`、`test_vault.py`、`test_browser_controller.py`",
         install_heading: "ワンコマンド配備",
-        install_copy: "1 つの shell コマンドで OmniDoer を Linux サーバーまたはローカル開発環境へインストールします。bootstrap は Codex をモデルと認証の入口として維持し、Control Service を起動し、Codex CLI がある場合は MCP sidecar を登録します。",
+        install_copy: "公開 npm bootstrap で OmniDoer をインストールできます。ソースや Cloud Direct サーバー配備には直接 shell installer も使えます。どちらも Codex をモデルと認証の入口として維持し、Control Service を起動し、Codex CLI がある場合は MCP sidecar を登録します。",
+        install_npm_title: "推奨 npm Bootstrap",
         install_local_title: "ローカル Runtime",
         install_cloud_title: "Cloud Direct サーバー",
         install_after_title: "Pairing とタスク投入",
-        install_after_commands: "~/omnidoer/.venv/bin/omnidoer pair\n~/omnidoer/.venv/bin/omnidoer control submit-task \"ローカルデモを開いて請求書をダウンロードする\"",
+        install_after_commands: "omnidoer pair\nomnidoer control submit-task \"ローカルデモを開いて請求書をダウンロードする\"",
         install_note: "<code>OMNIDOER_INSTALL_DIR</code>、<code>OMNIDOER_HOST</code>、<code>OMNIDOER_PORT</code>、<code>OMNIDOER_START=0</code>、<code>OMNIDOER_REGISTER_MCP=0</code>、<code>OMNIDOER_SKIP_PLAYWRIGHT=1</code> を設定して bootstrap を調整できます。",
         footer_copy: "OmniDoer はユーザー承認のローカル実行層であり、資格情報窃取、CAPTCHA 回避、自律支払いの道具ではありません。"
       },
@@ -887,11 +899,12 @@
         proof_tests_2: "`test_approval.py`, `test_control_payment_server.py`, `test_policy.py`",
         proof_tests_3: "`test_redactor.py`, `test_vault.py`, `test_browser_controller.py`",
         install_heading: "원커맨드 배포",
-        install_copy: "하나의 shell 명령으로 OmniDoer를 Linux 서버나 로컬 개발 머신에 설치합니다. bootstrap은 Codex를 모델 및 인증 진입점으로 유지하고 Control Service를 시작하며, Codex CLI가 있으면 MCP sidecar를 등록합니다.",
+        install_copy: "공개 npm bootstrap으로 OmniDoer를 설치하세요. 소스 설치와 Cloud Direct 서버 배포에는 직접 shell installer도 사용할 수 있습니다. 두 경로 모두 Codex를 모델 및 인증 진입점으로 유지하고 Control Service를 시작하며, Codex CLI가 있으면 MCP sidecar를 등록합니다.",
+        install_npm_title: "권장 npm Bootstrap",
         install_local_title: "로컬 Runtime",
         install_cloud_title: "Cloud Direct 서버",
         install_after_title: "Pairing 및 작업 제출",
-        install_after_commands: "~/omnidoer/.venv/bin/omnidoer pair\n~/omnidoer/.venv/bin/omnidoer control submit-task \"로컬 데모를 열고 내 청구서를 다운로드\"",
+        install_after_commands: "omnidoer pair\nomnidoer control submit-task \"로컬 데모를 열고 내 청구서를 다운로드\"",
         install_note: "<code>OMNIDOER_INSTALL_DIR</code>, <code>OMNIDOER_HOST</code>, <code>OMNIDOER_PORT</code>, <code>OMNIDOER_START=0</code>, <code>OMNIDOER_REGISTER_MCP=0</code> 또는 <code>OMNIDOER_SKIP_PLAYWRIGHT=1</code>로 bootstrap을 조정할 수 있습니다.",
         footer_copy: "OmniDoer는 사용자 승인 로컬 실행 계층이며 자격 증명 탈취, CAPTCHA 우회, 자율 결제 도구가 아닙니다."
       }

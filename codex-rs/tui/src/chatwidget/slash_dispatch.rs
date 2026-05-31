@@ -13,6 +13,10 @@ use crate::bottom_pane::slash_commands::BuiltinCommandFlags;
 use crate::bottom_pane::slash_commands::ServiceTierCommand;
 use crate::bottom_pane::slash_commands::SlashCommandItem;
 use crate::bottom_pane::slash_commands::find_slash_command;
+#[cfg(not(test))]
+use std::path::PathBuf;
+#[cfg(not(test))]
+use std::process::Command;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SlashCommandDispatchSource {
@@ -34,13 +38,7 @@ const SIDE_SLASH_COMMAND_UNAVAILABLE_HINT: &str =
     "Press Ctrl+C to return to the main thread first.";
 const GOAL_USAGE: &str = "Usage: /goal <objective>";
 const GOAL_USAGE_HINT: &str = "Example: /goal improve benchmark coverage";
-const PAIR_PROMPT: &str = concat!(
-    "Create a short-lived OmniDoer Control Client pairing QR code using the ",
-    "`control.create_pairing` MCP tool. Use the configured public URL if ",
-    "available and a 60 minute expiry. Show the ASCII QR code first, then ",
-    "the HTTPS pairing URL, expiry, and a short reminder that pairing is ",
-    "one-time while later device sessions are cached and revocable."
-);
+const PAIR_DEFAULT_EXPIRES: &str = "60m";
 const RAW_USAGE: &str = "Usage: /raw [on|off]";
 
 fn auth_mode_label(mode: codex_app_server_protocol::AuthMode) -> &'static str {
@@ -75,6 +73,113 @@ fn auth_user_description(user: &codex_login::AuthUserSummary) -> String {
         }
     }
     parts.join(" / ")
+}
+
+fn parse_pair_args(raw: &str) -> Result<Vec<String>, String> {
+    let mut expires = PAIR_DEFAULT_EXPIRES.to_string();
+    let mut public_url: Option<String> = None;
+    let mut tokens = raw.split_whitespace();
+    while let Some(token) = tokens.next() {
+        if let Some(value) = token.strip_prefix("--expires=") {
+            expires = value.to_string();
+        } else if token == "--expires" {
+            let Some(value) = tokens.next() else {
+                return Err("Usage: /pair [https://agent.example.com] [60m]".to_string());
+            };
+            expires = value.to_string();
+        } else if let Some(value) = token.strip_prefix("--public-url=") {
+            public_url = Some(value.to_string());
+        } else if token == "--public-url" {
+            let Some(value) = tokens.next() else {
+                return Err("Usage: /pair [https://agent.example.com] [60m]".to_string());
+            };
+            public_url = Some(value.to_string());
+        } else if token.starts_with("https://") || token.starts_with("http://") {
+            public_url = Some(token.to_string());
+        } else if token.starts_with('-') {
+            return Err(format!(
+                "Unsupported /pair option `{token}`. Usage: /pair [https://agent.example.com] [60m]"
+            ));
+        } else {
+            expires = token.to_string();
+        }
+    }
+
+    let mut args = vec![
+        "pair".to_string(),
+        "--expires".to_string(),
+        expires,
+    ];
+    if let Some(public_url) = public_url {
+        args.push("--public-url".to_string());
+        args.push(public_url);
+    }
+    Ok(args)
+}
+
+fn pair_invite_lines(output: &str) -> Vec<Line<'static>> {
+    output
+        .lines()
+        .map(|line| Line::from(line.to_string()))
+        .collect()
+}
+
+#[cfg(test)]
+fn create_pairing_invite(raw_args: &str) -> Result<String, String> {
+    let args = parse_pair_args(raw_args)?;
+    let public_url = args
+        .windows(2)
+        .find_map(|window| (window[0].as_str() == "--public-url").then(|| window[1].clone()))
+        .unwrap_or_else(|| "https://agent.example.com".to_string());
+    Ok(format!(
+        "OmniDoer Control Client pairing\nqr_ascii_begin\n## test qr ##\nqr_ascii_end\npairing_url={public_url}/pair?code=test&pairing_id=pair_test\nexpires_at=test\nbroker_fingerprint=test\nwarning=Only pair devices you control."
+    ))
+}
+
+#[cfg(not(test))]
+fn create_pairing_invite(raw_args: &str) -> Result<String, String> {
+    let args = parse_pair_args(raw_args)?;
+    let mut attempts: Vec<(String, Vec<String>, Option<PathBuf>)> = Vec::new();
+    if let Ok(python) = std::env::var("OMNIDOER_PYTHON") {
+        let mut python_args = vec!["-m".to_string(), "omnidoer.omni_cli.main".to_string()];
+        python_args.extend(args.clone());
+        attempts.push((
+            python,
+            python_args,
+            std::env::var_os("OMNIDOER_INSTALL_DIR").map(PathBuf::from),
+        ));
+    } else {
+        for python in ["python3", "python"] {
+            let mut python_args = vec!["-m".to_string(), "omnidoer.omni_cli.main".to_string()];
+            python_args.extend(args.clone());
+            attempts.push((
+                python.to_string(),
+                python_args,
+                std::env::var_os("OMNIDOER_INSTALL_DIR").map(PathBuf::from),
+            ));
+        }
+    }
+    attempts.push(("omnidoer".to_string(), args, None));
+
+    let mut failures = Vec::new();
+    for (program, command_args, cwd) in attempts {
+        let mut command = Command::new(&program);
+        command.args(&command_args);
+        if let Some(cwd) = cwd {
+            command.current_dir(cwd);
+        }
+        match command.output() {
+            Ok(output) if output.status.success() => {
+                return Ok(String::from_utf8_lossy(&output.stdout).into_owned());
+            }
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                failures.push(format!("{program}: {}", stderr.trim()));
+            }
+            Err(err) => failures.push(format!("{program}: {err}")),
+        }
+    }
+    Err(failures.join("; "))
 }
 
 impl ChatWidget {
@@ -170,6 +275,13 @@ impl ChatWidget {
             ..Default::default()
         });
         self.request_redraw();
+    }
+
+    fn handle_pair_command(&mut self, args: &str) {
+        match create_pairing_invite(args) {
+            Ok(output) => self.add_plain_history_lines(pair_invite_lines(&output)),
+            Err(err) => self.add_error_message(format!("Failed to create pairing QR: {err}")),
+        }
     }
 
     /// Dispatch an inline slash command and record its staged local-history entry.
@@ -526,7 +638,7 @@ impl ChatWidget {
                 self.open_users_picker();
             }
             SlashCommand::Pair => {
-                self.submit_user_message(PAIR_PROMPT.to_string().into());
+                self.handle_pair_command("");
             }
             SlashCommand::Ide => {
                 self.handle_ide_command();
@@ -735,10 +847,8 @@ impl ChatWidget {
                 "verbose" => self.add_mcp_output(McpServerStatusDetail::Full),
                 _ => self.add_error_message("Usage: /mcp [verbose]".to_string()),
             },
-            SlashCommand::Pair if !trimmed.is_empty() => {
-                self.submit_user_message(
-                    format!("{PAIR_PROMPT}\n\nUser-supplied pairing options: {trimmed}").into(),
-                );
+            SlashCommand::Pair => {
+                self.handle_pair_command(trimmed);
             }
             SlashCommand::Keymap => match trimmed.to_ascii_lowercase().as_str() {
                 "" => self.open_keymap_picker(),

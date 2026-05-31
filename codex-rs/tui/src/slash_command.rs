@@ -102,7 +102,7 @@ impl SlashCommand {
             SlashCommand::Hooks => "view and manage lifecycle hooks",
             SlashCommand::Status => "show current session configuration and token usage",
             SlashCommand::Users => "switch between saved OmniDoer users",
-            SlashCommand::Pair => "create an OmniDoer Control Client pairing link",
+            SlashCommand::Pair => "create an OmniDoer Control Client pairing QR code",
             SlashCommand::DebugConfig => "show config layers and requirement sources for debugging",
             SlashCommand::Title => "configure which items appear in the terminal title",
             SlashCommand::Statusline => "configure which items appear in the status line",

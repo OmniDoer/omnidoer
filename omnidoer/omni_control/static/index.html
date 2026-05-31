@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icon-192.png">
-  <link rel="stylesheet" href="/style.css?v=20260531-linkable-requests">
+  <link rel="stylesheet" href="/style.css?v=20260531-global-ui">
   <title>OmniDoer Control Client</title>
 </head>
 <body>
@@ -18,7 +18,9 @@
         <h1>OmniDoer Control Client</h1>
         <p>The control plane for approvals, credentials, challenges, and human takeover.</p>
       </div>
-      <button id="language-toggle" type="button" class="ghost-button" aria-label="Switch language">中文</button>
+      <label class="language-control" aria-label="Language">
+        <select id="language-select"></select>
+      </label>
     </header>
     <nav class="section-tabs" aria-label="Control sections">
       <a href="#requests-panel">Requests</a>
@@ -130,6 +132,6 @@
       </div>
     </section>
   </main>
-  <script src="/app.js?v=20260531-linkable-requests"></script>
+  <script src="/app.js?v=20260531-global-ui"></script>
 </body>
 </html>

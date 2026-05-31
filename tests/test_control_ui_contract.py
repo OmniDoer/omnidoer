@@ -72,7 +72,10 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("web-p256-v1", app)
 
     def test_requests_default_to_open_items(self) -> None:
-        self.assertIn("language-toggle", self.html)
+        self.assertIn("language-select", self.html)
+        self.assertIn("LANGUAGE_OPTIONS", self.app)
+        for code in ('"es"', '"fr"', '"de"', '"ja"', '"ko"'):
+            self.assertIn(code, self.app)
         self.assertIn("const I18N", self.app)
         self.assertIn("待处理请求", self.app)
         self.assertIn('data-filter="open" class="active"', self.app)
@@ -92,6 +95,13 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("requestDraftInputs", self.app)
         self.assertIn("item.dataset.requestId = request.request_id", self.app)
         self.assertIn("activeInput.focus({ preventScroll: true })", self.app)
+
+    def test_external_handoff_has_clear_controls(self) -> None:
+        self.assertIn("externalHandoffNote", self.app)
+        self.assertIn("openCurrentUrl", self.app)
+        self.assertIn("releaseControl", self.app)
+        self.assertIn("if (!request.browser_context_id)", self.app)
+        self.assertIn("button-link", self.app)
 
     def test_task_panel_uses_local_queue_not_direct_model_api(self) -> None:
         self.assertIn("Chat / Task", self.html)

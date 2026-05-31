@@ -21,7 +21,21 @@ Live-Seite: [https://omnidoer.github.io/](https://omnidoer.github.io/)
 
 ## Schnellinstallation
 
-Lokale Installation:
+Empfohlener npm-Bootstrap:
+
+```sh
+npm install -g @omnidoer/omnidoer
+omnidoer
+omnidoer pair
+```
+
+Das npm-Paket installiert einen kleinen Node-Launcher. Beim ersten Start klont
+er OmniDoer standardmaessig nach `~/.omnidoer/npm-install/omnidoer`, installiert
+die Python-Sidecar-Runtime und erhaelt bestehenden Codex-Login, Modell, Quota
+und Billing-Pfad. Setze `OMNIDOER_INSTALL_DIR`, um einen vorhandenen Checkout
+zu verwenden.
+
+Direkte Source-Installation:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scripts/install-cloud-direct.sh | sh
@@ -37,10 +51,13 @@ curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scr
 Nach der Installation:
 
 ```sh
-~/omnidoer/.venv/bin/omnidoer
-~/omnidoer/.venv/bin/omnidoer control pair --print-qr
-~/omnidoer/.venv/bin/omnidoer control submit-task "Öffne die lokale Demo und lade meine Rechnung herunter"
+omnidoer
+omnidoer pair
+omnidoer control submit-task "Öffne die lokale Demo und lade meine Rechnung herunter"
 ```
+
+Wenn du den direkten Shell-Installer genutzt hast und `omnidoer` nicht im
+`PATH` liegt, verwende `~/omnidoer/.venv/bin/omnidoer` fuer dieselben Befehle.
 
 Der Installer erstellt `~/omnidoer/.venv`, initialisiert OmniDoer, installiert
 den Browser-Worker, testet den MCP-Server und registriert `omnidoer mcp serve`,

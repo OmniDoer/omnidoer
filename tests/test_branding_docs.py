@@ -71,6 +71,7 @@ class BrandingDocsTest(unittest.TestCase):
         self.assertIn("Payments, purchases, account changes, OAuth grants, message sending", readme)
         self.assertIn("OmniDoer does not bypass the mechanism", readme)
         self.assertIn("One-Command Install", readme)
+        self.assertIn("npm install -g @omnidoer/omnidoer", readme)
         self.assertIn("install-cloud-direct.sh", readme)
         self.assertIn("OMNIDOER_CLOUD_DIRECT=1", readme)
         self.assertNotIn("智能体可以行动，但秘密必须留在本地。", readme)
@@ -130,6 +131,7 @@ class BrandingDocsTest(unittest.TestCase):
                 self.assertIn(image, content, readme_name)
             self.assertIn("Codex", content, readme_name)
             self.assertIn("OpenAI API", content, readme_name)
+            self.assertIn("npm install -g @omnidoer/omnidoer", content, readme_name)
             self.assertIn("install-cloud-direct.sh", content, readme_name)
             self.assertIn("OMNIDOER_CLOUD_DIRECT=1", content, readme_name)
 
@@ -146,6 +148,8 @@ class BrandingDocsTest(unittest.TestCase):
         self.assertIn('id="technical-proof"', page)
         self.assertIn("proof_heading", page)
         self.assertIn("Technical Proof", page)
+        self.assertIn("npm install -g @omnidoer/omnidoer", page)
+        self.assertIn("install_npm_title", page)
         self.assertIn("install-cloud-direct.sh", page)
         self.assertIn("OMNIDOER_CLOUD_DIRECT=1", page)
         self.assertIn("A white-hat researcher found the missing boundary", page)
@@ -200,6 +204,7 @@ class BrandingDocsTest(unittest.TestCase):
             "proof_tests_1",
             "proof_tests_2",
             "proof_tests_3",
+            "install_npm_title",
             "nav_campaign",
             "campaign_heading",
             "campaign_copy",

@@ -88,7 +88,52 @@ const I18N = {
     paymentReviewRequiredDetail: "Confirm the payment details before approving.",
     approve: "Approve",
     deny: "Deny",
-    languageToggle: "中文"
+    releaseControl: "Release Control",
+    openCurrentUrl: "Open current URL",
+    externalHandoffNote: "Open the current URL in your browser, complete the site action yourself, then release control. No password, OTP, passkey, or recovery code is sent to the model.",
+    browserStreamNote: "The browser is streamed to this Control Client. Agent paused. User in control. Sensitive input is not recorded.",
+    registrationHandoffNote: "Registration Handoff: complete account creation directly. OmniDoer does not automate fake or bulk registration.",
+    takeoverTextLabel: "Text to controlled browser",
+    takeoverTextPlaceholder: "Only for the streamed browser",
+    sendText: "Send Text",
+    sendEnter: "Enter",
+    challengeCode: "One-time code",
+    anyPairedDevice: "any paired device",
+    serverPinned: "server pinned",
+    notVisible: "not visible",
+    metadataLabels: {
+      request_id: "Request ID",
+      origin: "Origin",
+      current_url: "Current URL",
+      expires_at: "Expires",
+      allowed_device: "Allowed device",
+      broker_fingerprint: "Broker fingerprint"
+    },
+    statusLabels: {
+      pending: "Pending",
+      user_control: "User control",
+      fulfilled: "Fulfilled",
+      released: "Released",
+      approved: "Approved",
+      denied: "Denied",
+      expired: "Expired",
+      challenge_completed: "Challenge completed"
+    },
+    requestTypeLabels: {
+      credential: "Credential",
+      human_takeover: "Human takeover",
+      account_registration: "Account registration",
+      payment_approval: "Payment approval",
+      two_factor_change: "Two-factor change",
+      oauth_approval: "OAuth approval",
+      one_time_code: "One-time code",
+      totp: "TOTP",
+      sms_code: "SMS code",
+      email_code: "Email code",
+      passkey: "Passkey",
+      webauthn: "WebAuthn",
+      device_confirmation: "Device confirmation"
+    }
   },
   zh: {
     appTitle: "OmniDoer 控制客户端",
@@ -179,14 +224,112 @@ const I18N = {
     paymentReviewRequiredDetail: "请先确认支付详情再批准。",
     approve: "批准",
     deny: "拒绝",
-    languageToggle: "EN"
+    releaseControl: "释放控制",
+    openCurrentUrl: "打开当前链接",
+    externalHandoffNote: "在浏览器中打开当前链接，由你本人完成网站操作，然后释放控制。密码、OTP、passkey 或 recovery code 都不会发送给模型。",
+    browserStreamNote: "浏览器画面会流式传到此控制客户端。Agent 已暂停，由用户接管。敏感输入不会被记录。",
+    registrationHandoffNote: "注册接管：请你直接完成账号创建。OmniDoer 不会自动化虚假或批量注册。",
+    takeoverTextLabel: "发送到受控浏览器的文本",
+    takeoverTextPlaceholder: "仅用于已流式接管的浏览器",
+    sendText: "发送文本",
+    sendEnter: "回车",
+    challengeCode: "一次性验证码",
+    anyPairedDevice: "任意已配对设备",
+    serverPinned: "服务端固定",
+    notVisible: "不可见",
+    metadataLabels: {
+      request_id: "请求 ID",
+      origin: "来源",
+      current_url: "当前链接",
+      expires_at: "过期时间",
+      allowed_device: "允许设备",
+      broker_fingerprint: "Broker 指纹"
+    },
+    statusLabels: {
+      pending: "待处理",
+      user_control: "用户接管中",
+      fulfilled: "已提交",
+      released: "已释放",
+      approved: "已批准",
+      denied: "已拒绝",
+      expired: "已过期",
+      challenge_completed: "验证已完成"
+    },
+    requestTypeLabels: {
+      credential: "凭证",
+      human_takeover: "人工接管",
+      account_registration: "账号注册",
+      payment_approval: "支付授权",
+      two_factor_change: "双重认证变更",
+      oauth_approval: "OAuth 授权",
+      one_time_code: "一次性验证码",
+      totp: "TOTP",
+      sms_code: "短信验证码",
+      email_code: "邮箱验证码",
+      passkey: "Passkey",
+      webauthn: "WebAuthn",
+      device_confirmation: "设备确认"
+    }
   }
 };
 
+const EXTRA_I18N = {
+  es: {
+    appSubtitle: "Aprobaciones, credenciales, verificaciones y toma de control seguras.",
+    navRequests: "Solicitudes", navTasks: "Tareas", navDevices: "Dispositivos", navSecurity: "Seguridad", navTakeover: "Control", navPayments: "Pagos",
+    requestsTitle: "Solicitudes pendientes", filterOpen: "Pendientes", filterAll: "Todas", filterCredential: "Secretos", filterChallenge: "Verificaciones", filterApproval: "Aprobaciones", filterTakeover: "Control",
+    releaseControl: "Liberar control", openCurrentUrl: "Abrir URL actual", externalHandoffNote: "Abre la URL actual, completa la accion en el sitio y libera el control. Secretos y codigos no se envian al modelo.",
+    submitCredential: "Enviar credencial", submitChallenge: "Enviar codigo", approve: "Aprobar", deny: "Denegar", challengeCode: "Codigo de un solo uso"
+  },
+  fr: {
+    appSubtitle: "Approbations, identifiants, validations et prise de controle securises.",
+    navRequests: "Demandes", navTasks: "Taches", navDevices: "Appareils", navSecurity: "Securite", navTakeover: "Controle", navPayments: "Paiements",
+    requestsTitle: "Demandes en attente", filterOpen: "En attente", filterAll: "Toutes", filterCredential: "Secrets", filterChallenge: "Verifications", filterApproval: "Approbations", filterTakeover: "Controle",
+    releaseControl: "Rendre le controle", openCurrentUrl: "Ouvrir l'URL", externalHandoffNote: "Ouvrez l'URL, terminez l'action sur le site, puis rendez le controle. Les secrets et codes ne sont pas envoyes au modele.",
+    submitCredential: "Envoyer l'identifiant", submitChallenge: "Envoyer le code", approve: "Approuver", deny: "Refuser", challengeCode: "Code a usage unique"
+  },
+  de: {
+    appSubtitle: "Sichere Freigaben, Zugangsdaten, Pruefungen und manuelle Uebernahme.",
+    navRequests: "Anfragen", navTasks: "Aufgaben", navDevices: "Geraete", navSecurity: "Sicherheit", navTakeover: "Uebernahme", navPayments: "Zahlungen",
+    requestsTitle: "Offene Anfragen", filterOpen: "Offen", filterAll: "Alle", filterCredential: "Secrets", filterChallenge: "Pruefungen", filterApproval: "Freigaben", filterTakeover: "Uebernahme",
+    releaseControl: "Kontrolle freigeben", openCurrentUrl: "Aktuelle URL oeffnen", externalHandoffNote: "Oeffnen Sie die aktuelle URL, erledigen Sie die Aktion selbst und geben Sie danach die Kontrolle frei. Secrets und Codes werden nicht an das Modell gesendet.",
+    submitCredential: "Zugangsdaten senden", submitChallenge: "Code senden", approve: "Genehmigen", deny: "Ablehnen", challengeCode: "Einmalcode"
+  },
+  ja: {
+    appSubtitle: "承認、認証情報、検証、人間による操作を安全に扱います。",
+    navRequests: "リクエスト", navTasks: "タスク", navDevices: "デバイス", navSecurity: "セキュリティ", navTakeover: "操作", navPayments: "支払い",
+    requestsTitle: "未処理リクエスト", filterOpen: "未処理", filterAll: "すべて", filterCredential: "シークレット", filterChallenge: "検証", filterApproval: "承認", filterTakeover: "操作",
+    releaseControl: "操作を戻す", openCurrentUrl: "現在のURLを開く", externalHandoffNote: "現在のURLを開き、サイト上の操作を自分で完了してから操作を戻してください。パスワードやコードはモデルに送信されません。",
+    submitCredential: "認証情報を送信", submitChallenge: "コードを送信", approve: "承認", deny: "拒否", challengeCode: "ワンタイムコード"
+  },
+  ko: {
+    appSubtitle: "승인, 자격 증명, 인증, 사용자 제어를 안전하게 처리합니다.",
+    navRequests: "요청", navTasks: "작업", navDevices: "기기", navSecurity: "보안", navTakeover: "제어", navPayments: "결제",
+    requestsTitle: "대기 중인 요청", filterOpen: "대기", filterAll: "전체", filterCredential: "비밀", filterChallenge: "인증", filterApproval: "승인", filterTakeover: "제어",
+    releaseControl: "제어 해제", openCurrentUrl: "현재 URL 열기", externalHandoffNote: "현재 URL을 열고 사이트 작업을 직접 완료한 뒤 제어를 해제하세요. 비밀번호와 코드는 모델로 전송되지 않습니다.",
+    submitCredential: "자격 증명 제출", submitChallenge: "코드 제출", approve: "승인", deny: "거부", challengeCode: "일회용 코드"
+  }
+};
+
+Object.entries(EXTRA_I18N).forEach(([lang, dict]) => {
+  I18N[lang] = { ...I18N.en, ...dict };
+});
+
+const LANGUAGE_OPTIONS = [
+  ["en", "English"],
+  ["zh", "中文"],
+  ["es", "Español"],
+  ["fr", "Français"],
+  ["de", "Deutsch"],
+  ["ja", "日本語"],
+  ["ko", "한국어"]
+];
+
 function initialLanguage() {
   const stored = localStorage.getItem("omnidoer_language");
-  if (stored === "zh" || stored === "en") return stored;
-  return navigator.language?.toLowerCase().startsWith("zh") ? "zh" : "en";
+  if (stored && I18N[stored]) return stored;
+  const browserLanguage = navigator.language?.toLowerCase().split("-")[0];
+  return I18N[browserLanguage] ? browserLanguage : "en";
 }
 
 let currentLanguage = initialLanguage();
@@ -206,11 +349,16 @@ function setButtonText(selector, key) {
   if (node) node.textContent = t(key);
 }
 
+function languageTag(lang) {
+  return { zh: "zh-CN", ja: "ja", ko: "ko", es: "es", fr: "fr", de: "de" }[lang] || "en";
+}
+
 function applyLanguage() {
-  document.documentElement.lang = currentLanguage === "zh" ? "zh-CN" : "en";
+  document.documentElement.lang = languageTag(currentLanguage);
   setNodeText(".app-header h1", "appTitle");
   setNodeText(".app-header p", "appSubtitle");
-  setButtonText("#language-toggle", "languageToggle");
+  const languageSelect = document.querySelector("#language-select");
+  if (languageSelect) languageSelect.value = currentLanguage;
   setNodeText('a[href="#requests-panel"]', "navRequests");
   setNodeText('a[href="#task-panel"]', "navTasks");
   setNodeText('a[href="#device-panel"]', "navDevices");
@@ -242,6 +390,9 @@ function applyLanguage() {
   setNodeText("#takeover-panel h2", "takeoverTitle");
   setNodeText("#payment-approval h2", "paymentTitle");
   setNodeText("#approval-status", "noPendingPayment");
+  setButtonText("#release-active-takeover", "releaseControl");
+  setButtonText("#approve", "approve");
+  setButtonText("#deny", "deny");
 }
 
 const main = document.querySelector("main");
@@ -345,10 +496,17 @@ if (denyPaymentButton) {
   denyPaymentButton.onclick = () => denyActivePaymentRequest();
 }
 
-const languageToggleButton = document.querySelector("#language-toggle");
-if (languageToggleButton) {
-  languageToggleButton.onclick = () => {
-    currentLanguage = currentLanguage === "zh" ? "en" : "zh";
+const languageSelect = document.querySelector("#language-select");
+if (languageSelect) {
+  LANGUAGE_OPTIONS.forEach(([value, label]) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    languageSelect.append(option);
+  });
+  languageSelect.value = currentLanguage;
+  languageSelect.onchange = () => {
+    currentLanguage = languageSelect.value;
     localStorage.setItem("omnidoer_language", currentLanguage);
     applyLanguage();
     renderRequestList(cachedRequests);
@@ -442,6 +600,18 @@ function requestKind(request) {
   if (["file_upload", "account_delete", "password_change", "two_factor_change", "message_send"].includes(request.request_type)) return "approval";
   if (request.request_type.endsWith("_approval") || request.request_type.includes("approval")) return "approval";
   return "challenge";
+}
+
+function displayRequestType(request) {
+  return t("requestTypeLabels")?.[request.request_type] || request.request_type.replaceAll("_", " ");
+}
+
+function displayStatus(status) {
+  return t("statusLabels")?.[status] || status;
+}
+
+function displayMetadataLabel(label) {
+  return t("metadataLabels")?.[label] || label;
 }
 
 function isOpenRequest(request) {
@@ -1718,11 +1888,11 @@ function requestHeader(request) {
   const header = document.createElement("div");
   header.className = "request-header";
   const titleBlock = document.createElement("div");
-  appendText(titleBlock, "h3", request.request_type.replaceAll("_", " "));
+  appendText(titleBlock, "h3", displayRequestType(request));
   appendText(titleBlock, "p", request.action_summary || t("waitingForUserAction"), "request-summary");
   const badges = document.createElement("div");
   badges.className = "badge-row";
-  appendText(badges, "span", request.status, `badge status-${request.status}`);
+  appendText(badges, "span", displayStatus(request.status), `badge status-${request.status}`);
   appendText(badges, "span", request.risk_level || "unknown risk", `badge risk-${request.risk_level || "unknown"}`);
   appendText(badges, "span", requestKind(request), "badge");
   header.append(titleBlock, badges);
@@ -1737,11 +1907,11 @@ function requestMetadata(request) {
     ["origin", request.origin],
     ["current_url", request.top_level_url],
     ["expires_at", formatTimestamp(request.expires_at)],
-    ["allowed_device", request.allowed_device_id || "any paired device"],
-    ["broker_fingerprint", request.broker_public_key_fingerprint || "server pinned"]
+    ["allowed_device", request.allowed_device_id || t("anyPairedDevice")],
+    ["broker_fingerprint", request.broker_public_key_fingerprint || t("serverPinned")]
   ].forEach(([label, value]) => {
     const dt = document.createElement("dt");
-    dt.textContent = label;
+    dt.textContent = displayMetadataLabel(label);
     const dd = document.createElement("dd");
     if (typeof value === "string" && value.startsWith("https://")) {
       const link = document.createElement("a");
@@ -1751,7 +1921,7 @@ function requestMetadata(request) {
       link.textContent = value;
       dd.append(link);
     } else {
-      dd.textContent = value || "not visible";
+      dd.textContent = value || t("notVisible");
     }
     dl.append(dt, dd);
   });
@@ -1831,7 +2001,7 @@ function renderChallengeControls(request, item) {
     <div class="button-row"><button type="submit">${t("markUserCompleted")}</button></div>
   ` : `
     <p class="flow-note">${t("challengeNote")}</p>
-    <label>One-time code <input data-challenge-field="code" inputmode="numeric" autocomplete="one-time-code"></label>
+    <label>${t("challengeCode")} <input data-challenge-field="code" inputmode="numeric" autocomplete="one-time-code"></label>
     <div class="button-row"><button type="submit">${t("submitChallenge")}</button></div>
   `;
   form.onsubmit = (event) => {
@@ -1854,25 +2024,38 @@ function renderTakeoverControls(request, item) {
     appendText(item, "p", t("takeoverClosed", request.status), "flow-note");
     return;
   }
+  if (!request.browser_context_id) {
+    appendText(item, "p", t("externalHandoffNote"), "flow-note");
+    const actions = document.createElement("div");
+    actions.className = "button-row handoff-actions";
+    const open = document.createElement("a");
+    open.href = request.top_level_url || request.origin || "#";
+    open.target = "_blank";
+    open.rel = "noopener noreferrer";
+    open.className = "button-link";
+    open.textContent = t("openCurrentUrl");
+    const release = document.createElement("button");
+    release.type = "button";
+    release.textContent = t("releaseControl");
+    release.onclick = () => postAction(request, "release");
+    actions.append(open, release);
+    item.append(actions);
+    return;
+  }
   const stream = document.querySelector("#browser-stream");
   startTakeoverFramePolling(request, stream);
   if (request.request_type === "account_registration") {
-    appendText(
-      item,
-      "p",
-      "Registration Handoff: the registration page is proxied to this Control Client. Agent paused. You complete account creation directly; OmniDoer does not automate fake or bulk registration, and registration secrets or challenge answers are not sent to the LLM.",
-      "flow-note"
-    );
+    appendText(item, "p", t("registrationHandoffNote"), "flow-note");
   }
-  appendText(item, "p", "The browser is streamed to this Control Client. Agent paused. User in control. Sensitive input is not recorded.", "flow-note");
+  appendText(item, "p", t("browserStreamNote"), "flow-note");
   const controls = document.createElement("div");
   controls.className = "takeover-controls";
   controls.innerHTML = `
-    <label>Text to controlled browser <input type="password" autocomplete="off" data-takeover-text placeholder="Text to controlled browser"></label>
+    <label>${t("takeoverTextLabel")} <input type="password" autocomplete="off" data-takeover-text placeholder="${t("takeoverTextPlaceholder")}"></label>
     <div class="button-row">
-      <button data-action="send-text">Send Text</button>
-      <button data-action="enter-key">Enter</button>
-      <button data-action="release">Release Control</button>
+      <button data-action="send-text">${t("sendText")}</button>
+      <button data-action="enter-key">${t("sendEnter")}</button>
+      <button data-action="release">${t("releaseControl")}</button>
     </div>
   `;
   controls.querySelector("[data-action='send-text']").onclick = () => {
