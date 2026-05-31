@@ -517,7 +517,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
 
             tui_bridge_active = live_tui_bridge_active()
             tui_session_active = live_tui_session_active(chat_thread_id)
-            waiting_for_tui_bridge = bool(chat_thread_id and tui_session_active and not tui_bridge_active)
+            waiting_for_tui_bridge = bool(chat_thread_id and not tui_bridge_active)
             legacy_relay = legacy_tui_relay_status(chat_thread_id) if waiting_for_tui_bridge else {"active": False}
             self._send_json(
                 HTTPStatus.OK,
@@ -1280,6 +1280,7 @@ def serve(
             thread_id=chat_thread_id,
             extra_args=chat_codex_args or [],
             poll_interval=chat_runner_interval,
+            require_live_tui_for_thread=bool(chat_thread_id),
         )
         if chat_thread_id:
             start_legacy_tui_relay_thread(thread_id=chat_thread_id, poll_interval=chat_runner_interval)

@@ -64,6 +64,30 @@ class ControlChatRunnerTest(unittest.TestCase):
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
 
+    def test_bound_thread_runner_can_require_live_tui(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                store = ChatStore()
+                user = store.append(role="user", text="Do not launch a detached thread")
+
+                runner = ChatRunner(
+                    store=store,
+                    codex_bin="/does/not/exist",
+                    cwd=tmp,
+                    thread_id="thread_active",
+                    require_live_tui_for_thread=True,
+                )
+                with patch("omnidoer.omni_control.chat_runner.live_tui_session_active", return_value=False):
+                    self.assertIsNone(runner.run_once())
+                self.assertEqual(store.get(user.message_id).status, "queued")
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     def test_codex_json_events_stream_into_chat_records(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             old_home = os.environ.get("OMNIDOER_HOME")

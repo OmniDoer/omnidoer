@@ -242,6 +242,7 @@ class ChatRunner:
         thread_id: str | None = None,
         extra_args: list[str] | None = None,
         poll_interval: float = 1.0,
+        require_live_tui_for_thread: bool = False,
     ):
         self.store = store or ChatStore()
         self.codex_bin = codex_bin
@@ -249,11 +250,14 @@ class ChatRunner:
         self.thread_id = thread_id or os.environ.get("OMNIDOER_CHAT_THREAD_ID")
         self.extra_args = extra_args if extra_args is not None else shlex.split(os.environ.get("OMNIDOER_CHAT_CODEX_ARGS", ""))
         self.poll_interval = poll_interval
+        self.require_live_tui_for_thread = require_live_tui_for_thread
 
     def run_once(self) -> ChatMessage | None:
         if live_tui_bridge_active():
             return None
         if live_tui_session_active(self.thread_id):
+            return None
+        if self.thread_id and self.require_live_tui_for_thread:
             return None
         user_message = self.store.next_user_message(claim=True)
         if user_message is None:
@@ -363,8 +367,16 @@ def start_chat_runner_thread(
     thread_id: str | None = None,
     extra_args: list[str] | None = None,
     poll_interval: float = 1.0,
+    require_live_tui_for_thread: bool = False,
 ) -> threading.Thread:
-    runner = ChatRunner(codex_bin=codex_bin, cwd=cwd, thread_id=thread_id, extra_args=extra_args, poll_interval=poll_interval)
+    runner = ChatRunner(
+        codex_bin=codex_bin,
+        cwd=cwd,
+        thread_id=thread_id,
+        extra_args=extra_args,
+        poll_interval=poll_interval,
+        require_live_tui_for_thread=require_live_tui_for_thread,
+    )
     thread = threading.Thread(target=runner.run_forever, name="omnidoer-chat-runner", daemon=True)
     thread.start()
     return thread

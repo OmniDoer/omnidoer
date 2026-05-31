@@ -62,7 +62,7 @@ struct ControlChatAttachment {
     content_type: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 enum OutboundEvent {
     AssistantDelta(String),
     AssistantFinal(String),
@@ -88,69 +88,61 @@ pub(crate) fn publish_server_notification(notification: &ServerNotification) {
         return;
     };
 
+    for event in outbound_events_for_notification(notification) {
+        send_outbound(tx, event);
+    }
+}
+
+fn outbound_events_for_notification(notification: &ServerNotification) -> Vec<OutboundEvent> {
     match notification {
-        ServerNotification::TurnStarted(_) => {
-            send_outbound(
-                tx,
-                OutboundEvent::Record {
-                    record_type: "status",
-                    text: "Codex turn started in the active TUI.".to_string(),
-                    role: Some("system"),
-                },
-            );
-        }
+        ServerNotification::TurnStarted(_) => vec![OutboundEvent::Record {
+            record_type: "status",
+            text: "Codex turn started in the active TUI.".to_string(),
+            role: Some("system"),
+        }],
         ServerNotification::TurnCompleted(notification) => {
             let status = format!("Codex turn completed: {:?}", notification.turn.status);
-            send_outbound(
-                tx,
+            vec![
                 OutboundEvent::Record {
                     record_type: "status",
                     text: status,
                     role: Some("system"),
                 },
-            );
-            send_outbound(tx, OutboundEvent::AssistantComplete);
+                OutboundEvent::AssistantComplete,
+            ]
         }
         ServerNotification::AgentMessageDelta(notification) => {
-            send_outbound(
-                tx,
-                OutboundEvent::AssistantDelta(notification.delta.clone()),
-            );
+            vec![OutboundEvent::AssistantDelta(notification.delta.clone())]
         }
         ServerNotification::PlanDelta(notification) => {
-            send_outbound(
-                tx,
-                OutboundEvent::AssistantDelta(notification.delta.clone()),
-            );
+            vec![OutboundEvent::AssistantDelta(notification.delta.clone())]
         }
         ServerNotification::ItemStarted(notification) => {
             if let Some(text) = item_started_record_text(&notification.item) {
-                send_outbound(
-                    tx,
-                    OutboundEvent::Record {
-                        record_type: "tool_call",
-                        text,
-                        role: Some("assistant"),
-                    },
-                );
+                vec![OutboundEvent::Record {
+                    record_type: "tool_call",
+                    text,
+                    role: Some("assistant"),
+                }]
+            } else {
+                Vec::new()
             }
         }
         ServerNotification::ItemCompleted(notification) => match &notification.item {
             ThreadItem::UserMessage { content, .. } => {
                 let text = user_input_record_text(content);
                 if !text.is_empty() {
-                    send_outbound(
-                        tx,
-                        OutboundEvent::Record {
-                            record_type: "message",
-                            text,
-                            role: Some("user"),
-                        },
-                    );
+                    vec![OutboundEvent::Record {
+                        record_type: "message",
+                        text,
+                        role: Some("user"),
+                    }]
+                } else {
+                    Vec::new()
                 }
             }
             ThreadItem::AgentMessage { text, .. } if !text.is_empty() => {
-                send_outbound(tx, OutboundEvent::AssistantFinal(text.clone()));
+                vec![OutboundEvent::AssistantFinal(text.clone())]
             }
             ThreadItem::CommandExecution {
                 status,
@@ -163,14 +155,11 @@ pub(crate) fn publish_server_notification(notification: &ServerNotification) {
                     text = format!("status={status:?}");
                 }
                 text.push_str(&format!("\nexit_code={exit_code:?} status={status:?}"));
-                send_outbound(
-                    tx,
-                    OutboundEvent::Record {
-                        record_type: "tool_output",
-                        text,
-                        role: Some("assistant"),
-                    },
-                );
+                vec![OutboundEvent::Record {
+                    record_type: "tool_output",
+                    text,
+                    role: Some("assistant"),
+                }]
             }
             ThreadItem::McpToolCall {
                 server,
@@ -190,40 +179,29 @@ pub(crate) fn publish_server_notification(notification: &ServerNotification) {
                 } else {
                     format!("{server}.{tool} {status:?}: {result:?}")
                 };
-                send_outbound(
-                    tx,
-                    OutboundEvent::Record {
-                        record_type,
-                        text,
-                        role: Some("assistant"),
-                    },
-                );
+                vec![OutboundEvent::Record {
+                    record_type,
+                    text,
+                    role: Some("assistant"),
+                }]
             }
             ThreadItem::Plan { text, .. } if !text.is_empty() => {
-                send_outbound(tx, OutboundEvent::AssistantFinal(text.clone()));
+                vec![OutboundEvent::AssistantFinal(text.clone())]
             }
-            _ => {}
+            _ => Vec::new(),
         },
         ServerNotification::CommandExecutionOutputDelta(notification) => {
-            send_outbound(
-                tx,
-                OutboundEvent::Record {
-                    record_type: "tool_output",
-                    text: notification.delta.clone(),
-                    role: Some("assistant"),
-                },
-            );
+            vec![OutboundEvent::Record {
+                record_type: "tool_output",
+                text: notification.delta.clone(),
+                role: Some("assistant"),
+            }]
         }
-        ServerNotification::FileChangeOutputDelta(notification) => {
-            send_outbound(
-                tx,
-                OutboundEvent::Record {
-                    record_type: "tool_output",
-                    text: notification.delta.clone(),
-                    role: Some("assistant"),
-                },
-            );
-        }
+        ServerNotification::FileChangeOutputDelta(notification) => vec![OutboundEvent::Record {
+            record_type: "tool_output",
+            text: notification.delta.clone(),
+            role: Some("assistant"),
+        }],
         ServerNotification::Error(notification) => {
             let mut text = notification.error.message.clone();
             if let Some(details) = &notification.error.additional_details
@@ -232,16 +210,13 @@ pub(crate) fn publish_server_notification(notification: &ServerNotification) {
                 text.push('\n');
                 text.push_str(details);
             }
-            send_outbound(
-                tx,
-                OutboundEvent::Record {
-                    record_type: "error",
-                    text,
-                    role: Some("system"),
-                },
-            );
+            vec![OutboundEvent::Record {
+                record_type: "error",
+                text,
+                role: Some("system"),
+            }]
         }
-        _ => {}
+        _ => Vec::new(),
     }
 }
 
@@ -631,6 +606,64 @@ mod tests {
         assert_eq!(parsed.message_id, "msg_1");
         assert_eq!(parsed.text, "see attached");
         assert_eq!(parsed.local_image_paths, vec![path]);
+    }
+
+    #[test]
+    fn outbound_events_include_assistant_message_delta_for_phone_chat() {
+        let events = outbound_events_for_notification(&ServerNotification::AgentMessageDelta(
+            codex_app_server_protocol::AgentMessageDeltaNotification {
+                thread_id: "thread-1".to_string(),
+                turn_id: "turn-1".to_string(),
+                item_id: "item-1".to_string(),
+                delta: "hello from TUI".to_string(),
+            },
+        ));
+        assert_eq!(
+            events,
+            vec![OutboundEvent::AssistantDelta("hello from TUI".to_string())]
+        );
+    }
+
+    #[test]
+    fn outbound_events_include_live_tool_output_for_phone_activity() {
+        let events =
+            outbound_events_for_notification(&ServerNotification::CommandExecutionOutputDelta(
+                codex_app_server_protocol::CommandExecutionOutputDeltaNotification {
+                    thread_id: "thread-1".to_string(),
+                    turn_id: "turn-1".to_string(),
+                    item_id: "cmd-1".to_string(),
+                    delta: "line from command\n".to_string(),
+                },
+            ));
+        assert_eq!(
+            events,
+            vec![OutboundEvent::Record {
+                record_type: "tool_output",
+                text: "line from command\n".to_string(),
+                role: Some("assistant"),
+            }]
+        );
+    }
+
+    #[test]
+    fn outbound_events_complete_agent_message_for_phone_chat() {
+        let events = outbound_events_for_notification(&ServerNotification::ItemCompleted(
+            codex_app_server_protocol::ItemCompletedNotification {
+                thread_id: "thread-1".to_string(),
+                turn_id: "turn-1".to_string(),
+                completed_at_ms: 123,
+                item: ThreadItem::AgentMessage {
+                    id: "msg-1".to_string(),
+                    text: "final answer".to_string(),
+                    phase: None,
+                    memory_citation: None,
+                },
+            },
+        ));
+        assert_eq!(
+            events,
+            vec![OutboundEvent::AssistantFinal("final answer".to_string())]
+        );
     }
 
     #[test]
