@@ -139,12 +139,14 @@ def control_chat_sync_diagnostics(
     tui_session_active: bool,
     install_status: dict[str, Any],
     legacy_relay: dict[str, Any],
+    active_process_bridge: dict[str, Any] | None = None,
     bridge_heartbeat_age_seconds: float | None = None,
     detached_thread_resume_allowed: bool = False,
 ) -> dict[str, Any]:
     native_ready = bool(install_status.get("ready"))
     legacy_active = bool(legacy_relay.get("active"))
     bound_thread = bool(thread_id)
+    active_process_bridge = active_process_bridge or {}
     if tui_bridge_active:
         state = "native_bridge_active"
     elif legacy_active:
@@ -171,6 +173,10 @@ def control_chat_sync_diagnostics(
         "restart_ready": bool(requires_restart and native_ready and bound_thread),
         "detached_thread_resume_allowed": bool(detached_thread_resume_allowed),
         "bridge_heartbeat_age_seconds": bridge_heartbeat_age_seconds,
+        "active_cli_binary_has_native_bridge": bool(active_process_bridge.get("native_bridge_ready")),
+        "active_cli_binary_deleted": bool(active_process_bridge.get("executable_deleted")),
+        "active_cli_binary_matches_installed": bool(active_process_bridge.get("running_binary_matches_installed")),
+        "active_cli_binary_reason": active_process_bridge.get("reason"),
     }
 
 
@@ -183,14 +189,15 @@ def _cmdline_is_interactive_tui_for_thread(cmdline: list[str], thread_id: str) -
     return "resume" in args and thread_id in args
 
 
-def live_tui_session_active(thread_id: str | None, *, proc_root: Path | str = "/proc") -> bool:
+def _iter_live_tui_process_entries(thread_id: str | None, *, proc_root: Path | str = "/proc") -> list[tuple[Path, list[str]]]:
     if not thread_id:
-        return False
+        return []
     root = Path(proc_root)
     try:
         entries = list(root.iterdir())
     except OSError:
-        return False
+        return []
+    matches: list[tuple[Path, list[str]]] = []
     for entry in entries:
         if not entry.name.isdigit():
             continue
@@ -202,8 +209,80 @@ def live_tui_session_active(thread_id: str | None, *, proc_root: Path | str = "/
             continue
         cmdline = [part.decode("utf-8", "ignore") for part in raw.split(b"\0") if part]
         if _cmdline_is_interactive_tui_for_thread(cmdline, thread_id):
-            return True
-    return False
+            matches.append((entry, cmdline))
+    return matches
+
+
+def live_tui_session_active(thread_id: str | None, *, proc_root: Path | str = "/proc") -> bool:
+    return bool(_iter_live_tui_process_entries(thread_id, proc_root=proc_root))
+
+
+def _process_exe_link(entry: Path) -> tuple[str | None, bool]:
+    try:
+        target = os.readlink(entry / "exe")
+    except OSError:
+        return None, False
+    deleted = target.endswith(" (deleted)")
+    return target[: -len(" (deleted)")] if deleted else target, deleted
+
+
+def _same_binary(left: Path, right: Path | None) -> bool:
+    if right is None:
+        return False
+    try:
+        left_stat = left.stat()
+        right_stat = right.stat()
+    except OSError:
+        return False
+    return (left_stat.st_dev, left_stat.st_ino) == (right_stat.st_dev, right_stat.st_ino)
+
+
+def active_tui_process_bridge_status(
+    thread_id: str | None,
+    *,
+    proc_root: Path | str = "/proc",
+    codex_bin: str | None = None,
+) -> dict[str, Any]:
+    matches = _iter_live_tui_process_entries(thread_id, proc_root=proc_root)
+    if not matches:
+        return {"active": False, "reason": "live_tui_process_not_found"}
+
+    entry, _cmdline = matches[0]
+    exe_path = entry / "exe"
+    executable, executable_deleted = _process_exe_link(entry)
+    installed = native_console_bridge_install_status(codex_bin)
+    installed_path = Path(installed["codex_binary"]) if installed.get("codex_binary") else None
+    try:
+        missing = _missing_binary_markers(exe_path, TUI_BRIDGE_INSTALL_MARKERS)
+    except OSError:
+        missing = [marker.decode("utf-8", "replace") for marker in TUI_BRIDGE_INSTALL_MARKERS]
+        native_ready = False
+        reason = "running_binary_unreadable"
+    else:
+        native_ready = not missing
+        reason = "ready" if native_ready else "running_binary_missing_bridge_markers"
+
+    matches_installed = _same_binary(exe_path, installed_path)
+    if executable_deleted:
+        reason = "running_binary_deleted"
+    elif installed.get("ready") and not native_ready:
+        reason = "running_binary_missing_bridge_markers"
+    elif installed_path is not None and not matches_installed:
+        reason = "running_binary_differs_from_installed"
+
+    return {
+        "active": True,
+        "pid": int(entry.name),
+        "executable": executable,
+        "executable_deleted": executable_deleted,
+        "native_bridge_ready": native_ready,
+        "missing_markers": missing,
+        "installed_binary": str(installed_path) if installed_path else None,
+        "installed_bridge_ready": bool(installed.get("ready")),
+        "running_binary_matches_installed": matches_installed,
+        "restart_required": not native_ready or executable_deleted or not matches_installed,
+        "reason": reason,
+    }
 
 
 class CodexJsonEventBridge:

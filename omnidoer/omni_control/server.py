@@ -547,6 +547,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
             chat_thread_id = getattr(self.server, "omnidoer_chat_thread_id", None)
             detached_runner_allowed = bool(getattr(self.server, "omnidoer_chat_allow_detached_thread_resume", False))
             from omnidoer.omni_control.chat_runner import (
+                active_tui_process_bridge_status,
                 control_chat_sync_diagnostics,
                 live_tui_bridge_active,
                 live_tui_session_active,
@@ -561,6 +562,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
             waiting_for_tui_bridge = bool(chat_thread_id and not tui_bridge_active)
             legacy_relay = legacy_tui_relay_status(chat_thread_id) if waiting_for_tui_bridge else {"active": False}
             install_status = native_console_bridge_install_status()
+            active_process_bridge = active_tui_process_bridge_status(chat_thread_id)
             heartbeat_age = tui_bridge_heartbeat_age_seconds()
             self._send_json(
                 HTTPStatus.OK,
@@ -577,6 +579,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                         "restart_required": waiting_for_tui_bridge,
                         "restart_command": tui_restart_command(chat_thread_id) if waiting_for_tui_bridge else None,
                         "native_console_bridge": install_status,
+                        "active_tui_process_bridge": active_process_bridge,
                         "bridge_heartbeat_age_seconds": heartbeat_age,
                         "legacy_tui_relay": legacy_relay,
                         "detached_thread_resume_allowed": detached_runner_allowed,
@@ -586,6 +589,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                             tui_session_active=tui_session_active,
                             install_status=install_status,
                             legacy_relay=legacy_relay,
+                            active_process_bridge=active_process_bridge,
                             bridge_heartbeat_age_seconds=heartbeat_age,
                             detached_thread_resume_allowed=detached_runner_allowed,
                         ),

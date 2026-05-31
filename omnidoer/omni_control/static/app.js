@@ -19,6 +19,7 @@ const I18N = {
     runtimeLegacyRelayActive: "Temporary terminal relay is active; messages are pasted into the current console. Pairing alone only authenticates this browser. Restart for native session sync:",
     runtimeLegacyRelayPause: "Pause sends Ctrl-C to the current console before delivering your instruction.",
     runtimeNativeBridgeReady: "Full structured bridge is installed; restart will switch this session to native sync.",
+    runtimeActiveConsoleNeedsBinaryRestart: "The active console is still running an older Codex binary. Restart keeps this thread but loads the installed native bridge.",
     runtimeNativeBridgeNotReady: "Native structured bridge is not installed yet; update OmniDoer before restarting.",
     runtimeWaitingForConsoleRestart: "Linux console is active but not yet bridged. Restart OmniDoer console with:",
     runtimeBackgroundRunner: "No live Linux console bridge; queued messages use the background Codex runner.",
@@ -36,6 +37,7 @@ const I18N = {
     chatSessionOfflineDetail: "Reconnect to the Control Service before sending messages.",
     chatSyncDiagnosticNative: "Diagnostic: native two-way sync is active.",
     chatSyncDiagnosticLegacy: "Diagnostic: paired to the server and current console is reachable through temporary terminal relay; native structured sync still requires restart.",
+    chatSyncDiagnosticStaleBinary: "Diagnostic: this is the current console, but its running binary lacks the native bridge. Restart is required for structured two-way sync.",
     chatSyncDiagnosticWaiting: "Diagnostic: paired to this server, but the current CLI conversation is not attached yet.",
     chatSyncDiagnosticBackground: "Diagnostic: using background runner, not a live CLI conversation.",
     sendToCurrentCli: "Send to current CLI",
@@ -280,6 +282,7 @@ const I18N = {
     runtimeLegacyRelayActive: "临时终端 relay 已启用；消息会通过 tmux 粘贴到当前 console。配对本身只认证这个浏览器；要原生接入当前会话请重启：",
     runtimeLegacyRelayPause: "点击暂停会先向当前 console 发送 Ctrl-C，再投递你的指令。",
     runtimeNativeBridgeReady: "完整结构化桥接已经安装；重启后会切换到原生同步。",
+    runtimeActiveConsoleNeedsBinaryRestart: "当前 console 仍在运行旧的 Codex 二进制。重启会保留这个 thread，并加载已安装的原生桥接。",
     runtimeNativeBridgeNotReady: "原生结构化桥接尚未安装；重启前请先更新 OmniDoer。",
     runtimeWaitingForConsoleRestart: "Linux 控制台仍在运行但尚未桥接。请用下面命令重启 OmniDoer console：",
     runtimeBackgroundRunner: "没有实时 Linux 控制台桥接；排队消息将由后台 Codex runner 处理。",
@@ -297,6 +300,7 @@ const I18N = {
     chatSessionOfflineDetail: "重新连接到 Control Service 后才能发送消息。",
     chatSyncDiagnosticNative: "诊断：原生双向同步已启用。",
     chatSyncDiagnosticLegacy: "诊断：已配对到服务器，当前 console 可通过临时终端 relay 访问；原生结构化同步仍需重启桥接。",
+    chatSyncDiagnosticStaleBinary: "诊断：这是当前 console，但正在运行的二进制缺少原生桥接。结构化双向同步必须重启后才能启用。",
     chatSyncDiagnosticWaiting: "诊断：已配对到这台服务器，但当前 CLI 对话尚未接入。",
     chatSyncDiagnosticBackground: "诊断：正在使用后台 runner，不是实时 CLI 对话。",
     sendToCurrentCli: "发送到当前 CLI",
@@ -1241,6 +1245,8 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
   } else if (runner?.waiting_for_tui_bridge) {
     const legacyRelay = runner.legacy_tui_relay || {};
     const diagnostics = runner.sync_diagnostics || {};
+    const activeProcess = runner.active_tui_process_bridge || {};
+    const staleActiveBinary = Boolean(activeProcess.active && !activeProcess.native_bridge_ready && activeProcess.installed_bridge_ready);
     state = legacyRelay.active ? "legacy_relay" : "server_only";
     titleKey = legacyRelay.active ? "chatSessionLegacyTitle" : "chatSessionServerOnlyTitle";
     detailKey = legacyRelay.active ? "chatSessionLegacyDetail" : "chatSessionServerOnlyDetail";
@@ -1248,7 +1254,9 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
     placeholderKey = legacyRelay.active ? "chatPlaceholder" : "chatPlaceholderUnavailable";
     canSend = Boolean(legacyRelay.active);
     canRestart = Boolean(runner.restart_command);
-    diagnosticKey = diagnostics.temporary_terminal_relay ? "chatSyncDiagnosticLegacy" : "chatSyncDiagnosticWaiting";
+    diagnosticKey = staleActiveBinary
+      ? "chatSyncDiagnosticStaleBinary"
+      : diagnostics.temporary_terminal_relay ? "chatSyncDiagnosticLegacy" : "chatSyncDiagnosticWaiting";
   } else if (runner?.thread_id) {
     state = "background_runner";
     titleKey = "chatSessionBackgroundTitle";
@@ -3150,12 +3158,18 @@ async function loadRuntimeStatus() {
     let restartCommand = "";
     if (runner.waiting_for_tui_bridge) {
       const legacyRelay = runner.legacy_tui_relay || {};
+      const activeProcess = runner.active_tui_process_bridge || {};
+      const staleActiveBinary = Boolean(activeProcess.active && !activeProcess.native_bridge_ready && activeProcess.installed_bridge_ready);
       detail = legacyRelay.active ? t("runtimeLegacyRelayActive") : t("runtimeWaitingForConsoleRestart");
       if (legacyRelay.capabilities?.interrupt_on_pause) {
         detail = `${detail} ${t("runtimeLegacyRelayPause")}`;
       }
       const nativeBridge = runner.native_console_bridge || {};
-      detail = `${detail} ${nativeBridge.ready ? t("runtimeNativeBridgeReady") : t("runtimeNativeBridgeNotReady")}`;
+      if (staleActiveBinary) {
+        detail = `${detail} ${t("runtimeActiveConsoleNeedsBinaryRestart")}`;
+      } else {
+        detail = `${detail} ${nativeBridge.ready ? t("runtimeNativeBridgeReady") : t("runtimeNativeBridgeNotReady")}`;
+      }
       runtimeState = legacyRelay.active ? "legacy_tui_relay" : "waiting_for_tui_bridge";
       restartCommand = runner.restart_command || "";
     } else if (runner.tui_bridge_active) {

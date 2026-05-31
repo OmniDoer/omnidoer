@@ -28,6 +28,17 @@ class ControlStatusTest(unittest.TestCase):
                     "omnidoer.omni_control.chat_runner.native_console_bridge_install_status",
                     return_value={"ready": True, "reason": "ready", "codex_binary": "/usr/local/lib/omnidoer/codex"},
                 ), patch(
+                    "omnidoer.omni_control.chat_runner.active_tui_process_bridge_status",
+                    return_value={
+                        "active": True,
+                        "pid": 1234,
+                        "native_bridge_ready": False,
+                        "installed_bridge_ready": True,
+                        "running_binary_matches_installed": False,
+                        "executable_deleted": True,
+                        "reason": "running_binary_deleted",
+                    },
+                ), patch(
                     "omnidoer.omni_control.tui_legacy_relay.legacy_tui_relay_status",
                     return_value={"active": True, "transport": "tmux", "pane_id": "%1"},
                 ):
@@ -45,6 +56,7 @@ class ControlStatusTest(unittest.TestCase):
                 self.assertIn("bridge_heartbeat_age_seconds", payload["chat_runner"])
                 self.assertFalse(payload["chat_runner"]["detached_thread_resume_allowed"])
                 self.assertTrue(payload["chat_runner"]["native_console_bridge"]["ready"])
+                self.assertEqual(payload["chat_runner"]["active_tui_process_bridge"]["reason"], "running_binary_deleted")
                 self.assertTrue(payload["chat_runner"]["legacy_tui_relay"]["active"])
                 diagnostics = payload["chat_runner"]["sync_diagnostics"]
                 self.assertEqual(diagnostics["state"], "legacy_terminal_relay")
@@ -54,6 +66,8 @@ class ControlStatusTest(unittest.TestCase):
                 self.assertEqual(diagnostics["current_cli_to_phone_stream"], "terminal_snapshot")
                 self.assertTrue(diagnostics["restart_ready"])
                 self.assertFalse(diagnostics["detached_thread_resume_allowed"])
+                self.assertFalse(diagnostics["active_cli_binary_has_native_bridge"])
+                self.assertTrue(diagnostics["active_cli_binary_deleted"])
             finally:
                 server.shutdown()
                 server.server_close()
@@ -72,6 +86,9 @@ class ControlStatusTest(unittest.TestCase):
             ), patch(
                 "omnidoer.omni_control.chat_runner.native_console_bridge_install_status",
                 return_value={"ready": False, "reason": "missing_bridge_markers"},
+            ), patch(
+                "omnidoer.omni_control.chat_runner.active_tui_process_bridge_status",
+                return_value={"active": False, "reason": "live_tui_process_not_found"},
             ), patch(
                 "omnidoer.omni_control.tui_legacy_relay.legacy_tui_relay_status",
                 return_value={"active": False, "reason": "tmux_pane_not_found"},

@@ -10,6 +10,7 @@ from unittest.mock import patch
 from omnidoer.omni_control.chat import ChatStore
 from omnidoer.omni_control.chat_runner import (
     ChatRunner,
+    active_tui_process_bridge_status,
     control_chat_sync_diagnostics,
     live_tui_bridge_active,
     live_tui_session_active,
@@ -114,6 +115,36 @@ class ControlChatRunnerTest(unittest.TestCase):
             self.assertEqual(stale["reason"], "missing_bridge_markers")
             self.assertIn("chat-log-user", stale["missing_markers"])
 
+    def test_active_tui_process_bridge_status_reports_stale_running_binary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            proc_root = Path(tmp) / "proc"
+            proc_root.mkdir()
+            tui = proc_root / "1234"
+            tui.mkdir()
+            tui.joinpath("cmdline").write_bytes(
+                b"/usr/local/lib/omnidoer/codex\0resume\0thread_active\0"
+            )
+            tui.joinpath("exe").write_bytes(b"old codex without bridge")
+            installed = Path(tmp) / "codex"
+            installed.write_bytes(
+                b"control_chat_bridge_heartbeat chat-log-user "
+                b"failed to publish OmniDoer user chat message"
+            )
+            installed.chmod(installed.stat().st_mode | stat.S_IXUSR)
+
+            status = active_tui_process_bridge_status(
+                "thread_active",
+                proc_root=proc_root,
+                codex_bin=str(installed),
+            )
+
+            self.assertTrue(status["active"])
+            self.assertEqual(status["pid"], 1234)
+            self.assertFalse(status["native_bridge_ready"])
+            self.assertTrue(status["installed_bridge_ready"])
+            self.assertTrue(status["restart_required"])
+            self.assertEqual(status["reason"], "running_binary_missing_bridge_markers")
+
     def test_control_chat_sync_diagnostics_describes_legacy_and_native_states(self) -> None:
         legacy = control_chat_sync_diagnostics(
             thread_id="thread_demo",
@@ -121,6 +152,12 @@ class ControlChatRunnerTest(unittest.TestCase):
             tui_session_active=True,
             install_status={"ready": True},
             legacy_relay={"active": True},
+            active_process_bridge={
+                "native_bridge_ready": False,
+                "executable_deleted": True,
+                "running_binary_matches_installed": False,
+                "reason": "running_binary_deleted",
+            },
             bridge_heartbeat_age_seconds=None,
         )
         self.assertEqual(legacy["state"], "legacy_terminal_relay")
@@ -129,6 +166,9 @@ class ControlChatRunnerTest(unittest.TestCase):
         self.assertEqual(legacy["phone_to_current_cli_delivery"], "terminal_relay")
         self.assertTrue(legacy["restart_ready"])
         self.assertFalse(legacy["detached_thread_resume_allowed"])
+        self.assertFalse(legacy["active_cli_binary_has_native_bridge"])
+        self.assertTrue(legacy["active_cli_binary_deleted"])
+        self.assertEqual(legacy["active_cli_binary_reason"], "running_binary_deleted")
 
         native = control_chat_sync_diagnostics(
             thread_id="thread_demo",
