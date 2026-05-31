@@ -173,6 +173,14 @@ def inject_text_into_tmux_pane(pane_id: str, text: str) -> None:
         subprocess.run(["tmux", "delete-buffer", "-b", buffer_name], check=False, timeout=5)
 
 
+def interrupt_tmux_pane(pane_id: str) -> None:
+    subprocess.run(["tmux", "send-keys", "-t", pane_id, "C-c"], check=True, timeout=5)
+
+
+def message_requests_interrupt(message) -> bool:
+    return str(message.client_message_id or "").startswith(("control_pause_", "omnidoer_pause_"))
+
+
 class LegacyTuiRelay:
     def __init__(
         self,
@@ -195,6 +203,8 @@ class LegacyTuiRelay:
         if message is None:
             return False
         try:
+            if message_requests_interrupt(message):
+                interrupt_tmux_pane(pane.pane_id)
             inject_text_into_tmux_pane(pane.pane_id, message.text)
         except Exception as exc:
             self.store.append_record(
@@ -213,7 +223,12 @@ class LegacyTuiRelay:
             role="system",
             message_id=(claimed or message).message_id,
             source="legacy_tui_relay",
-            data={"pane_id": pane.pane_id, "thread_id": self.thread_id, "transport": "tmux"},
+            data={
+                "pane_id": pane.pane_id,
+                "thread_id": self.thread_id,
+                "transport": "tmux",
+                "interrupted_turn": message_requests_interrupt(claimed or message),
+            },
         )
         return True
 
