@@ -149,6 +149,8 @@ class BrandingDocsTest(unittest.TestCase):
         self.assertIn("proof_heading", page)
         self.assertIn("Technical Proof", page)
         self.assertIn("npm install -g @omnidoer/omnidoer", page)
+        self.assertIn("hero_install_label", page)
+        self.assertIn("hero-install", page)
         self.assertIn("install_npm_title", page)
         self.assertIn("install-cloud-direct.sh", page)
         self.assertIn("OMNIDOER_CLOUD_DIRECT=1", page)
@@ -204,6 +206,8 @@ class BrandingDocsTest(unittest.TestCase):
             "proof_tests_1",
             "proof_tests_2",
             "proof_tests_3",
+            "hero_install_label",
+            "hero_install_link",
             "install_npm_title",
             "nav_campaign",
             "campaign_heading",
