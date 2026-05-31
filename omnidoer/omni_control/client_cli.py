@@ -8,6 +8,7 @@ import os
 import sys
 
 from omnidoer.omni_control.cloud import build_config, security_status
+from omnidoer.omni_control.chat import ChatStore
 from omnidoer.omni_control.devices import DeviceStore
 from omnidoer.omni_control.pairing import PairingStore, parse_duration_seconds, pairing_url, qr_text
 from omnidoer.omni_control.requests import RequestStore, wait_for_request_completion
@@ -165,6 +166,57 @@ def handle_control_command(args) -> int:
         return 0
     if command == "tasks":
         print(json.dumps([task.to_public_dict() for task in TaskStore().list(include_completed=True)], indent=2, sort_keys=True))
+        return 0
+    if command == "chat-send":
+        message = ChatStore().append(role="user", text=args.message, source="control_cli")
+        print(f"queued chat message {message.message_id}; Agent can read it with control.next_user_message")
+        return 0
+    if command == "chat-messages":
+        print(json.dumps([message.to_public_dict() for message in ChatStore().list()], indent=2, sort_keys=True))
+        return 0
+    if command == "chat-next":
+        message = ChatStore().next_user_message(claim=not args.no_claim)
+        if message is None:
+            print(json.dumps({"status": "empty", "secret_fields_allowed": False}, indent=2, sort_keys=True))
+        else:
+            print(json.dumps({"status": "ok", "message": message.to_public_dict()}, indent=2, sort_keys=True))
+        return 0
+    if command == "chat-reply":
+        message = ChatStore().append(
+            role="assistant",
+            text=args.message,
+            source="control_cli",
+            reply_to_message_id=args.reply_to,
+        )
+        print(f"published chat message {message.message_id}")
+        return 0
+    if command == "chat-record":
+        record = ChatStore().append_record(
+            record_type=args.record_type,
+            text=args.text,
+            role=args.role,
+            message_id=args.message_id,
+            source="control_cli",
+        )
+        print(f"published chat record {record.record_id}")
+        return 0
+    if command == "chat-start":
+        message = ChatStore().append(
+            role="assistant",
+            text="",
+            status="streaming",
+            source="control_cli",
+            reply_to_message_id=args.reply_to,
+        )
+        print(message.message_id)
+        return 0
+    if command == "chat-delta":
+        message = ChatStore().append_delta(args.message_id, args.delta)
+        print(f"updated chat message {message.message_id}")
+        return 0
+    if command == "chat-complete":
+        message = ChatStore().complete(args.message_id, text=args.text)
+        print(f"completed chat message {message.message_id}")
         return 0
     if command == "complete-task":
         TaskStore().complete(args.task_id)

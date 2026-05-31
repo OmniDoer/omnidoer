@@ -104,13 +104,19 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("button-link", self.app)
 
     def test_task_panel_uses_local_queue_not_direct_model_api(self) -> None:
-        self.assertIn("Chat / Task", self.html)
-        self.assertIn("does not call OpenAI APIs or models directly", self.html)
-        self.assertIn("control.next_user_task", self.html)
+        self.assertIn("Chat", self.html)
+        self.assertIn("The Control Client does not call OpenAI APIs or models directly", self.html)
+        self.assertIn("local Agent reads queued messages", self.html)
         app = (static_root() / "app.js").read_text()
-        self.assertIn("/api/tasks", app)
-        self.assertIn("submitTask", app)
-        self.assertIn("local queue -> MCP control.next_user_task -> Codex CLI", app)
+        self.assertIn("/api/chat/messages", app)
+        self.assertIn("sendChatMessage", app)
+        self.assertIn("startChatWebSocket", app)
+        self.assertIn("/api/ws/chat", app)
+        self.assertIn("/api/chat/events?stream=1", app)
+        self.assertIn("renderChatRecord", app)
+        self.assertIn("cachedChatRecords", app)
+        self.assertIn("record_type", app)
+        self.assertIn("chat-record-delta", (static_root() / "style.css").read_text())
 
     def test_pairing_panel_and_cloud_csrf_contract_present(self) -> None:
         self.assertIn("Pair Device", self.html)

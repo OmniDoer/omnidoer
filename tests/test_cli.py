@@ -20,6 +20,7 @@ from omnidoer.omni_cli.console import build_console_env
 from omnidoer.omni_audit.audit import AuditLog
 from omnidoer.omni_broker.broker import SecretBroker
 from omnidoer.omni_control.requests import RequestStore
+from omnidoer.omni_control.chat import ChatStore
 from omnidoer.omni_control.secure_channel import ReplayGuard, encrypt_for_broker, load_or_create_keypair
 from omnidoer.omni_control.devices import DeviceStore
 from omnidoer.omni_control.sessions import SessionStore
@@ -304,6 +305,22 @@ class CliTest(unittest.TestCase):
             tasks = TaskStore(Path(tmp) / "control_tasks.json").list()
             self.assertEqual(len(tasks), 1)
             self.assertEqual(tasks[0].text, "Use the local demo")
+
+    def test_control_chat_commands_publish_messages_and_records(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            env = {"OMNIDOER_HOME": tmp}
+            result = self.run_cli(["control", "chat-send", "Use the client chat"], env=env)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("queued chat message", result.stdout)
+            next_result = self.run_cli(["control", "chat-next"], env=env)
+            self.assertEqual(next_result.returncode, 0, next_result.stderr)
+            self.assertIn('"status": "ok"', next_result.stdout)
+            record = self.run_cli(["control", "chat-record", "tool_call", "control.next_user_message"], env=env)
+            self.assertEqual(record.returncode, 0, record.stderr)
+            self.assertIn("published chat record", record.stdout)
+            store = ChatStore(Path(tmp) / "control_chat_messages.json")
+            self.assertEqual(store.list()[0].text, "Use the client chat")
+            self.assertTrue(any(item.record_type == "tool_call" for item in store.list_records()))
 
     def test_cred_request_can_be_saved_to_vault_without_echoing_secret(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

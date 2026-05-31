@@ -38,6 +38,13 @@ ALLOWED_TOOLS = [
     "control.wait_request",
     "control.list_tasks",
     "control.next_user_task",
+    "control.list_chat_messages",
+    "control.list_chat_records",
+    "control.next_user_message",
+    "control.publish_chat_record",
+    "control.publish_chat_message",
+    "control.append_chat_message_delta",
+    "control.complete_chat_message",
 ]
 
 
@@ -743,6 +750,79 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
             "secret_exposed_to_model": False,
             "submitted_to_openai_api_by_control_client": False,
         }
+    if name == "control.list_chat_messages":
+        from omnidoer.omni_control.chat import ChatStore
+
+        limit = int((arguments or {}).get("limit") or 200)
+        return {
+            "status": "ok",
+            "messages": [message.to_public_dict() for message in ChatStore().list(limit=limit)],
+            "records": [record.to_public_dict() for record in ChatStore().list_records(limit=limit)],
+            "secret_exposed_to_model": False,
+            "control_client_calls_model": False,
+        }
+    if name == "control.list_chat_records":
+        from omnidoer.omni_control.chat import ChatStore
+
+        limit = int((arguments or {}).get("limit") or 140)
+        after = (arguments or {}).get("after_sequence")
+        return {
+            "status": "ok",
+            "records": [
+                record.to_public_dict()
+                for record in ChatStore().list_records(limit=limit, after_sequence=int(after) if after is not None else None)
+            ],
+            "secret_exposed_to_model": False,
+            "control_client_calls_model": False,
+        }
+    if name == "control.next_user_message":
+        from omnidoer.omni_control.chat import ChatStore
+
+        message = ChatStore().next_user_message(claim=True)
+        if message is None:
+            return {"status": "empty", "secret_exposed_to_model": False}
+        return {"status": "ok", "message": message.to_public_dict(), "secret_exposed_to_model": False}
+    if name == "control.publish_chat_message":
+        from omnidoer.omni_control.chat import ChatStore
+
+        message = ChatStore().append(
+            role="assistant",
+            text=str((arguments or {}).get("text") or ""),
+            status=str((arguments or {}).get("status") or "completed"),
+            source="agent",
+            reply_to_message_id=str((arguments or {}).get("reply_to_message_id") or "") or None,
+        )
+        return {"status": "ok", "message": message.to_public_dict(), "secret_exposed_to_model": False}
+    if name == "control.publish_chat_record":
+        from omnidoer.omni_control.chat import ChatStore
+
+        record = ChatStore().append_record(
+            record_type=str((arguments or {}).get("record_type") or "note"),
+            text=str((arguments or {}).get("text") or ""),
+            role=str((arguments or {}).get("role") or "") or None,
+            message_id=str((arguments or {}).get("message_id") or "") or None,
+            source="agent",
+            data=(arguments or {}).get("data") if isinstance((arguments or {}).get("data"), dict) else None,
+        )
+        return {"status": "ok", "record": record.to_public_dict(), "secret_exposed_to_model": False}
+    if name == "control.append_chat_message_delta":
+        from omnidoer.omni_control.chat import ChatStore
+
+        message_id = str((arguments or {}).get("message_id") or "")
+        delta = str((arguments or {}).get("delta") or "")
+        if not message_id:
+            return {"status": "error", "error": "message_id required", "secret_exposed_to_model": False}
+        message = ChatStore().append_delta(message_id, delta)
+        return {"status": "ok", "message": message.to_public_dict(), "secret_exposed_to_model": False}
+    if name == "control.complete_chat_message":
+        from omnidoer.omni_control.chat import ChatStore
+
+        message_id = str((arguments or {}).get("message_id") or "")
+        if not message_id:
+            return {"status": "error", "error": "message_id required", "secret_exposed_to_model": False}
+        text = (arguments or {}).get("text")
+        message = ChatStore().complete(message_id, text=str(text) if text is not None else None)
+        return {"status": "ok", "message": message.to_public_dict(), "secret_exposed_to_model": False}
     if name == "audit.show_recent_events":
         from omnidoer.omni_audit.audit import AuditLog
 

@@ -198,7 +198,7 @@ button:disabled {
   gap: 12px;
   margin-top: 14px;
 }
-.request, .task, .mini-record {
+.request, .task, .mini-record, .chat-message, .chat-record {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: white;
@@ -269,6 +269,72 @@ button:disabled {
 #tasks-list { margin-top: 12px; }
 .task + .task, .mini-record + .mini-record { margin-top: 10px; }
 .task p, .mini-record p { margin: 6px 0; overflow-wrap: anywhere; }
+.chat-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 280px;
+  max-height: 58vh;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 12px;
+  margin: 12px 0;
+}
+.chat-message {
+  max-width: min(780px, 92%);
+  box-shadow: none;
+}
+.chat-record {
+  max-width: 100%;
+  border-style: dashed;
+  background: #ffffff;
+  box-shadow: none;
+}
+.chat-role-user {
+  align-self: flex-end;
+  border-color: #bae6fd;
+  background: #eff6ff;
+}
+.chat-role-assistant,
+.chat-role-system {
+  align-self: flex-start;
+}
+.chat-status-streaming {
+  border-color: #67e8f9;
+  box-shadow: inset 4px 0 0 var(--accent);
+}
+.chat-record-delta {
+  border-color: #bae6fd;
+  background: #f0f9ff;
+}
+.chat-record-status {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+}
+.chat-record-tool_call,
+.chat-record-tool_output {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+.chat-message-header,
+.chat-message-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.chat-message-text {
+  margin: 9px 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.chat-message-meta {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
 .split-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

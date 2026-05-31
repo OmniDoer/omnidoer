@@ -28,6 +28,11 @@ class McpToolsTest(unittest.TestCase):
         self.assertIn("control.create_pairing", ALLOWED_TOOLS)
         self.assertIn("control.wait_request", ALLOWED_TOOLS)
         self.assertIn("control.next_user_task", ALLOWED_TOOLS)
+        self.assertIn("control.list_chat_messages", ALLOWED_TOOLS)
+        self.assertIn("control.list_chat_records", ALLOWED_TOOLS)
+        self.assertIn("control.next_user_message", ALLOWED_TOOLS)
+        self.assertIn("control.publish_chat_record", ALLOWED_TOOLS)
+        self.assertIn("control.publish_chat_message", ALLOWED_TOOLS)
 
     def test_tool_result_status_only(self) -> None:
         result = call_tool("credential.request_from_user", {})
@@ -47,6 +52,36 @@ class McpToolsTest(unittest.TestCase):
                 self.assertFalse(result["submitted_to_openai_api_by_control_client"])
                 empty = call_tool("control.next_user_task", {})
                 self.assertEqual(empty["status"], "empty")
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_chat_tools_claim_and_publish_messages_without_secret(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                from omnidoer.omni_control.chat import ChatStore
+
+                user = ChatStore().append(role="user", text="Hello")
+                result = call_tool("control.next_user_message", {})
+                self.assertEqual(result["status"], "ok")
+                self.assertEqual(result["message"]["message_id"], user.message_id)
+                self.assertFalse(result["secret_exposed_to_model"])
+                published = call_tool("control.publish_chat_message", {"text": "Hi", "reply_to_message_id": user.message_id})
+                self.assertEqual(published["status"], "ok")
+                self.assertEqual(published["message"]["role"], "assistant")
+                record = call_tool("control.publish_chat_record", {"record_type": "tool_call", "text": "control.next_user_message"})
+                self.assertEqual(record["status"], "ok")
+                self.assertEqual(record["record"]["record_type"], "tool_call")
+                messages = call_tool("control.list_chat_messages", {})
+                self.assertEqual(len(messages["messages"]), 2)
+                self.assertGreaterEqual(len(messages["records"]), 3)
+                self.assertFalse(messages["control_client_calls_model"])
+                records = call_tool("control.list_chat_records", {})
+                self.assertTrue(any(item["record_type"] == "tool_call" for item in records["records"]))
             finally:
                 if old_home is None:
                     os.environ.pop("OMNIDOER_HOME", None)

@@ -24,6 +24,7 @@ from cryptography.x509.oid import NameOID
 
 from omnidoer.omni_audit.audit import AuditLog
 from omnidoer.omni_control.auth import authenticate_session, authenticate_signed_session_request, pair_device
+from omnidoer.omni_control.chat import ChatStore
 from omnidoer.omni_control.cloud import ControlServiceConfig, build_config
 from omnidoer.omni_control.csrf import CSRF_HEADER, verify_csrf
 from omnidoer.omni_control.devices import DeviceStore
@@ -212,10 +213,22 @@ class ControlHandler(SimpleHTTPRequestHandler):
     def _sse_payload(self, store: RequestStore, session: ControlSession | None) -> dict:
         return {"requests": [request.to_public_dict() for request in self._visible_requests(store, session)]}
 
-    def _send_sse(self, payload: dict) -> None:
+    def _chat_payload(self, *, limit: int = 200, after_sequence: int | None = None) -> dict:
+        store = ChatStore()
+        messages = store.list(limit=limit)
+        records = store.list_records(limit=limit, after_sequence=after_sequence)
+        return {
+            "messages": [message.to_public_dict() for message in messages],
+            "records": [record.to_public_dict() for record in records],
+            "streaming": True,
+            "retention": {"approx_screen_count": 5, "max_records": 140},
+            "control_client_calls_model": False,
+        }
+
+    def _send_sse(self, payload: dict, *, event: str = "requests") -> None:
         from omnidoer.omni_control.websocket import sse_event
 
-        data = sse_event("requests", payload)
+        data = sse_event(event, payload)
         self.send_response(HTTPStatus.OK)
         self.send_header("content-type", "text/event-stream; charset=utf-8")
         self.send_header("cache-control", "no-store")
@@ -260,6 +273,30 @@ class ControlHandler(SimpleHTTPRequestHandler):
             if index:
                 time.sleep(max(0.0, min(interval, 10.0)))
             self.wfile.write(websocket_text_frame({"event": "requests", "data": self._sse_payload(store, session)}))
+            self.wfile.flush()
+        self.close_connection = True
+
+    def _send_chat_sse_stream(self, *, snapshots: int, interval: float, limit: int, after_sequence: int | None) -> None:
+        from omnidoer.omni_control.websocket import sse_event
+
+        self.send_response(HTTPStatus.OK)
+        self.send_header("content-type", "text/event-stream; charset=utf-8")
+        self.send_header("cache-control", "no-store")
+        self.send_header("connection", "close")
+        self.end_headers()
+        for index in range(max(1, min(snapshots, 120))):
+            if index:
+                time.sleep(max(0.0, min(interval, 10.0)))
+            self.wfile.write(sse_event("chat", self._chat_payload(limit=limit, after_sequence=after_sequence)))
+            self.wfile.flush()
+        self.close_connection = True
+
+    def _send_chat_websocket_stream(self, *, snapshots: int, interval: float, limit: int, after_sequence: int | None) -> None:
+        websocket_text_frame = self._open_websocket()
+        for index in range(max(1, min(snapshots, 120))):
+            if index:
+                time.sleep(max(0.0, min(interval, 10.0)))
+            self.wfile.write(websocket_text_frame({"event": "chat", "data": self._chat_payload(limit=limit, after_sequence=after_sequence)}))
             self.wfile.flush()
         self.close_connection = True
 
@@ -474,6 +511,70 @@ class ControlHandler(SimpleHTTPRequestHandler):
             except ValueError:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid stream options"})
             return
+        if path in {"/api/chat/messages", "/api/chat/records"}:
+            try:
+                self._require_access()
+                query = parse_qs(parsed_url.query)
+                limit = int(query.get("limit", ["200"])[0])
+                after = query.get("after_sequence", [None])[0]
+                self._send_json(HTTPStatus.OK, self._chat_payload(limit=limit, after_sequence=int(after) if after else None))
+            except PermissionError:
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+            except ValueError:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid chat options"})
+            return
+        if path == "/api/chat/events":
+            try:
+                self._require_access()
+                query = parse_qs(parsed_url.query)
+                snapshots = int(query.get("snapshots", ["60"])[0])
+                interval = float(query.get("interval", ["1"])[0])
+                limit = int(query.get("limit", ["200"])[0])
+                after = query.get("after_sequence", [None])[0]
+                if query.get("stream", ["0"])[0] == "1":
+                    self._send_chat_sse_stream(
+                        snapshots=snapshots,
+                        interval=interval,
+                        limit=limit,
+                        after_sequence=int(after) if after else None,
+                    )
+                else:
+                    self._send_sse(self._chat_payload(limit=limit, after_sequence=int(after) if after else None), event="chat")
+            except PermissionError:
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            except ValueError:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid chat stream options"})
+            return
+        if path == "/api/ws/chat":
+            try:
+                from omnidoer.omni_control.websocket import websocket_origin_allowed
+
+                if self._requires_pairing() and not websocket_origin_allowed(self.headers.get("origin"), self.config.public_origin):
+                    raise PermissionError("websocket origin rejected")
+                if (self.headers.get("upgrade") or "").lower() != "websocket":
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"error": "websocket upgrade required"})
+                    return
+                self._require_access()
+                query = parse_qs(parsed_url.query)
+                snapshots = int(query.get("snapshots", ["120"])[0])
+                interval = float(query.get("interval", ["1"])[0])
+                limit = int(query.get("limit", ["200"])[0])
+                after = query.get("after_sequence", [None])[0]
+                self._send_chat_websocket_stream(
+                    snapshots=snapshots,
+                    interval=interval,
+                    limit=limit,
+                    after_sequence=int(after) if after else None,
+                )
+            except PermissionError:
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            except ValueError:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid chat websocket options"})
+            return
         if path.startswith("/api/ws/requests/") and path.endswith("/frames"):
             try:
                 from omnidoer.omni_control.websocket import websocket_origin_allowed
@@ -644,6 +745,111 @@ class ControlHandler(SimpleHTTPRequestHandler):
             try:
                 task = TaskStore().create((self._read_json().get("text") or ""), source="control_client")
                 self._send_json(HTTPStatus.CREATED, task.to_public_dict())
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
+        if path == "/api/chat/messages":
+            try:
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+                return
+            try:
+                body = self._read_json()
+                message = ChatStore().append(
+                    role="user",
+                    text=str(body.get("text") or ""),
+                    source="control_client",
+                    author_device_id=session.device_id if session else None,
+                    client_message_id=str(body.get("client_message_id") or "") or None,
+                    reply_to_message_id=str(body.get("reply_to_message_id") or "") or None,
+                )
+                self._send_json(HTTPStatus.CREATED, message.to_public_dict())
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
+        if path == "/api/chat/messages/next":
+            try:
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+                return
+            try:
+                body = self._read_json()
+                message = ChatStore().next_user_message(claim=bool(body.get("claim", True)))
+                if message is None:
+                    self._send_json(HTTPStatus.OK, {"status": "empty", "secret_fields_allowed": False})
+                    return
+                self._send_json(HTTPStatus.OK, {"status": "ok", "message": message.to_public_dict()})
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
+        if path == "/api/chat/messages/assistant":
+            try:
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+                return
+            try:
+                body = self._read_json()
+                message = ChatStore().append(
+                    role="assistant",
+                    text=str(body.get("text") or ""),
+                    status=str(body.get("status") or "completed"),
+                    source=str(body.get("source") or "agent"),
+                    reply_to_message_id=str(body.get("reply_to_message_id") or "") or None,
+                )
+                self._send_json(HTTPStatus.CREATED, message.to_public_dict())
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
+        if path == "/api/chat/records":
+            try:
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+                return
+            try:
+                body = self._read_json()
+                record = ChatStore().append_record(
+                    record_type=str(body.get("record_type") or "note"),
+                    text=str(body.get("text") or ""),
+                    role=str(body.get("role") or "") or None,
+                    message_id=str(body.get("message_id") or "") or None,
+                    source=str(body.get("source") or "agent"),
+                    data=body.get("data") if isinstance(body.get("data"), dict) else None,
+                )
+                self._send_json(HTTPStatus.CREATED, record.to_public_dict())
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
+        if len(parts) == 5 and parts[:3] == ["api", "chat", "messages"]:
+            try:
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+                return
+            message_id, action = parts[3], parts[4]
+            try:
+                body = self._read_json()
+                if action == "delta":
+                    message = ChatStore().append_delta(message_id, str(body.get("delta") or ""))
+                elif action == "complete":
+                    text = body.get("text")
+                    message = ChatStore().complete(message_id, text=str(text) if text is not None else None)
+                elif action == "cancel":
+                    message = ChatStore().cancel(message_id)
+                else:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "unknown action"})
+                    return
+                self._send_json(HTTPStatus.OK, message.to_public_dict())
+            except KeyError:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "message not found"})
             except Exception as exc:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
             return

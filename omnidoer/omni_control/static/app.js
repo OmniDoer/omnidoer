@@ -3,7 +3,7 @@ const I18N = {
     appTitle: "OmniDoer Control Client",
     appSubtitle: "Secure approvals, credentials, challenges, and human takeover.",
     navRequests: "Requests",
-    navTasks: "Tasks",
+    navTasks: "Chat",
     navDevices: "Devices",
     navSecurity: "Security",
     navTakeover: "Takeover",
@@ -74,8 +74,21 @@ const I18N = {
     noPairedDevices: "No paired devices.",
     noSessions: "No sessions.",
     securityTitle: "Security",
-    taskTitle: "Chat / Task",
-    taskIntro: "Submit work to the local OmniDoer task queue.",
+    taskTitle: "Chat",
+    taskIntro: "Messages stream through your paired Control Service.",
+    chatComposerLabel: "Message",
+    chatPlaceholder: "Write to OmniDoer",
+    sendMessage: "Send Message",
+    noChatMessages: "No chat messages yet.",
+    pairToViewChat: "Pair this device to view and send chat messages.",
+    chatStatusQueued: "Queued",
+    chatStatusClaimed: "Delivered",
+    chatStatusStreaming: "Streaming",
+    chatStatusCompleted: "Completed",
+    chatRecordDelta: "Delta",
+    chatRecordStatus: "Status",
+    chatRecordToolCall: "Tool call",
+    chatRecordToolOutput: "Tool output",
     submitTask: "Submit Task",
     noQueuedTasks: "No queued tasks.",
     pairToViewTasks: "Pair this device to view task queue in Cloud Direct Mode.",
@@ -139,7 +152,7 @@ const I18N = {
     appTitle: "OmniDoer 控制客户端",
     appSubtitle: "安全处理授权、凭证、验证和人工接管。",
     navRequests: "请求",
-    navTasks: "任务",
+    navTasks: "对话",
     navDevices: "设备",
     navSecurity: "安全",
     navTakeover: "接管",
@@ -210,8 +223,21 @@ const I18N = {
     noPairedDevices: "没有已配对设备。",
     noSessions: "没有会话。",
     securityTitle: "安全",
-    taskTitle: "聊天 / 任务",
-    taskIntro: "提交工作到本地 OmniDoer 任务队列。",
+    taskTitle: "对话",
+    taskIntro: "消息会通过已配对的 Control Service 流式同步。",
+    chatComposerLabel: "消息",
+    chatPlaceholder: "发送给 OmniDoer",
+    sendMessage: "发送消息",
+    noChatMessages: "还没有对话消息。",
+    pairToViewChat: "请先配对此设备以查看和发送对话消息。",
+    chatStatusQueued: "待处理",
+    chatStatusClaimed: "已送达",
+    chatStatusStreaming: "流式回复中",
+    chatStatusCompleted: "已完成",
+    chatRecordDelta: "增量",
+    chatRecordStatus: "状态",
+    chatRecordToolCall: "工具调用",
+    chatRecordToolOutput: "工具输出",
     submitTask: "提交任务",
     noQueuedTasks: "没有排队任务。",
     pairToViewTasks: "请先配对此设备以查看 Cloud Direct 任务队列。",
@@ -386,6 +412,10 @@ function applyLanguage() {
   setNodeText("#security h2", "securityTitle");
   setNodeText("#task-panel h2", "taskTitle");
   setNodeText("#task-panel > p:nth-of-type(1)", "taskIntro");
+  setNodeText("#chat-input-label", "chatComposerLabel");
+  const chatInput = document.querySelector("#chat-input");
+  if (chatInput) chatInput.placeholder = t("chatPlaceholder");
+  setButtonText("#send-chat-message", "sendMessage");
   setButtonText("#submit-task", "submitTask");
   setNodeText("#takeover-panel h2", "takeoverTitle");
   setNodeText("#payment-approval h2", "paymentTitle");
@@ -431,9 +461,19 @@ requestsRoot.innerHTML = `
 `;
 main.insertBefore(requestsRoot, document.querySelector("#pairing-panel"));
 
-const submitTaskButton = document.querySelector("#submit-task");
-if (submitTaskButton) {
-  submitTaskButton.onclick = () => submitTask();
+const sendChatMessageButton = document.querySelector("#send-chat-message");
+if (sendChatMessageButton) {
+  sendChatMessageButton.onclick = () => sendChatMessage();
+}
+
+const chatInput = document.querySelector("#chat-input");
+if (chatInput) {
+  chatInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      sendChatMessage();
+    }
+  });
 }
 
 const pairDeviceButton = document.querySelector("#pair-device");
@@ -510,6 +550,7 @@ if (languageSelect) {
     localStorage.setItem("omnidoer_language", currentLanguage);
     applyLanguage();
     renderRequestList(cachedRequests);
+    renderChatTimeline(cachedChatMessages, cachedChatRecords);
   };
 }
 
@@ -534,8 +575,12 @@ const TAKEOVER_ZOOM_MIN = 1;
 const TAKEOVER_ZOOM_MAX = 3;
 const TAKEOVER_ZOOM_STEP = 0.25;
 let cachedRequests = [];
+let cachedChatMessages = [];
+let cachedChatRecords = [];
 let requestStreamActive = false;
 let requestStreamRestart = null;
+let chatStreamActive = false;
+let chatStreamRestart = null;
 let activeTakeoverFrameRequest = null;
 let takeoverFrameTimer = null;
 let takeoverFreshnessTimer = null;
@@ -1258,6 +1303,110 @@ async function submitTask() {
   });
   input.value = "";
   await loadTasks();
+}
+
+async function sendChatMessage() {
+  const input = document.querySelector("#chat-input");
+  const text = input.value.trim();
+  if (!text) return;
+  const clientMessageId = `client_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  const response = await signedFetch("/api/chat/messages", {
+    method: "POST",
+    headers: { "content-type": "application/json", ...csrfHeaders() },
+    body: JSON.stringify({ text, client_message_id: clientMessageId })
+  });
+  if (!response.ok) {
+    setStatus(t("actionFailed"), t("pairToViewChat"));
+    return;
+  }
+  input.value = "";
+  await loadChatMessages();
+}
+
+function chatStatusLabel(status) {
+  return {
+    queued: t("chatStatusQueued"),
+    claimed: t("chatStatusClaimed"),
+    streaming: t("chatStatusStreaming"),
+    completed: t("chatStatusCompleted")
+  }[status] || status;
+}
+
+function chatRecordTypeLabel(type) {
+  return {
+    delta: t("chatRecordDelta"),
+    status: t("chatRecordStatus"),
+    tool_call: t("chatRecordToolCall"),
+    tool_output: t("chatRecordToolOutput")
+  }[type] || type;
+}
+
+function renderChatMessage(message) {
+  const item = document.createElement("article");
+  item.className = `chat-message chat-role-${message.role} chat-status-${message.status}`;
+  const header = document.createElement("div");
+  header.className = "chat-message-header";
+  appendText(header, "strong", message.role === "user" ? "You" : "OmniDoer");
+  appendText(header, "span", chatStatusLabel(message.status), "badge");
+  item.append(header);
+  appendText(item, "p", message.text || " ", "chat-message-text");
+  const meta = document.createElement("div");
+  meta.className = "chat-message-meta";
+  appendText(meta, "span", `#${message.sequence}`);
+  if (message.source) appendText(meta, "span", message.source);
+  item.append(meta);
+  return item;
+}
+
+function renderChatRecord(record) {
+  const item = document.createElement("article");
+  item.className = `chat-record chat-record-${record.record_type}`;
+  const header = document.createElement("div");
+  header.className = "chat-message-header";
+  appendText(header, "strong", chatRecordTypeLabel(record.record_type));
+  if (record.role) appendText(header, "span", record.role, "badge");
+  if (record.source) appendText(header, "span", record.source, "badge");
+  item.append(header);
+  appendText(item, "p", record.text || " ", "chat-message-text");
+  const meta = document.createElement("div");
+  meta.className = "chat-message-meta";
+  appendText(meta, "span", `record #${record.sequence}`);
+  if (record.message_id) appendText(meta, "span", record.message_id);
+  item.append(meta);
+  return item;
+}
+
+function renderChatTimeline(messages, records = []) {
+  const list = document.querySelector("#chat-messages");
+  if (!list) return;
+  list.innerHTML = "";
+  if (records.length) {
+    records.forEach((record) => list.append(renderChatRecord(record)));
+    list.scrollTop = list.scrollHeight;
+    return;
+  }
+  if (!messages.length) {
+    list.textContent = t("noChatMessages");
+    return;
+  }
+  messages.forEach((message) => list.append(renderChatMessage(message)));
+  list.scrollTop = list.scrollHeight;
+}
+
+async function loadChatMessages() {
+  const list = document.querySelector("#chat-messages");
+  if (!list) return;
+  try {
+    const payload = await signedFetch("/api/chat/messages", { cache: "no-store" }).then((r) => {
+      if (!r.ok) throw new Error("unauthorized");
+      return r.json();
+    });
+    cachedChatMessages = payload.messages || [];
+    cachedChatRecords = payload.records || [];
+    renderChatTimeline(cachedChatMessages, cachedChatRecords);
+  } catch {
+    list.textContent = t("pairToViewChat");
+  }
 }
 
 async function updateTask(task, action) {
@@ -2192,6 +2341,12 @@ function applyRequestEvent(payload) {
   renderRequestList(cachedRequests);
 }
 
+function applyChatEvent(payload) {
+  cachedChatMessages = payload.messages || [];
+  cachedChatRecords = payload.records || [];
+  renderChatTimeline(cachedChatMessages, cachedChatRecords);
+}
+
 function handleSseBlock(block) {
   let eventName = "message";
   let data = "";
@@ -2201,6 +2356,9 @@ function handleSseBlock(block) {
   });
   if (eventName === "requests" && data) {
     applyRequestEvent(JSON.parse(data));
+  }
+  if (eventName === "chat" && data) {
+    applyChatEvent(JSON.parse(data));
   }
 }
 
@@ -2268,15 +2426,74 @@ async function startRequestWebSocket() {
   }
 }
 
+async function startChatStream() {
+  if (chatStreamActive || !window.ReadableStream) return;
+  chatStreamActive = true;
+  if (chatStreamRestart) clearTimeout(chatStreamRestart);
+  try {
+    const response = await signedFetch("/api/chat/events?stream=1&snapshots=120&interval=1", { cache: "no-store" });
+    if (!response.ok || !response.body) throw new Error("chat stream unavailable");
+    const reader = response.body.getReader();
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const blocks = buffer.split("\n\n");
+      buffer = blocks.pop();
+      blocks.filter(Boolean).forEach(handleSseBlock);
+    }
+  } catch {
+    if (!cachedChatMessages.length && !cachedChatRecords.length) {
+      document.querySelector("#chat-messages").textContent = t("pairToViewChat");
+    }
+  } finally {
+    chatStreamActive = false;
+    chatStreamRestart = setTimeout(startChatStream, 3000);
+  }
+}
+
+async function startChatWebSocket() {
+  if (!window.WebSocket) {
+    startChatStream();
+    return;
+  }
+  if (chatStreamActive) return;
+  chatStreamActive = true;
+  if (chatStreamRestart) clearTimeout(chatStreamRestart);
+  const path = "/api/ws/chat";
+  try {
+    const protocol = await deviceAuthSubprotocol("GET", path);
+    const socket = protocol
+      ? new WebSocket(websocketUrl(`${path}?snapshots=120&interval=1`), [protocol])
+      : new WebSocket(websocketUrl(`${path}?snapshots=120&interval=1`));
+    socket.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      if (message.event === "chat") applyChatEvent(message.data);
+    };
+    socket.onerror = () => {
+      socket.close();
+    };
+    socket.onclose = () => {
+      chatStreamActive = false;
+      chatStreamRestart = setTimeout(startChatWebSocket, 3000);
+    };
+  } catch {
+    chatStreamActive = false;
+    startChatStream();
+  }
+}
+
 loadRuntimeStatus();
 refreshPairingState();
 loadRequests();
-loadTasks();
+loadChatMessages();
 loadDevicesAndSessions();
 startRequestWebSocket();
+startChatWebSocket();
 document.addEventListener("visibilitychange", handleTakeoverVisibilityChange);
 setInterval(loadRuntimeStatus, 10000);
 setInterval(refreshPairingState, 30000);
 setInterval(loadRequests, 15000);
-setInterval(loadTasks, 5000);
+setInterval(loadChatMessages, 5000);
 setInterval(loadDevicesAndSessions, 15000);
