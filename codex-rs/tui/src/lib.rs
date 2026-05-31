@@ -111,8 +111,8 @@ mod audio_device {
     }
 }
 mod bottom_pane;
-mod brand;
 mod branch_summary;
+mod brand;
 mod chatwidget;
 mod cli;
 mod clipboard_copy;
