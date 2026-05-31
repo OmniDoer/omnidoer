@@ -495,6 +495,11 @@ class ControlHandler(SimpleHTTPRequestHandler):
             return
         if path == "/api/status":
             config = getattr(self.server, "omnidoer_config", None)
+            chat_thread_id = getattr(self.server, "omnidoer_chat_thread_id", None)
+            from omnidoer.omni_control.chat_runner import live_tui_bridge_active, live_tui_session_active
+
+            tui_bridge_active = live_tui_bridge_active()
+            tui_session_active = live_tui_session_active(chat_thread_id)
             self._send_json(
                 HTTPStatus.OK,
                 {
@@ -502,6 +507,12 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     "mode": getattr(config, "mode", "local_dev"),
                     "public_url": getattr(config, "public_url", "http://127.0.0.1:8787"),
                     "agent_llm_receives_secrets": False,
+                    "chat_runner": {
+                        "thread_id": chat_thread_id,
+                        "tui_bridge_active": tui_bridge_active,
+                        "tui_session_active": tui_session_active,
+                        "waiting_for_tui_bridge": bool(chat_thread_id and tui_session_active and not tui_bridge_active),
+                    },
                 },
             )
             return
@@ -1165,6 +1176,7 @@ def serve(
     server = TLSAwareThreadingHTTPServer((host, port), ControlHandler, tls_context=tls_context)
     server.omnidoer_config = config  # type: ignore[attr-defined]
     server.omnidoer_direct_tls = tls_context is not None  # type: ignore[attr-defined]
+    server.omnidoer_chat_thread_id = chat_thread_id  # type: ignore[attr-defined]
     upload_ttl_seconds = chat_upload_ttl_seconds(chat_upload_ttl)
     server.omnidoer_chat_upload_ttl_seconds = upload_ttl_seconds  # type: ignore[attr-defined]
     ChatUploadStore().cleanup_expired(ttl_seconds=upload_ttl_seconds)

@@ -13,6 +13,9 @@ const I18N = {
     runtimeDetail: "Control Client does not call OpenAI APIs or models directly.",
     runtimeOffline: "Runtime offline",
     runtimeOfflineDetail: "Start omnidoer control serve.",
+    runtimeBridgeActive: "Live Linux console bridge is active; messages sync with the current TUI.",
+    runtimeWaitingForConsoleRestart: "Linux console is active but not yet bridged. Restart OmniDoer console; new messages stay queued.",
+    runtimeBackgroundRunner: "No live Linux console bridge; queued messages use the background Codex runner.",
     requestsCount: (open, total) => `Requests: ${open} open / ${total} total`,
     requestsTitle: "Open Requests",
     requestsIntro: "Handle the items that need your attention. Secrets stay encrypted to the local broker.",
@@ -166,6 +169,9 @@ const I18N = {
     runtimeDetail: "控制客户端不会直接调用 OpenAI API 或模型。",
     runtimeOffline: "运行服务离线",
     runtimeOfflineDetail: "请启动 omnidoer control serve。",
+    runtimeBridgeActive: "Linux 控制台实时桥接已启用；消息会同步到当前 TUI。",
+    runtimeWaitingForConsoleRestart: "Linux 控制台仍在运行但尚未桥接。请重启 OmniDoer console；新消息会保持排队。",
+    runtimeBackgroundRunner: "没有实时 Linux 控制台桥接；排队消息将由后台 Codex runner 处理。",
     requestsCount: (open, total) => `请求：${open} 个待处理 / 共 ${total} 个`,
     requestsTitle: "待处理请求",
     requestsIntro: "优先处理需要你操作的项目。敏感凭证只会加密提交到本地 broker。",
@@ -2453,7 +2459,16 @@ function renderRequestList(requests, filter = activeFilter()) {
 async function loadRuntimeStatus() {
   try {
     const status = await fetch("/api/status", { cache: "no-store" }).then((r) => r.json());
-    setStatus(`Mode: ${status.mode}`, t("runtimeDetail"));
+    const runner = status.chat_runner || {};
+    let detail = t("runtimeDetail");
+    if (runner.waiting_for_tui_bridge) {
+      detail = t("runtimeWaitingForConsoleRestart");
+    } else if (runner.tui_bridge_active) {
+      detail = t("runtimeBridgeActive");
+    } else if (runner.thread_id) {
+      detail = t("runtimeBackgroundRunner");
+    }
+    setStatus(`Mode: ${status.mode}`, detail);
   } catch {
     setStatus(t("runtimeOffline"), t("runtimeOfflineDetail"));
   }
