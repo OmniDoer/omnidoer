@@ -621,7 +621,8 @@ impl AccountRequestProcessor {
             ))
             .await;
 
-        self.send_account_updated_notification_without_refresh().await;
+        self.send_account_updated_notification_without_refresh()
+            .await;
     }
 
     async fn refresh_account_dependent_state(&self) {
@@ -643,7 +644,8 @@ impl AccountRequestProcessor {
 
     async fn send_account_updated_notification(&self) {
         self.refresh_account_dependent_state().await;
-        self.send_account_updated_notification_without_refresh().await;
+        self.send_account_updated_notification_without_refresh()
+            .await;
     }
 
     async fn send_chatgpt_login_completion_notifications(

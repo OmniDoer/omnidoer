@@ -26,10 +26,10 @@ use std::time::Duration;
 
 use crate::auth::AuthDotJson;
 use crate::auth::load_auth_dot_json;
-use crate::auth::same_auth_user;
-use crate::auth::save_auth_user;
 use crate::auth::revoke_auth_tokens;
+use crate::auth::same_auth_user;
 use crate::auth::save_auth;
+use crate::auth::save_auth_user;
 use crate::auth::should_revoke_auth_tokens;
 use crate::default_client::originator;
 use crate::pkce::PkceCodes;

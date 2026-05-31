@@ -343,7 +343,11 @@ pub fn list_auth_users(
 
     let current_id = load_stored_auth(codex_home, auth_credentials_store_mode)?
         .map(|auth| metadata_from_auth(&auth).id)
-        .or_else(|| load_index(codex_home).ok().and_then(|index| index.active_user_id));
+        .or_else(|| {
+            load_index(codex_home)
+                .ok()
+                .and_then(|index| index.active_user_id)
+        });
     let mut users = load_index(codex_home)?
         .users
         .into_iter()
@@ -395,9 +399,9 @@ pub fn same_auth_user(a: &AuthDotJson, b: &AuthDotJson) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use codex_protocol::auth::PlanType as InternalPlanType;
     use crate::token_data::IdTokenInfo;
     use crate::token_data::TokenData;
+    use codex_protocol::auth::PlanType as InternalPlanType;
     use tempfile::tempdir;
 
     fn chatgpt_auth(email: &str, account_id: &str) -> AuthDotJson {

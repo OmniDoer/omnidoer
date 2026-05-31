@@ -589,7 +589,11 @@ pub fn login_with_chatgpt_auth_tokens(
         &auth_dot_json,
         AuthCredentialsStoreMode::Ephemeral,
     )?;
-    let _ = save_auth_user(codex_home, &auth_dot_json, AuthCredentialsStoreMode::Ephemeral)?;
+    let _ = save_auth_user(
+        codex_home,
+        &auth_dot_json,
+        AuthCredentialsStoreMode::Ephemeral,
+    )?;
     Ok(())
 }
 
