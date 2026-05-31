@@ -32,6 +32,12 @@ const I18N = {
     chatSessionBackgroundDetail: "Messages are handled by a background Codex runner because no live CLI bridge is attached.",
     chatSessionOfflineTitle: "Control Service offline",
     chatSessionOfflineDetail: "Reconnect to the Control Service before sending messages.",
+    sendToCurrentCli: "Send to current CLI",
+    sendToCurrentConsole: "Send to console",
+    sendToBackgroundRunner: "Send to background",
+    sendUnavailable: "Restart bridge first",
+    chatPlaceholderUnavailable: "Restart the bridge before sending into this conversation",
+    chatSendBlocked: "Chat not attached",
     copyCommand: "Copy command",
     copiedCommand: "Command copied",
     copyCommandFailed: "Copy failed",
@@ -228,6 +234,12 @@ const I18N = {
     chatSessionBackgroundDetail: "当前没有实时 CLI 桥接，消息会由后台 Codex runner 处理。",
     chatSessionOfflineTitle: "Control Service 离线",
     chatSessionOfflineDetail: "重新连接到 Control Service 后才能发送消息。",
+    sendToCurrentCli: "发送到当前 CLI",
+    sendToCurrentConsole: "发送到当前 console",
+    sendToBackgroundRunner: "发送到后台",
+    sendUnavailable: "请先重启桥接",
+    chatPlaceholderUnavailable: "请先重启桥接，再发送到这段对话",
+    chatSendBlocked: "对话尚未接入",
     copyCommand: "复制命令",
     copiedCommand: "命令已复制",
     copyCommandFailed: "复制失败",
@@ -1001,9 +1013,16 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
   const title = document.querySelector("#chat-session-title");
   const detail = document.querySelector("#chat-session-detail");
   const restart = document.querySelector("#chat-session-restart");
+  const input = document.querySelector("#chat-input");
+  const send = document.querySelector("#send-chat-message");
+  const files = document.querySelector("#chat-files");
+  const fileLabel = document.querySelector("#chat-files-label");
   let state = "checking";
   let titleKey = "chatSessionCheckingTitle";
   let detailKey = "chatSessionCheckingDetail";
+  let sendKey = "sendUnavailable";
+  let placeholderKey = "chatPlaceholderUnavailable";
+  let canSend = false;
   let canRestart = false;
   if (offline) {
     state = "offline";
@@ -1013,24 +1032,49 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
     state = "attached";
     titleKey = "chatSessionAttachedTitle";
     detailKey = "chatSessionAttachedDetail";
+    sendKey = "sendToCurrentCli";
+    placeholderKey = "chatPlaceholder";
+    canSend = true;
   } else if (runner?.waiting_for_tui_bridge) {
     const legacyRelay = runner.legacy_tui_relay || {};
     state = legacyRelay.active ? "legacy_relay" : "server_only";
     titleKey = legacyRelay.active ? "chatSessionLegacyTitle" : "chatSessionServerOnlyTitle";
     detailKey = legacyRelay.active ? "chatSessionLegacyDetail" : "chatSessionServerOnlyDetail";
+    sendKey = legacyRelay.active ? "sendToCurrentConsole" : "sendUnavailable";
+    placeholderKey = legacyRelay.active ? "chatPlaceholder" : "chatPlaceholderUnavailable";
+    canSend = Boolean(legacyRelay.active);
     canRestart = Boolean(runner.restart_command);
   } else if (runner?.thread_id) {
     state = "background_runner";
     titleKey = "chatSessionBackgroundTitle";
     detailKey = "chatSessionBackgroundDetail";
+    sendKey = "sendToBackgroundRunner";
+    placeholderKey = "chatPlaceholder";
+    canSend = true;
   }
   panel.dataset.sessionState = state;
   document.body.dataset.chatSessionState = state;
+  document.body.dataset.chatSendMode = canSend ? state : "blocked";
   if (title) title.textContent = t(titleKey);
   if (detail) detail.textContent = t(detailKey);
   if (restart) {
     restart.hidden = !canRestart;
     restart.textContent = t("restartBridge");
+  }
+  if (input) {
+    input.disabled = !canSend;
+    input.placeholder = t(placeholderKey);
+  }
+  if (send) {
+    send.disabled = !canSend;
+    send.textContent = t(sendKey);
+  }
+  if (files) {
+    files.disabled = !canSend;
+  }
+  if (fileLabel) {
+    fileLabel.classList.toggle("disabled", !canSend);
+    fileLabel.setAttribute("aria-disabled", canSend ? "false" : "true");
   }
 }
 
@@ -1744,6 +1788,11 @@ async function postChatMessage(text, { clientMessageId = null, attachments = [] 
 }
 
 async function sendChatMessage() {
+  const sendButton = document.querySelector("#send-chat-message");
+  if (sendButton?.disabled) {
+    setStatus(t("chatSendBlocked"), t("chatSessionServerOnlyDetail"), document.body.dataset.runtimeState || "");
+    return;
+  }
   const input = document.querySelector("#chat-input");
   const fileInput = document.querySelector("#chat-files");
   const text = input.value.trim();
