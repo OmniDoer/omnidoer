@@ -35,7 +35,8 @@ class TakeoverBrowserRelayTest(unittest.TestCase):
                         reason="browser relay test",
                     )
                     frame = start_stream(request.request_id, browser_controller=browser)
-                    self.assertEqual(frame["content_type"], "image/png")
+                    self.assertEqual(frame["content_type"], "image/jpeg")
+                    self.assertEqual(frame["transport"]["profile"], "balanced")
                     self.assertGreater(len(frame["data_b64"]), 100)
                     self.assertTrue(frame["for_control_client_only"])
                     self.assertTrue(frame["not_for_llm"])
