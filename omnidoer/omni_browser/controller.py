@@ -22,9 +22,15 @@ class BrowserUnavailable(RuntimeError):
 
 
 class BrowserController:
-    def __init__(self, headless: bool = True, downloads_path: str | None = None):
+    DEFAULT_USER_AGENT = (
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/125.0 Safari/537.36"
+    )
+
+    def __init__(self, headless: bool = True, downloads_path: str | None = None, user_agent: str | None = None):
         self.headless = headless
         self.downloads_path = downloads_path
+        self.user_agent = user_agent or self.DEFAULT_USER_AGENT
         self._playwright = None
         self._browser = None
         self._context = None
@@ -39,7 +45,7 @@ class BrowserController:
             ) from exc
         self._playwright = sync_playwright().start()
         self._browser = self._playwright.chromium.launch(headless=self.headless)
-        self._context = self._browser.new_context(accept_downloads=True)
+        self._context = self._browser.new_context(accept_downloads=True, user_agent=self.user_agent)
         self._page = self._context.new_page()
         return self
 

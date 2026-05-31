@@ -39,6 +39,14 @@ class McpBrowserToolsTest(unittest.TestCase):
             self.assertEqual(accessibility["status"], "ok")
             self.assertNotIn("not-for-model", repr(accessibility))
 
+    def test_mcp_browser_uses_non_headless_user_agent(self) -> None:
+        opened = call_tool("browser.open", {"url": "data:text/html,<p>ua</p>"})
+        if opened.get("status") == "unavailable":
+            self.skipTest("playwright chromium unavailable")
+        user_agent = get_browser().page.evaluate("navigator.userAgent")
+        self.assertIn("Chrome/", user_agent)
+        self.assertNotIn("HeadlessChrome", user_agent)
+
     def test_mcp_browser_detects_challenge_and_antibot(self) -> None:
         with DemoServerFixture() as demo:
             opened = call_tool("browser.open", {"url": f"{demo.origin}/captcha"})
