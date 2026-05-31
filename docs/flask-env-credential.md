@@ -75,5 +75,6 @@ not be printed, embedded in the remote URL, or returned to the model.
 `omnidoer github api` sends the Vault token only as an Authorization header to
 `https://api.github.com` by default. It rejects non-HTTPS and non-GitHub API
 origins unless an explicit insecure development flag is used for local tests.
-Response text is redacted against the exact token and known secret patterns
-before it is printed.
+It does not follow HTTP redirects, so the Authorization header is not carried to
+a different origin. Response text is redacted against the exact token and known
+secret patterns before it is printed.

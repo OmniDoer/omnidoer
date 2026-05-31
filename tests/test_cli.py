@@ -512,6 +512,78 @@ echo "askpass_exit=$?"
             self.assertNotIn(token, combined)
             self.assertNotIn("test-passphrase", combined)
 
+    def test_github_api_does_not_follow_redirect_with_authorization(self) -> None:
+        class TargetHandler(BaseHTTPRequestHandler):
+            auth = ""
+
+            def log_message(self, fmt: str, *args: object) -> None:
+                return
+
+            def do_GET(self) -> None:
+                TargetHandler.auth = self.headers.get("authorization", "")
+                payload = b"redirect target"
+                self.send_response(200)
+                self.send_header("content-length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+
+        class RedirectHandler(BaseHTTPRequestHandler):
+            auth = ""
+            location = ""
+
+            def log_message(self, fmt: str, *args: object) -> None:
+                return
+
+            def do_GET(self) -> None:
+                RedirectHandler.auth = self.headers.get("authorization", "")
+                self.send_response(302)
+                self.send_header("location", RedirectHandler.location)
+                self.send_header("content-length", "0")
+                self.end_headers()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            vault_path = Path(tmp) / "vault.json"
+            passphrase_env = "OMNIDOER_TEST_GITHUB_API_PASSPHRASE"
+            token = "github_pat_redirect_never_print_1234567890"
+            vault = Vault.create(vault_path, "test-passphrase")
+            vault.add_credential(username="omnidoer", password=token, allowed_origins=["https://github.com"])
+            target = ThreadingHTTPServer(("127.0.0.1", 0), TargetHandler)
+            target_thread = Thread(target=target.serve_forever, daemon=True)
+            target_thread.start()
+            RedirectHandler.location = f"http://127.0.0.1:{target.server_address[1]}/leak"
+            redirect = ThreadingHTTPServer(("127.0.0.1", 0), RedirectHandler)
+            redirect_thread = Thread(target=redirect.serve_forever, daemon=True)
+            redirect_thread.start()
+            try:
+                result = self.run_cli(
+                    [
+                        "github",
+                        "api",
+                        "GET",
+                        "/redirect",
+                        "--api-origin",
+                        f"http://127.0.0.1:{redirect.server_address[1]}",
+                        "--insecure-dev-api",
+                        "--vault",
+                        str(vault_path),
+                        "--passphrase-env",
+                        passphrase_env,
+                    ],
+                    env={"OMNIDOER_HOME": tmp, passphrase_env: "test-passphrase"},
+                )
+            finally:
+                redirect.shutdown()
+                redirect.server_close()
+                target.shutdown()
+                target.server_close()
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(RedirectHandler.auth, f"Bearer {token}")
+            self.assertEqual(TargetHandler.auth, "")
+            combined = result.stdout + result.stderr
+            self.assertIn('"status_code": 302', combined)
+            self.assertNotIn(token, combined)
+            self.assertNotIn("test-passphrase", combined)
+
     def test_cloud_direct_cli_contract(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             env = {"OMNIDOER_HOME": tmp}

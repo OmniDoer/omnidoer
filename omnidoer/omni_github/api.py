@@ -7,7 +7,7 @@ import sys
 from dataclasses import dataclass
 from urllib.error import HTTPError
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from omnidoer.omni_observer.redactor import redact_text
 from omnidoer.omni_policy.policy import origin_from_url, suspicious_origin_reason
@@ -24,6 +24,11 @@ class GitHubApiResult:
     status_code: int
     body: str
     secret_exposed_to_model: bool = False
+
+
+class NoRedirectHandler(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
 
 
 def normalize_api_origin(api_origin: str, *, insecure_dev_api: bool = False) -> str:
@@ -96,8 +101,9 @@ def github_api_request(
     if body is not None:
         headers["content-type"] = "application/json"
     request = Request(f"{normalized_api_origin}{api_path}", data=body, headers=headers, method=normalized_method)
+    opener = build_opener(NoRedirectHandler)
     try:
-        with urlopen(request, timeout=timeout_seconds) as response:
+        with opener.open(request, timeout=timeout_seconds) as response:
             raw = response.read().decode("utf-8", "replace")
             return GitHubApiResult(response.status, redact_api_output(raw, secret=secret))
     except HTTPError as exc:
