@@ -1014,6 +1014,8 @@ const TAKEOVER_FRAME_PROFILE_DATA_SAVER = "data_saver";
 const TAKEOVER_ZOOM_MIN = 1;
 const TAKEOVER_ZOOM_MAX = 3;
 const TAKEOVER_ZOOM_STEP = 0.25;
+const TAKEOVER_DOUBLE_TAP_MS = 320;
+const TAKEOVER_DOUBLE_TAP_DISTANCE = 24;
 let cachedRequests = [];
 let cachedChatMessages = [];
 let cachedChatRecords = [];
@@ -1041,6 +1043,8 @@ let takeoverFrameMisses = 0;
 let takeoverFrameVisibilityPaused = false;
 let takeoverFrameZoom = TAKEOVER_ZOOM_MIN;
 let takeoverFramePanMode = false;
+let takeoverPendingTap = null;
+let takeoverPendingTapTimer = null;
 let agentControlBusy = false;
 let activePaymentApprovalRequest = null;
 let renderedPaymentApprovalRequestId = null;
@@ -2497,6 +2501,45 @@ function framePoint(event, image) {
   };
 }
 
+function clearPendingTakeoverTap() {
+  if (takeoverPendingTapTimer) clearTimeout(takeoverPendingTapTimer);
+  takeoverPendingTapTimer = null;
+  takeoverPendingTap = null;
+}
+
+function sameTakeoverTapTarget(left, right) {
+  if (!left || !right) return false;
+  if (left.request_id !== right.request_id || left.frame_id !== right.frame_id) return false;
+  return Math.hypot(left.x - right.x, left.y - right.y) <= TAKEOVER_DOUBLE_TAP_DISTANCE;
+}
+
+function queueTakeoverTap(request, point) {
+  const next = {
+    request_id: request.request_id,
+    frame_id: point.frame_id || "",
+    x: point.x,
+    y: point.y,
+    at: Date.now()
+  };
+  if (
+    takeoverPendingTap
+    && Date.now() - takeoverPendingTap.at <= TAKEOVER_DOUBLE_TAP_MS
+    && sameTakeoverTapTarget(takeoverPendingTap, next)
+  ) {
+    clearPendingTakeoverTap();
+    sendTakeoverInput(request, { event_type: "double_click", frame_id: next.frame_id, x: next.x, y: next.y });
+    return;
+  }
+  clearPendingTakeoverTap();
+  takeoverPendingTap = next;
+  takeoverPendingTapTimer = setTimeout(() => {
+    const pending = takeoverPendingTap;
+    clearPendingTakeoverTap();
+    if (!pending) return;
+    sendTakeoverInput(request, { event_type: "tap", frame_id: pending.frame_id, x: pending.x, y: pending.y });
+  }, TAKEOVER_DOUBLE_TAP_MS);
+}
+
 function installTakeoverPointerHandlers(request, stream) {
   clearTakeoverPointerHandlers(stream);
   let start = null;
@@ -2569,7 +2612,7 @@ function installTakeoverPointerHandlers(request, stream) {
     } else if (duration > 650) {
       sendTakeoverInput(request, { event_type: "long_press", frame_id: start.frame_id, x: start.x, y: start.y });
     } else {
-      sendTakeoverInput(request, { event_type: "tap", frame_id: end.frame_id || start.frame_id, x: end.x, y: end.y });
+      queueTakeoverTap(request, { frame_id: end.frame_id || start.frame_id, x: end.x, y: end.y });
     }
     start = null;
   };
@@ -2598,6 +2641,7 @@ function installTakeoverPointerHandlers(request, stream) {
 }
 
 function clearTakeoverPointerHandlers(stream = document.querySelector("#browser-stream")) {
+  clearPendingTakeoverTap();
   if (!stream) return;
   stream.onpointerdown = null;
   stream.onpointermove = null;

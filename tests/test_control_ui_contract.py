@@ -269,8 +269,12 @@ class ControlUiContractTest(unittest.TestCase):
 
     def test_takeover_ui_sends_rich_input_events(self) -> None:
         app = (static_root() / "app.js").read_text()
-        for event_type in ("drag", "long_press", "scroll", "type", "key"):
+        for event_type in ("double_click", "drag", "long_press", "scroll", "type", "key"):
             self.assertIn(f'event_type: "{event_type}"', app)
+        self.assertIn("TAKEOVER_DOUBLE_TAP_MS", app)
+        self.assertIn("queueTakeoverTap", app)
+        self.assertIn("sameTakeoverTapTarget", app)
+        self.assertIn("clearPendingTakeoverTap", app)
         self.assertIn("refreshActiveTakeoverFrame", app)
         self.assertIn("releaseActiveTakeover", app)
         self.assertIn("Agent paused - user control active", app)
