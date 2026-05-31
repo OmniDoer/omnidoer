@@ -32,6 +32,8 @@ Preferred flow for future GitHub operations:
      --origin https://github.com \
      --top-level-url https://github.com/settings/tokens \
      --summary "Migrate GitHub PAT into OmniDoer Vault" \
+     --password-label "GitHub PAT" \
+     --no-totp-field \
      --wait \
      --create-vault \
      --vault ~/.omnidoer/vault.json \

@@ -31,6 +31,7 @@ ALLOWED_TOOLS = [
     "payment.request_user_approval",
     "audit.show_recent_events",
     "policy.explain_current_block",
+    "control.create_pairing",
     "control.list_requests",
     "control.request_status",
     "control.list_tasks",
@@ -111,6 +112,30 @@ def _vault_passphrase(arguments: dict) -> str | None:
     if env_name:
         return os.environ.get(str(env_name))
     return None
+
+
+def _create_pairing(arguments: dict) -> dict:
+    from omnidoer.omni_control.pairing import PairingStore, pairing_url, parse_duration_seconds
+
+    public_url = str(
+        arguments.get("public_url")
+        or os.environ.get("OMNIDOER_CONTROL_PUBLIC_URL")
+        or "http://127.0.0.1:8787"
+    )
+    expires = arguments.get("expires") or arguments.get("ttl") or "10m"
+    pairing = PairingStore().create(public_url=public_url, ttl_seconds=parse_duration_seconds(expires))
+    return {
+        "status": "pairing_created",
+        "pairing_url": pairing_url(pairing),
+        "expires_at": pairing.expires_at,
+        "broker_fingerprint": pairing.broker_fingerprint,
+        "web_broker_fingerprint": pairing.web_broker_fingerprint,
+        "one_time_pairing": True,
+        "paired_sessions_are_cached": True,
+        "pairing_code_model_visible": True,
+        "warning": "Only pair devices you control. Pairing URLs are one-time and short-lived.",
+        "secret_exposed_to_model": False,
+    }
 
 
 def _create_credential_request(arguments: dict) -> dict:
@@ -584,6 +609,8 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
         }
     if name == "payment.request_user_approval":
         return call_tool("approval.request", {**arguments, "action_summary": arguments.get("action_summary") or "payment approval required"})
+    if name == "control.create_pairing":
+        return _create_pairing(arguments)
     if name == "control.list_requests":
         from omnidoer.omni_control.requests import RequestStore
 

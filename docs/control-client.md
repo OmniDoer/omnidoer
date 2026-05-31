@@ -31,6 +31,11 @@ request, origin, type, device id, and expiry.
 The older `omnidoer control pair --print-qr` command is still supported for
 script compatibility. The paired PWA keeps using its local device key and a
 renewed session until the user revokes that device or session.
+When the OmniDoer MCP server is registered with Codex, the Agent can also call
+`control.create_pairing` after the user asks to start pairing. This provides
+the same one-time URL without making the user leave the conversation to find a
+separate command. The pairing URL is intentionally user-visible and short-lived;
+long-lived access comes only from the paired device's revocable session.
 
 Secrets are sent to the Secret Broker, not to Agent/LLM context. Challenge
 answers are handled by the Challenge Relay or target browser, not by the model.

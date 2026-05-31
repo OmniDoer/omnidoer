@@ -24,6 +24,8 @@ OmniDoer MCP tools expose actions, not secrets.
 - `payment.request_user_approval()`
 - `audit.show_recent_events()`
 - `policy.explain_current_block()`
+- `control.create_pairing(public_url, expires)`
+- `control.next_user_task()`
 
 ## Forbidden Tool Families
 
@@ -67,3 +69,9 @@ codes, payment details, or challenge answers.
 input without returning file contents. If the caller marks the upload as
 `sensitive: true`, OmniDoer creates a `file_upload` approval request and
 requires that request to be approved before the upload is allowed.
+
+`control.create_pairing` creates a short-lived, one-time Control Client
+pairing URL for the user. The URL is intended to be shown to the user and is
+model-visible while the command is being handled, so it must remain short TTL
+and one-time. The resulting paired device receives a cached, revocable session
+and should not need to pair again during normal use.

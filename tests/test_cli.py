@@ -346,6 +346,32 @@ class CliTest(unittest.TestCase):
             metadata = Vault.load(vault_path).list_metadata()[0]
             self.assertEqual(metadata.allowed_origins, ["https://github.com"])
 
+    def test_cred_request_can_label_pat_field_for_control_client(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.run_cli(
+                [
+                    "cred",
+                    "request",
+                    "--origin",
+                    "https://github.com",
+                    "--top-level-url",
+                    "https://github.com/settings/tokens",
+                    "--summary",
+                    "Migrate GitHub PAT into Vault",
+                    "--password-label",
+                    "GitHub PAT",
+                    "--no-totp-field",
+                ],
+                env={"OMNIDOER_HOME": tmp},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            match = re.search(r"credential_request=(req_[a-f0-9]+)", result.stdout)
+            self.assertIsNotNone(match, result.stdout)
+            request = RequestStore(Path(tmp) / "control_requests.json").get(match.group(1))
+            self.assertEqual(request.requested_fields, ["username", "password"])
+            self.assertEqual(request.structured_details["credential_labels"]["password"], "GitHub PAT")
+            self.assertNotIn("GitHub PAT", result.stderr)
+
     def test_cred_request_wait_creates_vault_and_saves_control_response(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             vault_path = Path(tmp) / "vault.json"

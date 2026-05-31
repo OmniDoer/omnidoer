@@ -23,6 +23,12 @@ omnidoer control serve \
   --tls-key /path/privkey.pem
 ```
 
+With direct TLS termination, the public URL must use `https://`. If a browser
+accidentally opens the same port with `http://`, OmniDoer returns an HTTPS
+redirect for ordinary paths. Requests containing query strings, including
+one-time pairing URLs, are not redirected from plaintext HTTP; open the exact
+HTTPS pairing URL instead.
+
 `0.0.0.0` is rejected unless `--cloud-direct` is explicit. Cloud Direct rejects
 non-HTTPS `public-url` unless `--insecure-dev-public` is explicitly provided
 for temporary testing. Non-loopback LAN mode is for trusted local networks and

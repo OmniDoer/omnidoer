@@ -19,6 +19,7 @@ class McpToolsTest(unittest.TestCase):
         self.assertIn("browser.observe_accessibility", ALLOWED_TOOLS)
         self.assertIn("browser.select", ALLOWED_TOOLS)
         self.assertIn("browser.upload_file", ALLOWED_TOOLS)
+        self.assertIn("control.create_pairing", ALLOWED_TOOLS)
         self.assertIn("control.next_user_task", ALLOWED_TOOLS)
 
     def test_tool_result_status_only(self) -> None:
@@ -39,6 +40,28 @@ class McpToolsTest(unittest.TestCase):
                 self.assertFalse(result["submitted_to_openai_api_by_control_client"])
                 empty = call_tool("control.next_user_task", {})
                 self.assertEqual(empty["status"], "empty")
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_create_pairing_tool_returns_short_lived_invite_without_long_lived_secret(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                result = call_tool(
+                    "control.create_pairing",
+                    {"public_url": "https://agent.example.com", "expires": "30m"},
+                )
+                self.assertEqual(result["status"], "pairing_created")
+                self.assertIn("https://agent.example.com/pair?code=", result["pairing_url"])
+                self.assertTrue(result["one_time_pairing"])
+                self.assertTrue(result["paired_sessions_are_cached"])
+                self.assertTrue(result["pairing_code_model_visible"])
+                self.assertFalse(result["secret_exposed_to_model"])
+                self.assertNotIn("session_token", repr(result))
             finally:
                 if old_home is None:
                     os.environ.pop("OMNIDOER_HOME", None)

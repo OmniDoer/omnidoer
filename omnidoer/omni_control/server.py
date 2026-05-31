@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import socket
 import ssl
 import tempfile
 import ipaddress
@@ -57,6 +58,35 @@ SENSITIVE_LOG_PATTERNS = [
     re.compile(r"(pairing_id=)[^&\s]+"),
     re.compile(r"(token=)[^&\s]+"),
 ]
+
+
+class TLSAwareThreadingHTTPServer(ThreadingHTTPServer):
+    """Accept TLS and accidental plaintext HTTP on a direct-TLS listener."""
+
+    def __init__(
+        self,
+        server_address,
+        request_handler_class,
+        bind_and_activate: bool = True,
+        *,
+        tls_context: ssl.SSLContext | None = None,
+    ):
+        self.omnidoer_tls_context = tls_context
+        super().__init__(server_address, request_handler_class, bind_and_activate=bind_and_activate)
+
+    def get_request(self):
+        conn, addr = self.socket.accept()
+        context = self.omnidoer_tls_context
+        if context is None:
+            return conn, addr
+        try:
+            first = conn.recv(1, socket.MSG_PEEK)
+        except OSError:
+            conn.close()
+            raise
+        if first and first[0] == 0x16:
+            conn = context.wrap_socket(conn, server_side=True)
+        return conn, addr
 
 
 def sanitize_log_value(value: object) -> object:
@@ -137,6 +167,32 @@ class ControlHandler(SimpleHTTPRequestHandler):
         self.send_header("content-length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _plain_http_on_direct_tls_port(self) -> bool:
+        return bool(getattr(self.server, "omnidoer_direct_tls", False)) and not isinstance(self.request, ssl.SSLSocket)
+
+    def _send_https_required(self, *, include_body: bool = True) -> None:
+        parsed = urlparse(self.path)
+        if parsed.query:
+            body = b"Use the HTTPS OmniDoer Control Service URL. Pairing URLs are not redirected from plaintext HTTP.\n"
+            self.send_response(HTTPStatus.BAD_REQUEST)
+            self.send_header("content-type", "text/plain; charset=utf-8")
+            self.send_header("cache-control", "no-store")
+            self.send_header("content-length", str(len(body) if include_body else 0))
+            self.end_headers()
+            if include_body:
+                self.wfile.write(body)
+            return
+        target = f"{self.config.public_url.rstrip('/')}{parsed.path or '/'}"
+        body = f"Use HTTPS: {target}\n".encode()
+        self.send_response(HTTPStatus.PERMANENT_REDIRECT)
+        self.send_header("location", target)
+        self.send_header("content-type", "text/plain; charset=utf-8")
+        self.send_header("cache-control", "no-store")
+        self.send_header("content-length", str(len(body) if include_body else 0))
+        self.end_headers()
+        if include_body:
+            self.wfile.write(body)
 
     def end_headers(self) -> None:
         apply_security_headers(self.send_header)
@@ -346,6 +402,9 @@ class ControlHandler(SimpleHTTPRequestHandler):
         self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
 
     def do_GET(self) -> None:
+        if self._plain_http_on_direct_tls_port():
+            self._send_https_required()
+            return
         parsed_url = urlparse(self.path)
         path = parsed_url.path
         store = RequestStore()
@@ -534,6 +593,9 @@ class ControlHandler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self) -> None:
+        if self._plain_http_on_direct_tls_port():
+            self._send_https_required()
+            return
         path = urlparse(self.path).path
         store = RequestStore()
         parts = path.strip("/").split("/")
@@ -769,6 +831,9 @@ class ControlHandler(SimpleHTTPRequestHandler):
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "not found"})
 
     def do_HEAD(self) -> None:
+        if self._plain_http_on_direct_tls_port():
+            self._send_https_required(include_body=False)
+            return
         super().do_HEAD()
 
 
@@ -798,14 +863,15 @@ def serve(
         )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
-    server = ThreadingHTTPServer((host, port), ControlHandler)
-    server.omnidoer_config = config  # type: ignore[attr-defined]
+    tls_context = None
     if tls_cert and tls_key:
-        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        context.load_cert_chain(tls_cert, tls_key)
-        server.socket = context.wrap_socket(server.socket, server_side=True)
+        tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        tls_context.load_cert_chain(tls_cert, tls_key)
     elif tls_self_signed_dev:
-        server.socket = _self_signed_context(host).wrap_socket(server.socket, server_side=True)
+        tls_context = _self_signed_context(host)
+    server = TLSAwareThreadingHTTPServer((host, port), ControlHandler, tls_context=tls_context)
+    server.omnidoer_config = config  # type: ignore[attr-defined]
+    server.omnidoer_direct_tls = tls_context is not None  # type: ignore[attr-defined]
     if tls_self_signed_dev:
         print("WARNING: --tls-self-signed-dev is for localhost/test only. Use a real certificate or reverse proxy for Cloud Direct.")
     if insecure_dev_public:

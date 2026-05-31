@@ -1283,6 +1283,16 @@ function requestMetadata(request) {
   return dl;
 }
 
+function credentialLabel(request, field, fallback) {
+  const labels = request.structured_details?.credential_labels || {};
+  return displayValue(labels[field], fallback);
+}
+
+function credentialFieldRequested(request, field) {
+  const fields = request.requested_fields || [];
+  return !fields.length || fields.includes(field);
+}
+
 function renderCredentialControls(request, item) {
   if (request.status !== "pending") {
     appendText(item, "p", `Credential request is ${request.status}.`, "flow-note");
@@ -1299,18 +1309,34 @@ function renderCredentialControls(request, item) {
     <label class="check-row"><input type="checkbox" data-secret-field="save_to_vault" ${vaultSaveAllowed ? "checked" : "disabled"}> Save encrypted in Vault</label>
     <div class="button-row"><button type="submit">Submit Credential</button></div>
   `;
+  [
+    ["username", "Username"],
+    ["password", "Password"],
+    ["totp_seed", "TOTP seed"]
+  ].forEach(([field, fallback]) => {
+    const input = form.querySelector(`[data-secret-field='${field}']`);
+    if (!input) return;
+    if (!credentialFieldRequested(request, field)) {
+      input.closest("label")?.remove();
+      return;
+    }
+    input.closest("label").firstChild.textContent = `${credentialLabel(request, field, fallback)} `;
+  });
   form.onsubmit = (event) => {
     event.preventDefault();
     const saveToVault = form.querySelector("[data-secret-field='save_to_vault']");
+    const valueFor = (field) => form.querySelector(`[data-secret-field='${field}']`)?.value || "";
     const payload = {
-      username: form.querySelector("[data-secret-field='username']").value,
-      password: form.querySelector("[data-secret-field='password']").value,
-      totp_seed: form.querySelector("[data-secret-field='totp_seed']").value,
+      username: valueFor("username"),
+      password: valueFor("password"),
+      totp_seed: valueFor("totp_seed"),
       save_to_vault: Boolean(vaultSaveAllowed && saveToVault.checked)
     };
     submitEncrypted(request, payload).then(() => {
-      form.querySelector("[data-secret-field='password']").value = "";
-      form.querySelector("[data-secret-field='totp_seed']").value = "";
+      const passwordInput = form.querySelector("[data-secret-field='password']");
+      const totpInput = form.querySelector("[data-secret-field='totp_seed']");
+      if (passwordInput) passwordInput.value = "";
+      if (totpInput) totpInput.value = "";
     });
   };
   item.append(form);

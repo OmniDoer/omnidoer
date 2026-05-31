@@ -1,12 +1,12 @@
 import json
+import http.client
 import ssl
 import unittest
-from http.server import ThreadingHTTPServer
 from threading import Thread
 from urllib import request as urllib_request
 
 from omnidoer.omni_control.cloud import build_config
-from omnidoer.omni_control.server import ControlHandler, _self_signed_context
+from omnidoer.omni_control.server import ControlHandler, TLSAwareThreadingHTTPServer, _self_signed_context
 
 
 class CloudTlsSelfSignedTest(unittest.TestCase):
@@ -18,9 +18,9 @@ class CloudTlsSelfSignedTest(unittest.TestCase):
             public_url="https://localhost:8787",
             tls_self_signed_dev=True,
         )
-        server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+        server = TLSAwareThreadingHTTPServer(("127.0.0.1", 0), ControlHandler, tls_context=_self_signed_context("127.0.0.1"))
         server.omnidoer_config = config  # type: ignore[attr-defined]
-        server.socket = _self_signed_context("127.0.0.1").wrap_socket(server.socket, server_side=True)
+        server.omnidoer_direct_tls = True  # type: ignore[attr-defined]
         thread = Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
@@ -30,6 +30,62 @@ class CloudTlsSelfSignedTest(unittest.TestCase):
             self.assertEqual(payload["mode"], "cloud_direct")
             self.assertFalse(payload["agent_llm_receives_secrets"])
         finally:
+            server.shutdown()
+            server.server_close()
+
+    def test_direct_tls_port_redirects_plain_http_without_query(self) -> None:
+        config = build_config(
+            host="127.0.0.1",
+            port=8787,
+            cloud_direct=True,
+            public_url="https://localhost:8787",
+            tls_self_signed_dev=True,
+        )
+        server = TLSAwareThreadingHTTPServer(("127.0.0.1", 0), ControlHandler, tls_context=_self_signed_context("127.0.0.1"))
+        server.omnidoer_config = config  # type: ignore[attr-defined]
+        server.omnidoer_direct_tls = True  # type: ignore[attr-defined]
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        conn = None
+        try:
+            conn = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=5)
+            conn.request("GET", "/")
+            response = conn.getresponse()
+            self.assertEqual(response.status, 308)
+            self.assertEqual(response.getheader("location"), "https://localhost:8787/")
+            self.assertIn("Use HTTPS", response.read().decode())
+        finally:
+            if conn:
+                conn.close()
+            server.shutdown()
+            server.server_close()
+
+    def test_direct_tls_port_does_not_redirect_pairing_query_from_plain_http(self) -> None:
+        config = build_config(
+            host="127.0.0.1",
+            port=8787,
+            cloud_direct=True,
+            public_url="https://localhost:8787",
+            tls_self_signed_dev=True,
+        )
+        server = TLSAwareThreadingHTTPServer(("127.0.0.1", 0), ControlHandler, tls_context=_self_signed_context("127.0.0.1"))
+        server.omnidoer_config = config  # type: ignore[attr-defined]
+        server.omnidoer_direct_tls = True  # type: ignore[attr-defined]
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        conn = None
+        try:
+            conn = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=5)
+            conn.request("GET", "/pair?code=do-not-forward&pairing_id=pair_secret")
+            response = conn.getresponse()
+            body = response.read().decode()
+            self.assertEqual(response.status, 400)
+            self.assertIsNone(response.getheader("location"))
+            self.assertIn("HTTPS", body)
+            self.assertNotIn("do-not-forward", body)
+        finally:
+            if conn:
+                conn.close()
             server.shutdown()
             server.server_close()
 

@@ -41,6 +41,22 @@ def _ensure_vault_for_save(path: str, passphrase: str, *, create_vault: bool) ->
     Vault.create(vault_path, passphrase)
 
 
+def _credential_requested_fields(args) -> list[str]:
+    fields = ["username", "password"]
+    if not args.no_totp_field:
+        fields.append("totp_seed")
+    return fields
+
+
+def _credential_structured_details(args) -> dict:
+    labels = {
+        "username": args.username_label or "Username",
+        "password": args.password_label or "Password",
+        "totp_seed": args.totp_label or "TOTP seed",
+    }
+    return {"credential_labels": labels}
+
+
 def handle_cred_command(args) -> int:
     if args.cred_command == "add":
         passphrase = _passphrase_from_source(args.passphrase_env, getattr(args, "passphrase_file", None))
@@ -70,8 +86,9 @@ def handle_cred_command(args) -> int:
             risk_level=args.risk_level,
             ttl_seconds=parse_duration_seconds(args.ttl),
             broker_public_key_fingerprint=keypair.fingerprint,
-            requested_fields=["username", "password", "totp_seed"],
+            requested_fields=_credential_requested_fields(args),
             save_to_vault=not args.no_save_to_vault,
+            structured_details=_credential_structured_details(args),
         )
         print(f"credential_request={request.request_id}", flush=True)
         print(f"origin={request.origin}", flush=True)

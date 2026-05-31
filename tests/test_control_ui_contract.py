@@ -7,6 +7,7 @@ from omnidoer.omni_control.server import static_root
 class ControlUiContractTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
+        cls.root = Path(__file__).resolve().parents[1]
         cls.html = (static_root() / "index.html").read_text()
         cls.app = (static_root() / "app.js").read_text()
 
@@ -26,6 +27,12 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("vaultSaveAllowed = request.save_to_vault === true", self.app)
         self.assertIn('data-secret-field="save_to_vault" ${vaultSaveAllowed ? "checked" : "disabled"}', self.app)
         self.assertIn("Boolean(vaultSaveAllowed && saveToVault.checked)", self.app)
+
+    def test_credential_form_uses_request_scoped_field_labels(self) -> None:
+        self.assertIn("credentialLabel", self.app)
+        self.assertIn("credentialFieldRequested", self.app)
+        self.assertIn("request.structured_details?.credential_labels", self.app)
+        self.assertIn("GitHub PAT", (self.root / "docs" / "flask-env-credential.md").read_text())
 
     def test_challenge_no_bypass_explanation_present(self) -> None:
         self.assertIn("does not bypass CAPTCHA/MFA/Passkey/WebAuthn/3DS", self.html)
