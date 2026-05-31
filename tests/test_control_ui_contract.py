@@ -113,6 +113,8 @@ class ControlUiContractTest(unittest.TestCase):
         app = (static_root() / "app.js").read_text()
         self.assertIn("runtimeWaitingForConsoleRestart", app)
         self.assertIn("runner.waiting_for_tui_bridge", app)
+        self.assertIn("runner.restart_command", app)
+        self.assertIn("runtime-command", app)
         self.assertIn("runner.tui_bridge_active", app)
         self.assertIn("document.body.dataset.runtimeState", app)
         self.assertIn("const PANEL_IDS", app)

@@ -33,6 +33,9 @@ class ControlStatusTest(unittest.TestCase):
                 self.assertTrue(payload["chat_runner"]["tui_session_active"])
                 self.assertFalse(payload["chat_runner"]["tui_bridge_active"])
                 self.assertTrue(payload["chat_runner"]["waiting_for_tui_bridge"])
+                self.assertTrue(payload["chat_runner"]["restart_required"])
+                self.assertEqual(payload["chat_runner"]["restart_command"], "omnidoer console resume thread_active")
+                self.assertIn("bridge_heartbeat_age_seconds", payload["chat_runner"])
             finally:
                 server.shutdown()
                 server.server_close()

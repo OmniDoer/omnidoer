@@ -14,7 +14,7 @@ const I18N = {
     runtimeOffline: "Runtime offline",
     runtimeOfflineDetail: "Start omnidoer control serve.",
     runtimeBridgeActive: "Live Linux console bridge is active; messages sync with the current TUI.",
-    runtimeWaitingForConsoleRestart: "Linux console is active but not yet bridged. Restart OmniDoer console; new messages stay queued.",
+    runtimeWaitingForConsoleRestart: "Linux console is active but not yet bridged. Restart OmniDoer console with:",
     runtimeBackgroundRunner: "No live Linux console bridge; queued messages use the background Codex runner.",
     requestsCount: (open, total) => `Requests: ${open} open / ${total} total`,
     requestsTitle: "Open Requests",
@@ -174,7 +174,7 @@ const I18N = {
     runtimeOffline: "运行服务离线",
     runtimeOfflineDetail: "请启动 omnidoer control serve。",
     runtimeBridgeActive: "Linux 控制台实时桥接已启用；消息会同步到当前 TUI。",
-    runtimeWaitingForConsoleRestart: "Linux 控制台仍在运行但尚未桥接。请重启 OmniDoer console；新消息会保持排队。",
+    runtimeWaitingForConsoleRestart: "Linux 控制台仍在运行但尚未桥接。请用下面命令重启 OmniDoer console：",
     runtimeBackgroundRunner: "没有实时 Linux 控制台桥接；排队消息将由后台 Codex runner 处理。",
     requestsCount: (open, total) => `请求：${open} 个待处理 / 共 ${total} 个`,
     requestsTitle: "待处理请求",
@@ -526,6 +526,7 @@ runtimeStatus.innerHTML = `
   <div>
     <strong id="runtime-mode">${t("checkingRuntime")}</strong>
     <span id="runtime-detail">${t("runtimeDetail")}</span>
+    <code id="runtime-command" hidden></code>
   </div>
   <div id="runtime-counts">${t("requestsCount", 0, 0)}</div>
 `;
@@ -843,9 +844,14 @@ function restoreRequestDrafts(list, captured) {
   }
 }
 
-function setStatus(message, detail = "", runtimeState = "") {
+function setStatus(message, detail = "", runtimeState = "", command = "") {
   document.querySelector("#runtime-mode").textContent = message;
   document.querySelector("#runtime-detail").textContent = detail;
+  const runtimeCommand = document.querySelector("#runtime-command");
+  if (runtimeCommand) {
+    runtimeCommand.textContent = command;
+    runtimeCommand.hidden = !command;
+  }
   document.body.dataset.runtimeState = runtimeState;
 }
 
@@ -2501,9 +2507,11 @@ async function loadRuntimeStatus() {
     const runner = status.chat_runner || {};
     let detail = t("runtimeDetail");
     let runtimeState = "";
+    let restartCommand = "";
     if (runner.waiting_for_tui_bridge) {
       detail = t("runtimeWaitingForConsoleRestart");
       runtimeState = "waiting_for_tui_bridge";
+      restartCommand = runner.restart_command || "";
     } else if (runner.tui_bridge_active) {
       detail = t("runtimeBridgeActive");
       runtimeState = "tui_bridge_active";
@@ -2511,7 +2519,7 @@ async function loadRuntimeStatus() {
       detail = t("runtimeBackgroundRunner");
       runtimeState = "background_runner";
     }
-    setStatus(`Mode: ${status.mode}`, detail, runtimeState);
+    setStatus(`Mode: ${status.mode}`, detail, runtimeState, restartCommand);
   } catch {
     setStatus(t("runtimeOffline"), t("runtimeOfflineDetail"), "offline");
   }

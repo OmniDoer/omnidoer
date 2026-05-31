@@ -496,10 +496,16 @@ class ControlHandler(SimpleHTTPRequestHandler):
         if path == "/api/status":
             config = getattr(self.server, "omnidoer_config", None)
             chat_thread_id = getattr(self.server, "omnidoer_chat_thread_id", None)
-            from omnidoer.omni_control.chat_runner import live_tui_bridge_active, live_tui_session_active
+            from omnidoer.omni_control.chat_runner import (
+                live_tui_bridge_active,
+                live_tui_session_active,
+                tui_bridge_heartbeat_age_seconds,
+                tui_restart_command,
+            )
 
             tui_bridge_active = live_tui_bridge_active()
             tui_session_active = live_tui_session_active(chat_thread_id)
+            waiting_for_tui_bridge = bool(chat_thread_id and tui_session_active and not tui_bridge_active)
             self._send_json(
                 HTTPStatus.OK,
                 {
@@ -511,7 +517,10 @@ class ControlHandler(SimpleHTTPRequestHandler):
                         "thread_id": chat_thread_id,
                         "tui_bridge_active": tui_bridge_active,
                         "tui_session_active": tui_session_active,
-                        "waiting_for_tui_bridge": bool(chat_thread_id and tui_session_active and not tui_bridge_active),
+                        "waiting_for_tui_bridge": waiting_for_tui_bridge,
+                        "restart_required": waiting_for_tui_bridge,
+                        "restart_command": tui_restart_command(chat_thread_id) if waiting_for_tui_bridge else None,
+                        "bridge_heartbeat_age_seconds": tui_bridge_heartbeat_age_seconds(),
                     },
                 },
             )

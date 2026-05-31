@@ -202,6 +202,19 @@ button:disabled {
 }
 .status-strip span, .status-strip div { color: inherit; }
 .status-strip #runtime-detail { color: #cbd5e1; margin-left: 8px; }
+.status-strip #runtime-command {
+  display: inline-block;
+  margin: 8px 0 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #f8fafc;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-all;
+}
+.status-strip #runtime-command[hidden] { display: none; }
 .panel-heading {
   display: flex;
   gap: 14px;

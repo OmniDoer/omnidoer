@@ -66,6 +66,20 @@ def live_tui_bridge_active(*, now: float | None = None) -> bool:
     return age <= TUI_BRIDGE_STALE_SECONDS
 
 
+def tui_bridge_heartbeat_age_seconds(*, now: float | None = None) -> float | None:
+    path = state_file(TUI_BRIDGE_HEARTBEAT_NAME)
+    try:
+        return max(0.0, (now or time.time()) - path.stat().st_mtime)
+    except (FileNotFoundError, OSError):
+        return None
+
+
+def tui_restart_command(thread_id: str | None) -> str | None:
+    if not thread_id:
+        return None
+    return f"omnidoer console resume {thread_id}"
+
+
 def _cmdline_is_interactive_tui_for_thread(cmdline: list[str], thread_id: str) -> bool:
     if not cmdline or not thread_id:
         return False
