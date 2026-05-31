@@ -985,7 +985,7 @@ if (languageSelect) {
     localStorage.setItem("omnidoer_language", currentLanguage);
     applyLanguage();
     renderRequestList(cachedRequests);
-    renderChatTimeline(cachedChatMessages, cachedChatRecords);
+    renderChatTimeline(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
   };
 }
 
@@ -1013,8 +1013,11 @@ const TAKEOVER_ZOOM_STEP = 0.25;
 let cachedRequests = [];
 let cachedChatMessages = [];
 let cachedChatRecords = [];
+let cachedChatTerminal = null;
 let cachedBrowserContexts = [];
 let cachedRuntimeStatus = null;
+let lastChatPayloadFingerprint = "";
+let realtimeRefreshTimer = null;
 let requestStreamActive = false;
 let requestStreamRestart = null;
 let chatStreamActive = false;
@@ -2203,7 +2206,9 @@ async function loadChatMessages() {
     });
     cachedChatMessages = payload.messages || [];
     cachedChatRecords = payload.records || [];
-    renderChatTimeline(cachedChatMessages, cachedChatRecords, payload.terminal || null);
+    cachedChatTerminal = payload.terminal || null;
+    lastChatPayloadFingerprint = chatPayloadFingerprint(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
+    renderChatTimeline(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
   } catch {
     list.textContent = t("pairToViewChat");
   }
@@ -3169,6 +3174,35 @@ async function loadRuntimeStatus() {
   }
 }
 
+function chatPayloadFingerprint(messages = [], records = [], terminal = null) {
+  const lastMessage = messages[messages.length - 1] || {};
+  const lastRecord = records[records.length - 1] || {};
+  const terminalText = terminal?.text || "";
+  return [
+    messages.length,
+    lastMessage.sequence || "",
+    lastMessage.status || "",
+    records.length,
+    lastRecord.sequence || "",
+    lastRecord.record_type || "",
+    terminal?.available ? "terminal" : "",
+    terminalText.length,
+    terminalText.slice(-240)
+  ].join("|");
+}
+
+function scheduleRealtimeRefreshFromChat() {
+  if (realtimeRefreshTimer) return;
+  realtimeRefreshTimer = setTimeout(() => {
+    realtimeRefreshTimer = null;
+    Promise.allSettled([
+      loadRuntimeStatus(),
+      loadRequests(),
+      loadBrowserContexts()
+    ]);
+  }, 250);
+}
+
 async function loadRequests() {
   try {
     const requests = await signedFetch("/api/requests", { cache: "no-store" }).then((r) => {
@@ -3201,9 +3235,17 @@ function applyRequestEvent(payload) {
 }
 
 function applyChatEvent(payload) {
-  cachedChatMessages = payload.messages || [];
-  cachedChatRecords = payload.records || [];
-  renderChatTimeline(cachedChatMessages, cachedChatRecords, payload.terminal || null);
+  const messages = payload.messages || [];
+  const records = payload.records || [];
+  const terminal = payload.terminal || null;
+  const fingerprint = chatPayloadFingerprint(messages, records, terminal);
+  const changed = fingerprint !== lastChatPayloadFingerprint;
+  lastChatPayloadFingerprint = fingerprint;
+  cachedChatMessages = messages;
+  cachedChatRecords = records;
+  cachedChatTerminal = terminal;
+  renderChatTimeline(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
+  if (changed) scheduleRealtimeRefreshFromChat();
 }
 
 function handleSseBlock(block) {
