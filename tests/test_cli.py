@@ -16,10 +16,11 @@ from omnidoer.omni_cli.console import build_console_env
 from omnidoer.omni_audit.audit import AuditLog
 from omnidoer.omni_broker.broker import SecretBroker
 from omnidoer.omni_control.requests import RequestStore
-from omnidoer.omni_control.secure_channel import ReplayGuard
+from omnidoer.omni_control.secure_channel import ReplayGuard, encrypt_for_broker, load_or_create_keypair
 from omnidoer.omni_control.devices import DeviceStore
 from omnidoer.omni_control.sessions import SessionStore
 from omnidoer.omni_control.tasks import TaskStore
+from omnidoer.omni_vault.vault import Vault
 
 
 class CliTest(unittest.TestCase):
@@ -250,6 +251,72 @@ class CliTest(unittest.TestCase):
             tasks = TaskStore(Path(tmp) / "control_tasks.json").list()
             self.assertEqual(len(tasks), 1)
             self.assertEqual(tasks[0].text, "Use the local demo")
+
+    def test_cred_request_can_be_saved_to_vault_without_echoing_secret(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            vault_path = Path(tmp) / "vault.json"
+            Vault.create(vault_path, "test-passphrase")
+            env = {
+                "OMNIDOER_HOME": tmp,
+                "OMNIDOER_TEST_PASSPHRASE": "test-passphrase",
+            }
+            requested = self.run_cli(
+                [
+                    "cred",
+                    "request",
+                    "--origin",
+                    "https://github.com",
+                    "--top-level-url",
+                    "https://github.com/settings/tokens",
+                    "--summary",
+                    "Migrate GitHub PAT into Vault",
+                    "--ttl",
+                    "10m",
+                ],
+                env=env,
+            )
+            self.assertEqual(requested.returncode, 0, requested.stderr)
+            match = re.search(r"credential_request=(req_[a-f0-9]+)", requested.stdout)
+            self.assertIsNotNone(match, requested.stdout)
+            request_id = match.group(1)
+            self.assertIn("secret_exposed_to_model=false", requested.stdout)
+
+            keypair = load_or_create_keypair(Path(tmp) / "broker_key.json")
+            store = RequestStore(Path(tmp) / "control_requests.json")
+            request = store.get(request_id)
+            envelope = encrypt_for_broker(
+                keypair.public_key_b64,
+                {
+                    "username": "omnidoer",
+                    "password": "github_pat_secret_never_echo",
+                    "save_to_vault": True,
+                },
+                request_id=request.request_id,
+                origin=request.origin,
+                request_type=request.request_type,
+            )
+            store.submit_ciphertext(request.request_id, envelope)
+
+            saved = self.run_cli(
+                [
+                    "cred",
+                    "save-request",
+                    request_id,
+                    "--vault",
+                    str(vault_path),
+                    "--passphrase-env",
+                    "OMNIDOER_TEST_PASSPHRASE",
+                ],
+                env=env,
+            )
+            self.assertEqual(saved.returncode, 0, saved.stderr)
+            combined = requested.stdout + requested.stderr + saved.stdout + saved.stderr
+            self.assertNotIn("github_pat_secret_never_echo", combined)
+            self.assertIn('"saved_to_vault": true', saved.stdout)
+            raw_vault = vault_path.read_text()
+            self.assertNotIn("github_pat_secret_never_echo", raw_vault)
+            metadata = Vault.load(vault_path).list_metadata()[0]
+            self.assertEqual(metadata.allowed_origins, ["https://github.com"])
 
     def test_cloud_direct_cli_contract(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
