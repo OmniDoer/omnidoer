@@ -3010,7 +3010,7 @@ function renderTakeoverControls(request, item) {
     const release = document.createElement("button");
     release.type = "button";
     release.textContent = t("releaseControl");
-    release.onclick = () => postAction(request, "release");
+    release.onclick = () => releaseActiveTakeover();
     actions.append(open, release);
     item.append(actions);
     return;
@@ -3038,7 +3038,7 @@ function renderTakeoverControls(request, item) {
     });
   };
   controls.querySelector("[data-action='enter-key']").onclick = () => sendTakeoverInput(request, { event_type: "key", key: "Enter" });
-  controls.querySelector("[data-action='release']").onclick = () => postAction(request, "release");
+  controls.querySelector("[data-action='release']").onclick = () => releaseActiveTakeover();
   item.append(controls);
 }
 

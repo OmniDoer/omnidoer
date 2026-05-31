@@ -1033,6 +1033,9 @@ class ControlHandler(SimpleHTTPRequestHandler):
                         and existing.request_type in {"human_takeover", "account_registration"}
                         and existing.status == "user_control"
                     ):
+                        if not self._request_allowed_for_session(existing, session):
+                            self._send_json(HTTPStatus.FORBIDDEN, {"error": "forbidden"})
+                            return
                         self._send_json(HTTPStatus.OK, {**existing.to_public_dict(), "reused": True})
                         return
                 request = request_user_control(
@@ -1041,6 +1044,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     reason=str(body.get("reason") or "User requested browser takeover from Control Client"),
                     browser_context_id=context_id,
                     risk_level=str(body.get("risk_level") or "high"),
+                    allowed_device_id=session.device_id if session else None,
                 )
                 self._send_json(HTTPStatus.CREATED, {**request.to_public_dict(), "reused": False})
             except Exception as exc:

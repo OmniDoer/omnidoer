@@ -18,6 +18,7 @@ def request_user_control(
     reason: str,
     browser_context_id: str = "demo",
     risk_level: str = "high",
+    allowed_device_id: str | None = None,
     store: RequestStore | None = None,
 ) -> ControlRequest:
     store = store or RequestStore()
@@ -29,6 +30,7 @@ def request_user_control(
         risk_level=risk_level,
         takeover_reason=reason,
         browser_context_id=browser_context_id,
+        allowed_device_id=allowed_device_id,
     )
     AuditLog().append(
         "takeover_started",

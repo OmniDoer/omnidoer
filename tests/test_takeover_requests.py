@@ -19,7 +19,9 @@ class TakeoverRequestTest(unittest.TestCase):
                     origin="http://127.0.0.1:8765",
                     top_level_url="http://127.0.0.1:8765/antibot",
                     reason="high intensity anti-bot",
+                    allowed_device_id="dev_phone",
                 )
+                self.assertEqual(req.allowed_device_id, "dev_phone")
                 frame = start_stream(req.request_id)
                 self.assertTrue(frame["for_control_client_only"])
                 result = complete_in_test_mode(req.request_id)

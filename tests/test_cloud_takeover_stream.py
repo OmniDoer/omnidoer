@@ -17,6 +17,7 @@ from omnidoer.omni_control.pairing import PairingStore
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.server import ControlHandler
 from omnidoer.omni_control.websocket import encode_device_auth_subprotocol
+from omnidoer.omni_takeover.cross_process import write_context_status
 from omnidoer.omni_takeover.sessions import registered_browser_context
 from omnidoer.omni_takeover.stream import frame_from_image
 from tests.test_control_auth import public_jwk, sign_request
@@ -41,6 +42,14 @@ class ProfileAwareBrowser:
             frame_profile=frame_profile,
             quality=48,
         )
+
+
+class ContextStatusBrowser:
+    def current_url(self) -> str:
+        return "https://example.com/working"
+
+    def current_origin(self) -> str:
+        return "https://example.com"
 
 
 def read_websocket_text(sock: socket.socket, initial: bytes = b"") -> str:
@@ -314,6 +323,85 @@ class CloudTakeoverStreamTest(unittest.TestCase):
                     payload = json.loads(response.read().decode())
                 self.assertTrue(payload["for_control_client_only"])
                 self.assertTrue(payload["not_for_llm"])
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_cloud_context_takeover_is_assigned_to_requesting_device(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            config = build_config(
+                host="127.0.0.1",
+                port=8787,
+                cloud_direct=True,
+                public_url="https://agent.example.com",
+                behind_reverse_proxy=True,
+            )
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_config = config  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+
+            def pair(name: str):
+                pairing = PairingStore().create(public_url=config.public_url, ttl_seconds=600)
+                key = ec.generate_private_key(ec.SECP256R1())
+                pair_request = urllib_request.Request(
+                    f"{base}/api/pair",
+                    data=json.dumps({"code": pairing.code, "device_name": name, "device_public_key": public_jwk(key)}).encode(),
+                    headers={"content-type": "application/json", "origin": config.public_origin, **PROXY_HEADERS},
+                    method="POST",
+                )
+                with urllib_request.urlopen(pair_request, timeout=5) as response:
+                    return key, response.headers["set-cookie"], json.loads(response.read().decode())
+
+            def takeover_request(key, cookie: str, body: dict, nonce: str):
+                device_id = body["device"]["device_id"]
+                session_id = body["session"]["session_id"]
+                csrf = body["csrf_token"]
+                takeover_path = "/api/browser/contexts/scoped-context/takeover"
+                signed = sign_request(key, device_id=device_id, session_id=session_id, method="POST", path=takeover_path, nonce=nonce)
+                return urllib_request.Request(
+                    f"{base}{takeover_path}",
+                    data=json.dumps({"reason": "phone requested takeover"}).encode(),
+                    headers={
+                        "content-type": "application/json",
+                        "origin": config.public_origin,
+                        "cookie": cookie,
+                        CSRF_HEADER: csrf,
+                        **PROXY_HEADERS,
+                        DEVICE_ID_HEADER: device_id,
+                        DEVICE_TS_HEADER: signed["timestamp"],
+                        DEVICE_NONCE_HEADER: signed["nonce"],
+                        DEVICE_SIG_HEADER: signed["signature"],
+                    },
+                    method="POST",
+                )
+
+            try:
+                key_a, cookie_a, body_a = pair("Phone A")
+                key_b, cookie_b, body_b = pair("Phone B")
+                write_context_status("scoped-context", ContextStatusBrowser())
+
+                with urllib_request.urlopen(takeover_request(key_a, cookie_a, body_a, "nonce-context-a"), timeout=5) as response:
+                    takeover = json.loads(response.read().decode())
+                self.assertEqual(takeover["status"], "user_control")
+                self.assertEqual(takeover["allowed_device_id"], body_a["device"]["device_id"])
+                self.assertFalse(takeover["reused"])
+
+                with self.assertRaises(Exception) as denied:
+                    urllib_request.urlopen(takeover_request(key_b, cookie_b, body_b, "nonce-context-b"), timeout=5)
+                self.assertIn("403", str(denied.exception))
+
+                with urllib_request.urlopen(takeover_request(key_a, cookie_a, body_a, "nonce-context-a2"), timeout=5) as response:
+                    reused = json.loads(response.read().decode())
+                self.assertEqual(reused["request_id"], takeover["request_id"])
+                self.assertTrue(reused["reused"])
             finally:
                 server.shutdown()
                 server.server_close()
