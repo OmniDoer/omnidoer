@@ -360,6 +360,28 @@ button:disabled {
   padding: 18px min(5vw, 56px);
   margin: 0;
 }
+.chat-conversation,
+.chat-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.chat-activity {
+  border-top: 1px solid #e5edf5;
+  padding-top: 14px;
+}
+.chat-lane-title {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+.chat-empty-state {
+  margin: 0;
+  color: var(--muted);
+}
 .chat-composer {
   position: sticky;
   bottom: 0;
@@ -612,6 +634,7 @@ button:disabled {
   }
   .status-strip #runtime-detail { display: none; }
   body[data-runtime-state="waiting_for_tui_bridge"] .status-strip #runtime-detail,
+  body[data-runtime-state="legacy_tui_relay"] .status-strip #runtime-detail,
   body[data-runtime-state="offline"] .status-strip #runtime-detail {
     display: block;
     margin: 4px 0 0;
@@ -633,10 +656,12 @@ button:disabled {
     margin-right: -8px;
   }
   body[data-runtime-state="waiting_for_tui_bridge"] section.control-panel,
+  body[data-runtime-state="legacy_tui_relay"] section.control-panel,
   body[data-runtime-state="offline"] section.control-panel {
     height: calc(100svh - 255px);
   }
   body[data-runtime-state="waiting_for_tui_bridge"] #task-panel,
+  body[data-runtime-state="legacy_tui_relay"] #task-panel,
   body[data-runtime-state="offline"] #task-panel {
     height: calc(100svh - 255px);
   }

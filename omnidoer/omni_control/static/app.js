@@ -98,6 +98,11 @@ const I18N = {
     chatRecordStatus: "Status",
     chatRecordToolCall: "Tool call",
     chatRecordToolOutput: "Tool output",
+    chatConversationTitle: "Conversation",
+    chatActivityTitle: "Live activity",
+    chatUserRole: "You",
+    chatAssistantRole: "OmniDoer",
+    chatRecordNumber: (sequence) => `record #${sequence}`,
     submitTask: "Submit Task",
     noQueuedTasks: "No queued tasks.",
     pairToViewTasks: "Pair this device to view task queue in Cloud Direct Mode.",
@@ -263,6 +268,11 @@ const I18N = {
     chatRecordStatus: "状态",
     chatRecordToolCall: "工具调用",
     chatRecordToolOutput: "工具输出",
+    chatConversationTitle: "对话",
+    chatActivityTitle: "实时活动",
+    chatUserRole: "你",
+    chatAssistantRole: "OmniDoer",
+    chatRecordNumber: (sequence) => `记录 #${sequence}`,
     submitTask: "提交任务",
     noQueuedTasks: "没有排队任务。",
     pairToViewTasks: "请先配对此设备以查看 Cloud Direct 任务队列。",
@@ -337,6 +347,7 @@ const EXTRA_I18N = {
     navRequests: "Solicitudes", navTasks: "Tareas", navDevices: "Dispositivos", navSecurity: "Seguridad", navTakeover: "Control", navPayments: "Pagos",
     requestsTitle: "Solicitudes pendientes", filterOpen: "Pendientes", filterAll: "Todas", filterCredential: "Secretos", filterChallenge: "Verificaciones", filterApproval: "Aprobaciones", filterTakeover: "Control",
     chatFilesLabel: "Adjuntar", chatSelectedFiles: "Archivos seleccionados", uploadFailed: "Carga fallida",
+    chatConversationTitle: "Conversacion", chatActivityTitle: "Actividad en vivo", chatUserRole: "Tu", chatAssistantRole: "OmniDoer", chatRecordNumber: (sequence) => `registro #${sequence}`,
     pauseAgent: "Pausar Agent", pauseAgentRequested: "Pausa solicitada", pauseAgentRequestDetail: "La solicitud quedo en cola para la consola Linux activa.", takeoverPausePrompt: "Pausa ahora la automatizacion del navegador y entrega el navegador activo a mi Control Client. Si hay un navegador activo, crea o conserva una solicitud Human Takeover, transmite la pagina y espera hasta que toque Continue Agent antes de reanudar.", releaseControl: "Continuar Agent", openCurrentUrl: "Abrir URL actual", externalHandoffNote: "Abre la URL actual, completa la accion en el sitio y continua el Agent. Secretos y codigos no se envian al modelo.",
     submitCredential: "Enviar credencial", submitChallenge: "Enviar codigo", approve: "Aprobar", deny: "Denegar", challengeCode: "Codigo de un solo uso"
   },
@@ -345,6 +356,7 @@ const EXTRA_I18N = {
     navRequests: "Demandes", navTasks: "Taches", navDevices: "Appareils", navSecurity: "Securite", navTakeover: "Controle", navPayments: "Paiements",
     requestsTitle: "Demandes en attente", filterOpen: "En attente", filterAll: "Toutes", filterCredential: "Secrets", filterChallenge: "Verifications", filterApproval: "Approbations", filterTakeover: "Controle",
     chatFilesLabel: "Joindre", chatSelectedFiles: "Fichiers selectionnes", uploadFailed: "Echec d'envoi",
+    chatConversationTitle: "Conversation", chatActivityTitle: "Activite en direct", chatUserRole: "Vous", chatAssistantRole: "OmniDoer", chatRecordNumber: (sequence) => `journal #${sequence}`,
     pauseAgent: "Mettre Agent en pause", pauseAgentRequested: "Pause demandee", pauseAgentRequestDetail: "La demande est en file pour la console Linux active.", takeoverPausePrompt: "Mettez maintenant l'automatisation du navigateur en pause et remettez le navigateur actif a mon Control Client. Si un navigateur est actif, creez ou gardez une demande Human Takeover, diffusez la page, puis attendez que je touche Continue Agent avant de reprendre.", releaseControl: "Continuer Agent", openCurrentUrl: "Ouvrir l'URL", externalHandoffNote: "Ouvrez l'URL, terminez l'action sur le site, puis continuez l'Agent. Les secrets et codes ne sont pas envoyes au modele.",
     submitCredential: "Envoyer l'identifiant", submitChallenge: "Envoyer le code", approve: "Approuver", deny: "Refuser", challengeCode: "Code a usage unique"
   },
@@ -353,6 +365,7 @@ const EXTRA_I18N = {
     navRequests: "Anfragen", navTasks: "Aufgaben", navDevices: "Geraete", navSecurity: "Sicherheit", navTakeover: "Uebernahme", navPayments: "Zahlungen",
     requestsTitle: "Offene Anfragen", filterOpen: "Offen", filterAll: "Alle", filterCredential: "Secrets", filterChallenge: "Pruefungen", filterApproval: "Freigaben", filterTakeover: "Uebernahme",
     chatFilesLabel: "Anhaengen", chatSelectedFiles: "Ausgewaehlte Dateien", uploadFailed: "Upload fehlgeschlagen",
+    chatConversationTitle: "Unterhaltung", chatActivityTitle: "Live-Aktivitaet", chatUserRole: "Du", chatAssistantRole: "OmniDoer", chatRecordNumber: (sequence) => `Eintrag #${sequence}`,
     pauseAgent: "Agent pausieren", pauseAgentRequested: "Pause angefordert", pauseAgentRequestDetail: "Die Anfrage wurde fuer die aktive Linux-Konsole eingereiht.", takeoverPausePrompt: "Pausiere jetzt die Browser-Automation und uebergib den aktiven Browser an meinen Control Client. Falls ein Browser aktiv ist, erstelle oder behalte eine Human-Takeover-Anfrage, streame die Seite und warte, bis ich Continue Agent antippe.", releaseControl: "Agent fortsetzen", openCurrentUrl: "Aktuelle URL oeffnen", externalHandoffNote: "Oeffnen Sie die aktuelle URL, erledigen Sie die Aktion selbst und setzen Sie danach den Agent fort. Secrets und Codes werden nicht an das Modell gesendet.",
     submitCredential: "Zugangsdaten senden", submitChallenge: "Code senden", approve: "Genehmigen", deny: "Ablehnen", challengeCode: "Einmalcode"
   },
@@ -361,6 +374,7 @@ const EXTRA_I18N = {
     navRequests: "リクエスト", navTasks: "タスク", navDevices: "デバイス", navSecurity: "セキュリティ", navTakeover: "操作", navPayments: "支払い",
     requestsTitle: "未処理リクエスト", filterOpen: "未処理", filterAll: "すべて", filterCredential: "シークレット", filterChallenge: "検証", filterApproval: "承認", filterTakeover: "操作",
     chatFilesLabel: "添付", chatSelectedFiles: "選択したファイル", uploadFailed: "アップロード失敗",
+    chatConversationTitle: "会話", chatActivityTitle: "ライブ活動", chatUserRole: "あなた", chatAssistantRole: "OmniDoer", chatRecordNumber: (sequence) => `記録 #${sequence}`,
     pauseAgent: "Agentを一時停止", pauseAgentRequested: "一時停止を依頼しました", pauseAgentRequestDetail: "依頼はアクティブなLinuxコンソールにキューされました。", takeoverPausePrompt: "現在のブラウザ自動操作を一時停止し、アクティブなブラウザをControl Clientへ渡してください。ブラウザが動作中ならHuman Takeoverリクエストを作成または維持し、画面をストリーミングして、Continue Agentをタップするまで待機してください。", releaseControl: "Agentを続行", openCurrentUrl: "現在のURLを開く", externalHandoffNote: "現在のURLを開き、サイト上の操作を自分で完了してからAgentを続行してください。パスワードやコードはモデルに送信されません。",
     submitCredential: "認証情報を送信", submitChallenge: "コードを送信", approve: "承認", deny: "拒否", challengeCode: "ワンタイムコード"
   },
@@ -369,6 +383,7 @@ const EXTRA_I18N = {
     navRequests: "요청", navTasks: "작업", navDevices: "기기", navSecurity: "보안", navTakeover: "제어", navPayments: "결제",
     requestsTitle: "대기 중인 요청", filterOpen: "대기", filterAll: "전체", filterCredential: "비밀", filterChallenge: "인증", filterApproval: "승인", filterTakeover: "제어",
     chatFilesLabel: "첨부", chatSelectedFiles: "선택한 파일", uploadFailed: "업로드 실패",
+    chatConversationTitle: "대화", chatActivityTitle: "실시간 활동", chatUserRole: "나", chatAssistantRole: "OmniDoer", chatRecordNumber: (sequence) => `기록 #${sequence}`,
     pauseAgent: "Agent 일시 중지", pauseAgentRequested: "일시 중지 요청됨", pauseAgentRequestDetail: "요청이 활성 Linux 콘솔에 대기열로 전달되었습니다.", takeoverPausePrompt: "현재 브라우저 자동화를 즉시 일시 중지하고 활성 브라우저를 내 Control Client로 넘겨주세요. 브라우저가 실행 중이면 Human Takeover 요청을 만들거나 유지하고, 페이지를 스트리밍한 뒤 내가 Continue Agent를 탭할 때까지 기다려주세요.", releaseControl: "Agent 계속", openCurrentUrl: "현재 URL 열기", externalHandoffNote: "현재 URL을 열고 사이트 작업을 직접 완료한 뒤 Agent를 계속하세요. 비밀번호와 코드는 모델로 전송되지 않습니다.",
     submitCredential: "자격 증명 제출", submitChallenge: "코드 제출", approve: "승인", deny: "거부", challengeCode: "일회용 코드"
   }
@@ -1576,7 +1591,7 @@ function renderChatMessage(message) {
   item.className = `chat-message chat-role-${message.role} chat-status-${message.status}`;
   const header = document.createElement("div");
   header.className = "chat-message-header";
-  appendText(header, "strong", message.role === "user" ? "You" : "OmniDoer");
+  appendText(header, "strong", message.role === "user" ? t("chatUserRole") : t("chatAssistantRole"));
   appendText(header, "span", chatStatusLabel(message.status), "badge");
   item.append(header);
   appendText(item, "p", message.text || " ", "chat-message-text");
@@ -1600,7 +1615,7 @@ function renderChatRecord(record) {
   appendText(item, "p", record.text || " ", "chat-message-text");
   const meta = document.createElement("div");
   meta.className = "chat-message-meta";
-  appendText(meta, "span", `record #${record.sequence}`);
+  appendText(meta, "span", t("chatRecordNumber", record.sequence));
   if (record.message_id) appendText(meta, "span", record.message_id);
   item.append(meta);
   return item;
@@ -1624,17 +1639,25 @@ function renderChatTimeline(messages, records = [], terminal = null) {
   if (!list) return;
   list.innerHTML = "";
   const terminalNode = renderLegacyTerminal(terminal);
-  if (terminalNode) list.append(terminalNode);
-  if (records.length) {
-    records.forEach((record) => list.append(renderChatRecord(record)));
-    list.scrollTop = list.scrollHeight;
-    return;
+
+  const conversation = document.createElement("div");
+  conversation.className = "chat-conversation";
+  appendText(conversation, "div", t("chatConversationTitle"), "chat-lane-title");
+  if (messages.length) {
+    messages.forEach((message) => conversation.append(renderChatMessage(message)));
+  } else {
+    appendText(conversation, "p", t("noChatMessages"), "chat-empty-state");
   }
-  if (!messages.length) {
-    list.textContent = t("noChatMessages");
-    return;
+  list.append(conversation);
+
+  if (terminalNode || records.length) {
+    const activity = document.createElement("div");
+    activity.className = "chat-activity";
+    appendText(activity, "div", t("chatActivityTitle"), "chat-lane-title");
+    if (terminalNode) activity.append(terminalNode);
+    records.forEach((record) => activity.append(renderChatRecord(record)));
+    list.append(activity);
   }
-  messages.forEach((message) => list.append(renderChatMessage(message)));
   list.scrollTop = list.scrollHeight;
 }
 
