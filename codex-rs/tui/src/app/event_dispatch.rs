@@ -320,6 +320,24 @@ impl App {
                         .add_error_message(format!("Logout failed: {err}"));
                 }
             },
+            AppEvent::SwitchAuthUser { user_id, label } => {
+                match app_server.switch_account_user(user_id).await {
+                    Ok(_) => {
+                        self.chat_widget.add_info_message(
+                            format!("Switched to {label}. The current conversation context is preserved."),
+                            None,
+                        );
+                        self.app_event_tx.send(AppEvent::RefreshRateLimits {
+                            origin: RateLimitRefreshOrigin::StartupPrefetch,
+                        });
+                    }
+                    Err(err) => {
+                        tracing::error!("failed to switch auth user: {err}");
+                        self.chat_widget
+                            .add_error_message(format!("Switch user failed: {err}"));
+                    }
+                }
+            }
             AppEvent::FatalExitRequest(message) => {
                 return Ok(AppRunControl::Exit(ExitReason::Fatal(message)));
             }

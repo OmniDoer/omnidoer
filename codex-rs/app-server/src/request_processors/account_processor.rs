@@ -96,6 +96,16 @@ impl AccountRequestProcessor {
         self.logout_v2(request_id).await.map(|()| None)
     }
 
+    pub(crate) async fn switch_account_user(
+        &self,
+        request_id: ConnectionRequestId,
+        params: SwitchAccountUserParams,
+    ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
+        self.switch_account_user_v2(request_id, params)
+            .await
+            .map(|()| None)
+    }
+
     pub(crate) async fn cancel_login_account(
         &self,
         params: CancelLoginAccountParams,
@@ -252,7 +262,7 @@ impl AccountRequestProcessor {
         &self,
         params: &LoginApiKeyParams,
     ) -> std::result::Result<(), JSONRPCErrorError> {
-        if self.auth_manager.is_external_chatgpt_auth_active() {
+        if self.auth_manager.has_external_auth() {
             return Err(self.external_auth_active_error());
         }
 
@@ -598,12 +608,7 @@ impl AccountRequestProcessor {
     }
 
     async fn send_login_success_notifications(&self, login_id: Option<Uuid>) {
-        Self::maybe_refresh_remote_installed_plugins_cache_for_current_config(
-            &self.config_manager,
-            &self.thread_manager,
-            self.auth_manager.auth_cached(),
-        )
-        .await;
+        self.refresh_account_dependent_state().await;
 
         let payload_login_completed = AccountLoginCompletedNotification {
             login_id: login_id.map(|id| id.to_string()),
@@ -616,11 +621,29 @@ impl AccountRequestProcessor {
             ))
             .await;
 
+        self.send_account_updated_notification_without_refresh().await;
+    }
+
+    async fn refresh_account_dependent_state(&self) {
+        Self::maybe_refresh_remote_installed_plugins_cache_for_current_config(
+            &self.config_manager,
+            &self.thread_manager,
+            self.auth_manager.auth_cached(),
+        )
+        .await;
+    }
+
+    async fn send_account_updated_notification_without_refresh(&self) {
         self.outgoing
             .send_server_notification(ServerNotification::AccountUpdated(
                 self.current_account_updated_notification(),
             ))
             .await;
+    }
+
+    async fn send_account_updated_notification(&self) {
+        self.refresh_account_dependent_state().await;
+        self.send_account_updated_notification_without_refresh().await;
     }
 
     async fn send_chatgpt_login_completion_notifications(
@@ -717,6 +740,50 @@ impl AccountRequestProcessor {
             self.outgoing
                 .send_server_notification(ServerNotification::AccountUpdated(payload))
                 .await;
+        }
+        Ok(())
+    }
+
+    async fn switch_account_user_response(
+        &self,
+        params: SwitchAccountUserParams,
+    ) -> Result<SwitchAccountUserResponse, JSONRPCErrorError> {
+        if self.auth_manager.is_external_chatgpt_auth_active() {
+            return Err(self.external_auth_active_error());
+        }
+
+        let switched = switch_auth_user(
+            &self.config.codex_home,
+            &params.user_id,
+            self.config.cli_auth_credentials_store_mode,
+        )
+        .map_err(|err| internal_error(format!("failed to switch account user: {err}")))?;
+
+        self.auth_manager.reload().await;
+        self.config_manager.replace_cloud_requirements_loader(
+            self.auth_manager.clone(),
+            self.config.chatgpt_base_url.clone(),
+        );
+        self.config_manager
+            .sync_default_client_residency_requirement()
+            .await;
+
+        Ok(SwitchAccountUserResponse {
+            user_id: switched.id,
+        })
+    }
+
+    async fn switch_account_user_v2(
+        &self,
+        request_id: ConnectionRequestId,
+        params: SwitchAccountUserParams,
+    ) -> Result<(), JSONRPCErrorError> {
+        let result = self.switch_account_user_response(params).await;
+        let switched = result.is_ok();
+        self.outgoing.send_result(request_id, result).await;
+
+        if switched {
+            self.send_account_updated_notification().await;
         }
         Ok(())
     }

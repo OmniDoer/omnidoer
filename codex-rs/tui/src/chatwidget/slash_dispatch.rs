@@ -36,6 +36,40 @@ const GOAL_USAGE: &str = "Usage: /goal <objective>";
 const GOAL_USAGE_HINT: &str = "Example: /goal improve benchmark coverage";
 const RAW_USAGE: &str = "Usage: /raw [on|off]";
 
+fn auth_mode_label(mode: codex_app_server_protocol::AuthMode) -> &'static str {
+    match mode {
+        codex_app_server_protocol::AuthMode::ApiKey => "API key",
+        codex_app_server_protocol::AuthMode::Chatgpt => "ChatGPT",
+        codex_app_server_protocol::AuthMode::ChatgptAuthTokens => "ChatGPT token",
+        codex_app_server_protocol::AuthMode::AgentIdentity => "Agent identity",
+    }
+}
+
+fn auth_user_description(user: &codex_login::AuthUserSummary) -> String {
+    let mut parts = Vec::new();
+    if user.is_current {
+        parts.push("Current".to_string());
+    }
+    parts.push(auth_mode_label(user.auth_mode).to_string());
+    if let Some(plan_type) = user.plan_type {
+        parts.push(format!("{plan_type:?}"));
+    }
+    if let Some(account_id) = user.account_id.as_deref() {
+        let suffix = account_id
+            .chars()
+            .rev()
+            .take(8)
+            .collect::<String>()
+            .chars()
+            .rev()
+            .collect::<String>();
+        if !suffix.is_empty() {
+            parts.push(format!("acct ...{suffix}"));
+        }
+    }
+    parts.join(" / ")
+}
+
 impl ChatWidget {
     /// Dispatch a bare slash command and record its staged local-history entry.
     ///
@@ -62,6 +96,74 @@ impl ChatWidget {
         }
         self.toggle_service_tier_from_ui(command);
         self.bottom_pane.record_pending_slash_command_history();
+    }
+
+    fn open_users_picker(&mut self) {
+        let users = match codex_login::list_auth_users(
+            &self.config.codex_home,
+            self.config.cli_auth_credentials_store_mode,
+        ) {
+            Ok(users) => users,
+            Err(err) => {
+                self.add_error_message(format!("Failed to load saved users: {err}"));
+                return;
+            }
+        };
+
+        if users.is_empty() {
+            self.add_info_message(
+                "No saved OmniDoer users yet. Sign in with `omnidoer login` to add another account."
+                    .to_string(),
+                None,
+            );
+            return;
+        }
+
+        let initial_selected_idx = users.iter().position(|user| user.is_current);
+        let items = users
+            .into_iter()
+            .map(|user| {
+                let label = user.label.clone();
+                let user_id = user.id.clone();
+                let is_current = user.is_current;
+                let description = auth_user_description(&user);
+                let actions: Vec<SelectionAction> = if is_current {
+                    Vec::new()
+                } else {
+                    vec![Box::new(move |tx| {
+                        tx.send(AppEvent::SwitchAuthUser {
+                            user_id: user_id.clone(),
+                            label: label.clone(),
+                        });
+                    })]
+                };
+                SelectionItem {
+                    name: user.label,
+                    description: Some(description),
+                    selected_description: Some(
+                        "Switch credentials and keep the current conversation context"
+                            .to_string(),
+                    ),
+                    is_current,
+                    actions,
+                    dismiss_on_select: true,
+                    ..Default::default()
+                }
+            })
+            .collect();
+
+        self.bottom_pane.show_selection_view(SelectionViewParams {
+            title: Some("Switch OmniDoer user".to_string()),
+            subtitle: Some(
+                "Use arrows to choose an account. Enter switches credentials without starting a new chat."
+                    .to_string(),
+            ),
+            footer_hint: Some(standard_popup_hint_line()),
+            items,
+            initial_selected_idx,
+            ..Default::default()
+        });
+        self.request_redraw();
     }
 
     /// Dispatch an inline slash command and record its staged local-history entry.
@@ -413,6 +515,9 @@ impl ChatWidget {
                         /*refreshing_rate_limits*/ false, /*request_id*/ None,
                     );
                 }
+            }
+            SlashCommand::Users => {
+                self.open_users_picker();
             }
             SlashCommand::Ide => {
                 self.handle_ide_command();
@@ -1011,6 +1116,7 @@ impl ChatWidget {
             | SlashCommand::Title
             | SlashCommand::Statusline
             | SlashCommand::Theme
+            | SlashCommand::Users
             | SlashCommand::Pets => QueueDrain::Stop,
         }
     }

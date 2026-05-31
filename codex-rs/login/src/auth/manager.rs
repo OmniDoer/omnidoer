@@ -26,6 +26,9 @@ use codex_protocol::config_types::ModelProviderAuthInfo;
 
 use super::external_bearer::BearerTokenRefresher;
 use super::revoke::revoke_auth_tokens;
+use super::users::remove_auth_user;
+use super::users::same_auth_user;
+use super::users::save_auth_user;
 pub use crate::auth::agent_identity::AgentIdentityAuth;
 pub use crate::auth::storage::AgentIdentityAuthRecord;
 pub use crate::auth::storage::AuthDotJson;
@@ -540,7 +543,9 @@ pub fn login_with_api_key(
         last_refresh: None,
         agent_identity: None,
     };
-    save_auth(codex_home, &auth_dot_json, auth_credentials_store_mode)
+    save_auth(codex_home, &auth_dot_json, auth_credentials_store_mode)?;
+    let _ = save_auth_user(codex_home, &auth_dot_json, auth_credentials_store_mode)?;
+    Ok(())
 }
 
 /// Writes an `auth.json` that contains only the access token.
@@ -562,7 +567,9 @@ pub async fn login_with_access_token(
         last_refresh: None,
         agent_identity: Some(access_token.to_string()),
     };
-    save_auth(codex_home, &auth_dot_json, auth_credentials_store_mode)
+    save_auth(codex_home, &auth_dot_json, auth_credentials_store_mode)?;
+    let _ = save_auth_user(codex_home, &auth_dot_json, auth_credentials_store_mode)?;
+    Ok(())
 }
 
 /// Writes an in-memory auth payload for externally managed ChatGPT tokens.
@@ -581,7 +588,9 @@ pub fn login_with_chatgpt_auth_tokens(
         codex_home,
         &auth_dot_json,
         AuthCredentialsStoreMode::Ephemeral,
-    )
+    )?;
+    let _ = save_auth_user(codex_home, &auth_dot_json, AuthCredentialsStoreMode::Ephemeral)?;
+    Ok(())
 }
 
 /// Persist the provided auth payload using the specified backend.
@@ -1769,20 +1778,45 @@ impl AuthManager {
     /// reloads the in‑memory auth cache so callers immediately observe the
     /// unauthenticated state.
     pub async fn logout(&self) -> std::io::Result<bool> {
+        let stored_auth = load_auth_dot_json(&self.codex_home, self.auth_credentials_store_mode)
+            .ok()
+            .flatten();
         let removed = logout_all_stores(&self.codex_home, self.auth_credentials_store_mode)?;
+        if let Some(auth_dot_json) = stored_auth.as_ref()
+            && let Err(err) = remove_auth_user(
+                &self.codex_home,
+                auth_dot_json,
+                self.auth_credentials_store_mode,
+            )
+        {
+            tracing::warn!("failed to remove logged-out auth user: {err}");
+        }
         // Always reload to clear any cached auth (even if file absent).
         self.reload().await;
         Ok(removed)
     }
 
     pub async fn logout_with_revoke(&self) -> std::io::Result<bool> {
+        let stored_auth = load_auth_dot_json(&self.codex_home, self.auth_credentials_store_mode)
+            .ok()
+            .flatten();
         let auth_dot_json = self
             .auth_cached()
-            .and_then(|auth| auth.get_current_auth_json());
+            .and_then(|auth| auth.get_current_auth_json())
+            .or_else(|| stored_auth.clone());
         if let Err(err) = revoke_auth_tokens(auth_dot_json.as_ref()).await {
             tracing::warn!("failed to revoke auth tokens during logout: {err}");
         }
         let result = logout_all_stores(&self.codex_home, self.auth_credentials_store_mode)?;
+        if let Some(auth_dot_json) = stored_auth.as_ref()
+            && let Err(err) = remove_auth_user(
+                &self.codex_home,
+                auth_dot_json,
+                self.auth_credentials_store_mode,
+            )
+        {
+            tracing::warn!("failed to remove logged-out auth user: {err}");
+        }
         // Always reload to clear any cached auth (even if file absent).
         self.reload().await;
         Ok(result)
@@ -1895,13 +1929,20 @@ impl AuthManager {
     ) -> Result<(), RefreshTokenError> {
         let refresh_response = request_chatgpt_token_refresh(refresh_token, auth.client()).await?;
 
-        persist_tokens(
+        let updated_auth = persist_tokens(
             auth.storage(),
             refresh_response.id_token,
             refresh_response.access_token,
             refresh_response.refresh_token,
         )
         .map_err(RefreshTokenError::from)?;
+        if let Err(err) = save_auth_user(
+            &self.codex_home,
+            &updated_auth,
+            self.auth_credentials_store_mode,
+        ) {
+            tracing::warn!("failed to update saved auth user after token refresh: {err}");
+        }
         self.reload().await;
 
         Ok(())

@@ -226,6 +226,9 @@ pub(crate) enum AppEvent {
     /// Request app-server account logout, then exit after it succeeds.
     Logout,
 
+    /// Switch to a saved local auth user without leaving the current thread.
+    SwitchAuthUser { user_id: String, label: String },
+
     /// Request to exit the application due to a fatal error.
     #[allow(dead_code)]
     FatalExitRequest(String),

@@ -26,6 +26,8 @@ use std::time::Duration;
 
 use crate::auth::AuthDotJson;
 use crate::auth::load_auth_dot_json;
+use crate::auth::same_auth_user;
+use crate::auth::save_auth_user;
 use crate::auth::revoke_auth_tokens;
 use crate::auth::save_auth;
 use crate::auth::should_revoke_auth_tokens;
@@ -823,13 +825,20 @@ pub(crate) async fn persist_tokens_async(
             last_refresh: Some(Utc::now()),
             agent_identity: None,
         };
+        if let Some(previous_auth) = previous_auth.as_ref() {
+            let _ = save_auth_user(&codex_home, previous_auth, auth_credentials_store_mode)?;
+        }
         save_auth(&codex_home, &auth, auth_credentials_store_mode)?;
+        let _ = save_auth_user(&codex_home, &auth, auth_credentials_store_mode)?;
         Ok::<_, io::Error>((previous_auth, auth))
     })
     .await
     .map_err(|e| io::Error::other(format!("persist task failed: {e}")))??;
 
-    if should_revoke_auth_tokens(previous_auth.as_ref(), &auth)
+    if previous_auth
+        .as_ref()
+        .is_some_and(|previous_auth| same_auth_user(previous_auth, &auth))
+        && should_revoke_auth_tokens(previous_auth.as_ref(), &auth)
         && let Err(err) = revoke_auth_tokens(previous_auth.as_ref()).await
     {
         warn!("failed to revoke superseded auth tokens after login: {err}");
@@ -1216,7 +1225,7 @@ mod tests {
         let codex_home = tempdir()?;
         save_auth(
             codex_home.path(),
-            &chatgpt_auth("old-access", "old-refresh", "old-account"),
+            &chatgpt_auth("old-access", "old-refresh", "new-account"),
             AuthCredentialsStoreMode::File,
         )?;
 

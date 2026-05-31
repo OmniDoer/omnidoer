@@ -1268,6 +1268,11 @@ impl MessageProcessor {
                     .logout_account(request_id.clone())
                     .await
             }
+            ClientRequest::SwitchAccountUser { params, .. } => {
+                self.account_processor
+                    .switch_account_user(request_id.clone(), params)
+                    .await
+            }
             ClientRequest::CancelLoginAccount { params, .. } => {
                 self.account_processor.cancel_login_account(params).await
             }

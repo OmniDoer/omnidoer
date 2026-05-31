@@ -86,6 +86,11 @@ When `/usr/local/lib/omnidoer/codex` is installed, that OmniDoer native console
 is used first; otherwise `omnidoer` falls back to the preserved system Codex
 binary at `/usr/bin/codex`.
 
+Inside the native console, `/users` opens the saved local account switcher.
+Use it to move between ChatGPT/Codex accounts without starting a new chat; the
+current conversation context stays attached to the running session while the
+app-server reloads credentials in place.
+
 Upgrade the CLI and sidecar in place:
 
 ```sh
