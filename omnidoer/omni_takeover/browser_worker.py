@@ -29,6 +29,8 @@ class BrowserContextWorker:
         self._ready = threading.Event()
         self._error: BaseException | None = None
         self._thread = threading.Thread(target=self._run, daemon=True)
+        self._relay_context_id: str | None = None
+        self._relay_lock = threading.Lock()
 
     def start(self) -> "BrowserContextWorker":
         self._thread.start()
@@ -49,20 +51,51 @@ class BrowserContextWorker:
     def __exit__(self, exc_type, exc, tb) -> None:
         self.stop()
 
+    def start_control_relay(self, browser_context_id: str) -> None:
+        with self._relay_lock:
+            self._relay_context_id = browser_context_id
+
+    def stop_control_relay(self, browser_context_id: str | None = None) -> None:
+        with self._relay_lock:
+            if browser_context_id is None or self._relay_context_id == browser_context_id:
+                self._relay_context_id = None
+
+    def _control_relay_context_id(self) -> str | None:
+        with self._relay_lock:
+            return self._relay_context_id
+
     def _run(self) -> None:
+        idle = object()
+        last_preview_frame_at = 0.0
         try:
             with BrowserController(headless=self.headless) as browser:
                 browser.open(self.start_url)
                 self._ready.set()
                 while True:
-                    call = self._calls.get()
+                    try:
+                        call = self._calls.get(timeout=0.25)
+                    except queue.Empty:
+                        call = idle
                     if call is None:
                         break
-                    try:
-                        result = getattr(browser, call.method)(*call.args, **call.kwargs)
-                        call.response.put((True, result))
-                    except BaseException as exc:  # pragma: no cover - defensive relay
-                        call.response.put((False, exc))
+                    if call is not idle:
+                        try:
+                            result = getattr(browser, call.method)(*call.args, **call.kwargs)
+                            call.response.put((True, result))
+                        except BaseException as exc:  # pragma: no cover - defensive relay
+                            call.response.put((False, exc))
+                    context_id = self._control_relay_context_id()
+                    if context_id:
+                        try:
+                            from omnidoer.omni_takeover.cross_process import publish_browser_relay_tick
+
+                            last_preview_frame_at = publish_browser_relay_tick(
+                                context_id,
+                                browser,
+                                last_preview_frame_at=last_preview_frame_at,
+                            )
+                        except Exception:
+                            pass
         except BaseException as exc:
             self._error = exc
             self._ready.set()

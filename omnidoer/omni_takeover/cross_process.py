@@ -207,6 +207,53 @@ def consume_input_events(browser_context_id: str) -> list[dict[str, Any]]:
     return events
 
 
+def publish_browser_relay_tick(browser_context_id: str, browser_controller: object, *, last_preview_frame_at: float = 0.0) -> float:
+    """Publish one browser status/frame/input relay tick.
+
+    Call this from the thread that owns browser_controller when the browser
+    backend is not safe to access from an auxiliary relay thread.
+    """
+
+    from omnidoer.omni_control.requests import RequestStore
+    from omnidoer.omni_takeover.input_events import event_from_dict
+    from omnidoer.omni_takeover.relay import apply_input_event
+
+    store = RequestStore()
+    write_context_status(browser_context_id, browser_controller)
+    active_requests = [
+        request
+        for request in store.list()
+        if request.browser_context_id == browser_context_id
+        and request.request_type in {"human_takeover", "account_registration"}
+        and request.status == "user_control"
+    ]
+    if active_requests:
+        write_frame(browser_context_id, browser_controller.takeover_frame(frame_profile="balanced"))
+        last_preview_frame_at = time.time()
+    elif time.time() - last_preview_frame_at >= PREVIEW_FRAME_INTERVAL_SECONDS:
+        write_frame(browser_context_id, browser_controller.takeover_frame(frame_profile="data_saver"))
+        last_preview_frame_at = time.time()
+    cleanup_input_event_results(browser_context_id)
+    for payload in consume_input_events(browser_context_id):
+        event_id = str(payload.get("event_id") or "")
+        request_id = str(payload.get("request_id") or "")
+        try:
+            event = event_from_dict(payload.get("event") or {})
+            result = apply_input_event(request_id, event, browser_controller=browser_controller)
+            write_input_event_result(
+                browser_context_id,
+                event_id,
+                {**result, "request_id": request_id},
+            )
+        except Exception as exc:
+            write_input_event_result(
+                browser_context_id,
+                event_id,
+                {"status": "event_failed", "request_id": request_id, "error": type(exc).__name__},
+            )
+    return last_preview_frame_at
+
+
 class CrossProcessBrowserRelay:
     def __init__(self, browser_context_id: str, browser_controller: object, *, poll_interval: float = 0.75):
         self.browser_context_id = browser_context_id
@@ -224,46 +271,14 @@ class CrossProcessBrowserRelay:
         self._thread.join(timeout=5)
 
     def _run(self) -> None:
-        from omnidoer.omni_control.requests import RequestStore
-        from omnidoer.omni_takeover.input_events import event_from_dict
-        from omnidoer.omni_takeover.relay import apply_input_event
-
-        store = RequestStore()
         last_preview_frame_at = 0.0
         while not self._stop.is_set():
             try:
-                write_context_status(self.browser_context_id, self.browser_controller)
-                active_requests = [
-                    request
-                    for request in store.list()
-                    if request.browser_context_id == self.browser_context_id
-                    and request.request_type in {"human_takeover", "account_registration"}
-                    and request.status == "user_control"
-                ]
-                if active_requests:
-                    write_frame(self.browser_context_id, self.browser_controller.takeover_frame(frame_profile="balanced"))
-                    last_preview_frame_at = time.time()
-                elif time.time() - last_preview_frame_at >= PREVIEW_FRAME_INTERVAL_SECONDS:
-                    write_frame(self.browser_context_id, self.browser_controller.takeover_frame(frame_profile="data_saver"))
-                    last_preview_frame_at = time.time()
-                cleanup_input_event_results(self.browser_context_id)
-                for payload in consume_input_events(self.browser_context_id):
-                    event_id = str(payload.get("event_id") or "")
-                    request_id = str(payload.get("request_id") or "")
-                    try:
-                        event = event_from_dict(payload.get("event") or {})
-                        result = apply_input_event(request_id, event, browser_controller=self.browser_controller)
-                        write_input_event_result(
-                            self.browser_context_id,
-                            event_id,
-                            {**result, "request_id": request_id},
-                        )
-                    except Exception as exc:
-                        write_input_event_result(
-                            self.browser_context_id,
-                            event_id,
-                            {"status": "event_failed", "request_id": request_id, "error": type(exc).__name__},
-                        )
+                last_preview_frame_at = publish_browser_relay_tick(
+                    self.browser_context_id,
+                    self.browser_controller,
+                    last_preview_frame_at=last_preview_frame_at,
+                )
             except Exception:
                 pass
             self._stop.wait(max(0.1, self.poll_interval))

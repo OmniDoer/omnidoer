@@ -28,6 +28,24 @@ from tests.util_demo import DemoServerFixture
 
 
 class TakeoverBrowserRelayTest(unittest.TestCase):
+    def test_registered_browser_context_starts_worker_control_relay_hooks(self) -> None:
+        class RelayAwareBrowser:
+            def __init__(self):
+                self.started = []
+                self.stopped = []
+
+            def start_control_relay(self, browser_context_id):
+                self.started.append(browser_context_id)
+
+            def stop_control_relay(self, browser_context_id=None):
+                self.stopped.append(browser_context_id)
+
+        browser = RelayAwareBrowser()
+        with registered_browser_context("hooked-browser", browser):
+            self.assertEqual(browser.started, ["hooked-browser"])
+            self.assertEqual(browser.stopped, [])
+        self.assertEqual(browser.stopped, ["hooked-browser"])
+
     def test_control_server_cross_process_browser_context_relay(self) -> None:
         class FakeBrowser:
             def current_url(self):
@@ -220,6 +238,70 @@ class TakeoverBrowserRelayTest(unittest.TestCase):
                 self.assertNotIn("sensitive-input", repr(result))
             finally:
                 relay.stop()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_publish_browser_relay_tick_processes_preview_and_inputs_on_owner_thread(self) -> None:
+        class FakeBrowser:
+            def __init__(self):
+                self.events = []
+                self.frames = []
+
+            def current_url(self):
+                return "https://example.com/working"
+
+            def current_origin(self):
+                return "https://example.com"
+
+            def takeover_frame(self, *, frame_profile=None):
+                self.frames.append(frame_profile)
+                return {
+                    "frame_id": f"owner_{frame_profile}",
+                    "captured_at": 2000000000.0,
+                    "url": "https://example.com/working",
+                    "origin": "https://example.com",
+                    "viewport": {"width": 320, "height": 240},
+                    "content_type": "image/jpeg",
+                    "data_b64": "abcd",
+                    "transport": {"profile": frame_profile},
+                    "for_control_client_only": True,
+                    "not_for_llm": True,
+                }
+
+            def apply_user_input_event(self, event):
+                self.events.append(event.event_type)
+                return {"status": "event_applied"}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                from omnidoer.omni_takeover.cross_process import publish_browser_relay_tick
+
+                browser = FakeBrowser()
+                request = request_user_control(
+                    origin="https://example.com",
+                    top_level_url="https://example.com/working",
+                    reason="owner thread relay",
+                    browser_context_id="owner-browser",
+                )
+                queued = enqueue_input_event("owner-browser", request.request_id, {"event_type": "type", "text": "hidden"})
+                publish_browser_relay_tick("owner-browser", browser)
+
+                frame = read_frame("owner-browser", max_age_seconds=10)
+                self.assertIsNotNone(frame)
+                assert frame is not None
+                self.assertEqual(frame["frame_id"], "owner_balanced")
+                self.assertEqual(browser.frames, ["balanced"])
+                result = wait_for_input_event_result("owner-browser", queued["event_id"], timeout_seconds=0.1)
+                self.assertIsNotNone(result)
+                assert result is not None
+                self.assertEqual(result["status"], "event_applied")
+                self.assertEqual(browser.events, ["type"])
+                self.assertNotIn("hidden", repr(result))
+            finally:
                 if old_home is None:
                     os.environ.pop("OMNIDOER_HOME", None)
                 else:
