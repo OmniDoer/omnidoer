@@ -84,6 +84,13 @@
           <p>Messages stream through your paired Control Service.</p>
         </div>
       </div>
+      <div id="chat-session-status" class="chat-session-status" data-session-state="checking">
+        <div>
+          <strong id="chat-session-title">Checking current CLI session</strong>
+          <p id="chat-session-detail">Pairing authenticates this browser; session sync also needs a live CLI bridge.</p>
+        </div>
+        <button id="chat-session-restart" class="ghost-button chat-session-restart" type="button" hidden>Restart bridge</button>
+      </div>
       <div id="chat-messages" class="chat-feed">Loading messages...</div>
       <div class="chat-composer">
         <label id="chat-input-label" for="chat-input"><span id="chat-input-label-text">Message</span></label>

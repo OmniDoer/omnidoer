@@ -20,6 +20,18 @@ const I18N = {
     runtimeNativeBridgeNotReady: "Native structured bridge is not installed yet; update OmniDoer before restarting.",
     runtimeWaitingForConsoleRestart: "Linux console is active but not yet bridged. Restart OmniDoer console with:",
     runtimeBackgroundRunner: "No live Linux console bridge; queued messages use the background Codex runner.",
+    chatSessionCheckingTitle: "Checking current CLI session",
+    chatSessionCheckingDetail: "Pairing authenticates this browser; session sync also needs a live CLI bridge.",
+    chatSessionAttachedTitle: "Current CLI session attached",
+    chatSessionAttachedDetail: "Phone messages and streamed output are synced with the active Linux TUI.",
+    chatSessionLegacyTitle: "Temporary terminal relay",
+    chatSessionLegacyDetail: "Messages can be pasted into the current console, but full context and structured streaming need a bridge restart.",
+    chatSessionServerOnlyTitle: "Paired to server only",
+    chatSessionServerOnlyDetail: "This browser is authenticated, but the current CLI session is not attached yet. Restart the bridge before using this as the same conversation.",
+    chatSessionBackgroundTitle: "Background runner",
+    chatSessionBackgroundDetail: "Messages are handled by a background Codex runner because no live CLI bridge is attached.",
+    chatSessionOfflineTitle: "Control Service offline",
+    chatSessionOfflineDetail: "Reconnect to the Control Service before sending messages.",
     copyCommand: "Copy command",
     copiedCommand: "Command copied",
     copyCommandFailed: "Copy failed",
@@ -204,6 +216,18 @@ const I18N = {
     runtimeNativeBridgeNotReady: "原生结构化桥接尚未安装；重启前请先更新 OmniDoer。",
     runtimeWaitingForConsoleRestart: "Linux 控制台仍在运行但尚未桥接。请用下面命令重启 OmniDoer console：",
     runtimeBackgroundRunner: "没有实时 Linux 控制台桥接；排队消息将由后台 Codex runner 处理。",
+    chatSessionCheckingTitle: "正在检查当前 CLI 会话",
+    chatSessionCheckingDetail: "配对只代表此浏览器已认证；要同步当前会话还需要实时 CLI 桥接。",
+    chatSessionAttachedTitle: "已接入当前 CLI 会话",
+    chatSessionAttachedDetail: "手机消息和流式输出会同步到活跃 Linux TUI。",
+    chatSessionLegacyTitle: "临时终端 relay",
+    chatSessionLegacyDetail: "消息可以粘贴到当前 console，但完整上下文和结构化流式记录需要重启桥接。",
+    chatSessionServerOnlyTitle: "仅配对到服务器",
+    chatSessionServerOnlyDetail: "此浏览器已认证，但当前 CLI 会话尚未接入。把它当作同一段对话使用前，请先重启桥接。",
+    chatSessionBackgroundTitle: "后台 runner",
+    chatSessionBackgroundDetail: "当前没有实时 CLI 桥接，消息会由后台 Codex runner 处理。",
+    chatSessionOfflineTitle: "Control Service 离线",
+    chatSessionOfflineDetail: "重新连接到 Control Service 后才能发送消息。",
     copyCommand: "复制命令",
     copiedCommand: "命令已复制",
     copyCommandFailed: "复制失败",
@@ -508,6 +532,9 @@ function applyLanguage() {
   setNodeText("#security h2", "securityTitle");
   setNodeText("#task-panel h2", "taskTitle");
   setNodeText("#task-panel .chat-panel-header p", "taskIntro");
+  setNodeText("#chat-session-title", "chatSessionCheckingTitle");
+  setNodeText("#chat-session-detail", "chatSessionCheckingDetail");
+  setButtonText("#chat-session-restart", "restartBridge");
   setNodeText("#chat-input-label-text", "chatComposerLabel");
   const chatInput = document.querySelector("#chat-input");
   if (chatInput) chatInput.placeholder = t("chatPlaceholder");
@@ -523,6 +550,7 @@ function applyLanguage() {
   setButtonText("#approve", "approve");
   setButtonText("#deny", "deny");
   updateAgentControlButtons();
+  updateChatSessionStatus(cachedRuntimeStatus?.chat_runner || null);
 }
 
 function initialPanelId() {
@@ -688,6 +716,11 @@ if (runtimeRestartBridgeButton) {
   runtimeRestartBridgeButton.onclick = () => restartConsoleBridge();
 }
 
+const chatSessionRestartButton = document.querySelector("#chat-session-restart");
+if (chatSessionRestartButton) {
+  chatSessionRestartButton.onclick = () => restartConsoleBridge();
+}
+
 const releaseActiveTakeoverButton = document.querySelector("#release-active-takeover");
 if (releaseActiveTakeoverButton) {
   releaseActiveTakeoverButton.onclick = () => releaseActiveTakeover();
@@ -771,6 +804,7 @@ let cachedRequests = [];
 let cachedChatMessages = [];
 let cachedChatRecords = [];
 let cachedBrowserContexts = [];
+let cachedRuntimeStatus = null;
 let requestStreamActive = false;
 let requestStreamRestart = null;
 let chatStreamActive = false;
@@ -961,6 +995,45 @@ function setStatus(message, detail = "", runtimeState = "", command = "") {
   document.body.dataset.runtimeState = runtimeState;
 }
 
+function updateChatSessionStatus(runner, { offline = false } = {}) {
+  const panel = document.querySelector("#chat-session-status");
+  if (!panel) return;
+  const title = document.querySelector("#chat-session-title");
+  const detail = document.querySelector("#chat-session-detail");
+  const restart = document.querySelector("#chat-session-restart");
+  let state = "checking";
+  let titleKey = "chatSessionCheckingTitle";
+  let detailKey = "chatSessionCheckingDetail";
+  let canRestart = false;
+  if (offline) {
+    state = "offline";
+    titleKey = "chatSessionOfflineTitle";
+    detailKey = "chatSessionOfflineDetail";
+  } else if (runner?.tui_bridge_active) {
+    state = "attached";
+    titleKey = "chatSessionAttachedTitle";
+    detailKey = "chatSessionAttachedDetail";
+  } else if (runner?.waiting_for_tui_bridge) {
+    const legacyRelay = runner.legacy_tui_relay || {};
+    state = legacyRelay.active ? "legacy_relay" : "server_only";
+    titleKey = legacyRelay.active ? "chatSessionLegacyTitle" : "chatSessionServerOnlyTitle";
+    detailKey = legacyRelay.active ? "chatSessionLegacyDetail" : "chatSessionServerOnlyDetail";
+    canRestart = Boolean(runner.restart_command);
+  } else if (runner?.thread_id) {
+    state = "background_runner";
+    titleKey = "chatSessionBackgroundTitle";
+    detailKey = "chatSessionBackgroundDetail";
+  }
+  panel.dataset.sessionState = state;
+  document.body.dataset.chatSessionState = state;
+  if (title) title.textContent = t(titleKey);
+  if (detail) detail.textContent = t(detailKey);
+  if (restart) {
+    restart.hidden = !canRestart;
+    restart.textContent = t("restartBridge");
+  }
+}
+
 async function copyRuntimeCommand() {
   const command = document.querySelector("#runtime-command")?.textContent || "";
   const button = document.querySelector("#runtime-copy-command");
@@ -977,9 +1050,14 @@ async function copyRuntimeCommand() {
 }
 
 async function restartConsoleBridge() {
-  const button = document.querySelector("#runtime-restart-bridge");
+  const buttons = [
+    document.querySelector("#runtime-restart-bridge"),
+    document.querySelector("#chat-session-restart")
+  ].filter(Boolean);
   if (!window.confirm(t("restartBridgeConfirm"))) return;
-  if (button) button.disabled = true;
+  buttons.forEach((button) => {
+    button.disabled = true;
+  });
   try {
     const response = await signedFetch("/api/console/restart-bridge", {
       method: "POST",
@@ -992,7 +1070,9 @@ async function restartConsoleBridge() {
   } catch {
     setStatus(t("restartBridgeFailed"), t("runtimeWaitingForConsoleRestart"), "waiting_for_tui_bridge");
   } finally {
-    if (button) button.disabled = false;
+    buttons.forEach((button) => {
+      button.disabled = false;
+    });
   }
 }
 
@@ -2764,6 +2844,7 @@ function renderRequestList(requests, filter = activeFilter()) {
 async function loadRuntimeStatus() {
   try {
     const status = await fetch("/api/status", { cache: "no-store" }).then((r) => r.json());
+    cachedRuntimeStatus = status;
     const runner = status.chat_runner || {};
     let detail = t("runtimeDetail");
     let runtimeState = "";
@@ -2785,8 +2866,11 @@ async function loadRuntimeStatus() {
       detail = t("runtimeBackgroundRunner");
       runtimeState = "background_runner";
     }
+    updateChatSessionStatus(runner);
     setStatus(`Mode: ${status.mode}`, detail, runtimeState, restartCommand);
   } catch {
+    cachedRuntimeStatus = null;
+    updateChatSessionStatus(null, { offline: true });
     setStatus(t("runtimeOffline"), t("runtimeOfflineDetail"), "offline");
   }
 }
