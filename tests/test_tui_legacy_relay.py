@@ -8,6 +8,7 @@ from omnidoer.omni_control.chat import ChatStore
 from omnidoer.omni_control.tui_legacy_relay import (
     LegacyTuiRelay,
     TmuxPane,
+    terminal_delta,
     find_tmux_pane_for_thread,
     legacy_tui_relay_status,
     legacy_tui_terminal_snapshot,
@@ -128,9 +129,45 @@ class TuiLegacyRelayTest(unittest.TestCase):
         self.assertTrue(status["active"])
         self.assertEqual(status["pane_id"], "%1")
         self.assertEqual(status["capabilities"]["interrupt_on_pause"], True)
+        self.assertEqual(status["capabilities"]["terminal_delta_records"], True)
         self.assertEqual(status["capabilities"]["structured_stream"], False)
         self.assertTrue(snapshot["available"])
         self.assertEqual(snapshot["text"], "live terminal text")
+
+    def test_terminal_delta_uses_line_overlap(self) -> None:
+        previous = ["one", "two", "three"]
+        current = ["two", "three", "four", "five"]
+        self.assertEqual(terminal_delta(previous, current), ["four", "five"])
+        self.assertEqual(terminal_delta(["one", "old"], ["one", "new"]), ["new"])
+
+    def test_relay_publishes_terminal_delta_records(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                store = ChatStore()
+                pane = TmuxPane(pane_id="%1", tty="/dev/pts/2", current_command="codex", process_pid=99)
+                relay = LegacyTuiRelay(store=store, thread_id="thread_active")
+                with patch("omnidoer.omni_control.tui_legacy_relay.live_tui_bridge_active", return_value=False), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.find_tmux_pane_for_thread",
+                    return_value=pane,
+                ), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.capture_tmux_pane",
+                    side_effect=["line one\nline two", "line one\nline two\nline three"],
+                ):
+                    self.assertFalse(relay.publish_terminal_delta())
+                    self.assertTrue(relay.publish_terminal_delta())
+
+                records = store.list_records(limit=100)
+                terminal_records = [record for record in records if record.record_type == "terminal"]
+                self.assertEqual(len(terminal_records), 1)
+                self.assertEqual(terminal_records[0].text, "line three")
+                self.assertEqual(terminal_records[0].data["terminal_delta"], True)
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
 
 
 if __name__ == "__main__":

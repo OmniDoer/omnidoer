@@ -152,6 +152,8 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("cachedChatRecords", app)
         self.assertIn("payload.terminal", app)
         self.assertIn("record_type", app)
+        self.assertIn("chatRecordTerminal", app)
+        self.assertIn('terminal: t("chatRecordTerminal")', app)
         self.assertIn('id="chat-files"', self.html)
         self.assertIn('id="chat-input-label-text"', self.html)
         self.assertIn("/api/chat/attachments", app)
@@ -164,6 +166,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("chat-conversation", (static_root() / "style.css").read_text())
         self.assertIn("chat-activity", (static_root() / "style.css").read_text())
         self.assertIn("chat-record-delta", (static_root() / "style.css").read_text())
+        self.assertIn("chat-record-terminal", (static_root() / "style.css").read_text())
         self.assertIn("chat-terminal-snapshot", (static_root() / "style.css").read_text())
 
     def test_pairing_panel_and_cloud_csrf_contract_present(self) -> None:

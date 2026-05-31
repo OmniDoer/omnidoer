@@ -551,6 +551,14 @@ button:disabled {
   border-color: #fde68a;
   background: #fffbeb;
 }
+.chat-record-terminal {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+.chat-record-terminal .chat-message-text {
+  font: 0.82rem/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  white-space: pre-wrap;
+}
 .chat-terminal-snapshot {
   border-style: solid;
   border-color: #cbd5e1;

@@ -17,6 +17,9 @@ from pathlib import Path
 from omnidoer.omni_control.chat import ChatStore
 from omnidoer.omni_control.chat_runner import live_tui_bridge_active
 
+TERMINAL_CAPTURE_LINES = 120
+TERMINAL_RECORD_LIMIT = 6000
+
 
 @dataclass(frozen=True)
 class TuiProcess:
@@ -138,6 +141,7 @@ def legacy_tui_relay_status(thread_id: str | None) -> dict[str, object]:
             "message_injection": True,
             "interrupt_on_pause": True,
             "terminal_snapshot": True,
+            "terminal_delta_records": True,
             "structured_stream": False,
         },
     }
@@ -187,6 +191,33 @@ def message_requests_interrupt(message) -> bool:
     return str(message.client_message_id or "").startswith(("control_pause_", "omnidoer_pause_"))
 
 
+def terminal_delta(previous: list[str], current: list[str]) -> list[str]:
+    if not previous:
+        return []
+    if current == previous:
+        return []
+    common_prefix = 0
+    for old, new in zip(previous, current):
+        if old != new:
+            break
+        common_prefix += 1
+    if common_prefix:
+        return current[common_prefix:]
+    max_overlap = min(len(previous), len(current))
+    for overlap in range(max_overlap, 0, -1):
+        if previous[-overlap:] == current[:overlap]:
+            return current[overlap:]
+    return current
+
+
+def clip_terminal_record(lines: list[str], *, limit: int = TERMINAL_RECORD_LIMIT) -> str:
+    text = "\n".join(line for line in lines if line.strip())
+    if len(text) <= limit:
+        return text
+    omitted = len(text) - limit
+    return f"{text[-limit:]}\n...[truncated {omitted} leading chars]"
+
+
 class LegacyTuiRelay:
     def __init__(
         self,
@@ -198,6 +229,7 @@ class LegacyTuiRelay:
         self.store = store or ChatStore()
         self.thread_id = thread_id
         self.poll_interval = poll_interval
+        self._last_terminal_lines: list[str] = []
 
     def run_once(self) -> bool:
         if live_tui_bridge_active():
@@ -238,11 +270,42 @@ class LegacyTuiRelay:
         )
         return True
 
+    def publish_terminal_delta(self) -> bool:
+        if live_tui_bridge_active():
+            self._last_terminal_lines = []
+            return False
+        pane = find_tmux_pane_for_thread(self.thread_id)
+        if pane is None:
+            self._last_terminal_lines = []
+            return False
+        text = capture_tmux_pane(pane.pane_id, line_count=TERMINAL_CAPTURE_LINES)
+        current = text.splitlines()
+        delta = terminal_delta(self._last_terminal_lines, current)
+        self._last_terminal_lines = current
+        body = clip_terminal_record(delta)
+        if not body:
+            return False
+        self.store.append_record(
+            record_type="terminal",
+            text=body,
+            role="assistant",
+            source="legacy_tui_relay",
+            data={
+                "pane_id": pane.pane_id,
+                "thread_id": self.thread_id,
+                "transport": "tmux",
+                "line_count": len(delta),
+                "terminal_delta": True,
+            },
+        )
+        return True
+
     def run_forever(self, stop_event: threading.Event | None = None) -> None:
         stop = stop_event or threading.Event()
         while not stop.is_set():
             processed = self.run_once()
-            if not processed:
+            published = self.publish_terminal_delta()
+            if not processed and not published:
                 stop.wait(max(0.1, self.poll_interval))
 
 

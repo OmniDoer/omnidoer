@@ -102,6 +102,7 @@ const I18N = {
     chatRecordStatus: "Status",
     chatRecordToolCall: "Tool call",
     chatRecordToolOutput: "Tool output",
+    chatRecordTerminal: "Terminal",
     chatConversationTitle: "Conversation",
     chatActivityTitle: "Live activity",
     chatUserRole: "You",
@@ -276,6 +277,7 @@ const I18N = {
     chatRecordStatus: "状态",
     chatRecordToolCall: "工具调用",
     chatRecordToolOutput: "工具输出",
+    chatRecordTerminal: "终端",
     chatConversationTitle: "对话",
     chatActivityTitle: "实时活动",
     chatUserRole: "你",
@@ -1664,7 +1666,8 @@ function chatRecordTypeLabel(type) {
     delta: t("chatRecordDelta"),
     status: t("chatRecordStatus"),
     tool_call: t("chatRecordToolCall"),
-    tool_output: t("chatRecordToolOutput")
+    tool_output: t("chatRecordToolOutput"),
+    terminal: t("chatRecordTerminal")
   }[type] || type;
 }
 
