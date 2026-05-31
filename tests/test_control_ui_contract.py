@@ -240,6 +240,8 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("takeover-frame-profile", self.html)
         self.assertIn("takeover-frame-zoom", self.html)
         self.assertIn("request-takeover-pause", self.html)
+        self.assertIn("takeoverReleasePrompt", app)
+        self.assertIn("control_continue_", app)
         self.assertIn("runtime-pause-agent", app)
         self.assertIn("quick-pause-button", app)
         self.assertIn("quick-continue-button", app)

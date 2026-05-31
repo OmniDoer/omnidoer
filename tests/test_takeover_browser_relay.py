@@ -73,6 +73,21 @@ class TakeoverBrowserRelayTest(unittest.TestCase):
                 )
                 self.assertEqual(request_payload["browser_context_id"], "cross-browser")
                 request_id = request_payload["request_id"]
+                repeated_payload = json.loads(
+                    urlopen(
+                        Request(
+                            f"{base}/api/browser/contexts/cross-browser/takeover",
+                            data=body,
+                            headers={"content-type": "application/json"},
+                            method="POST",
+                        ),
+                        timeout=5,
+                    )
+                    .read()
+                    .decode()
+                )
+                self.assertEqual(repeated_payload["request_id"], request_id)
+                self.assertTrue(repeated_payload["reused"])
 
                 delivered_frame = json.loads(urlopen(f"{base}/api/requests/{request_id}/frame", timeout=5).read().decode())
                 self.assertEqual(delivered_frame["frame_id"], "frame_cross")

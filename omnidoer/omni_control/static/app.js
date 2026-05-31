@@ -133,6 +133,7 @@ const I18N = {
     pauseAgentRequested: "Pause requested",
     pauseAgentRequestDetail: "The request was queued for the active Linux console. When the TUI bridge is active, the current turn will pause before this instruction is handled.",
     takeoverPausePrompt: "Pause current browser automation now and hand the active browser to my Control Client. If a browser is running, create or keep a Human Takeover request, stream the page to me, and wait until I tap Continue Agent before resuming.",
+    takeoverReleasePrompt: "I have finished controlling the browser. Continue from the current page state and resume the task.",
     releaseControl: "Continue Agent",
     openCurrentUrl: "Open current URL",
     externalHandoffNote: "Open the current URL in your browser, complete the site action yourself, then continue the Agent. No password, OTP, passkey, or recovery code is sent to the model.",
@@ -314,6 +315,7 @@ const I18N = {
     pauseAgentRequested: "已请求暂停",
     pauseAgentRequestDetail: "请求已排队给当前 Linux 控制台。TUI 桥接启用后，当前回合会先暂停再处理这条指令。",
     takeoverPausePrompt: "请立即暂停当前浏览器自动化，并把活跃浏览器交给我的 Control Client。如果正在操作浏览器，请创建或保持一个 Human Takeover 请求，把页面画面流式发送给我，并等待我点击继续交给 Agent 后再恢复。",
+    takeoverReleasePrompt: "我已经完成浏览器接管操作。请从当前页面状态继续执行任务。",
     releaseControl: "继续交给 Agent",
     openCurrentUrl: "打开当前链接",
     externalHandoffNote: "在浏览器中打开当前链接，由你本人完成网站操作，然后继续交给 Agent。密码、OTP、passkey 或 recovery code 都不会发送给模型。",
@@ -1258,6 +1260,10 @@ async function releaseActiveTakeover() {
   setPauseButtonsDisabled(true);
   try {
     await postAction(request, "release");
+    const clientMessageId = `control_continue_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const response = await postChatMessage(t("takeoverReleasePrompt"), { clientMessageId });
+    if (!response.ok) throw new Error("continue message failed");
+    await loadChatMessages();
   } finally {
     setPauseButtonsDisabled(false);
   }

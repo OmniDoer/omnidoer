@@ -977,6 +977,14 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     self._send_json(HTTPStatus.NOT_FOUND, {"error": "browser_context_not_found"})
                     return
                 body = self._read_json()
+                for existing in store.list():
+                    if (
+                        existing.browser_context_id == context_id
+                        and existing.request_type in {"human_takeover", "account_registration"}
+                        and existing.status == "user_control"
+                    ):
+                        self._send_json(HTTPStatus.OK, {**existing.to_public_dict(), "reused": True})
+                        return
                 request = request_user_control(
                     origin=str(context.get("origin") or ""),
                     top_level_url=str(context.get("current_url") or context.get("origin") or ""),
@@ -984,7 +992,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     browser_context_id=context_id,
                     risk_level=str(body.get("risk_level") or "high"),
                 )
-                self._send_json(HTTPStatus.CREATED, request.to_public_dict())
+                self._send_json(HTTPStatus.CREATED, {**request.to_public_dict(), "reused": False})
             except Exception as exc:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
             return
