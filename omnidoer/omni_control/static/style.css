@@ -282,15 +282,83 @@ button:disabled {
   padding: 12px;
   margin: 12px 0;
 }
+.chat-composer {
+  position: sticky;
+  bottom: 10px;
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.13);
+  padding: 12px;
+  backdrop-filter: blur(12px);
+}
+.chat-composer label {
+  margin: 0;
+}
+.chat-composer textarea {
+  min-height: 108px;
+  border: 0;
+  border-radius: 8px;
+  background: #f8fafc;
+  resize: vertical;
+}
+.chat-composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+#chat-files {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.file-button,
+#send-chat-message {
+  min-height: 46px;
+  border-radius: 999px;
+  padding: 0 18px;
+  touch-action: manipulation;
+}
+.file-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  background: #ffffff;
+  cursor: pointer;
+}
+.chat-selected-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chat-file-chip {
+  max-width: 100%;
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  padding: 7px 11px;
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+}
 .chat-message {
   max-width: min(780px, 92%);
   box-shadow: none;
+  border-radius: 8px;
 }
 .chat-record {
   max-width: 100%;
   border-style: dashed;
   background: #ffffff;
   box-shadow: none;
+  border-radius: 8px;
 }
 .chat-role-user {
   align-self: flex-end;
@@ -434,6 +502,8 @@ button:disabled {
   .metadata { grid-template-columns: 1fr; }
   section { border-radius: 0; margin: 8px 0; }
   button { width: 100%; }
+  .chat-composer-actions { align-items: stretch; flex-direction: column; }
+  .file-button { width: 100%; min-height: 48px; }
   #language-toggle { width: auto; }
   .button-row button, .filter-row button { width: auto; flex: 1 1 130px; }
   .takeover-toolbar button { flex-basis: 140px; }

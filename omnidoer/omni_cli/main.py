@@ -98,6 +98,7 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--chat-runner-cwd")
     serve.add_argument("--chat-codex-bin")
     serve.add_argument("--chat-codex-arg", action="append", default=[])
+    serve.add_argument("--chat-upload-ttl", default=None)
     serve.add_argument("--background", action="store_true")
     pair = control_sub.add_parser("pair")
     pair.add_argument("--print-qr", action="store_true")
@@ -374,6 +375,7 @@ def main(argv: list[str] | None = None) -> int:
                 ("--tls-key", args.tls_key),
                 ("--chat-runner-cwd", args.chat_runner_cwd),
                 ("--chat-codex-bin", args.chat_codex_bin),
+                ("--chat-upload-ttl", args.chat_upload_ttl),
             ):
                 if value:
                     background_args.extend([flag, value])

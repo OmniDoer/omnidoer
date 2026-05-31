@@ -81,8 +81,15 @@
       <p>Messages stream through your paired Control Service. The Control Client does not call OpenAI APIs or models directly; the local Agent reads queued messages and publishes responses.</p>
       <p>Do not enter passwords, verification codes, card numbers, private keys, or other secrets here. Use Credential Request or Challenge Request panels for sensitive input.</p>
       <div id="chat-messages" class="chat-feed">Loading messages...</div>
-      <label id="chat-input-label">Message <textarea id="chat-input" rows="4" placeholder="Write to OmniDoer"></textarea></label>
-      <button id="send-chat-message">Send Message</button>
+      <div class="chat-composer">
+        <label id="chat-input-label">Message <textarea id="chat-input" rows="4" placeholder="Write to OmniDoer"></textarea></label>
+        <div id="chat-selected-files" class="chat-selected-files"></div>
+        <div class="chat-composer-actions">
+          <label id="chat-files-label" class="file-button" for="chat-files">Attach</label>
+          <input id="chat-files" type="file" multiple>
+          <button id="send-chat-message">Send Message</button>
+        </div>
+      </div>
     </section>
     <section id="takeover-panel">
       <h2>Human Takeover</h2>

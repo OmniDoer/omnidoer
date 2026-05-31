@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from omnidoer.omni_control.chat import ChatMessage, ChatStore
+from omnidoer.omni_control.chat_uploads import image_attachment_paths
 
 
 DEFAULT_RECORD_TEXT_LIMIT = 6000
@@ -204,7 +205,21 @@ class ChatRunner:
             bridge.record("error", "Codex CLI binary was not found; cannot process Control Client chat.", role="system")
             return self.store.complete(assistant.message_id, text="Codex CLI binary was not found.")
         bridge.record("status", f"Launching Codex JSON stream in {self.cwd}", role="system")
-        command = [codex, "exec", "--json", "--cd", str(self.cwd), "--skip-git-repo-check", *self.extra_args, "--", user_message.text]
+        image_args = []
+        for image_path in image_attachment_paths(user_message.attachments):
+            image_args.extend(["--image", image_path])
+        command = [
+            codex,
+            "exec",
+            "--json",
+            "--cd",
+            str(self.cwd),
+            "--skip-git-repo-check",
+            *image_args,
+            *self.extra_args,
+            "--",
+            user_message.text,
+        ]
         env = self._subprocess_env()
         try:
             with subprocess.Popen(

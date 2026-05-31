@@ -116,6 +116,11 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("renderChatRecord", app)
         self.assertIn("cachedChatRecords", app)
         self.assertIn("record_type", app)
+        self.assertIn('id="chat-files"', self.html)
+        self.assertIn("/api/chat/attachments", app)
+        self.assertIn("FormData", app)
+        self.assertIn("formatFileSize", app)
+        self.assertIn("chat-file-chip", (static_root() / "style.css").read_text())
         self.assertIn("chat-record-delta", (static_root() / "style.css").read_text())
 
     def test_pairing_panel_and_cloud_csrf_contract_present(self) -> None:

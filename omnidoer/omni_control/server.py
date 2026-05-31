@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from email import policy
+from email.parser import BytesParser
 import json
 import re
 import socket
 import ssl
 import tempfile
 import ipaddress
+import threading
 import time
 import datetime as dt
 from http.cookies import SimpleCookie
@@ -25,6 +28,12 @@ from cryptography.x509.oid import NameOID
 from omnidoer.omni_audit.audit import AuditLog
 from omnidoer.omni_control.auth import authenticate_session, authenticate_signed_session_request, pair_device
 from omnidoer.omni_control.chat import ChatStore
+from omnidoer.omni_control.chat_uploads import (
+    MAX_CHAT_UPLOAD_BYTES,
+    ChatUploadStore,
+    chat_upload_ttl_seconds,
+    validate_uploaded_attachments,
+)
 from omnidoer.omni_control.cloud import ControlServiceConfig, build_config
 from omnidoer.omni_control.csrf import CSRF_HEADER, verify_csrf
 from omnidoer.omni_control.devices import DeviceStore
@@ -206,6 +215,37 @@ class ControlHandler(SimpleHTTPRequestHandler):
             return {}
         return json.loads(self.rfile.read(length).decode())
 
+    def _read_multipart_files(self) -> list[dict]:
+        length = int(self.headers.get("content-length", "0"))
+        if length <= 0:
+            return []
+        if length > MAX_CHAT_UPLOAD_BYTES:
+            raise ValueError("upload is too large")
+        content_type = self.headers.get("content-type", "")
+        if not content_type.startswith("multipart/form-data"):
+            raise ValueError("multipart/form-data required")
+        body = self.rfile.read(length)
+        message = BytesParser(policy=policy.default).parsebytes(
+            b"Content-Type: " + content_type.encode() + b"\r\nMIME-Version: 1.0\r\n\r\n" + body
+        )
+        files = []
+        for part in message.iter_parts():
+            filename = part.get_filename()
+            if not filename:
+                continue
+            payload = part.get_payload(decode=True) or b""
+            files.append(
+                {
+                    "filename": filename,
+                    "content": payload,
+                    "content_type": part.get_content_type(),
+                }
+            )
+        return files
+
+    def _chat_upload_ttl_seconds(self) -> int:
+        return int(getattr(self.server, "omnidoer_chat_upload_ttl_seconds", chat_upload_ttl_seconds()))
+
     @property
     def config(self) -> ControlServiceConfig:
         return getattr(self.server, "omnidoer_config", build_config(host="127.0.0.1", port=8787))
@@ -222,6 +262,10 @@ class ControlHandler(SimpleHTTPRequestHandler):
             "records": [record.to_public_dict() for record in records],
             "streaming": True,
             "retention": {"approx_screen_count": 5, "max_records": 140},
+            "uploads": {
+                "directory": str(ChatUploadStore().directory),
+                "ttl_seconds": self._chat_upload_ttl_seconds(),
+            },
             "control_client_calls_model": False,
         }
 
@@ -757,6 +801,8 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 return
             try:
                 body = self._read_json()
+                upload_store = ChatUploadStore()
+                upload_store.cleanup_expired(ttl_seconds=self._chat_upload_ttl_seconds())
                 message = ChatStore().append(
                     role="user",
                     text=str(body.get("text") or ""),
@@ -764,8 +810,41 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     author_device_id=session.device_id if session else None,
                     client_message_id=str(body.get("client_message_id") or "") or None,
                     reply_to_message_id=str(body.get("reply_to_message_id") or "") or None,
+                    attachments=validate_uploaded_attachments(body.get("attachments"), upload_store.directory),
                 )
                 self._send_json(HTTPStatus.CREATED, message.to_public_dict())
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
+        if path == "/api/chat/attachments":
+            try:
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+                return
+            try:
+                ttl_seconds = self._chat_upload_ttl_seconds()
+                upload_store = ChatUploadStore()
+                upload_store.cleanup_expired(ttl_seconds=ttl_seconds)
+                uploads = [
+                    upload_store.save(
+                        filename=file["filename"],
+                        content=file["content"],
+                        content_type=file["content_type"],
+                        ttl_seconds=ttl_seconds,
+                    ).to_public_dict()
+                    for file in self._read_multipart_files()
+                ]
+                self._send_json(
+                    HTTPStatus.CREATED,
+                    {
+                        "attachments": uploads,
+                        "directory": str(upload_store.directory),
+                        "ttl_seconds": ttl_seconds,
+                        "secret_fields_allowed": False,
+                    },
+                )
             except Exception as exc:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
             return
@@ -1060,6 +1139,7 @@ def serve(
     chat_runner_cwd: str | None = None,
     chat_codex_bin: str | None = None,
     chat_codex_args: list[str] | None = None,
+    chat_upload_ttl: str | int | None = None,
 ) -> None:
     try:
         config = build_config(
@@ -1084,6 +1164,17 @@ def serve(
     server = TLSAwareThreadingHTTPServer((host, port), ControlHandler, tls_context=tls_context)
     server.omnidoer_config = config  # type: ignore[attr-defined]
     server.omnidoer_direct_tls = tls_context is not None  # type: ignore[attr-defined]
+    upload_ttl_seconds = chat_upload_ttl_seconds(chat_upload_ttl)
+    server.omnidoer_chat_upload_ttl_seconds = upload_ttl_seconds  # type: ignore[attr-defined]
+    ChatUploadStore().cleanup_expired(ttl_seconds=upload_ttl_seconds)
+    cleanup_interval = max(60, min(upload_ttl_seconds, 3600))
+
+    def cleanup_chat_uploads() -> None:
+        while True:
+            time.sleep(cleanup_interval)
+            ChatUploadStore().cleanup_expired(ttl_seconds=upload_ttl_seconds)
+
+    threading.Thread(target=cleanup_chat_uploads, name="omnidoer-chat-upload-cleanup", daemon=True).start()
     record_control_service_runtime(config)
     if tls_self_signed_dev:
         print("WARNING: --tls-self-signed-dev is for localhost/test only. Use a real certificate or reverse proxy for Cloud Direct.")

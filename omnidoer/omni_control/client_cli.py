@@ -104,6 +104,7 @@ def handle_control_command(args) -> int:
             chat_runner_cwd=args.chat_runner_cwd,
             chat_codex_bin=args.chat_codex_bin,
             chat_codex_args=args.chat_codex_arg,
+            chat_upload_ttl=args.chat_upload_ttl,
         )
         return 0
     if command == "pair":

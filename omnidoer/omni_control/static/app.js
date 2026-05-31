@@ -78,6 +78,9 @@ const I18N = {
     taskIntro: "Messages stream through your paired Control Service.",
     chatComposerLabel: "Message",
     chatPlaceholder: "Write to OmniDoer",
+    chatFilesLabel: "Attach",
+    chatSelectedFiles: "Selected files",
+    uploadFailed: "Upload failed",
     sendMessage: "Send Message",
     noChatMessages: "No chat messages yet.",
     pairToViewChat: "Pair this device to view and send chat messages.",
@@ -227,6 +230,9 @@ const I18N = {
     taskIntro: "消息会通过已配对的 Control Service 流式同步。",
     chatComposerLabel: "消息",
     chatPlaceholder: "发送给 OmniDoer",
+    chatFilesLabel: "添加附件",
+    chatSelectedFiles: "已选文件",
+    uploadFailed: "上传失败",
     sendMessage: "发送消息",
     noChatMessages: "还没有对话消息。",
     pairToViewChat: "请先配对此设备以查看和发送对话消息。",
@@ -304,6 +310,7 @@ const EXTRA_I18N = {
     appSubtitle: "Aprobaciones, credenciales, verificaciones y toma de control seguras.",
     navRequests: "Solicitudes", navTasks: "Tareas", navDevices: "Dispositivos", navSecurity: "Seguridad", navTakeover: "Control", navPayments: "Pagos",
     requestsTitle: "Solicitudes pendientes", filterOpen: "Pendientes", filterAll: "Todas", filterCredential: "Secretos", filterChallenge: "Verificaciones", filterApproval: "Aprobaciones", filterTakeover: "Control",
+    chatFilesLabel: "Adjuntar", chatSelectedFiles: "Archivos seleccionados", uploadFailed: "Carga fallida",
     releaseControl: "Liberar control", openCurrentUrl: "Abrir URL actual", externalHandoffNote: "Abre la URL actual, completa la accion en el sitio y libera el control. Secretos y codigos no se envian al modelo.",
     submitCredential: "Enviar credencial", submitChallenge: "Enviar codigo", approve: "Aprobar", deny: "Denegar", challengeCode: "Codigo de un solo uso"
   },
@@ -311,6 +318,7 @@ const EXTRA_I18N = {
     appSubtitle: "Approbations, identifiants, validations et prise de controle securises.",
     navRequests: "Demandes", navTasks: "Taches", navDevices: "Appareils", navSecurity: "Securite", navTakeover: "Controle", navPayments: "Paiements",
     requestsTitle: "Demandes en attente", filterOpen: "En attente", filterAll: "Toutes", filterCredential: "Secrets", filterChallenge: "Verifications", filterApproval: "Approbations", filterTakeover: "Controle",
+    chatFilesLabel: "Joindre", chatSelectedFiles: "Fichiers selectionnes", uploadFailed: "Echec d'envoi",
     releaseControl: "Rendre le controle", openCurrentUrl: "Ouvrir l'URL", externalHandoffNote: "Ouvrez l'URL, terminez l'action sur le site, puis rendez le controle. Les secrets et codes ne sont pas envoyes au modele.",
     submitCredential: "Envoyer l'identifiant", submitChallenge: "Envoyer le code", approve: "Approuver", deny: "Refuser", challengeCode: "Code a usage unique"
   },
@@ -318,6 +326,7 @@ const EXTRA_I18N = {
     appSubtitle: "Sichere Freigaben, Zugangsdaten, Pruefungen und manuelle Uebernahme.",
     navRequests: "Anfragen", navTasks: "Aufgaben", navDevices: "Geraete", navSecurity: "Sicherheit", navTakeover: "Uebernahme", navPayments: "Zahlungen",
     requestsTitle: "Offene Anfragen", filterOpen: "Offen", filterAll: "Alle", filterCredential: "Secrets", filterChallenge: "Pruefungen", filterApproval: "Freigaben", filterTakeover: "Uebernahme",
+    chatFilesLabel: "Anhaengen", chatSelectedFiles: "Ausgewaehlte Dateien", uploadFailed: "Upload fehlgeschlagen",
     releaseControl: "Kontrolle freigeben", openCurrentUrl: "Aktuelle URL oeffnen", externalHandoffNote: "Oeffnen Sie die aktuelle URL, erledigen Sie die Aktion selbst und geben Sie danach die Kontrolle frei. Secrets und Codes werden nicht an das Modell gesendet.",
     submitCredential: "Zugangsdaten senden", submitChallenge: "Code senden", approve: "Genehmigen", deny: "Ablehnen", challengeCode: "Einmalcode"
   },
@@ -325,6 +334,7 @@ const EXTRA_I18N = {
     appSubtitle: "承認、認証情報、検証、人間による操作を安全に扱います。",
     navRequests: "リクエスト", navTasks: "タスク", navDevices: "デバイス", navSecurity: "セキュリティ", navTakeover: "操作", navPayments: "支払い",
     requestsTitle: "未処理リクエスト", filterOpen: "未処理", filterAll: "すべて", filterCredential: "シークレット", filterChallenge: "検証", filterApproval: "承認", filterTakeover: "操作",
+    chatFilesLabel: "添付", chatSelectedFiles: "選択したファイル", uploadFailed: "アップロード失敗",
     releaseControl: "操作を戻す", openCurrentUrl: "現在のURLを開く", externalHandoffNote: "現在のURLを開き、サイト上の操作を自分で完了してから操作を戻してください。パスワードやコードはモデルに送信されません。",
     submitCredential: "認証情報を送信", submitChallenge: "コードを送信", approve: "承認", deny: "拒否", challengeCode: "ワンタイムコード"
   },
@@ -332,6 +342,7 @@ const EXTRA_I18N = {
     appSubtitle: "승인, 자격 증명, 인증, 사용자 제어를 안전하게 처리합니다.",
     navRequests: "요청", navTasks: "작업", navDevices: "기기", navSecurity: "보안", navTakeover: "제어", navPayments: "결제",
     requestsTitle: "대기 중인 요청", filterOpen: "대기", filterAll: "전체", filterCredential: "비밀", filterChallenge: "인증", filterApproval: "승인", filterTakeover: "제어",
+    chatFilesLabel: "첨부", chatSelectedFiles: "선택한 파일", uploadFailed: "업로드 실패",
     releaseControl: "제어 해제", openCurrentUrl: "현재 URL 열기", externalHandoffNote: "현재 URL을 열고 사이트 작업을 직접 완료한 뒤 제어를 해제하세요. 비밀번호와 코드는 모델로 전송되지 않습니다.",
     submitCredential: "자격 증명 제출", submitChallenge: "코드 제출", approve: "승인", deny: "거부", challengeCode: "일회용 코드"
   }
@@ -415,6 +426,7 @@ function applyLanguage() {
   setNodeText("#chat-input-label", "chatComposerLabel");
   const chatInput = document.querySelector("#chat-input");
   if (chatInput) chatInput.placeholder = t("chatPlaceholder");
+  setNodeText("#chat-files-label", "chatFilesLabel");
   setButtonText("#send-chat-message", "sendMessage");
   setButtonText("#submit-task", "submitTask");
   setNodeText("#takeover-panel h2", "takeoverTitle");
@@ -464,6 +476,11 @@ main.insertBefore(requestsRoot, document.querySelector("#pairing-panel"));
 const sendChatMessageButton = document.querySelector("#send-chat-message");
 if (sendChatMessageButton) {
   sendChatMessageButton.onclick = () => sendChatMessage();
+}
+
+const chatFilesInput = document.querySelector("#chat-files");
+if (chatFilesInput) {
+  chatFilesInput.onchange = () => renderSelectedChatFiles();
 }
 
 const chatInput = document.querySelector("#chat-input");
@@ -1305,21 +1322,70 @@ async function submitTask() {
   await loadTasks();
 }
 
+function formatFileSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function selectedChatFiles() {
+  const input = document.querySelector("#chat-files");
+  return input?.files ? Array.from(input.files) : [];
+}
+
+function renderSelectedChatFiles() {
+  const list = document.querySelector("#chat-selected-files");
+  if (!list) return;
+  list.innerHTML = "";
+  const files = selectedChatFiles();
+  files.forEach((file) => {
+    const chip = document.createElement("span");
+    chip.className = "chat-file-chip";
+    chip.textContent = `${file.name} · ${formatFileSize(file.size)}`;
+    list.append(chip);
+  });
+}
+
+async function uploadChatAttachments(files) {
+  if (!files.length) return [];
+  const form = new FormData();
+  files.forEach((file) => form.append("files", file, file.name));
+  const response = await signedFetch("/api/chat/attachments", {
+    method: "POST",
+    headers: csrfHeaders(),
+    body: form
+  });
+  if (!response.ok) throw new Error("upload failed");
+  const payload = await response.json();
+  return payload.attachments || [];
+}
+
 async function sendChatMessage() {
   const input = document.querySelector("#chat-input");
+  const fileInput = document.querySelector("#chat-files");
   const text = input.value.trim();
-  if (!text) return;
+  const files = selectedChatFiles();
+  if (!text && !files.length) return;
   const clientMessageId = `client_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  let attachments = [];
+  try {
+    attachments = await uploadChatAttachments(files);
+  } catch {
+    setStatus(t("uploadFailed"), t("pairToViewChat"));
+    return;
+  }
   const response = await signedFetch("/api/chat/messages", {
     method: "POST",
     headers: { "content-type": "application/json", ...csrfHeaders() },
-    body: JSON.stringify({ text, client_message_id: clientMessageId })
+    body: JSON.stringify({ text, client_message_id: clientMessageId, attachments })
   });
   if (!response.ok) {
     setStatus(t("actionFailed"), t("pairToViewChat"));
     return;
   }
   input.value = "";
+  if (fileInput) fileInput.value = "";
+  renderSelectedChatFiles();
   await loadChatMessages();
 }
 

@@ -5,10 +5,11 @@ from __future__ import annotations
 import json
 import time
 import uuid
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from omnidoer.omni_control.chat_uploads import append_attachments_to_text, normalize_attachments
 from omnidoer.paths import state_file
 
 
@@ -31,6 +32,7 @@ class ChatMessage:
     author_device_id: str | None = None
     client_message_id: str | None = None
     reply_to_message_id: str | None = None
+    attachments: list[dict[str, Any]] = field(default_factory=list)
     created_at: float = 0.0
     updated_at: float = 0.0
     claimed_at: float | None = None
@@ -195,8 +197,10 @@ class ChatStore:
         author_device_id: str | None = None,
         client_message_id: str | None = None,
         reply_to_message_id: str | None = None,
+        attachments: list[dict[str, Any]] | None = None,
     ) -> ChatMessage:
-        cleaned = text.strip() if role == "user" else text
+        normalized_attachments = normalize_attachments(attachments)
+        cleaned = append_attachments_to_text(text, normalized_attachments) if role == "user" else text
         if role not in CHAT_ROLES:
             raise ValueError("invalid chat role")
         if (status or "completed") not in CHAT_STATUSES:
@@ -218,6 +222,7 @@ class ChatStore:
             author_device_id=author_device_id,
             client_message_id=client_message_id,
             reply_to_message_id=reply_to_message_id,
+            attachments=normalized_attachments,
             created_at=now,
             updated_at=now,
             completed_at=now if resolved_status == "completed" else None,
@@ -230,7 +235,7 @@ class ChatStore:
             role=message.role,
             message_id=message.message_id,
             source=source,
-            data={"status": message.status},
+            data={"status": message.status, "attachments": normalized_attachments},
         )
         records[record.record_id] = record
         self._save(next_sequence + 1, messages, next_record_sequence + 1, records)
