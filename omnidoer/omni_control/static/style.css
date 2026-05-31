@@ -86,6 +86,28 @@ button:disabled {
   background: #cbd5e1;
   color: #475569;
 }
+#forget-local-pairing {
+  border-color: var(--line);
+  background: white;
+  color: var(--ink);
+}
+#forget-local-pairing:hover { background: #f8fafc; }
+#forget-local-pairing:disabled {
+  background: #f1f5f9;
+  color: #64748b;
+}
+#pairing-panel[data-pairing-state="paired"] {
+  border-color: #86efac;
+  background: #fbfffc;
+}
+#pairing-panel[data-pairing-state="stale"],
+#pairing-panel[data-pairing-state="offline"] {
+  border-color: #fcd34d;
+}
+#pairing-status {
+  font-weight: 700;
+  color: var(--ink);
+}
 .status-strip {
   display: flex;
   align-items: center;

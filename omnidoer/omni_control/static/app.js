@@ -42,6 +42,11 @@ if (pairDeviceButton) {
   pairDeviceButton.onclick = () => pairDevice();
 }
 
+const forgetLocalPairingButton = document.querySelector("#forget-local-pairing");
+if (forgetLocalPairingButton) {
+  forgetLocalPairingButton.onclick = () => forgetLocalPairing();
+}
+
 const refreshDevicesButton = document.querySelector("#refresh-devices");
 if (refreshDevicesButton) {
   refreshDevicesButton.onclick = () => loadDevicesAndSessions();
@@ -189,6 +194,28 @@ function displayValue(value, fallback = "pending") {
 function setFieldText(selector, value, fallback = "pending") {
   const node = document.querySelector(selector);
   if (node) node.textContent = displayValue(value, fallback);
+}
+
+function storedPairingIdentity() {
+  return {
+    deviceId: localStorage.getItem("omnidoer_device_id") || "",
+    sessionId: localStorage.getItem("omnidoer_session_id") || "",
+    hasPrivateKey: Boolean(localStorage.getItem("omnidoer_device_private_jwk"))
+  };
+}
+
+function setPairingUiState({ state, message, deviceText = "" }) {
+  const panel = document.querySelector("#pairing-panel");
+  const status = document.querySelector("#pairing-status");
+  const currentDevice = document.querySelector("#pairing-current-device");
+  const forgetButton = document.querySelector("#forget-local-pairing");
+  if (panel) panel.dataset.pairingState = state;
+  if (status) status.textContent = message;
+  if (currentDevice) currentDevice.textContent = deviceText || "not paired";
+  if (forgetButton) {
+    const identity = storedPairingIdentity();
+    forgetButton.disabled = !identity.deviceId && !identity.sessionId && !identity.hasPrivateKey;
+  }
 }
 
 function isTakeoverRequest(request) {
@@ -570,6 +597,7 @@ async function pairDevice() {
   const code = document.querySelector("#pairing-code").value.trim();
   const deviceName = document.querySelector("#device-name").value.trim() || "PWA Control Client";
   if (!code) return;
+  setPairingUiState({ state: "checking", message: "Pairing this device..." });
   const { publicJwk } = await deviceKeyPair();
   const response = await fetch("/api/pair", {
     method: "POST",
@@ -584,9 +612,33 @@ async function pairDevice() {
   localStorage.setItem("omnidoer_device_id", payload.device.device_id);
   localStorage.setItem("omnidoer_session_id", payload.session.session_id);
   localStorage.setItem("omnidoer_csrf_token", payload.csrf_token);
-  document.querySelector("#pairing-status").textContent = `Paired ${payload.device.name}. Device identity created. Device fingerprint: ${payload.device.fingerprint || "not visible"}.`;
+  setPairingUiState({
+    state: "paired",
+    message: `Paired ${payload.device.name}. This browser will reuse the cached session until it expires or is revoked.`,
+    deviceText: `${payload.device.device_id} - session expires ${formatTimestamp(payload.session.expires_at)}`
+  });
   await loadRequests();
   await loadDevicesAndSessions();
+}
+
+function forgetLocalPairing() {
+  [
+    "omnidoer_device_id",
+    "omnidoer_session_id",
+    "omnidoer_csrf_token",
+    "omnidoer_device_private_jwk",
+    "omnidoer_device_public_jwk"
+  ].forEach((key) => localStorage.removeItem(key));
+  cachedRequests = [];
+  renderRequestList([]);
+  setPairingUiState({
+    state: "unpaired",
+    message: "Local pairing was removed from this browser. Server-side devices and sessions can still be revoked after pairing again."
+  });
+  const devicesRoot = document.querySelector("#devices-list");
+  const sessionsRoot = document.querySelector("#sessions-list");
+  if (devicesRoot) devicesRoot.textContent = "Pair this device to view paired devices.";
+  if (sessionsRoot) sessionsRoot.textContent = "Pair this device to view sessions.";
 }
 
 function b64url(bytes) {
@@ -832,6 +884,76 @@ async function loadDevicesAndSessions() {
   } catch {
     devicesRoot.textContent = "Pair this device to view paired devices.";
     sessionsRoot.textContent = "Pair this device to view sessions.";
+  }
+}
+
+async function refreshPairingState() {
+  let runtime = null;
+  try {
+    runtime = await fetch("/api/status", { cache: "no-store" }).then((r) => r.json());
+  } catch {
+    setPairingUiState({ state: "offline", message: "Control Service is offline." });
+    return false;
+  }
+  if (runtime.mode === "local_dev") {
+    setPairingUiState({
+      state: "paired",
+      message: "Local trusted mode is active. Pairing is not required on localhost.",
+      deviceText: "local trusted mode"
+    });
+    return true;
+  }
+  const identity = storedPairingIdentity();
+  if (!identity.deviceId || !identity.sessionId || !identity.hasPrivateKey) {
+    const codeLoaded = Boolean(document.querySelector("#pairing-code")?.value.trim());
+    setPairingUiState({
+      state: "unpaired",
+      message: codeLoaded
+        ? "Pairing code loaded. Confirm the server details, then pair this device."
+        : "Not paired. Use a fresh pairing link only once; after pairing this browser reuses its cached session."
+    });
+    return false;
+  }
+  setPairingUiState({
+    state: "checking",
+    message: "Checking cached pairing session...",
+    deviceText: identity.deviceId
+  });
+  try {
+    const sessions = await signedFetch("/api/sessions", { cache: "no-store" }).then((r) => {
+      if (!r.ok) throw new Error("session unauthorized");
+      return r.json();
+    });
+    const current = sessions.find((session) => session.session_id === identity.sessionId);
+    if (!current) {
+      setPairingUiState({
+        state: "paired",
+        message: "This browser is authenticated. The current session is not visible in the latest session list.",
+        deviceText: identity.deviceId
+      });
+      return true;
+    }
+    if (current.revoked) {
+      setPairingUiState({
+        state: "stale",
+        message: "This browser's cached session was revoked. Pair again to continue.",
+        deviceText: `${identity.deviceId} - revoked`
+      });
+      return false;
+    }
+    setPairingUiState({
+      state: "paired",
+      message: "Paired. Requests load automatically; pair again only if this session expires or is revoked.",
+      deviceText: `${identity.deviceId} - session expires ${formatTimestamp(current.expires_at)}`
+    });
+    return true;
+  } catch {
+    setPairingUiState({
+      state: "stale",
+      message: "Cached pairing cannot access this Control Service. Use a fresh pairing link or forget local pairing.",
+      deviceText: identity.deviceId
+    });
+    return false;
   }
 }
 
@@ -1598,12 +1720,14 @@ async function startRequestWebSocket() {
 }
 
 loadRuntimeStatus();
+refreshPairingState();
 loadRequests();
 loadTasks();
 loadDevicesAndSessions();
 startRequestWebSocket();
 document.addEventListener("visibilitychange", handleTakeoverVisibilityChange);
 setInterval(loadRuntimeStatus, 10000);
+setInterval(refreshPairingState, 30000);
 setInterval(loadRequests, 15000);
 setInterval(loadTasks, 5000);
 setInterval(loadDevicesAndSessions, 15000);

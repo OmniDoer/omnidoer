@@ -31,6 +31,10 @@ request, origin, type, device id, and expiry.
 The older `omnidoer control pair --print-qr` command is still supported for
 script compatibility. The paired PWA keeps using its local device key and a
 renewed session until the user revokes that device or session.
+When opened again, the PWA validates the cached session, shows the current
+device/session state, and loads requests automatically. Users only need a new
+pairing link when no local session exists, the session expires, or it has been
+revoked.
 When the OmniDoer MCP server is registered with Codex, the Agent can also call
 `control.create_pairing` after the user asks to start pairing. This provides
 the same one-time URL without making the user leave the conversation to find a

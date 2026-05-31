@@ -33,6 +33,7 @@
       <p>After pairing, secret and challenge submissions are encrypted locally before they are sent.</p>
       <dl class="metadata" id="pairing-details">
         <dt>Server URL</dt><dd id="pairing-server-url">This browser origin</dd>
+        <dt>This device</dt><dd id="pairing-current-device">not paired</dd>
         <dt>Pairing code</dt><dd id="pairing-code-preview">not loaded</dd>
         <dt>Broker fingerprint</dt><dd id="pairing-broker-fingerprint">not loaded</dd>
         <dt>Web broker fingerprint</dt><dd id="pairing-web-broker-fingerprint">not loaded</dd>
@@ -40,7 +41,10 @@
       </dl>
       <label>Pairing code <input id="pairing-code" autocomplete="one-time-code"></label>
       <label>Device name <input id="device-name" value="PWA Control Client"></label>
-      <button id="pair-device">Pair Device</button>
+      <div class="button-row">
+        <button id="pair-device">Pair Device</button>
+        <button id="forget-local-pairing" type="button" disabled>Forget Local Pairing</button>
+      </div>
       <p id="pairing-status">Not paired.</p>
     </section>
     <section id="device-panel">
@@ -125,6 +129,6 @@
       </div>
     </section>
   </main>
-  <script src="/app.js?v=20260531-credential-labels"></script>
+  <script src="/app.js?v=20260531-pairing-state"></script>
 </body>
 </html>
