@@ -34,6 +34,10 @@ const I18N = {
     chatSessionBackgroundDetail: "Messages are handled by a background Codex runner because no live CLI bridge is attached.",
     chatSessionOfflineTitle: "Control Service offline",
     chatSessionOfflineDetail: "Reconnect to the Control Service before sending messages.",
+    chatSyncDiagnosticNative: "Diagnostic: native two-way sync is active.",
+    chatSyncDiagnosticLegacy: "Diagnostic: current console is reachable through temporary terminal relay; native structured sync still requires restart.",
+    chatSyncDiagnosticWaiting: "Diagnostic: paired to this server, but the current CLI conversation is not attached yet.",
+    chatSyncDiagnosticBackground: "Diagnostic: using background runner, not a live CLI conversation.",
     sendToCurrentCli: "Send to current CLI",
     sendToCurrentConsole: "Send to console",
     sendToBackgroundRunner: "Send to background",
@@ -246,6 +250,10 @@ const I18N = {
     chatSessionBackgroundDetail: "当前没有实时 CLI 桥接，消息会由后台 Codex runner 处理。",
     chatSessionOfflineTitle: "Control Service 离线",
     chatSessionOfflineDetail: "重新连接到 Control Service 后才能发送消息。",
+    chatSyncDiagnosticNative: "诊断：原生双向同步已启用。",
+    chatSyncDiagnosticLegacy: "诊断：当前 console 可通过临时终端 relay 访问；原生结构化同步仍需重启桥接。",
+    chatSyncDiagnosticWaiting: "诊断：已配对到这台服务器，但当前 CLI 对话尚未接入。",
+    chatSyncDiagnosticBackground: "诊断：正在使用后台 runner，不是实时 CLI 对话。",
     sendToCurrentCli: "发送到当前 CLI",
     sendToCurrentConsole: "发送到当前 console",
     sendToBackgroundRunner: "发送到后台",
@@ -1107,6 +1115,7 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
   let state = "checking";
   let titleKey = "chatSessionCheckingTitle";
   let detailKey = "chatSessionCheckingDetail";
+  let diagnosticKey = "";
   let sendKey = "sendUnavailable";
   let placeholderKey = "chatPlaceholderUnavailable";
   let canSend = false;
@@ -1122,8 +1131,10 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
     sendKey = "sendToCurrentCli";
     placeholderKey = "chatPlaceholder";
     canSend = true;
+    diagnosticKey = "chatSyncDiagnosticNative";
   } else if (runner?.waiting_for_tui_bridge) {
     const legacyRelay = runner.legacy_tui_relay || {};
+    const diagnostics = runner.sync_diagnostics || {};
     state = legacyRelay.active ? "legacy_relay" : "server_only";
     titleKey = legacyRelay.active ? "chatSessionLegacyTitle" : "chatSessionServerOnlyTitle";
     detailKey = legacyRelay.active ? "chatSessionLegacyDetail" : "chatSessionServerOnlyDetail";
@@ -1131,6 +1142,7 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
     placeholderKey = legacyRelay.active ? "chatPlaceholder" : "chatPlaceholderUnavailable";
     canSend = Boolean(legacyRelay.active);
     canRestart = Boolean(runner.restart_command);
+    diagnosticKey = diagnostics.temporary_terminal_relay ? "chatSyncDiagnosticLegacy" : "chatSyncDiagnosticWaiting";
   } else if (runner?.thread_id) {
     state = "background_runner";
     titleKey = "chatSessionBackgroundTitle";
@@ -1138,12 +1150,13 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
     sendKey = "sendToBackgroundRunner";
     placeholderKey = "chatPlaceholder";
     canSend = true;
+    diagnosticKey = "chatSyncDiagnosticBackground";
   }
   panel.dataset.sessionState = state;
   document.body.dataset.chatSessionState = state;
   document.body.dataset.chatSendMode = canSend ? state : "blocked";
   if (title) title.textContent = t(titleKey);
-  if (detail) detail.textContent = t(detailKey);
+  if (detail) detail.textContent = `${t(detailKey)}${diagnosticKey ? ` ${t(diagnosticKey)}` : ""}`;
   if (restart) {
     restart.hidden = !canRestart;
     restart.textContent = t("restartBridge");

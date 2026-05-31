@@ -132,6 +132,46 @@ def native_console_bridge_install_status(codex_bin: str | None = None) -> dict[s
     return status
 
 
+def control_chat_sync_diagnostics(
+    *,
+    thread_id: str | None,
+    tui_bridge_active: bool,
+    tui_session_active: bool,
+    install_status: dict[str, Any],
+    legacy_relay: dict[str, Any],
+    bridge_heartbeat_age_seconds: float | None = None,
+) -> dict[str, Any]:
+    native_ready = bool(install_status.get("ready"))
+    legacy_active = bool(legacy_relay.get("active"))
+    bound_thread = bool(thread_id)
+    if tui_bridge_active:
+        state = "native_bridge_active"
+    elif legacy_active:
+        state = "legacy_terminal_relay"
+    elif bound_thread and tui_session_active:
+        state = "current_cli_waiting_for_bridge"
+    elif bound_thread:
+        state = "bound_thread_without_live_cli"
+    else:
+        state = "background_runner"
+    requires_restart = state in {"legacy_terminal_relay", "current_cli_waiting_for_bridge", "bound_thread_without_live_cli"}
+    return {
+        "state": state,
+        "thread_bound": bound_thread,
+        "native_bridge_installed": native_ready,
+        "current_cli_process_active": bool(tui_session_active),
+        "current_cli_context_attached": bool(tui_bridge_active),
+        "current_cli_reachable": bool(tui_bridge_active or legacy_active),
+        "phone_to_current_cli_delivery": "structured_bridge" if tui_bridge_active else "terminal_relay" if legacy_active else "not_connected",
+        "current_cli_to_phone_stream": "structured_records" if tui_bridge_active else "terminal_snapshot" if legacy_active else "not_connected",
+        "structured_streaming": bool(tui_bridge_active),
+        "temporary_terminal_relay": legacy_active,
+        "requires_restart_for_native_sync": requires_restart,
+        "restart_ready": bool(requires_restart and native_ready and bound_thread),
+        "bridge_heartbeat_age_seconds": bridge_heartbeat_age_seconds,
+    }
+
+
 def _cmdline_is_interactive_tui_for_thread(cmdline: list[str], thread_id: str) -> bool:
     if not cmdline or not thread_id:
         return False

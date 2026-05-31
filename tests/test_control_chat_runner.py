@@ -8,7 +8,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 from omnidoer.omni_control.chat import ChatStore
-from omnidoer.omni_control.chat_runner import ChatRunner, live_tui_bridge_active, live_tui_session_active, native_console_bridge_install_status
+from omnidoer.omni_control.chat_runner import (
+    ChatRunner,
+    control_chat_sync_diagnostics,
+    live_tui_bridge_active,
+    live_tui_session_active,
+    native_console_bridge_install_status,
+)
 
 
 class ControlChatRunnerTest(unittest.TestCase):
@@ -108,6 +114,34 @@ class ControlChatRunnerTest(unittest.TestCase):
             self.assertFalse(stale["ready"])
             self.assertEqual(stale["reason"], "missing_bridge_markers")
             self.assertIn("chat-log-user", stale["missing_markers"])
+
+    def test_control_chat_sync_diagnostics_describes_legacy_and_native_states(self) -> None:
+        legacy = control_chat_sync_diagnostics(
+            thread_id="thread_demo",
+            tui_bridge_active=False,
+            tui_session_active=True,
+            install_status={"ready": True},
+            legacy_relay={"active": True},
+            bridge_heartbeat_age_seconds=None,
+        )
+        self.assertEqual(legacy["state"], "legacy_terminal_relay")
+        self.assertTrue(legacy["current_cli_reachable"])
+        self.assertFalse(legacy["current_cli_context_attached"])
+        self.assertEqual(legacy["phone_to_current_cli_delivery"], "terminal_relay")
+        self.assertTrue(legacy["restart_ready"])
+
+        native = control_chat_sync_diagnostics(
+            thread_id="thread_demo",
+            tui_bridge_active=True,
+            tui_session_active=True,
+            install_status={"ready": True},
+            legacy_relay={"active": False},
+            bridge_heartbeat_age_seconds=0.2,
+        )
+        self.assertEqual(native["state"], "native_bridge_active")
+        self.assertTrue(native["current_cli_context_attached"])
+        self.assertEqual(native["current_cli_to_phone_stream"], "structured_records")
+        self.assertFalse(native["requires_restart_for_native_sync"])
 
     def test_codex_json_events_stream_into_chat_records(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

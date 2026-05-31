@@ -45,6 +45,13 @@ class ControlStatusTest(unittest.TestCase):
                 self.assertIn("bridge_heartbeat_age_seconds", payload["chat_runner"])
                 self.assertTrue(payload["chat_runner"]["native_console_bridge"]["ready"])
                 self.assertTrue(payload["chat_runner"]["legacy_tui_relay"]["active"])
+                diagnostics = payload["chat_runner"]["sync_diagnostics"]
+                self.assertEqual(diagnostics["state"], "legacy_terminal_relay")
+                self.assertTrue(diagnostics["current_cli_reachable"])
+                self.assertFalse(diagnostics["current_cli_context_attached"])
+                self.assertEqual(diagnostics["phone_to_current_cli_delivery"], "terminal_relay")
+                self.assertEqual(diagnostics["current_cli_to_phone_stream"], "terminal_snapshot")
+                self.assertTrue(diagnostics["restart_ready"])
             finally:
                 server.shutdown()
                 server.server_close()
@@ -79,6 +86,11 @@ class ControlStatusTest(unittest.TestCase):
             self.assertEqual(payload["chat_runner"]["restart_command"], "omnidoer console resume thread_active")
             self.assertFalse(payload["chat_runner"]["native_console_bridge"]["ready"])
             self.assertFalse(payload["chat_runner"]["legacy_tui_relay"]["active"])
+            diagnostics = payload["chat_runner"]["sync_diagnostics"]
+            self.assertEqual(diagnostics["state"], "bound_thread_without_live_cli")
+            self.assertFalse(diagnostics["current_cli_reachable"])
+            self.assertEqual(diagnostics["phone_to_current_cli_delivery"], "not_connected")
+            self.assertFalse(diagnostics["restart_ready"])
         finally:
             server.shutdown()
             server.server_close()

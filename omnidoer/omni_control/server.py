@@ -512,6 +512,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
             config = getattr(self.server, "omnidoer_config", None)
             chat_thread_id = getattr(self.server, "omnidoer_chat_thread_id", None)
             from omnidoer.omni_control.chat_runner import (
+                control_chat_sync_diagnostics,
                 live_tui_bridge_active,
                 live_tui_session_active,
                 native_console_bridge_install_status,
@@ -524,6 +525,8 @@ class ControlHandler(SimpleHTTPRequestHandler):
             tui_session_active = live_tui_session_active(chat_thread_id)
             waiting_for_tui_bridge = bool(chat_thread_id and not tui_bridge_active)
             legacy_relay = legacy_tui_relay_status(chat_thread_id) if waiting_for_tui_bridge else {"active": False}
+            install_status = native_console_bridge_install_status()
+            heartbeat_age = tui_bridge_heartbeat_age_seconds()
             self._send_json(
                 HTTPStatus.OK,
                 {
@@ -538,9 +541,17 @@ class ControlHandler(SimpleHTTPRequestHandler):
                         "waiting_for_tui_bridge": waiting_for_tui_bridge,
                         "restart_required": waiting_for_tui_bridge,
                         "restart_command": tui_restart_command(chat_thread_id) if waiting_for_tui_bridge else None,
-                        "native_console_bridge": native_console_bridge_install_status(),
-                        "bridge_heartbeat_age_seconds": tui_bridge_heartbeat_age_seconds(),
+                        "native_console_bridge": install_status,
+                        "bridge_heartbeat_age_seconds": heartbeat_age,
                         "legacy_tui_relay": legacy_relay,
+                        "sync_diagnostics": control_chat_sync_diagnostics(
+                            thread_id=chat_thread_id,
+                            tui_bridge_active=tui_bridge_active,
+                            tui_session_active=tui_session_active,
+                            install_status=install_status,
+                            legacy_relay=legacy_relay,
+                            bridge_heartbeat_age_seconds=heartbeat_age,
+                        ),
                     },
                 },
             )
