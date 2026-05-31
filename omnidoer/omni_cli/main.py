@@ -160,6 +160,9 @@ def build_parser() -> argparse.ArgumentParser:
     cred_save_request.add_argument("--vault", default=".omnidoer/vault.json")
     cred_save_request.add_argument("--passphrase-env")
     cred_save_request.add_argument("--passphrase-file")
+    cred_save_request.add_argument("--wait", action="store_true")
+    cred_save_request.add_argument("--wait-timeout", default="10m")
+    cred_save_request.add_argument("--create-vault", action="store_true")
     cred_sub.add_parser("list").add_argument("--vault", default=".omnidoer/vault.json")
 
     git = sub.add_parser("git", help="Vault-backed Git commands")

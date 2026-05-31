@@ -113,7 +113,12 @@ def handle_cred_command(args) -> int:
             print(json.dumps(result, indent=2, sort_keys=True))
         return 0
     if args.cred_command == "save-request":
+        if args.wait:
+            timeout_seconds = parse_duration_seconds(args.wait_timeout)
+            print("waiting_for_control_client=true", flush=True)
+            _wait_for_encrypted_response(args.request_id, timeout_seconds=timeout_seconds)
         passphrase = _passphrase_from_source(args.passphrase_env, getattr(args, "passphrase_file", None))
+        _ensure_vault_for_save(args.vault, passphrase, create_vault=args.create_vault)
         broker = SecretBroker(
             vault_path=args.vault,
             vault_passphrase=passphrase,
