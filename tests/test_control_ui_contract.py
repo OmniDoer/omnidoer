@@ -121,6 +121,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn(".section-tabs a.active", style)
         self.assertIn(".section-tabs a.has-open-requests::after", style)
         self.assertIn('body[data-runtime-state="waiting_for_tui_bridge"]', style)
+        self.assertIn('body[data-runtime-state="waiting_for_tui_bridge"] #task-panel', style)
         self.assertIn("/api/chat/messages", app)
         self.assertIn("sendChatMessage", app)
         self.assertIn("startChatWebSocket", app)

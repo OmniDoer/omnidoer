@@ -606,6 +606,14 @@ button:disabled {
     margin-left: -8px;
     margin-right: -8px;
   }
+  body[data-runtime-state="waiting_for_tui_bridge"] section.control-panel,
+  body[data-runtime-state="offline"] section.control-panel {
+    height: calc(100svh - 255px);
+  }
+  body[data-runtime-state="waiting_for_tui_bridge"] #task-panel,
+  body[data-runtime-state="offline"] #task-panel {
+    height: calc(100svh - 255px);
+  }
   .chat-panel-header { padding: 13px 14px 8px; }
   .chat-feed { padding: 14px 12px; }
   .chat-composer { padding: 10px 12px max(14px, env(safe-area-inset-bottom)); }
