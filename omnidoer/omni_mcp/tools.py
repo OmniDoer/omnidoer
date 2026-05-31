@@ -415,6 +415,32 @@ def _active_browser_takeover(browser_context_id: str):
     return None
 
 
+def _ensure_browser_takeover_request(
+    browser,
+    *,
+    reason: str,
+    browser_context_id: str = "mcp-browser",
+    risk_level: str = "high",
+) -> tuple[object, bool]:
+    existing = _active_browser_takeover(browser_context_id)
+    if existing is not None:
+        return existing, False
+    from omnidoer.omni_takeover.relay import request_user_control
+
+    origin = browser.current_origin() or ""
+    top_level_url = browser.current_url()
+    return (
+        request_user_control(
+            origin=origin,
+            top_level_url=top_level_url,
+            reason=reason,
+            browser_context_id=browser_context_id,
+            risk_level=risk_level,
+        ),
+        True,
+    )
+
+
 def _wait_for_browser_takeover_release(browser_context_id: str, *, timeout_seconds: float):
     import time
 
@@ -468,9 +494,10 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
             from omnidoer.omni_mcp.runtime import get_browser
 
             browser = get_browser()
-            paused = _pause_for_user_takeover_if_needed(arguments)
-            if paused is not None:
-                return paused
+            if name not in {"browser.detect_challenge", "browser.detect_antibot"}:
+                paused = _pause_for_user_takeover_if_needed(arguments)
+                if paused is not None:
+                    return paused
             if name == "browser.open":
                 url = arguments.get("url")
                 if not url:
@@ -531,18 +558,39 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
                 return {"status": "ok", "origin": browser.current_origin(), "url": browser.current_url(), "secret_exposed_to_model": False}
             if name == "browser.detect_challenge":
                 challenge_type = browser.detect_challenge()
+                request = None
+                created = False
+                if challenge_type:
+                    request, created = _ensure_browser_takeover_request(
+                        browser,
+                        reason=f"{challenge_type} requires user takeover",
+                    )
                 return {
                     "status": "ok",
                     "challenge_type": challenge_type,
                     "requires_user_interaction": bool(challenge_type),
+                    "requires_human_takeover": bool(challenge_type),
+                    "agent_paused": bool(challenge_type),
+                    "takeover_created": created,
+                    "request": request.to_public_dict() if request else None,
                     "secret_exposed_to_model": False,
                 }
             if name == "browser.detect_antibot":
                 detected = browser.detect_antibot()
+                request = None
+                created = False
+                if detected:
+                    request, created = _ensure_browser_takeover_request(
+                        browser,
+                        reason="anti-bot page requires human takeover",
+                    )
                 return {
                     "status": "ok",
                     "antibot_detected": detected,
                     "requires_human_takeover": detected,
+                    "agent_paused": detected,
+                    "takeover_created": created,
+                    "request": request.to_public_dict() if request else None,
                     "secret_exposed_to_model": False,
                 }
         except Exception as exc:

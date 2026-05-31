@@ -155,6 +155,100 @@ class McpToolsTest(unittest.TestCase):
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
 
+    def test_browser_detect_antibot_creates_takeover_request(self) -> None:
+        class FakeBrowser:
+            def current_origin(self):
+                return "https://example.com"
+
+            def current_url(self):
+                return "https://example.com/antibot"
+
+            def detect_antibot(self):
+                return True
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                with patch("omnidoer.omni_mcp.runtime.get_browser", return_value=FakeBrowser()):
+                    result = call_tool("browser.detect_antibot", {})
+                self.assertEqual(result["status"], "ok")
+                self.assertTrue(result["requires_human_takeover"])
+                self.assertTrue(result["agent_paused"])
+                self.assertTrue(result["takeover_created"])
+                self.assertEqual(result["request"]["request_type"], "human_takeover")
+                self.assertEqual(result["request"]["browser_context_id"], "mcp-browser")
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_browser_detect_challenge_creates_takeover_request(self) -> None:
+        class FakeBrowser:
+            def current_origin(self):
+                return "https://example.com"
+
+            def current_url(self):
+                return "https://example.com/captcha"
+
+            def detect_challenge(self):
+                return "captcha"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                with patch("omnidoer.omni_mcp.runtime.get_browser", return_value=FakeBrowser()):
+                    result = call_tool("browser.detect_challenge", {})
+                self.assertEqual(result["status"], "ok")
+                self.assertEqual(result["challenge_type"], "captcha")
+                self.assertTrue(result["requires_user_interaction"])
+                self.assertTrue(result["requires_human_takeover"])
+                self.assertTrue(result["agent_paused"])
+                self.assertTrue(result["takeover_created"])
+                self.assertEqual(result["request"]["request_type"], "human_takeover")
+                self.assertEqual(result["request"]["browser_context_id"], "mcp-browser")
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_browser_detect_challenge_reuses_existing_takeover_request(self) -> None:
+        class FakeBrowser:
+            def current_origin(self):
+                return "https://example.com"
+
+            def current_url(self):
+                return "https://example.com/captcha"
+
+            def detect_challenge(self):
+                return "captcha"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                request = RequestStore().create(
+                    "human_takeover",
+                    origin="https://example.com",
+                    top_level_url="https://example.com/captcha",
+                    action_summary="captcha requires user takeover",
+                    browser_context_id="mcp-browser",
+                )
+                with patch("omnidoer.omni_mcp.runtime.get_browser", return_value=FakeBrowser()):
+                    result = call_tool("browser.detect_challenge", {"takeover_wait_timeout_seconds": 0})
+                self.assertEqual(result["status"], "ok")
+                self.assertEqual(result["challenge_type"], "captcha")
+                self.assertFalse(result["takeover_created"])
+                self.assertEqual(result["request"]["request_id"], request.request_id)
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     def test_create_pairing_tool_returns_short_lived_invite_without_long_lived_secret(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             old_home = os.environ.get("OMNIDOER_HOME")

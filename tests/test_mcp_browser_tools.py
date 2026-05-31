@@ -15,8 +15,18 @@ from tests.util_demo import DemoServerFixture
 
 @unittest.skipIf(importlib.util.find_spec("playwright") is None, "playwright not installed")
 class McpBrowserToolsTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._home_tmp = tempfile.TemporaryDirectory()
+        self._old_home = os.environ.get("OMNIDOER_HOME")
+        os.environ["OMNIDOER_HOME"] = self._home_tmp.name
+
     def tearDown(self) -> None:
         reset_runtime_for_tests()
+        if self._old_home is None:
+            os.environ.pop("OMNIDOER_HOME", None)
+        else:
+            os.environ["OMNIDOER_HOME"] = self._old_home
+        self._home_tmp.cleanup()
 
     def test_mcp_browser_open_observe_and_origin(self) -> None:
         with DemoServerFixture() as demo:
@@ -55,10 +65,19 @@ class McpBrowserToolsTest(unittest.TestCase):
             challenge = call_tool("browser.detect_challenge", {})
             self.assertEqual(challenge["challenge_type"], "captcha")
             self.assertTrue(challenge["requires_user_interaction"])
+            self.assertTrue(challenge["requires_human_takeover"])
+            self.assertTrue(challenge["agent_paused"])
+            self.assertTrue(challenge["takeover_created"])
+            self.assertEqual(challenge["request"]["browser_context_id"], "mcp-browser")
+            RequestStore().release_takeover(challenge["request"]["request_id"])
             call_tool("browser.open", {"url": f"{demo.origin}/antibot"})
             antibot = call_tool("browser.detect_antibot", {})
             self.assertTrue(antibot["antibot_detected"])
             self.assertTrue(antibot["requires_human_takeover"])
+            self.assertTrue(antibot["agent_paused"])
+            self.assertTrue(antibot["takeover_created"])
+            self.assertEqual(antibot["request"]["browser_context_id"], "mcp-browser")
+            RequestStore().release_takeover(antibot["request"]["request_id"])
 
     def test_mcp_browser_selects_plain_form_values(self) -> None:
         html = quote("<select id='mode'><option value='slow'>Slow</option><option value='fast'>Fast</option></select>")
