@@ -36,6 +36,19 @@ class CliTest(unittest.TestCase):
         result = self.run_cli(["--help"])
         self.assertEqual(result.returncode, 0)
         self.assertIn("doctor", result.stdout)
+        self.assertIn("upgrade", result.stdout)
+
+    def test_version_uses_utc_timestamp_release_scheme(self) -> None:
+        result = self.run_cli(["--version"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertRegex(result.stdout.strip(), r"^omnidoer v20\d{12}$")
+
+    def test_upgrade_dry_run_prints_plan_without_mutating(self) -> None:
+        result = self.run_cli(["upgrade", "--dry-run", "--install-dir", "/tmp/omnidoer-install", "--branch", "main"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("OmniDoer upgrade plan", result.stdout)
+        self.assertIn("install_dir=/tmp/omnidoer-install", result.stdout)
+        self.assertIn("pull --ff-only origin main", result.stdout)
 
     def test_init_creates_private_state_directory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

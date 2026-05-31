@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 
 from omnidoer.paths import ensure_home
+from omnidoer.version import __version__
 
 
 def _connect_host(host: str) -> str:
@@ -56,10 +57,15 @@ def _background(args: list[str], *, wait_host: str | None = None, wait_port: int
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="omnidoer", description="OmniDoer local Codex sidecar runtime")
+    parser.add_argument("--version", action="version", version=f"omnidoer {__version__}")
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("doctor", help="Check Codex auth mode and local runtime readiness")
     sub.add_parser("init", help="Create local OmniDoer state directory")
+    upgrade = sub.add_parser("upgrade", help="Upgrade OmniDoer in-place from the GitHub checkout")
+    upgrade.add_argument("--dry-run", action="store_true")
+    upgrade.add_argument("--install-dir")
+    upgrade.add_argument("--branch")
 
     demo = sub.add_parser("demo", help="Run the local demo site")
     demo_sub = demo.add_subparsers(dest="demo_command")
@@ -172,6 +178,11 @@ def main(argv: list[str] | None = None) -> int:
         path = ensure_home()
         print(f"initialized OmniDoer local state at {path}")
         return 0
+
+    if args.command == "upgrade":
+        from omnidoer.omni_cli.upgrade import handle_upgrade_command
+
+        return handle_upgrade_command(args)
 
     if args.command == "demo" and args.demo_command == "start":
         if args.background:

@@ -2,6 +2,8 @@
 
 All-purpose web action, inside the security boundary.
 
+**Control makes freedom possible.**
+
 ![OmniDoer brand mark](./icon.png)
 
 OmniDoer is the secure execution layer for agents that need to operate real
@@ -68,6 +70,13 @@ After install:
 ```sh
 ~/omnidoer/.venv/bin/omnidoer control pair --print-qr
 ~/omnidoer/.venv/bin/omnidoer control submit-task "Open the local demo and download my invoice"
+```
+
+Upgrade the CLI and sidecar in place:
+
+```sh
+~/omnidoer/.venv/bin/omnidoer upgrade
+~/omnidoer/.venv/bin/omnidoer --version
 ```
 
 Set `OMNIDOER_INSTALL_DIR`, `OMNIDOER_HOST`, `OMNIDOER_PORT`, `OMNIDOER_START=0`,

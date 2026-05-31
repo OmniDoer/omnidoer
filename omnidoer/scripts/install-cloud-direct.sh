@@ -12,6 +12,7 @@ public_url="${OMNIDOER_PUBLIC_URL:-}"
 start_service="${OMNIDOER_START:-1}"
 register_mcp="${OMNIDOER_REGISTER_MCP:-1}"
 playwright_deps="${OMNIDOER_WITH_BROWSER_DEPS:-auto}"
+replace_codex="${OMNIDOER_REPLACE_CODEX:-0}"
 
 need() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -61,6 +62,18 @@ if [ "$register_mcp" = "1" ] && command -v codex >/dev/null 2>&1; then
   codex mcp add omnidoer -- "$venv_dir/bin/omnidoer" mcp serve || true
 fi
 
+if [ "$replace_codex" = "1" ]; then
+  if [ "$(id -u)" = "0" ]; then
+    install -m 0755 "$install_dir/omnidoer/scripts/codex-omnidoer-shim.sh" /usr/local/bin/codex
+  elif command -v sudo >/dev/null 2>&1; then
+    sudo install -m 0755 "$install_dir/omnidoer/scripts/codex-omnidoer-shim.sh" /usr/local/bin/codex
+  else
+    echo "OMNIDOER_REPLACE_CODEX=1 requires root or sudo to write /usr/local/bin/codex." >&2
+    exit 1
+  fi
+  echo "Installed OmniDoer Codex shim at /usr/local/bin/codex"
+fi
+
 if [ "$start_service" = "1" ]; then
   if [ "$cloud_direct" = "1" ]; then
     "$venv_dir/bin/omnidoer" control serve \
@@ -88,3 +101,7 @@ else
 fi
 echo "Submit a task:"
 echo "  $venv_dir/bin/omnidoer control submit-task \"Use OmniDoer on the local demo\""
+echo "Upgrade later:"
+echo "  $venv_dir/bin/omnidoer upgrade"
+echo "Optional Codex shim:"
+echo "  curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scripts/install-cloud-direct.sh | OMNIDOER_REPLACE_CODEX=1 sh"

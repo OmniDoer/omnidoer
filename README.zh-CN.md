@@ -1,5 +1,7 @@
 # OmniDoer
 
+**安全可控，才能更自由。**
+
 ![OmniDoer 中文版电影质感海报](./docs/assets/localized/omnidoer-readme-zh-CN.jpg)
 
 [English](./README.md) | [Español](./README.es.md) | [Français](./README.fr.md) | [Deutsch](./README.de.md) | [日本語](./README.ja.md) | [한국어](./README.ko.md)
@@ -32,6 +34,13 @@ curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scr
 ```sh
 ~/omnidoer/.venv/bin/omnidoer control pair --print-qr
 ~/omnidoer/.venv/bin/omnidoer control submit-task "打开本地 demo 并下载我的发票"
+```
+
+后续一键升级 CLI 与 sidecar：
+
+```sh
+~/omnidoer/.venv/bin/omnidoer upgrade
+~/omnidoer/.venv/bin/omnidoer --version
 ```
 
 安装脚本会创建 `~/omnidoer/.venv`、初始化 OmniDoer、安装浏览器 worker、

@@ -10,3 +10,6 @@ sys.dont_write_bytecode = True
 __all__ = ["__version__"]
 
 __version__ = "0.1.0"
+from omnidoer.version import __version__
+
+__all__ = ["__version__"]
