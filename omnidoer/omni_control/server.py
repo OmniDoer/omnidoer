@@ -74,6 +74,9 @@ SENSITIVE_LOG_PATTERNS = [
 class TLSAwareThreadingHTTPServer(ThreadingHTTPServer):
     """Accept TLS and accidental plaintext HTTP on a direct-TLS listener."""
 
+    allow_reuse_address = True
+    daemon_threads = True
+
     def __init__(
         self,
         server_address,
