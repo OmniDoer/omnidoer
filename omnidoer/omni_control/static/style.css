@@ -233,9 +233,18 @@ button:disabled {
   background: rgba(255, 255, 255, 0.14);
   color: #cbd5e1;
 }
+.runtime-command-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+.runtime-command-row[hidden] {
+  display: none;
+}
 .status-strip #runtime-command {
   display: inline-block;
-  margin: 8px 0 0;
+  flex: 1 1 auto;
   padding: 6px 8px;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.12);
@@ -245,7 +254,20 @@ button:disabled {
   white-space: normal;
   word-break: break-all;
 }
-.status-strip #runtime-command[hidden] { display: none; }
+.runtime-copy-button {
+  flex: 0 0 auto;
+  min-width: 108px;
+  min-height: 36px;
+  border-color: rgba(255, 255, 255, 0.38);
+  background: rgba(255, 255, 255, 0.12);
+  color: #f8fafc;
+}
+.runtime-copy-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+.runtime-copy-button[hidden] {
+  display: none;
+}
 .panel-heading {
   display: flex;
   gap: 14px;
@@ -671,6 +693,14 @@ button:disabled {
     width: auto;
     min-width: 116px;
     flex: 0 0 auto;
+  }
+  .runtime-command-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .runtime-copy-button {
+    width: auto;
+    justify-self: start;
   }
   .status-strip #runtime-detail { display: none; }
   body[data-runtime-state="waiting_for_tui_bridge"] .status-strip #runtime-detail,
