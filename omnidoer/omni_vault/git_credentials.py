@@ -15,7 +15,7 @@ from pathlib import Path
 
 from omnidoer.omni_policy.policy import origin_from_url, suspicious_origin_reason
 from omnidoer.omni_vault.models import CredentialMetadata, CredentialSecret
-from omnidoer.omni_vault.vault import Vault, _passphrase_from_env
+from omnidoer.omni_vault.vault import Vault, _passphrase_from_source
 
 
 PROMPT_URL_RE = re.compile(r"['\"](https?://[^'\"]+)['\"]")
@@ -84,10 +84,11 @@ def load_git_credential(
     origin: str,
     vault_path: str | Path,
     passphrase_env: str | None,
+    passphrase_file: str | Path | None = None,
     credential_id: str | None = None,
 ) -> tuple[CredentialMetadata, CredentialSecret]:
     normalized = normalize_git_origin(origin)
-    vault = Vault.load(vault_path, _passphrase_from_env(passphrase_env))
+    vault = Vault.load(vault_path, _passphrase_from_source(passphrase_env, passphrase_file))
     metadata = _metadata_for_origin(vault, normalized, credential_id)
     return metadata, vault.decrypt_credential(metadata.credential_id)
 
@@ -99,6 +100,7 @@ def askpass_response(
     secret: CredentialSecret | None = None,
     vault_path: str | Path | None = None,
     passphrase_env: str | None = None,
+    passphrase_file: str | Path | None = None,
     credential_id: str | None = None,
 ) -> str:
     normalized = normalize_git_origin(origin)
@@ -112,6 +114,7 @@ def askpass_response(
             origin=normalized,
             vault_path=vault_path,
             passphrase_env=passphrase_env,
+            passphrase_file=passphrase_file,
             credential_id=credential_id,
         )
     lowered = prompt.lower()
@@ -273,6 +276,7 @@ def handle_git_command(args) -> int:
                 origin=normalized,
                 vault_path=args.vault,
                 passphrase_env=args.passphrase_env,
+                passphrase_file=args.passphrase_file,
                 credential_id=args.credential_id,
             )
         except Exception as exc:

@@ -35,7 +35,7 @@ Preferred flow for future GitHub operations:
      --wait \
      --create-vault \
      --vault ~/.omnidoer/vault.json \
-     --passphrase-env OMNIDOER_VAULT_PASSPHRASE
+     --passphrase-file ~/.omnidoer/vault-passphrase
    ```
 
 3. Open the paired Control Client and submit the GitHub username plus PAT as the
@@ -47,7 +47,7 @@ Preferred flow for future GitHub operations:
    ```sh
    omnidoer cred save-request <request_id> \
      --vault ~/.omnidoer/vault.json \
-     --passphrase-env OMNIDOER_VAULT_PASSPHRASE
+     --passphrase-file ~/.omnidoer/vault-passphrase
    ```
 
 5. Use the Vault-backed Git bridge instead of Flask Env credentials:
@@ -56,7 +56,7 @@ Preferred flow for future GitHub operations:
    omnidoer git run \
      --origin https://github.com \
      --vault ~/.omnidoer/vault.json \
-     --passphrase-env OMNIDOER_VAULT_PASSPHRASE \
+     --passphrase-file ~/.omnidoer/vault-passphrase \
      -- push origin main
    ```
 
@@ -67,7 +67,7 @@ Preferred flow for future GitHub operations:
    omnidoer github api \
      GET /repos/OmniDoer/omnidoer/actions/runs \
      --vault ~/.omnidoer/vault.json \
-     --passphrase-env OMNIDOER_VAULT_PASSPHRASE
+     --passphrase-file ~/.omnidoer/vault-passphrase
    ```
 
 `omnidoer git run` only invokes `git ...`, creates a temporary askpass helper,

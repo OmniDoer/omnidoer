@@ -349,9 +349,11 @@ class CliTest(unittest.TestCase):
     def test_cred_request_wait_creates_vault_and_saves_control_response(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             vault_path = Path(tmp) / "vault.json"
-            passphrase_env = "OMNIDOER_TEST_WAIT_VAULT_PASSPHRASE"
+            passphrase_file = Path(tmp) / "vault-passphrase"
+            passphrase_file.write_text("test-passphrase\n")
+            passphrase_file.chmod(0o600)
             env = os.environ.copy()
-            env.update({"OMNIDOER_HOME": tmp, passphrase_env: "test-passphrase"})
+            env.update({"OMNIDOER_HOME": tmp})
             proc = subprocess.Popen(
                 [
                     sys.executable,
@@ -371,8 +373,8 @@ class CliTest(unittest.TestCase):
                     "--create-vault",
                     "--vault",
                     str(vault_path),
-                    "--passphrase-env",
-                    passphrase_env,
+                    "--passphrase-file",
+                    str(passphrase_file),
                 ],
                 cwd=Path(__file__).resolve().parents[1],
                 env=env,

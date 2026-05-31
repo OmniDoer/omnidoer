@@ -12,7 +12,7 @@ from omnidoer.omni_broker.broker import SecretBroker
 from omnidoer.omni_control.pairing import parse_duration_seconds
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.secure_channel import ReplayGuard, load_or_create_keypair
-from omnidoer.omni_vault.vault import Vault, _passphrase_from_env
+from omnidoer.omni_vault.vault import Vault, _passphrase_from_source
 
 
 ABORTED_REQUEST_STATUSES = {"denied", "expired", "cancelled", "rejected", "failed"}
@@ -43,7 +43,7 @@ def _ensure_vault_for_save(path: str, passphrase: str, *, create_vault: bool) ->
 
 def handle_cred_command(args) -> int:
     if args.cred_command == "add":
-        passphrase = _passphrase_from_env(args.passphrase_env)
+        passphrase = _passphrase_from_source(args.passphrase_env, getattr(args, "passphrase_file", None))
         vault = Vault.load(args.vault, passphrase)
         if os.environ.get("OMNIDOER_CONTROL_TEST_MODE") == "1":
             password = os.environ.get("OMNIDOER_TEST_PASSWORD", "")
@@ -83,7 +83,7 @@ def handle_cred_command(args) -> int:
             print("waiting_for_control_client=true", flush=True)
             _wait_for_encrypted_response(request.request_id, timeout_seconds=timeout_seconds)
             if request.save_to_vault:
-                passphrase = _passphrase_from_env(args.passphrase_env)
+                passphrase = _passphrase_from_source(args.passphrase_env, getattr(args, "passphrase_file", None))
                 _ensure_vault_for_save(args.vault, passphrase, create_vault=args.create_vault)
                 broker = SecretBroker(
                     vault_path=args.vault,
@@ -96,7 +96,7 @@ def handle_cred_command(args) -> int:
             print(json.dumps(result, indent=2, sort_keys=True))
         return 0
     if args.cred_command == "save-request":
-        passphrase = _passphrase_from_env(args.passphrase_env)
+        passphrase = _passphrase_from_source(args.passphrase_env, getattr(args, "passphrase_file", None))
         broker = SecretBroker(
             vault_path=args.vault,
             vault_passphrase=passphrase,

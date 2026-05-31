@@ -28,7 +28,7 @@ from omnidoer.omni_takeover.models import InputEvent
 from omnidoer.omni_takeover.relay import apply_input_event, release_control, request_registration_handoff, request_user_control, start_stream
 from omnidoer.omni_takeover.sessions import registered_browser_context
 from omnidoer.omni_vault.models import CredentialSecret
-from omnidoer.omni_vault.vault import Vault, _passphrase_from_env
+from omnidoer.omni_vault.vault import Vault, _passphrase_from_source
 
 
 ABORTED_REQUEST_STATUSES = {"denied", "expired", "cancelled", "rejected", "failed"}
@@ -54,7 +54,7 @@ class DemoHttpClient:
 
 
 def _vault(args) -> Vault:
-    return Vault.load(args.vault, _passphrase_from_env(args.passphrase_env))
+    return Vault.load(args.vault, _passphrase_from_source(args.passphrase_env, getattr(args, "passphrase_file", None)))
 
 
 def _decrypt_request_payload(request) -> dict:

@@ -40,6 +40,14 @@ def _passphrase_from_env(name: str | None) -> str:
     return getpass.getpass("Vault passphrase: ")
 
 
+def _passphrase_from_source(env_name: str | None = None, file_path: str | Path | None = None) -> str:
+    if env_name and file_path:
+        raise SystemExit("use either --passphrase-env or --passphrase-file, not both")
+    if file_path:
+        return Path(file_path).read_text().splitlines()[0]
+    return _passphrase_from_env(env_name)
+
+
 class Vault:
     def __init__(self, path: Path, data: dict[str, Any], key: bytes | None = None):
         self.path = path
@@ -136,12 +144,12 @@ class Vault:
 
 def handle_vault_command(args) -> int:
     if args.vault_command == "create":
-        passphrase = _passphrase_from_env(args.passphrase_env)
+        passphrase = _passphrase_from_source(args.passphrase_env, getattr(args, "passphrase_file", None))
         Vault.create(args.path, passphrase)
         print(f"vault created at {args.path}")
         return 0
     if args.vault_command == "unlock":
-        passphrase = _passphrase_from_env(args.passphrase_env)
+        passphrase = _passphrase_from_source(args.passphrase_env, getattr(args, "passphrase_file", None))
         Vault.load(args.path, passphrase)
         print(f"vault unlocked: {args.path}")
         return 0

@@ -74,6 +74,7 @@ def github_api_request(
     origin: str,
     vault_path: str,
     passphrase_env: str | None,
+    passphrase_file: str | None = None,
     credential_id: str | None = None,
     body_json: str | None = None,
     insecure_dev_api: bool = False,
@@ -89,6 +90,7 @@ def github_api_request(
         origin=normalized_origin,
         vault_path=vault_path,
         passphrase_env=passphrase_env,
+        passphrase_file=passphrase_file,
         credential_id=credential_id,
     )
     body = _body_bytes(body_json)
@@ -122,6 +124,7 @@ def handle_github_command(args) -> int:
             origin=args.origin,
             vault_path=args.vault,
             passphrase_env=args.passphrase_env,
+            passphrase_file=args.passphrase_file,
             credential_id=args.credential_id,
             body_json=args.body_json,
             insecure_dev_api=args.insecure_dev_api,
