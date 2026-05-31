@@ -127,6 +127,8 @@ class TuiLegacyRelayTest(unittest.TestCase):
             snapshot = legacy_tui_terminal_snapshot("thread_active")
         self.assertTrue(status["active"])
         self.assertEqual(status["pane_id"], "%1")
+        self.assertEqual(status["capabilities"]["interrupt_on_pause"], True)
+        self.assertEqual(status["capabilities"]["structured_stream"], False)
         self.assertTrue(snapshot["available"])
         self.assertEqual(snapshot["text"], "live terminal text")
 

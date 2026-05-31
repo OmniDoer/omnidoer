@@ -113,6 +113,8 @@ class ControlUiContractTest(unittest.TestCase):
         app = (static_root() / "app.js").read_text()
         self.assertIn("runtimeWaitingForConsoleRestart", app)
         self.assertIn("runtimeLegacyRelayActive", app)
+        self.assertIn("runtimeLegacyRelayPause", app)
+        self.assertIn("legacyRelay.capabilities?.interrupt_on_pause", app)
         self.assertIn("runner.waiting_for_tui_bridge", app)
         self.assertIn("runner.restart_command", app)
         self.assertIn("runner.legacy_tui_relay", app)

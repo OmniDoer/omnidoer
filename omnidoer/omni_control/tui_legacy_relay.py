@@ -134,6 +134,12 @@ def legacy_tui_relay_status(thread_id: str | None) -> dict[str, object]:
         "tty": pane.tty,
         "process_pid": pane.process_pid,
         "current_command": pane.current_command,
+        "capabilities": {
+            "message_injection": True,
+            "interrupt_on_pause": True,
+            "terminal_snapshot": True,
+            "structured_stream": False,
+        },
     }
 
 
