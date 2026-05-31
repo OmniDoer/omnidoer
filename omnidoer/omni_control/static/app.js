@@ -133,6 +133,8 @@ const I18N = {
     chatRecordToolCall: "Tool call",
     chatRecordToolOutput: "Tool output",
     chatRecordTerminal: "Terminal",
+    chatRecordTerminalSnapshot: "Snapshot",
+    chatRecordTerminalDelta: "Delta",
     chatConversationTitle: "Conversation",
     chatActivityTitle: "Live activity",
     chatUserRole: "You",
@@ -349,6 +351,8 @@ const I18N = {
     chatRecordToolCall: "工具调用",
     chatRecordToolOutput: "工具输出",
     chatRecordTerminal: "终端",
+    chatRecordTerminalSnapshot: "快照",
+    chatRecordTerminalDelta: "增量",
     chatConversationTitle: "对话",
     chatActivityTitle: "实时活动",
     chatUserRole: "你",
@@ -2022,6 +2026,11 @@ function renderChatRecord(record) {
   appendText(header, "strong", chatRecordTypeLabel(record.record_type));
   if (record.role) appendText(header, "span", record.role, "badge");
   if (record.source) appendText(header, "span", record.source, "badge");
+  if (record.record_type === "terminal" && record.data?.terminal_snapshot) {
+    appendText(header, "span", t("chatRecordTerminalSnapshot"), "badge");
+  } else if (record.record_type === "terminal" && record.data?.terminal_delta) {
+    appendText(header, "span", t("chatRecordTerminalDelta"), "badge");
+  }
   item.append(header);
   appendText(item, "p", record.text || " ", "chat-message-text");
   const meta = document.createElement("div");

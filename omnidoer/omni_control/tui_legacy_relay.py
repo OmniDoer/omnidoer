@@ -314,6 +314,26 @@ class LegacyTuiRelay:
             return False
         text = capture_tmux_pane(pane.pane_id, line_count=TERMINAL_CAPTURE_LINES)
         current = stable_terminal_lines(text)
+        if not self._last_terminal_lines:
+            self._last_terminal_lines = current
+            body = clip_terminal_record(current)
+            if not body:
+                return False
+            self.store.append_record(
+                record_type="terminal",
+                text=body,
+                role="assistant",
+                source="legacy_tui_relay",
+                data={
+                    "pane_id": pane.pane_id,
+                    "thread_id": self.thread_id,
+                    "transport": "tmux",
+                    "line_count": len(current),
+                    "terminal_snapshot": True,
+                    "terminal_delta": False,
+                },
+            )
+            return True
         delta = terminal_delta(self._last_terminal_lines, current)
         self._last_terminal_lines = current
         body = clip_terminal_record(delta)

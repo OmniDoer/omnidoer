@@ -182,6 +182,8 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("payload.terminal", app)
         self.assertIn("record_type", app)
         self.assertIn("chatRecordTerminal", app)
+        self.assertIn("chatRecordTerminalSnapshot", app)
+        self.assertIn("chatRecordTerminalDelta", app)
         self.assertIn('terminal: t("chatRecordTerminal")', app)
         self.assertIn('id="chat-files"', self.html)
         self.assertIn('id="chat-input-label-text"', self.html)

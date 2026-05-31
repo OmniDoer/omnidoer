@@ -183,14 +183,17 @@ class TuiLegacyRelayTest(unittest.TestCase):
                     "omnidoer.omni_control.tui_legacy_relay.capture_tmux_pane",
                     side_effect=["line one\nline two", "line one\nline two\nline three"],
                 ):
-                    self.assertFalse(relay.publish_terminal_delta())
+                    self.assertTrue(relay.publish_terminal_delta())
                     self.assertTrue(relay.publish_terminal_delta())
 
                 records = store.list_records(limit=100)
                 terminal_records = [record for record in records if record.record_type == "terminal"]
-                self.assertEqual(len(terminal_records), 1)
-                self.assertEqual(terminal_records[0].text, "line three")
-                self.assertEqual(terminal_records[0].data["terminal_delta"], True)
+                self.assertEqual(len(terminal_records), 2)
+                self.assertEqual(terminal_records[0].text, "line one\nline two")
+                self.assertEqual(terminal_records[0].data["terminal_snapshot"], True)
+                self.assertEqual(terminal_records[0].data["terminal_delta"], False)
+                self.assertEqual(terminal_records[1].text, "line three")
+                self.assertEqual(terminal_records[1].data["terminal_delta"], True)
             finally:
                 if old_home is None:
                     os.environ.pop("OMNIDOER_HOME", None)
