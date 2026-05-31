@@ -753,11 +753,21 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
             "secret_exposed_to_model": False,
         }
     if name == "takeover.request_user_control":
-        from omnidoer.omni_takeover.relay import request_user_control
-
+        existing = _active_browser_takeover("mcp-browser")
+        if existing is not None:
+            return {
+                "status": "takeover_request_active",
+                "request": existing.to_public_dict(),
+                "takeover_created": False,
+                "reused": True,
+                "agent_paused": True,
+                "secret_exposed_to_model": False,
+            }
         origin, top_level_url = _origin_and_url(arguments)
         if not origin or not top_level_url:
             return _error("error", "origin or active browser required")
+        from omnidoer.omni_takeover.relay import request_user_control
+
         request = request_user_control(
             origin=origin,
             top_level_url=top_level_url,
@@ -765,7 +775,14 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
             browser_context_id="mcp-browser",
             risk_level=str(arguments.get("risk_level") or "high"),
         )
-        return {"status": "takeover_request_created", "request": request.to_public_dict(), "secret_exposed_to_model": False}
+        return {
+            "status": "takeover_request_created",
+            "request": request.to_public_dict(),
+            "takeover_created": True,
+            "reused": False,
+            "agent_paused": True,
+            "secret_exposed_to_model": False,
+        }
     if name == "takeover.status":
         from omnidoer.omni_control.requests import RequestStore
 

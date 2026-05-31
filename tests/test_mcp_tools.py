@@ -382,8 +382,19 @@ class McpToolsTest(unittest.TestCase):
 
                 takeover = call_tool("takeover.request_user_control", {**common, "reason": "anti-bot page"})
                 self.assertEqual(takeover["status"], "takeover_request_created")
+                self.assertTrue(takeover["takeover_created"])
+                self.assertFalse(takeover["reused"])
                 takeover_status = call_tool("takeover.status", {"request_id": takeover["request"]["request_id"]})
                 self.assertEqual(takeover_status["control_owner"], "user")
+                repeated_takeover = call_tool("takeover.request_user_control", {**common, "reason": "anti-bot page"})
+                self.assertEqual(repeated_takeover["status"], "takeover_request_active")
+                self.assertFalse(repeated_takeover["takeover_created"])
+                self.assertTrue(repeated_takeover["reused"])
+                self.assertEqual(repeated_takeover["request"]["request_id"], takeover["request"]["request_id"])
+                repeated_without_origin = call_tool("takeover.request_user_control", {})
+                self.assertEqual(repeated_without_origin["status"], "takeover_request_active")
+                self.assertTrue(repeated_without_origin["reused"])
+                self.assertEqual(repeated_without_origin["request"]["request_id"], takeover["request"]["request_id"])
 
                 registration = call_tool(
                     "registration.request_user_handoff",
