@@ -422,8 +422,8 @@ function applyLanguage() {
   setNodeText("#device-panel h3:nth-of-type(1)", "pairedDevices");
   setNodeText("#security h2", "securityTitle");
   setNodeText("#task-panel h2", "taskTitle");
-  setNodeText("#task-panel > p:nth-of-type(1)", "taskIntro");
-  setNodeText("#chat-input-label", "chatComposerLabel");
+  setNodeText("#task-panel .chat-panel-header p", "taskIntro");
+  setNodeText("#chat-input-label-text", "chatComposerLabel");
   const chatInput = document.querySelector("#chat-input");
   if (chatInput) chatInput.placeholder = t("chatPlaceholder");
   setNodeText("#chat-files-label", "chatFilesLabel");

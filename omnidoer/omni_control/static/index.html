@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icon-192.png">
-  <link rel="stylesheet" href="/style.css?v=20260531-global-ui">
+  <link rel="stylesheet" href="/style.css?v=20260531-chat-ui">
   <title>OmniDoer Control Client</title>
 </head>
 <body>
@@ -76,13 +76,17 @@
       <p>Human Takeover destination: controlled browser. Agent paused. User in control until Release Control.</p>
       <p>Registration Handoff: if a site needs a new account, the registration page is proxied to you. You complete registration directly; OmniDoer does not automate fake or bulk registration, and registration secrets/challenges are not sent to the LLM.</p>
     </section>
-    <section id="task-panel">
-      <h2>Chat</h2>
-      <p>Messages stream through your paired Control Service. The Control Client does not call OpenAI APIs or models directly; the local Agent reads queued messages and publishes responses.</p>
-      <p>Do not enter passwords, verification codes, card numbers, private keys, or other secrets here. Use Credential Request or Challenge Request panels for sensitive input.</p>
+    <section id="task-panel" data-boundary="Control Client does not call OpenAI APIs or models directly; local Agent reads queued messages.">
+      <div class="chat-panel-header">
+        <div>
+          <h2>Chat</h2>
+          <p>Messages stream through your paired Control Service.</p>
+        </div>
+      </div>
       <div id="chat-messages" class="chat-feed">Loading messages...</div>
       <div class="chat-composer">
-        <label id="chat-input-label">Message <textarea id="chat-input" rows="4" placeholder="Write to OmniDoer"></textarea></label>
+        <label id="chat-input-label" for="chat-input"><span id="chat-input-label-text">Message</span></label>
+        <textarea id="chat-input" rows="3" placeholder="Write to OmniDoer"></textarea>
         <div id="chat-selected-files" class="chat-selected-files"></div>
         <div class="chat-composer-actions">
           <label id="chat-files-label" class="file-button" for="chat-files">Attach</label>
@@ -139,6 +143,6 @@
       </div>
     </section>
   </main>
-  <script src="/app.js?v=20260531-global-ui"></script>
+  <script src="/app.js?v=20260531-chat-ui"></script>
 </body>
 </html>

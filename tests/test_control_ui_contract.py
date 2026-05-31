@@ -105,7 +105,7 @@ class ControlUiContractTest(unittest.TestCase):
 
     def test_task_panel_uses_local_queue_not_direct_model_api(self) -> None:
         self.assertIn("Chat", self.html)
-        self.assertIn("The Control Client does not call OpenAI APIs or models directly", self.html)
+        self.assertIn("Control Client does not call OpenAI APIs or models directly", self.html)
         self.assertIn("local Agent reads queued messages", self.html)
         app = (static_root() / "app.js").read_text()
         self.assertIn("/api/chat/messages", app)
@@ -117,9 +117,12 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("cachedChatRecords", app)
         self.assertIn("record_type", app)
         self.assertIn('id="chat-files"', self.html)
+        self.assertIn('id="chat-input-label-text"', self.html)
         self.assertIn("/api/chat/attachments", app)
         self.assertIn("FormData", app)
         self.assertIn("formatFileSize", app)
+        self.assertIn('setNodeText("#chat-input-label-text"', app)
+        self.assertNotIn('setNodeText("#chat-input-label"', app)
         self.assertIn("chat-file-chip", (static_root() / "style.css").read_text())
         self.assertIn("chat-record-delta", (static_root() / "style.css").read_text())
 
