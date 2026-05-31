@@ -128,9 +128,7 @@ fn pair_invite_lines(output: &str) -> Vec<Line<'static>> {
             lines.push(Line::from(line.to_string()));
             continue;
         }
-        if in_qr
-            && let Some(styled_line) = styled_qr_line(line)
-        {
+        if in_qr && let Some(styled_line) = styled_qr_line(line) {
             lines.push(styled_line);
             continue;
         }
@@ -153,7 +151,11 @@ fn styled_qr_line(line: &str) -> Option<Line<'static>> {
             _ => return None,
         };
         let foreground = if top_dark { Color::Black } else { Color::White };
-        let background = if bottom_dark { Color::Black } else { Color::White };
+        let background = if bottom_dark {
+            Color::Black
+        } else {
+            Color::White
+        };
         spans.push(Span::styled(
             "▀".to_string(),
             Style::default().fg(foreground).bg(background),
