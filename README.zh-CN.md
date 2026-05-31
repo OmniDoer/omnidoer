@@ -44,6 +44,17 @@ Codex 的 ChatGPT 登录和计费路径，但启动器会注入 OmniDoer 品牌�
 如果本机已安装 `/usr/local/lib/omnidoer/codex`，`omnidoer` 会优先使用这个
 OmniDoer 原生控制台；否则自动回退到保留的系统 Codex 二进制 `/usr/bin/codex`。
 
+### 原生控制台账号切换
+
+在原生控制台中输入 `/users` 会打开本机已登录账号切换器。列表会标记当前账号，
+支持上下键选择并按 Enter 切换。OmniDoer 会把每个账号保存到独立的本地认证槽位，
+在不新建对话的情况下让运行中的 app-server 原地重新加载凭据，当前上下文会继续
+留在同一个会话里。需要切到具备特定能力的 ChatGPT/Codex 账号，或当前账号额度
+用尽时切换到另一个账号，都可以使用这个入口。
+
+账号选择器和日志不会打印 token、API key、私钥等凭据值；账号索引只保存展示
+所需的元数据，敏感凭据仍留在配置的本地 credential store 中。
+
 后续一键升级 CLI 与 sidecar：
 
 ```sh

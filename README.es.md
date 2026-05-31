@@ -47,6 +47,19 @@ El instalador crea `~/omnidoer/.venv`, inicializa OmniDoer, instala el browser
 worker, prueba el servidor MCP y registra `omnidoer mcp serve` si `codex` CLI
 está disponible.
 
+### Cambio de cuenta en la consola nativa
+
+En la consola nativa, `/users` abre el selector de cuentas locales ya iniciadas.
+La lista marca la cuenta actual y permite moverse con las flechas y confirmar
+con Enter. OmniDoer guarda cada cuenta en su propio espacio de autenticación
+local, recarga el app-server en ejecución y conserva el contexto de la
+conversación actual. Sirve para cambiar a una cuenta ChatGPT/Codex con una
+capacidad concreta o para continuar con otra cuota cuando una cuenta se agota.
+
+El selector y los logs nunca imprimen tokens, API keys ni claves privadas. El
+índice de cuentas guarda solo metadatos de visualización; los secretos siguen
+en el credential store local configurado.
+
 OmniDoer extiende Codex CLI mediante MCP y un sidecar local/cloud-direct. No es un nuevo cliente de OpenAI API. Codex razona; OmniDoer actúa con un navegador real, Secret Broker, Vault, Control Client, Challenge Relay, Human Takeover, Cloud Direct, Approval Gate y auditoría.
 
 Si una persona puede hacerlo en la web con autorización, OmniDoer está diseñado para ayudar a ejecutarlo de forma segura: registro, inicio de sesión, navegación, formularios, descargas, facturas, revisión de compras, aprobación de pagos y traspaso al usuario cuando el sitio exige intervención humana.

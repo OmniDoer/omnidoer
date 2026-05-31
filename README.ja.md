@@ -45,6 +45,19 @@ curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scr
 browser worker をインストールし、MCP server を self-test し、`codex` CLI
 がある場合は `omnidoer mcp serve` を登録します。
 
+### ネイティブコンソールでのアカウント切り替え
+
+ネイティブコンソールで `/users` を入力すると、このマシンで保存済みのログイン
+アカウントを切り替えるピッカーが開きます。現在のアカウントが表示され、上下キーで
+選択し Enter で切り替えられます。OmniDoer は各アカウントを個別のローカル認証
+スロットに保存し、実行中の app-server にその場で再読み込みさせるため、現在の
+会話コンテキストは同じセッションに残ります。特定の機能を持つ ChatGPT/Codex
+アカウントへ切り替えたい場合や、あるアカウントの quota が尽きた場合に使えます。
+
+ピッカーやログに token、API key、秘密鍵などの値は表示されません。アカウント
+インデックスには表示用メタデータだけを保存し、機密情報は設定済みのローカル
+credential store に残ります。
+
 OmniDoer は Codex CLI を MCP と sidecar で拡張するローカル優先、Cloud Direct 対応の実行基盤です。新しい OpenAI API クライアントではありません。Codex が推論し、OmniDoer が実ブラウザ、Secret Broker、Vault、Control Client、Challenge Relay、Human Takeover、Cloud Direct、Approval Gate、監査で実行します。
 
 人間が承認して Web 上で実行できる作業なら、OmniDoer はそれを安全に支援することを目指します。サインアップ、ログイン、ナビゲーション、フォーム入力、ダウンロード、請求書、購入確認、支払い承認、そしてサイトが人間の介入を求める場面でのユーザーへの操作引き渡しです。
