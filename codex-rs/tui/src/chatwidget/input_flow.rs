@@ -203,7 +203,7 @@ impl ChatWidget {
             Some(text),
             local_image_paths,
             Vec::new(),
-        {
+        ) {
             self.submit_user_message(user_message);
         }
     }
