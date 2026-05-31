@@ -112,8 +112,10 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("local Agent reads queued messages", self.html)
         app = (static_root() / "app.js").read_text()
         self.assertIn("runtimeWaitingForConsoleRestart", app)
+        self.assertIn("runtimeLegacyRelayActive", app)
         self.assertIn("runner.waiting_for_tui_bridge", app)
         self.assertIn("runner.restart_command", app)
+        self.assertIn("runner.legacy_tui_relay", app)
         self.assertIn("runtime-command", app)
         self.assertIn("runner.tui_bridge_active", app)
         self.assertIn("document.body.dataset.runtimeState", app)
@@ -133,7 +135,9 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("/api/ws/chat", app)
         self.assertIn("/api/chat/events?stream=1", app)
         self.assertIn("renderChatRecord", app)
+        self.assertIn("renderLegacyTerminal", app)
         self.assertIn("cachedChatRecords", app)
+        self.assertIn("payload.terminal", app)
         self.assertIn("record_type", app)
         self.assertIn('id="chat-files"', self.html)
         self.assertIn('id="chat-input-label-text"', self.html)
@@ -144,6 +148,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertNotIn('setNodeText("#chat-input-label"', app)
         self.assertIn("chat-file-chip", (static_root() / "style.css").read_text())
         self.assertIn("chat-record-delta", (static_root() / "style.css").read_text())
+        self.assertIn("chat-terminal-snapshot", (static_root() / "style.css").read_text())
 
     def test_pairing_panel_and_cloud_csrf_contract_present(self) -> None:
         self.assertIn("Pair Device", self.html)

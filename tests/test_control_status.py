@@ -23,6 +23,9 @@ class ControlStatusTest(unittest.TestCase):
                 with patch("omnidoer.omni_control.chat_runner.live_tui_bridge_active", return_value=False), patch(
                     "omnidoer.omni_control.chat_runner.live_tui_session_active",
                     return_value=True,
+                ), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.legacy_tui_relay_status",
+                    return_value={"active": True, "transport": "tmux", "pane_id": "%1"},
                 ):
                     with urllib_request.urlopen(
                         f"http://127.0.0.1:{server.server_address[1]}/api/status",
@@ -36,6 +39,7 @@ class ControlStatusTest(unittest.TestCase):
                 self.assertTrue(payload["chat_runner"]["restart_required"])
                 self.assertEqual(payload["chat_runner"]["restart_command"], "omnidoer console resume thread_active")
                 self.assertIn("bridge_heartbeat_age_seconds", payload["chat_runner"])
+                self.assertTrue(payload["chat_runner"]["legacy_tui_relay"]["active"])
             finally:
                 server.shutdown()
                 server.server_close()

@@ -14,8 +14,10 @@ const I18N = {
     runtimeOffline: "Runtime offline",
     runtimeOfflineDetail: "Start omnidoer control serve.",
     runtimeBridgeActive: "Live Linux console bridge is active; messages sync with the current TUI.",
+    runtimeLegacyRelayActive: "Temporary terminal relay is active; messages are injected into the current console. Restart for full structured sync:",
     runtimeWaitingForConsoleRestart: "Linux console is active but not yet bridged. Restart OmniDoer console with:",
     runtimeBackgroundRunner: "No live Linux console bridge; queued messages use the background Codex runner.",
+    legacyTerminalTitle: "Live Linux Console",
     requestsCount: (open, total) => `Requests: ${open} open / ${total} total`,
     requestsTitle: "Open Requests",
     requestsIntro: "Handle the items that need your attention. Secrets stay encrypted to the local broker.",
@@ -174,8 +176,10 @@ const I18N = {
     runtimeOffline: "运行服务离线",
     runtimeOfflineDetail: "请启动 omnidoer control serve。",
     runtimeBridgeActive: "Linux 控制台实时桥接已启用；消息会同步到当前 TUI。",
+    runtimeLegacyRelayActive: "临时终端 relay 已启用；消息会注入当前 console。请重启以获得完整结构化同步：",
     runtimeWaitingForConsoleRestart: "Linux 控制台仍在运行但尚未桥接。请用下面命令重启 OmniDoer console：",
     runtimeBackgroundRunner: "没有实时 Linux 控制台桥接；排队消息将由后台 Codex runner 处理。",
+    legacyTerminalTitle: "实时 Linux 控制台",
     requestsCount: (open, total) => `请求：${open} 个待处理 / 共 ${total} 个`,
     requestsTitle: "待处理请求",
     requestsIntro: "优先处理需要你操作的项目。敏感凭证只会加密提交到本地 broker。",
@@ -1561,10 +1565,25 @@ function renderChatRecord(record) {
   return item;
 }
 
-function renderChatTimeline(messages, records = []) {
+function renderLegacyTerminal(terminal) {
+  if (!terminal?.available || !terminal.text) return null;
+  const item = document.createElement("article");
+  item.className = "chat-record chat-terminal-snapshot";
+  const header = document.createElement("div");
+  header.className = "chat-message-header";
+  appendText(header, "strong", t("legacyTerminalTitle"));
+  appendText(header, "span", terminal.pane_id || "tmux", "badge");
+  item.append(header);
+  appendText(item, "pre", terminal.text);
+  return item;
+}
+
+function renderChatTimeline(messages, records = [], terminal = null) {
   const list = document.querySelector("#chat-messages");
   if (!list) return;
   list.innerHTML = "";
+  const terminalNode = renderLegacyTerminal(terminal);
+  if (terminalNode) list.append(terminalNode);
   if (records.length) {
     records.forEach((record) => list.append(renderChatRecord(record)));
     list.scrollTop = list.scrollHeight;
@@ -1588,7 +1607,7 @@ async function loadChatMessages() {
     });
     cachedChatMessages = payload.messages || [];
     cachedChatRecords = payload.records || [];
-    renderChatTimeline(cachedChatMessages, cachedChatRecords);
+    renderChatTimeline(cachedChatMessages, cachedChatRecords, payload.terminal || null);
   } catch {
     list.textContent = t("pairToViewChat");
   }
@@ -2509,8 +2528,9 @@ async function loadRuntimeStatus() {
     let runtimeState = "";
     let restartCommand = "";
     if (runner.waiting_for_tui_bridge) {
-      detail = t("runtimeWaitingForConsoleRestart");
-      runtimeState = "waiting_for_tui_bridge";
+      const legacyRelay = runner.legacy_tui_relay || {};
+      detail = legacyRelay.active ? t("runtimeLegacyRelayActive") : t("runtimeWaitingForConsoleRestart");
+      runtimeState = legacyRelay.active ? "legacy_tui_relay" : "waiting_for_tui_bridge";
       restartCommand = runner.restart_command || "";
     } else if (runner.tui_bridge_active) {
       detail = t("runtimeBridgeActive");
@@ -2546,7 +2566,7 @@ function applyRequestEvent(payload) {
 function applyChatEvent(payload) {
   cachedChatMessages = payload.messages || [];
   cachedChatRecords = payload.records || [];
-  renderChatTimeline(cachedChatMessages, cachedChatRecords);
+  renderChatTimeline(cachedChatMessages, cachedChatRecords, payload.terminal || null);
 }
 
 function handleSseBlock(block) {

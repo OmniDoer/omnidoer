@@ -257,10 +257,14 @@ class ControlHandler(SimpleHTTPRequestHandler):
         store = ChatStore()
         messages = store.list(limit=limit)
         records = store.list_records(limit=limit, after_sequence=after_sequence)
+        chat_thread_id = getattr(self.server, "omnidoer_chat_thread_id", None)
+        from omnidoer.omni_control.tui_legacy_relay import legacy_tui_terminal_snapshot
+
         return {
             "messages": [message.to_public_dict() for message in messages],
             "records": [record.to_public_dict() for record in records],
             "streaming": True,
+            "terminal": legacy_tui_terminal_snapshot(chat_thread_id),
             "retention": {"approx_screen_count": 5, "max_records": 140},
             "uploads": {
                 "directory": str(ChatUploadStore().directory),
@@ -502,10 +506,12 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 tui_bridge_heartbeat_age_seconds,
                 tui_restart_command,
             )
+            from omnidoer.omni_control.tui_legacy_relay import legacy_tui_relay_status
 
             tui_bridge_active = live_tui_bridge_active()
             tui_session_active = live_tui_session_active(chat_thread_id)
             waiting_for_tui_bridge = bool(chat_thread_id and tui_session_active and not tui_bridge_active)
+            legacy_relay = legacy_tui_relay_status(chat_thread_id) if waiting_for_tui_bridge else {"active": False}
             self._send_json(
                 HTTPStatus.OK,
                 {
@@ -521,6 +527,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                         "restart_required": waiting_for_tui_bridge,
                         "restart_command": tui_restart_command(chat_thread_id) if waiting_for_tui_bridge else None,
                         "bridge_heartbeat_age_seconds": tui_bridge_heartbeat_age_seconds(),
+                        "legacy_tui_relay": legacy_relay,
                     },
                 },
             )
@@ -1204,6 +1211,7 @@ def serve(
         print("WARNING: --insecure-dev-public disables Cloud Direct HTTPS enforcement. Use only for temporary testing.")
     if chat_runner:
         from omnidoer.omni_control.chat_runner import start_chat_runner_thread
+        from omnidoer.omni_control.tui_legacy_relay import start_legacy_tui_relay_thread
 
         start_chat_runner_thread(
             codex_bin=chat_codex_bin,
@@ -1212,6 +1220,8 @@ def serve(
             extra_args=chat_codex_args or [],
             poll_interval=chat_runner_interval,
         )
+        if chat_thread_id:
+            start_legacy_tui_relay_thread(thread_id=chat_thread_id, poll_interval=chat_runner_interval)
         if chat_thread_id:
             print(f"OmniDoer chat runner enabled: Control Client messages resume Codex thread {chat_thread_id}.")
         else:

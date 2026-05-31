@@ -476,6 +476,19 @@ button:disabled {
   border-color: #fde68a;
   background: #fffbeb;
 }
+.chat-terminal-snapshot {
+  border-style: solid;
+  border-color: #cbd5e1;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+.chat-terminal-snapshot pre {
+  margin: 10px 0 0;
+  color: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 0.82rem/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
 .chat-message-header,
 .chat-message-meta {
   display: flex;
