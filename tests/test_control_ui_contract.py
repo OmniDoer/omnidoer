@@ -43,7 +43,8 @@ class ControlUiContractTest(unittest.TestCase):
     def test_takeover_explanation_present(self) -> None:
         self.assertIn("Agent paused", self.html)
         self.assertIn("User in control", self.html)
-        self.assertIn("Release Control", self.html)
+        self.assertIn("Pause Agent", self.html)
+        self.assertIn("Continue Agent", self.html)
         self.assertIn("Registration Handoff", self.html)
         self.assertIn("does not automate fake or bulk registration", self.html)
 
@@ -100,6 +101,8 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("externalHandoffNote", self.app)
         self.assertIn("openCurrentUrl", self.app)
         self.assertIn("releaseControl", self.app)
+        self.assertIn("pauseAgent", self.app)
+        self.assertIn("takeoverPausePrompt", self.app)
         self.assertIn("if (!request.browser_context_id)", self.app)
         self.assertIn("button-link", self.app)
 
@@ -204,6 +207,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("takeover-frame-freshness", self.html)
         self.assertIn("takeover-frame-profile", self.html)
         self.assertIn("takeover-frame-zoom", self.html)
+        self.assertIn("request-takeover-pause", self.html)
         self.assertIn("Refresh Frame", self.html)
         self.assertIn("zoom-out-takeover-frame", self.html)
         self.assertIn("zoom-reset-takeover-frame", self.html)
@@ -218,6 +222,9 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("startTakeoverFrameWebSocket", app)
         self.assertIn("/api/ws/requests/", app)
         self.assertIn("takeover_frame", app)
+        self.assertIn("requestTakeoverPause", app)
+        self.assertIn("control_pause_", app)
+        self.assertIn("postChatMessage", app)
         self.assertIn("connected - websocket", app)
         self.assertIn("Live frame WebSocket disconnected.", app)
         self.assertIn("fetchTakeoverFrame", app)

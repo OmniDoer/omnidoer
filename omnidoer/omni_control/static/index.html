@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icon-192.png">
-  <link rel="stylesheet" href="/style.css?v=20260531-sync-tabs">
+  <link rel="stylesheet" href="/style.css?v=20260531-pause-bridge">
   <title>OmniDoer Control Client</title>
 </head>
 <body>
@@ -74,7 +74,7 @@
       <h2>Security</h2>
       <p>Secret destination: Secret Broker. Not sent to Agent/LLM context, MCP return values, logs, or DOM observation.</p>
       <p>Challenge destination: Challenge Relay / target website. OmniDoer does not bypass CAPTCHA/MFA/Passkey/WebAuthn/3DS.</p>
-      <p>Human Takeover destination: controlled browser. Agent paused. User in control until Release Control.</p>
+      <p>Human Takeover destination: controlled browser. Agent paused. User in control until Continue Agent.</p>
       <p>Registration Handoff: if a site needs a new account, the registration page is proxied to you. You complete registration directly; OmniDoer does not automate fake or bulk registration, and registration secrets/challenges are not sent to the LLM.</p>
     </section>
     <section id="task-panel" data-boundary="Control Client does not call OpenAI APIs or models directly; local Agent reads queued messages.">
@@ -98,7 +98,7 @@
     </section>
     <section id="takeover-panel">
       <h2>Human Takeover</h2>
-      <p>Agent paused. User in control. Release Control when finished. Touch, scroll, type, and key events are sent only to the controlled browser. Registration pages can use the same handoff so users complete signup themselves.</p>
+      <p>Agent paused. User in control. Continue Agent when finished. Touch, scroll, type, and key events are sent only to the controlled browser. Registration pages can use the same handoff so users complete signup themselves.</p>
       <dl class="metadata takeover-metadata">
         <dt>Status</dt><dd id="takeover-status-label">No active takeover</dd>
         <dt>Request</dt><dd id="takeover-active-request">pending</dd>
@@ -110,12 +110,13 @@
         <dt>Zoom</dt><dd id="takeover-frame-zoom">100%</dd>
       </dl>
       <div class="takeover-toolbar" aria-label="Live browser handoff controls">
+        <button id="request-takeover-pause" type="button">Pause Agent</button>
         <button id="refresh-takeover-frame" type="button" disabled>Refresh Frame</button>
         <button id="zoom-out-takeover-frame" type="button" aria-label="Zoom out" title="Zoom out" disabled>-</button>
         <button id="zoom-reset-takeover-frame" type="button" disabled>Fit</button>
         <button id="zoom-in-takeover-frame" type="button" aria-label="Zoom in" title="Zoom in" disabled>+</button>
         <button id="pan-takeover-frame" type="button" aria-pressed="false" disabled>Pan View</button>
-        <button id="release-active-takeover" type="button" disabled>Release Control</button>
+        <button id="release-active-takeover" type="button" disabled>Continue Agent</button>
       </div>
       <div id="browser-stream" role="img" aria-label="Browser stream placeholder"></div>
       <p id="takeover-input-state" class="flow-note">No active browser handoff.</p>
@@ -144,6 +145,6 @@
       </div>
     </section>
   </main>
-  <script src="/app.js?v=20260531-sync-tabs"></script>
+  <script src="/app.js?v=20260531-pause-bridge"></script>
 </body>
 </html>

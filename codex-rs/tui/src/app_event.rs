@@ -914,6 +914,7 @@ pub(crate) enum AppEvent {
         message_id: String,
         text: String,
         local_image_paths: Vec<PathBuf>,
+        interrupt_turn: bool,
     },
 
     /// Open the approval popup.

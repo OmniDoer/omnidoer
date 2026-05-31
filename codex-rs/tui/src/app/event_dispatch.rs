@@ -1850,13 +1850,17 @@ impl App {
                 message_id,
                 text,
                 local_image_paths,
+                interrupt_turn,
             } => {
                 tracing::info!(
                     %message_id,
                     "submitting OmniDoer Control Client message to active TUI"
                 );
-                self.chat_widget
-                    .submit_omnidoer_remote_user_message(text, local_image_paths);
+                self.chat_widget.submit_omnidoer_remote_user_message(
+                    text,
+                    local_image_paths,
+                    interrupt_turn,
+                );
             }
             AppEvent::ManageSkillsClosed => {
                 self.chat_widget.handle_manage_skills_closed();

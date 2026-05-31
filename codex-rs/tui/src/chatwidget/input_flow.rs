@@ -198,13 +198,23 @@ impl ChatWidget {
         &mut self,
         text: String,
         local_image_paths: Vec<PathBuf>,
+        interrupt_turn: bool,
     ) {
         if let Some(user_message) = crate::chatwidget::create_initial_user_message(
             Some(text),
             local_image_paths,
             Vec::new(),
         ) {
+            let should_interrupt = interrupt_turn
+                && self.turn_lifecycle.agent_turn_running
+                && self.bottom_pane.is_task_running();
             self.submit_user_message(user_message);
+            if should_interrupt && !self.input_queue.pending_steers.is_empty() {
+                self.input_queue.submit_pending_steers_after_interrupt = true;
+                if !self.submit_op(AppCommand::interrupt()) {
+                    self.input_queue.submit_pending_steers_after_interrupt = false;
+                }
+            }
         }
     }
 

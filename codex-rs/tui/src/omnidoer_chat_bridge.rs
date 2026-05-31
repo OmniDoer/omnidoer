@@ -35,6 +35,7 @@ pub(crate) struct RemoteUserMessage {
     pub(crate) message_id: String,
     pub(crate) text: String,
     pub(crate) local_image_paths: Vec<PathBuf>,
+    pub(crate) interrupt_turn: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -47,6 +48,8 @@ struct ChatNextResponse {
 #[derive(Debug, Deserialize)]
 struct ControlChatMessage {
     message_id: String,
+    #[serde(default)]
+    client_message_id: Option<String>,
     text: String,
     #[serde(default)]
     attachments: Vec<ControlChatAttachment>,
@@ -294,6 +297,7 @@ fn spawn_inbound_poller(app_event_tx: AppEventSender) {
                         message_id: message.message_id,
                         text: message.text,
                         local_image_paths: message.local_image_paths,
+                        interrupt_turn: message.interrupt_turn,
                     });
                 }
                 Ok(None) => {}
@@ -505,14 +509,22 @@ fn parse_claimed_message(stdout: &str) -> Result<Option<RemoteUserMessage>, Stri
             let message = payload
                 .message
                 .ok_or_else(|| "chat-next ok response omitted message".to_string())?;
+            let interrupt_turn = message_requests_interrupt(&message);
             Ok(Some(RemoteUserMessage {
                 message_id: message.message_id,
                 text: message.text,
                 local_image_paths: image_attachment_paths(&message.attachments),
+                interrupt_turn,
             }))
         }
         other => Err(format!("chat-next returned unexpected status {other:?}")),
     }
+}
+
+fn message_requests_interrupt(message: &ControlChatMessage) -> bool {
+    message.client_message_id.as_deref().is_some_and(|id| {
+        id.starts_with("control_pause_") || id.starts_with("omnidoer_pause_")
+    })
 }
 
 fn image_attachment_paths(attachments: &[ControlChatAttachment]) -> Vec<PathBuf> {
