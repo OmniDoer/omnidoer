@@ -697,7 +697,7 @@ impl HistoryCell for StatusHistoryCell {
         let mut lines: Vec<Line<'static>> = Vec::new();
         lines.push(Line::from(vec![
             Span::from(format!("{}>_ ", FieldFormatter::INDENT)).dim(),
-            Span::from("OpenAI Codex").bold(),
+            Span::from(crate::brand::product_name()).bold(),
             Span::from(" ").dim(),
             Span::from(format!("(v{CODEX_CLI_VERSION})")).dim(),
         ]));
@@ -715,7 +715,10 @@ impl HistoryCell for StatusHistoryCell {
                 (None, None) => "ChatGPT".to_string(),
             },
             StatusAccountDisplay::ApiKey => {
-                "API key configured (run codex login to use ChatGPT)".to_string()
+                format!(
+                    "API key configured (run {} login to use ChatGPT)",
+                    crate::brand::short_name().to_ascii_lowercase()
+                )
             }
         });
 
@@ -782,6 +785,11 @@ impl HistoryCell for StatusHistoryCell {
         // providers like Bedrock manage limits and billing elsewhere.
         if self.show_chatgpt_usage_link {
             lines.extend(note_lines);
+            if crate::brand::is_omnidoer() {
+                lines.push(Line::from(vec![
+                    Span::from("OmniDoer quota is backed by ChatGPT/Codex auth").cyan(),
+                ]));
+            }
             lines.push(Line::from(Vec::<Span<'static>>::new()));
         }
         if let Some(remote_connection) = self.remote_connection.as_ref() {

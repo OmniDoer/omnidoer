@@ -32,9 +32,17 @@ curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scr
 安装后生成配对码并提交任务：
 
 ```sh
+~/omnidoer/.venv/bin/omnidoer
 ~/omnidoer/.venv/bin/omnidoer control pair --print-qr
 ~/omnidoer/.venv/bin/omnidoer control submit-task "打开本地 demo 并下载我的发票"
 ```
+
+不带子命令运行 `omnidoer` 会直接进入 OmniDoer 品牌交互控制台。它继承现有
+Codex 的 ChatGPT 登录和计费路径，但启动器会注入 OmniDoer 品牌环境；当本机
+使用支持该品牌开关的原生控制台时，启动页、`/status` 和额度展示都会明确显示
+当前是在使用 OmniDoer。
+如果本机已安装 `/usr/local/lib/omnidoer/codex`，`omnidoer` 会优先使用这个
+OmniDoer 原生控制台；否则自动回退到保留的系统 Codex 二进制 `/usr/bin/codex`。
 
 后续一键升级 CLI 与 sidecar：
 
@@ -55,6 +63,7 @@ omnidoer/scripts/verify-codex-shim.sh
 
 ```sh
 sudo omnidoer/scripts/uninstall-codex-shim.sh
+sudo rm -f /usr/local/lib/omnidoer/codex
 ```
 
 安装脚本会创建 `~/omnidoer/.venv`、初始化 OmniDoer、安装浏览器 worker、

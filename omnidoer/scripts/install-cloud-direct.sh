@@ -85,6 +85,8 @@ fi
 echo
 echo "Installed OmniDoer at: $install_dir"
 echo "CLI: $venv_dir/bin/omnidoer"
+echo "Start the OmniDoer interactive console:"
+echo "  $venv_dir/bin/omnidoer"
 echo "Create a pairing QR/code:"
 if [ "$cloud_direct" = "1" ]; then
   echo "  $venv_dir/bin/omnidoer control pair --print-qr --public-url $public_url"

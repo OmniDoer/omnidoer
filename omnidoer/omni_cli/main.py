@@ -60,6 +60,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"omnidoer {__version__}")
     sub = parser.add_subparsers(dest="command")
 
+    console = sub.add_parser("console", help="Launch the OmniDoer-branded interactive console")
+    console.add_argument("--dry-run", action="store_true")
+    console.add_argument("codex_args", nargs=argparse.REMAINDER)
     sub.add_parser("doctor", help="Check Codex auth mode and local runtime readiness")
     sub.add_parser("init", help="Create local OmniDoer state directory")
     upgrade = sub.add_parser("upgrade", help="Upgrade OmniDoer in-place from the GitHub checkout")
@@ -166,8 +169,53 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
+    sidecar_commands = {
+        "agent",
+        "audit",
+        "browser",
+        "console",
+        "control",
+        "cred",
+        "demo",
+        "doctor",
+        "init",
+        "mcp",
+        "policy",
+        "telegram",
+        "upgrade",
+        "vault",
+    }
+    if not raw_argv:
+        from omnidoer.omni_cli.console import launch_codex_console
+
+        return launch_codex_console([])
+    first = raw_argv[0]
+    if first == "console" and not (len(raw_argv) > 1 and raw_argv[1] in {"-h", "--help"}):
+        from omnidoer.omni_cli.console import launch_codex_console
+
+        console_args = raw_argv[1:]
+        dry_run = False
+        if console_args[:1] == ["--dry-run"]:
+            dry_run = True
+            console_args = console_args[1:]
+        return launch_codex_console(console_args, dry_run=dry_run)
+    if first.startswith("-") and first not in {"-h", "--help", "--version"}:
+        from omnidoer.omni_cli.console import launch_codex_console
+
+        return launch_codex_console(raw_argv)
+    if not first.startswith("-") and first not in sidecar_commands:
+        from omnidoer.omni_cli.console import launch_codex_console
+
+        return launch_codex_console(raw_argv)
+
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(raw_argv)
+
+    if args.command == "console":
+        from omnidoer.omni_cli.console import launch_codex_console
+
+        return launch_codex_console(args.codex_args, dry_run=args.dry_run)
 
     if args.command == "doctor":
         from omnidoer.omni_cli.doctor import doctor_main

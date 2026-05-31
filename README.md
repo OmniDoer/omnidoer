@@ -68,9 +68,18 @@ existing Codex login, model selection, and billing path.
 After install:
 
 ```sh
+~/omnidoer/.venv/bin/omnidoer
 ~/omnidoer/.venv/bin/omnidoer control pair --print-qr
 ~/omnidoer/.venv/bin/omnidoer control submit-task "Open the local demo and download my invoice"
 ```
+
+Running `omnidoer` with no subcommand opens the OmniDoer-branded interactive
+console. It inherits the existing Codex ChatGPT login and billing path, but the
+launcher sets OmniDoer branding so startup, status, and quota surfaces identify
+the active console as OmniDoer when the bundled native console supports it.
+When `/usr/local/lib/omnidoer/codex` is installed, that OmniDoer native console
+is used first; otherwise `omnidoer` falls back to the preserved system Codex
+binary at `/usr/bin/codex`.
 
 Upgrade the CLI and sidecar in place:
 
@@ -91,6 +100,7 @@ Rollback is immediate:
 
 ```sh
 sudo omnidoer/scripts/uninstall-codex-shim.sh
+sudo rm -f /usr/local/lib/omnidoer/codex
 ```
 
 Set `OMNIDOER_INSTALL_DIR`, `OMNIDOER_HOST`, `OMNIDOER_PORT`, `OMNIDOER_START=0`,

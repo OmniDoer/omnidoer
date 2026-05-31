@@ -183,8 +183,13 @@ pub(crate) fn compose_rate_limit_data_many(
         stale |= now.signed_duration_since(snapshot.captured_at)
             > ChronoDuration::minutes(RATE_LIMIT_STALE_THRESHOLD_MINUTES);
 
-        let limit_bucket_label = snapshot.limit_name.clone();
-        let show_limit_prefix = !limit_bucket_label.eq_ignore_ascii_case("codex");
+        let is_codex_limit = snapshot.limit_name.eq_ignore_ascii_case("codex");
+        let limit_bucket_label = if crate::brand::is_omnidoer() && is_codex_limit {
+            "OmniDoer".to_string()
+        } else {
+            snapshot.limit_name.clone()
+        };
+        let show_limit_prefix = !is_codex_limit || crate::brand::is_omnidoer();
         let primary_label = snapshot
             .primary
             .as_ref()
@@ -261,7 +266,10 @@ pub(crate) fn compose_rate_limit_data_many(
         }
 
         if let Some(credits) = snapshot.credits.as_ref()
-            && let Some(row) = credit_status_row(credits)
+            && let Some(row) = credit_status_row(
+                credits,
+                (crate::brand::is_omnidoer() && is_codex_limit).then_some("OmniDoer"),
+            )
         {
             rows.push(row);
         }
@@ -301,20 +309,26 @@ pub(crate) fn format_status_limit_summary(percent_remaining: f64) -> String {
 /// that the account has credit tracking enabled. When credits are unlimited we
 /// show that fact explicitly; otherwise we render the rounded balance in
 /// credits. Accounts with credits = 0 skip this section entirely.
-fn credit_status_row(credits: &CreditsSnapshotDisplay) -> Option<StatusRateLimitRow> {
+fn credit_status_row(
+    credits: &CreditsSnapshotDisplay,
+    label_prefix: Option<&str>,
+) -> Option<StatusRateLimitRow> {
+    let label = label_prefix
+        .map(|prefix| format!("{prefix} credits"))
+        .unwrap_or_else(|| "Credits".to_string());
     if !credits.has_credits {
         return None;
     }
     if credits.unlimited {
         return Some(StatusRateLimitRow {
-            label: "Credits".to_string(),
+            label,
             value: StatusRateLimitValue::Text("Unlimited".to_string()),
         });
     }
     let balance = credits.balance.as_ref()?;
     let display_balance = format_credit_balance(balance)?;
     Some(StatusRateLimitRow {
-        label: "Credits".to_string(),
+        label,
         value: StatusRateLimitValue::Text(format!("{display_balance} credits")),
     })
 }

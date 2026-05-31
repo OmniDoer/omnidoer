@@ -46,6 +46,44 @@ macro_rules! frames_for {
 
 pub(crate) const FRAMES_DEFAULT: [&str; 36] = frames_for!("default");
 pub(crate) const FRAMES_CODEX: [&str; 36] = frames_for!("codex");
+pub(crate) const FRAMES_OMNIDOER: [&str; 36] = [
+    "  OMNIDOER\n  [>          ]\n  safe local execution",
+    "  OMNIDOER\n  [=>         ]\n  safe local execution",
+    "  OMNIDOER\n  [==>        ]\n  safe local execution",
+    "  OMNIDOER\n  [===>       ]\n  safe local execution",
+    "  OMNIDOER\n  [====>      ]\n  control boundary online",
+    "  OMNIDOER\n  [=====>     ]\n  control boundary online",
+    "  OMNIDOER\n  [======>    ]\n  control boundary online",
+    "  OMNIDOER\n  [=======>   ]\n  control boundary online",
+    "  OMNIDOER\n  [========>  ]\n  vault and broker ready",
+    "  OMNIDOER\n  [=========> ]\n  vault and broker ready",
+    "  OMNIDOER\n  [==========>]\n  vault and broker ready",
+    "  OMNIDOER\n  [ <========]\n  agent execution boundary",
+    "  OMNIDOER\n  [  <=======]\n  agent execution boundary",
+    "  OMNIDOER\n  [   <======]\n  agent execution boundary",
+    "  OMNIDOER\n  [    <=====]\n  agent execution boundary",
+    "  OMNIDOER\n  [     <====]\n  human approval linked",
+    "  OMNIDOER\n  [      <===]\n  human approval linked",
+    "  OMNIDOER\n  [       <==]\n  human approval linked",
+    "  OMNIDOER\n  [        <=]\n  human approval linked",
+    "  OMNIDOER\n  [         <]\n  ChatGPT Pro auth inherited",
+    "  OMNIDOER\n  [        <=]\n  ChatGPT Pro auth inherited",
+    "  OMNIDOER\n  [       <==]\n  ChatGPT Pro auth inherited",
+    "  OMNIDOER\n  [      <===]\n  ChatGPT Pro auth inherited",
+    "  OMNIDOER\n  [     <====]\n  safe local execution",
+    "  OMNIDOER\n  [    <=====]\n  safe local execution",
+    "  OMNIDOER\n  [   <======]\n  safe local execution",
+    "  OMNIDOER\n  [  <=======]\n  safe local execution",
+    "  OMNIDOER\n  [ <========]\n  control boundary online",
+    "  OMNIDOER\n  [>          ]\n  control boundary online",
+    "  OMNIDOER\n  [=>         ]\n  vault and broker ready",
+    "  OMNIDOER\n  [==>        ]\n  vault and broker ready",
+    "  OMNIDOER\n  [===>       ]\n  agent execution boundary",
+    "  OMNIDOER\n  [====>      ]\n  agent execution boundary",
+    "  OMNIDOER\n  [=====>     ]\n  human approval linked",
+    "  OMNIDOER\n  [======>    ]\n  human approval linked",
+    "  OMNIDOER\n  [=======>   ]\n  console ready",
+];
 pub(crate) const FRAMES_OPENAI: [&str; 36] = frames_for!("openai");
 pub(crate) const FRAMES_BLOCKS: [&str; 36] = frames_for!("blocks");
 pub(crate) const FRAMES_DOTS: [&str; 36] = frames_for!("dots");
@@ -67,5 +105,7 @@ pub(crate) const ALL_VARIANTS: &[&[&str]] = &[
     &FRAMES_SHAPES,
     &FRAMES_SLUG,
 ];
+
+pub(crate) const OMNIDOER_VARIANTS: &[&[&str]] = &[&FRAMES_OMNIDOER];
 
 pub(crate) const FRAME_TICK_DEFAULT: Duration = Duration::from_millis(80);

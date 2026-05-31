@@ -1,0 +1,93 @@
+"""Launch the Codex TUI with OmniDoer branding and safe fallback paths."""
+
+from __future__ import annotations
+
+import os
+import shutil
+import sys
+import time
+from pathlib import Path
+
+
+BRAND_ENV = {
+    "OMNIDOER_CONSOLE": "1",
+    "OMNIDOER_CODEX_BRAND": "omnidoer",
+    "CODEX_CLI_BRAND": "omnidoer",
+}
+
+
+def _path_candidates() -> list[str]:
+    candidates: list[str] = []
+    for env_name in ("OMNIDOER_CODEX_BIN", "OMNIDOER_REAL_CODEX"):
+        value = os.environ.get(env_name)
+        if value:
+            candidates.append(value)
+    candidates.extend(
+        [
+            "/usr/local/lib/omnidoer/codex",
+            "/usr/bin/codex",
+            "/bin/codex",
+        ]
+    )
+    found = shutil.which("codex")
+    if found:
+        candidates.append(found)
+    return candidates
+
+
+def find_codex_binary() -> str | None:
+    seen: set[str] = set()
+    for candidate in _path_candidates():
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        path = Path(candidate)
+        # Avoid delegating back into the OmniDoer Codex shim and recursing.
+        if path == Path("/usr/local/bin/codex") and not os.environ.get("OMNIDOER_CODEX_BIN"):
+            continue
+        if path.is_file() and os.access(path, os.X_OK):
+            return str(path)
+    return None
+
+
+def build_console_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env.update(BRAND_ENV)
+    return env
+
+
+def _print_startup_animation() -> None:
+    if os.environ.get("OMNIDOER_DISABLE_SPLASH") == "1":
+        return
+    if not (sys.stdout.isatty() and sys.stderr.isatty()):
+        return
+    frames = [
+        "[=     ] OmniDoer binding ChatGPT auth",
+        "[===   ] OmniDoer mounting Control boundary",
+        "[===== ] OmniDoer loading safe execution tools",
+        "[======] OmniDoer console ready",
+    ]
+    for frame in frames:
+        print(f"\r>_ {frame}", end="", flush=True)
+        time.sleep(0.08)
+    print()
+
+
+def launch_codex_console(args: list[str], *, dry_run: bool = False) -> int:
+    codex = find_codex_binary()
+    if not codex:
+        print("cannot launch OmniDoer console: Codex CLI binary was not found", file=sys.stderr)
+        return 127
+
+    env = build_console_env()
+    argv = [codex, *args]
+    if dry_run or os.environ.get("OMNIDOER_CONSOLE_DRY_RUN") == "1":
+        print("OmniDoer console plan:")
+        print(f"  binary={codex}")
+        print(f"  argv={' '.join(argv)}")
+        print("  brand=omnidoer")
+        return 0
+
+    _print_startup_animation()
+    os.execvpe(codex, argv, env)
+    return 127

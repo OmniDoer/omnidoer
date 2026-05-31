@@ -12,6 +12,7 @@ use ratatui::widgets::Wrap;
 use std::cell::Cell;
 
 use crate::ascii_animation::AsciiAnimation;
+use crate::brand;
 use crate::key_hint::KeyBindingListExt;
 use crate::onboarding::keys;
 use crate::onboarding::onboarding_screen::KeyboardHandler;
@@ -53,9 +54,18 @@ impl WelcomeWidget {
         request_frame: FrameRequester,
         animations_enabled: bool,
     ) -> Self {
+        let animation = if brand::is_omnidoer() {
+            AsciiAnimation::with_variants(
+                request_frame,
+                crate::frames::OMNIDOER_VARIANTS,
+                /*variant_idx*/ 0,
+            )
+        } else {
+            AsciiAnimation::new(request_frame)
+        };
         Self {
             is_logged_in,
-            animation: AsciiAnimation::new(request_frame),
+            animation,
             animations_enabled,
             animations_suppressed: Cell::new(false),
             layout_area: Cell::new(None),
@@ -94,8 +104,12 @@ impl WidgetRef for &WelcomeWidget {
         lines.push(Line::from(vec![
             "  ".into(),
             "Welcome to ".into(),
-            "Codex".bold(),
-            ", OpenAI's command-line coding agent".into(),
+            brand::short_name().bold(),
+            if brand::is_omnidoer() {
+                ", the safe local agent execution console".into()
+            } else {
+                ", OpenAI's command-line coding agent".into()
+            },
         ]));
 
         Paragraph::new(lines)

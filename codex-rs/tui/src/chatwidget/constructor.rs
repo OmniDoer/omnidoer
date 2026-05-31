@@ -36,9 +36,16 @@ impl ChatWidget {
         config.model = model.clone();
         let prevent_idle_sleep = config.features.enabled(Feature::PreventIdleSleep);
         let mut rng = rand::rng();
-        let placeholder = PLACEHOLDERS[rng.random_range(0..PLACEHOLDERS.len())].to_string();
-        let side_placeholder =
-            SIDE_PLACEHOLDERS[rng.random_range(0..SIDE_PLACEHOLDERS.len())].to_string();
+        let placeholder = if crate::brand::is_omnidoer() {
+            crate::brand::placeholder().to_string()
+        } else {
+            PLACEHOLDERS[rng.random_range(0..PLACEHOLDERS.len())].to_string()
+        };
+        let side_placeholder = if crate::brand::is_omnidoer() {
+            "Ask OmniDoer a side question".to_string()
+        } else {
+            SIDE_PLACEHOLDERS[rng.random_range(0..SIDE_PLACEHOLDERS.len())].to_string()
+        };
 
         let model_override = model.as_deref();
         let model_for_header = model

@@ -51,6 +51,42 @@ class CliTest(unittest.TestCase):
         self.assertIn("pull --ff-only origin main", result.stdout)
         self.assertIn("refresh installed OmniDoer Codex shim", result.stdout)
 
+    def test_console_dry_run_uses_omnidoer_brand(self) -> None:
+        result = self.run_cli(
+            ["console", "--dry-run", "--version"],
+            env={"OMNIDOER_CODEX_BIN": "/bin/echo", "OMNIDOER_DISABLE_SPLASH": "1"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("OmniDoer console plan", result.stdout)
+        self.assertIn("binary=/bin/echo", result.stdout)
+        self.assertIn("brand=omnidoer", result.stdout)
+        self.assertIn("--version", result.stdout)
+
+    def test_no_args_launches_console_instead_of_help(self) -> None:
+        result = self.run_cli(
+            [],
+            env={
+                "OMNIDOER_CODEX_BIN": "/bin/echo",
+                "OMNIDOER_CONSOLE_DRY_RUN": "1",
+                "OMNIDOER_DISABLE_SPLASH": "1",
+            },
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("OmniDoer console plan", result.stdout)
+
+    def test_unknown_codex_command_delegates_to_console_binary(self) -> None:
+        result = self.run_cli(
+            ["exec", "--help"],
+            env={
+                "OMNIDOER_CODEX_BIN": "/bin/echo",
+                "OMNIDOER_CONSOLE_DRY_RUN": "1",
+                "OMNIDOER_DISABLE_SPLASH": "1",
+            },
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("OmniDoer console plan", result.stdout)
+        self.assertIn("exec --help", result.stdout)
+
     def test_init_creates_private_state_directory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp) / "state"

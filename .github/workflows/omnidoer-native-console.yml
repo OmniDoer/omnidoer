@@ -1,0 +1,51 @@
+name: OmniDoer Native Console
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/omnidoer-native-console.yml"
+      - "codex-rs/**"
+      - "omnidoer/omni_cli/**"
+      - "omnidoer/scripts/install-native-console.sh"
+
+jobs:
+  linux-x64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: codex-rs
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
+        with:
+          components: rustfmt
+
+      - name: Check formatting
+        run: cargo fmt -- --config imports_granularity=Item --check
+
+      - name: Check OmniDoer console crates
+        run: cargo check --locked -p codex-tui -p codex-cli
+
+      - name: Build OmniDoer console binary
+        run: cargo build --locked --release -p codex-cli
+
+      - name: Stage binary
+        run: |
+          set -euo pipefail
+          mkdir -p ../artifacts
+          install -m 0755 target/release/codex ../artifacts/omnidoer-codex-linux-x64
+          ../artifacts/omnidoer-codex-linux-x64 --version
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: omnidoer-codex-linux-x64
+          path: artifacts/omnidoer-codex-linux-x64
