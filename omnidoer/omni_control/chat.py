@@ -311,10 +311,11 @@ class ChatStore:
             message.updated_at = now
             message.completed_at = now
             messages[message.message_id] = message
+            role_label = "Assistant" if message.role == "assistant" else "User"
             record = self._new_record(
                 next_record_sequence,
                 record_type="status",
-                text="Assistant message completed.",
+                text=f"{role_label} message completed.",
                 role="system",
                 message_id=message.message_id,
                 source="control_service",

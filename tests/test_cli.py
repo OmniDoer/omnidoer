@@ -315,11 +315,16 @@ class CliTest(unittest.TestCase):
             next_result = self.run_cli(["control", "chat-next"], env=env)
             self.assertEqual(next_result.returncode, 0, next_result.stderr)
             self.assertIn('"status": "ok"', next_result.stdout)
+            local_user = self.run_cli(["control", "chat-log-user", "Typed in the Linux console"], env=env)
+            self.assertEqual(local_user.returncode, 0, local_user.stderr)
+            self.assertIn("published user chat message", local_user.stdout)
             record = self.run_cli(["control", "chat-record", "tool_call", "control.next_user_message"], env=env)
             self.assertEqual(record.returncode, 0, record.stderr)
             self.assertIn("published chat record", record.stdout)
             store = ChatStore(Path(tmp) / "control_chat_messages.json")
             self.assertEqual(store.list()[0].text, "Use the client chat")
+            self.assertEqual(store.list()[1].text, "Typed in the Linux console")
+            self.assertEqual(store.list()[1].status, "completed")
             self.assertTrue(any(item.record_type == "tool_call" for item in store.list_records()))
 
     def test_cred_request_can_be_saved_to_vault_without_echoing_secret(self) -> None:

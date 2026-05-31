@@ -4,6 +4,7 @@
 //! Control Service chat queue; the active TUI polls and claims those messages,
 //! then republishes live TUI events back to the same queue for the phone UI.
 
+use std::collections::VecDeque;
 use std::env;
 use std::ffi::OsString;
 use std::path::Path;
@@ -64,6 +65,11 @@ struct ControlChatAttachment {
 
 #[derive(Debug, PartialEq, Eq)]
 enum OutboundEvent {
+    RemoteUserClaimed {
+        message_id: String,
+        text: String,
+    },
+    UserMessageFinal(String),
     AssistantDelta(String),
     AssistantFinal(String),
     AssistantComplete,
@@ -79,8 +85,8 @@ pub(crate) fn spawn(app_event_tx: AppEventSender) {
         return;
     }
 
-    let _ = OUTBOUND_TX.set(spawn_publisher());
-    spawn_inbound_poller(app_event_tx);
+    let publisher = OUTBOUND_TX.get_or_init(spawn_publisher).clone();
+    spawn_inbound_poller(app_event_tx, publisher);
 }
 
 pub(crate) fn publish_server_notification(notification: &ServerNotification) {
@@ -132,11 +138,7 @@ fn outbound_events_for_notification(notification: &ServerNotification) -> Vec<Ou
             ThreadItem::UserMessage { content, .. } => {
                 let text = user_input_record_text(content);
                 if !text.is_empty() {
-                    vec![OutboundEvent::Record {
-                        record_type: "message",
-                        text,
-                        role: Some("user"),
-                    }]
+                    vec![OutboundEvent::UserMessageFinal(text)]
                 } else {
                     Vec::new()
                 }
@@ -259,7 +261,10 @@ fn send_outbound(tx: &mpsc::UnboundedSender<OutboundEvent>, event: OutboundEvent
     }
 }
 
-fn spawn_inbound_poller(app_event_tx: AppEventSender) {
+fn spawn_inbound_poller(
+    app_event_tx: AppEventSender,
+    publisher: mpsc::UnboundedSender<OutboundEvent>,
+) {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(poll_interval());
         interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
@@ -268,6 +273,13 @@ fn spawn_inbound_poller(app_event_tx: AppEventSender) {
             refresh_heartbeat();
             match claim_next_message().await {
                 Ok(Some(message)) => {
+                    send_outbound(
+                        &publisher,
+                        OutboundEvent::RemoteUserClaimed {
+                            message_id: message.message_id.clone(),
+                            text: message.text.clone(),
+                        },
+                    );
                     app_event_tx.send(AppEvent::OmniDoerRemoteUserMessage {
                         message_id: message.message_id,
                         text: message.text,
@@ -289,14 +301,34 @@ fn spawn_publisher() -> mpsc::UnboundedSender<OutboundEvent> {
     tokio::spawn(async move {
         let mut assistant_message_id: Option<String> = None;
         let mut assistant_has_delta = false;
+        let mut pending_reply_to_message_id: Option<String> = None;
+        let mut pending_remote_user_messages: VecDeque<(String, String)> = VecDeque::new();
         while let Some(event) = rx.recv().await {
             match event {
+                OutboundEvent::RemoteUserClaimed { message_id, text } => {
+                    pending_reply_to_message_id = Some(message_id.clone());
+                    pending_remote_user_messages
+                        .push_back((message_id, normalize_user_text(&text)));
+                }
+                OutboundEvent::UserMessageFinal(text) => {
+                    if let Some((message_id, _)) =
+                        take_matching_remote_user_message(&mut pending_remote_user_messages, &text)
+                    {
+                        complete_chat_message(&message_id).await;
+                    } else {
+                        publish_user_message(&text).await;
+                    }
+                }
                 OutboundEvent::AssistantDelta(delta) => {
                     if delta.is_empty() {
                         continue;
                     }
                     if assistant_message_id.is_none() {
-                        assistant_message_id = start_assistant_message().await;
+                        assistant_message_id =
+                            start_assistant_message(pending_reply_to_message_id.as_deref()).await;
+                        if assistant_message_id.is_some() {
+                            pending_reply_to_message_id = None;
+                        }
                         assistant_has_delta = false;
                     }
                     if let Some(message_id) = assistant_message_id.as_deref() {
@@ -309,24 +341,28 @@ fn spawn_publisher() -> mpsc::UnboundedSender<OutboundEvent> {
                         continue;
                     }
                     if assistant_message_id.is_none() {
-                        assistant_message_id = start_assistant_message().await;
+                        assistant_message_id =
+                            start_assistant_message(pending_reply_to_message_id.as_deref()).await;
+                        if assistant_message_id.is_some() {
+                            pending_reply_to_message_id = None;
+                        }
                         assistant_has_delta = false;
                     }
                     if let Some(message_id) = assistant_message_id.as_deref()
                         && !assistant_has_delta
                     {
                         append_assistant_delta(message_id, &text).await;
-                        assistant_has_delta = true;
                     }
                     if let Some(message_id) = assistant_message_id.take() {
-                        complete_assistant_message(&message_id).await;
+                        complete_chat_message(&message_id).await;
                     }
                     assistant_has_delta = false;
                 }
                 OutboundEvent::AssistantComplete => {
                     if let Some(message_id) = assistant_message_id.take() {
-                        complete_assistant_message(&message_id).await;
+                        complete_chat_message(&message_id).await;
                     }
+                    pending_reply_to_message_id = None;
                     assistant_has_delta = false;
                 }
                 OutboundEvent::Record {
@@ -342,13 +378,40 @@ fn spawn_publisher() -> mpsc::UnboundedSender<OutboundEvent> {
     tx
 }
 
+fn take_matching_remote_user_message(
+    pending: &mut VecDeque<(String, String)>,
+    text: &str,
+) -> Option<(String, String)> {
+    if pending
+        .front()
+        .is_some_and(|(_, expected)| expected == &normalize_user_text(text))
+    {
+        return pending.pop_front();
+    }
+    None
+}
+
+fn normalize_user_text(text: &str) -> String {
+    text.trim().replace("\r\n", "\n")
+}
+
 async fn claim_next_message() -> Result<Option<RemoteUserMessage>, String> {
     let stdout = run_omnidoer(["control", "chat-next"].map(OsString::from).to_vec()).await?;
     parse_claimed_message(&stdout)
 }
 
-async fn start_assistant_message() -> Option<String> {
-    match run_omnidoer(["control", "chat-start"].map(OsString::from).to_vec()).await {
+async fn start_assistant_message(reply_to_message_id: Option<&str>) -> Option<String> {
+    let mut args = vec![
+        OsString::from("control"),
+        OsString::from("chat-start"),
+        OsString::from("--source"),
+        OsString::from("tui_bridge"),
+    ];
+    if let Some(reply_to_message_id) = reply_to_message_id {
+        args.push(OsString::from("--reply-to"));
+        args.push(OsString::from(reply_to_message_id));
+    }
+    match run_omnidoer(args).await {
         Ok(stdout) => {
             let message_id = stdout.trim().to_string();
             (!message_id.is_empty()).then_some(message_id)
@@ -372,14 +435,28 @@ async fn append_assistant_delta(message_id: &str, delta: &str) {
     }
 }
 
-async fn complete_assistant_message(message_id: &str) {
+async fn complete_chat_message(message_id: &str) {
     let args = vec![
         OsString::from("control"),
         OsString::from("chat-complete"),
         OsString::from(message_id),
     ];
     if let Err(err) = run_omnidoer(args).await {
-        tracing::warn!(%err, "failed to complete OmniDoer assistant chat message");
+        tracing::warn!(%err, "failed to complete OmniDoer chat message");
+    }
+}
+
+async fn publish_user_message(text: &str) {
+    if text.is_empty() {
+        return;
+    }
+    let args = vec![
+        OsString::from("control"),
+        OsString::from("chat-log-user"),
+        OsString::from(text),
+    ];
+    if let Err(err) = run_omnidoer(args).await {
+        tracing::warn!(%err, "failed to publish OmniDoer user chat message");
     }
 }
 
@@ -664,6 +741,45 @@ mod tests {
             events,
             vec![OutboundEvent::AssistantFinal("final answer".to_string())]
         );
+    }
+
+    #[test]
+    fn outbound_events_log_local_tui_user_message_for_phone_chat() {
+        let events = outbound_events_for_notification(&ServerNotification::ItemCompleted(
+            codex_app_server_protocol::ItemCompletedNotification {
+                thread_id: "thread-1".to_string(),
+                turn_id: "turn-1".to_string(),
+                completed_at_ms: 123,
+                item: ThreadItem::UserMessage {
+                    id: "user-1".to_string(),
+                    client_id: None,
+                    content: vec![UserInput::Text {
+                        text: "typed in Linux".to_string(),
+                        text_elements: Vec::new(),
+                    }],
+                },
+            },
+        ));
+        assert_eq!(
+            events,
+            vec![OutboundEvent::UserMessageFinal(
+                "typed in Linux".to_string()
+            )]
+        );
+    }
+
+    #[test]
+    fn matching_remote_user_message_is_consumed_without_duplicate_log() {
+        let mut pending = VecDeque::from([(
+            "msg_remote".to_string(),
+            normalize_user_text("hello from phone"),
+        )]);
+        let matched = take_matching_remote_user_message(&mut pending, " hello from phone\r\n");
+        assert_eq!(
+            matched,
+            Some(("msg_remote".to_string(), "hello from phone".to_string()))
+        );
+        assert!(pending.is_empty());
     }
 
     #[test]

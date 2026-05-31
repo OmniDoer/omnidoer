@@ -178,6 +178,15 @@ def handle_control_command(args) -> int:
         message = ChatStore().append(role="user", text=args.message, source="control_cli")
         print(f"queued chat message {message.message_id}; Agent can read it with control.next_user_message")
         return 0
+    if command == "chat-log-user":
+        message = ChatStore().append(
+            role="user",
+            text=args.message,
+            status="completed",
+            source=args.source,
+        )
+        print(f"published user chat message {message.message_id}")
+        return 0
     if command == "chat-messages":
         print(json.dumps([message.to_public_dict() for message in ChatStore().list()], indent=2, sort_keys=True))
         return 0
@@ -212,7 +221,7 @@ def handle_control_command(args) -> int:
             role="assistant",
             text="",
             status="streaming",
-            source="control_cli",
+            source=args.source,
             reply_to_message_id=args.reply_to,
         )
         print(message.message_id)
