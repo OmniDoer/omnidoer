@@ -179,12 +179,14 @@ class ChatRunner:
         store: ChatStore | None = None,
         codex_bin: str | None = None,
         cwd: str | Path | None = None,
+        thread_id: str | None = None,
         extra_args: list[str] | None = None,
         poll_interval: float = 1.0,
     ):
         self.store = store or ChatStore()
         self.codex_bin = codex_bin
         self.cwd = Path(cwd or os.environ.get("OMNIDOER_CHAT_RUNNER_CWD") or os.getcwd())
+        self.thread_id = thread_id or os.environ.get("OMNIDOER_CHAT_THREAD_ID")
         self.extra_args = extra_args if extra_args is not None else shlex.split(os.environ.get("OMNIDOER_CHAT_CODEX_ARGS", ""))
         self.poll_interval = poll_interval
 
@@ -204,22 +206,40 @@ class ChatRunner:
         if not codex:
             bridge.record("error", "Codex CLI binary was not found; cannot process Control Client chat.", role="system")
             return self.store.complete(assistant.message_id, text="Codex CLI binary was not found.")
-        bridge.record("status", f"Launching Codex JSON stream in {self.cwd}", role="system")
+        if self.thread_id:
+            bridge.record("status", f"Resuming Codex thread {self.thread_id} in {self.cwd}", role="system")
+        else:
+            bridge.record("status", f"Launching Codex JSON stream in {self.cwd}", role="system")
         image_args = []
         for image_path in image_attachment_paths(user_message.attachments):
             image_args.extend(["--image", image_path])
-        command = [
-            codex,
-            "exec",
-            "--json",
-            "--cd",
-            str(self.cwd),
-            "--skip-git-repo-check",
-            *image_args,
-            *self.extra_args,
-            "--",
-            user_message.text,
-        ]
+        if self.thread_id:
+            command = [
+                codex,
+                "exec",
+                "resume",
+                "--json",
+                "--cd",
+                str(self.cwd),
+                "--skip-git-repo-check",
+                *image_args,
+                *self.extra_args,
+                self.thread_id,
+                user_message.text,
+            ]
+        else:
+            command = [
+                codex,
+                "exec",
+                "--json",
+                "--cd",
+                str(self.cwd),
+                "--skip-git-repo-check",
+                *image_args,
+                *self.extra_args,
+                "--",
+                user_message.text,
+            ]
         env = self._subprocess_env()
         try:
             with subprocess.Popen(
@@ -276,10 +296,11 @@ def start_chat_runner_thread(
     *,
     codex_bin: str | None = None,
     cwd: str | Path | None = None,
+    thread_id: str | None = None,
     extra_args: list[str] | None = None,
     poll_interval: float = 1.0,
 ) -> threading.Thread:
-    runner = ChatRunner(codex_bin=codex_bin, cwd=cwd, extra_args=extra_args, poll_interval=poll_interval)
+    runner = ChatRunner(codex_bin=codex_bin, cwd=cwd, thread_id=thread_id, extra_args=extra_args, poll_interval=poll_interval)
     thread = threading.Thread(target=runner.run_forever, name="omnidoer-chat-runner", daemon=True)
     thread.start()
     return thread

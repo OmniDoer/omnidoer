@@ -1138,6 +1138,7 @@ def serve(
     chat_runner_interval: float = 1.0,
     chat_runner_cwd: str | None = None,
     chat_codex_bin: str | None = None,
+    chat_thread_id: str | None = None,
     chat_codex_args: list[str] | None = None,
     chat_upload_ttl: str | int | None = None,
 ) -> None:
@@ -1186,9 +1187,13 @@ def serve(
         start_chat_runner_thread(
             codex_bin=chat_codex_bin,
             cwd=chat_runner_cwd,
+            thread_id=chat_thread_id,
             extra_args=chat_codex_args or [],
             poll_interval=chat_runner_interval,
         )
-        print("OmniDoer chat runner enabled: Control Client messages stream through codex exec --json.")
+        if chat_thread_id:
+            print(f"OmniDoer chat runner enabled: Control Client messages resume Codex thread {chat_thread_id}.")
+        else:
+            print("OmniDoer chat runner enabled: Control Client messages stream through codex exec --json.")
     print(f"OmniDoer Control Service listening on {config.public_url} mode={config.mode}")
     server.serve_forever()

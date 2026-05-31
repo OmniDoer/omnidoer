@@ -63,6 +63,44 @@ class ControlChatRunnerTest(unittest.TestCase):
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
 
+    def test_chat_runner_can_resume_bound_codex_thread(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                argv_path = Path(tmp) / "argv.json"
+                fake_codex = Path(tmp) / "fake-codex"
+                fake_codex.write_text(
+                    textwrap.dedent(
+                        f"""\
+                        #!/usr/bin/env python3
+                        import json
+                        import sys
+
+                        {str(argv_path)!r}
+                        open({str(argv_path)!r}, "w").write(json.dumps(sys.argv[1:]))
+                        print(json.dumps({{"type": "item.started", "item": {{"id": "item_msg", "type": "agent_message", "text": "Bound"}}}}), flush=True)
+                        print(json.dumps({{"type": "turn.completed", "usage": {{}}}}), flush=True)
+                        """
+                    )
+                )
+                fake_codex.chmod(fake_codex.stat().st_mode | stat.S_IXUSR)
+
+                ChatStore().append(role="user", text="Use the active context")
+                ChatRunner(codex_bin=str(fake_codex), cwd=tmp, thread_id="thread_active").run_once()
+
+                argv = json.loads(argv_path.read_text())
+                self.assertEqual(argv[:2], ["exec", "resume"])
+                self.assertIn("--json", argv)
+                self.assertIn("thread_active", argv)
+                self.assertEqual(argv[-1], "Use the active context")
+                self.assertTrue(any("Resuming Codex thread thread_active" in record.text for record in ChatStore().list_records()))
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
 
 if __name__ == "__main__":
     unittest.main()
