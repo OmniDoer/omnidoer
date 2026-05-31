@@ -187,6 +187,23 @@ def interrupt_tmux_pane(pane_id: str) -> None:
     subprocess.run(["tmux", "send-keys", "-t", pane_id, "C-c"], check=True, timeout=5)
 
 
+def restart_tmux_pane_for_bridge(thread_id: str | None, *, restart_command: str | None = None) -> dict[str, object]:
+    if not thread_id:
+        raise ValueError("thread_id is required")
+    pane = find_tmux_pane_for_thread(thread_id)
+    if pane is None:
+        raise ValueError("tmux pane was not found")
+    command = restart_command or f"omnidoer console resume {thread_id}"
+    subprocess.run(["tmux", "respawn-pane", "-k", "-t", pane.pane_id, command], check=True, timeout=5)
+    return {
+        "status": "restart_started",
+        "pane_id": pane.pane_id,
+        "thread_id": thread_id,
+        "command": command,
+        "secret_exposed_to_model": False,
+    }
+
+
 def message_requests_interrupt(message) -> bool:
     return str(message.client_message_id or "").startswith(("control_pause_", "omnidoer_pause_"))
 

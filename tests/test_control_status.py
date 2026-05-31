@@ -4,6 +4,7 @@ import unittest
 from http.server import ThreadingHTTPServer
 from threading import Thread
 from unittest.mock import patch
+from urllib.error import HTTPError
 from urllib import request as urllib_request
 
 from omnidoer.omni_control.cloud import build_config
@@ -70,6 +71,49 @@ class ControlStatusTest(unittest.TestCase):
             self.assertTrue(payload["chat_runner"]["restart_required"])
             self.assertEqual(payload["chat_runner"]["restart_command"], "omnidoer console resume thread_active")
             self.assertFalse(payload["chat_runner"]["legacy_tui_relay"]["active"])
+        finally:
+            server.shutdown()
+            server.server_close()
+
+    def test_restart_bridge_endpoint_requires_confirmation_and_respawns_console(self) -> None:
+        config = build_config(host="127.0.0.1", port=8787)
+        server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+        server.omnidoer_config = config  # type: ignore[attr-defined]
+        server.omnidoer_chat_thread_id = "thread_active"  # type: ignore[attr-defined]
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            missing_confirmation = urllib_request.Request(
+                f"http://127.0.0.1:{server.server_address[1]}/api/console/restart-bridge",
+                data=json.dumps({}).encode(),
+                headers={"content-type": "application/json"},
+                method="POST",
+            )
+            with self.assertRaises(HTTPError) as raised:
+                urllib_request.urlopen(missing_confirmation, timeout=5)
+            self.assertEqual(raised.exception.code, 400)
+
+            with patch(
+                "omnidoer.omni_control.tui_legacy_relay.restart_tmux_pane_for_bridge",
+                return_value={
+                    "status": "restart_started",
+                    "pane_id": "%1",
+                    "thread_id": "thread_active",
+                    "command": "omnidoer console resume thread_active",
+                    "secret_exposed_to_model": False,
+                },
+            ) as restart:
+                request = urllib_request.Request(
+                    f"http://127.0.0.1:{server.server_address[1]}/api/console/restart-bridge",
+                    data=json.dumps({"confirm_restart": True}).encode(),
+                    headers={"content-type": "application/json"},
+                    method="POST",
+                )
+                with urllib_request.urlopen(request, timeout=5) as response:
+                    payload = json.loads(response.read().decode())
+            self.assertEqual(payload["status"], "restart_started")
+            self.assertEqual(payload["pane_id"], "%1")
+            restart.assert_called_once_with("thread_active", restart_command="omnidoer console resume thread_active")
         finally:
             server.shutdown()
             server.server_close()

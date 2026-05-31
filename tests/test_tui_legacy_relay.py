@@ -8,6 +8,7 @@ from omnidoer.omni_control.chat import ChatStore
 from omnidoer.omni_control.tui_legacy_relay import (
     LegacyTuiRelay,
     TmuxPane,
+    restart_tmux_pane_for_bridge,
     stable_terminal_lines,
     terminal_delta,
     find_tmux_pane_for_thread,
@@ -115,6 +116,21 @@ class TuiLegacyRelayTest(unittest.TestCase):
                     os.environ.pop("OMNIDOER_HOME", None)
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_restart_tmux_pane_for_bridge_respawns_pane(self) -> None:
+        pane = TmuxPane(pane_id="%1", tty="/dev/pts/2", current_command="codex", process_pid=99)
+        commands: list[list[str]] = []
+        with patch(
+            "omnidoer.omni_control.tui_legacy_relay.find_tmux_pane_for_thread",
+            return_value=pane,
+        ), patch(
+            "omnidoer.omni_control.tui_legacy_relay.subprocess.run",
+            side_effect=lambda command, **_kwargs: commands.append(command),
+        ):
+            result = restart_tmux_pane_for_bridge("thread_active")
+        self.assertEqual(result["status"], "restart_started")
+        self.assertEqual(result["pane_id"], "%1")
+        self.assertEqual(commands, [["tmux", "respawn-pane", "-k", "-t", "%1", "omnidoer console resume thread_active"]])
 
     def test_status_and_terminal_snapshot_report_active_relay(self) -> None:
         pane = TmuxPane(pane_id="%1", tty="/dev/pts/2", current_command="codex", process_pid=99)

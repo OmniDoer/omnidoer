@@ -829,6 +829,36 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 AuditLog().append("control_pairing_failed", status=type(exc).__name__)
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": type(exc).__name__})
             return
+        if path == "/api/console/restart-bridge":
+            try:
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+                return
+            try:
+                body = self._read_json()
+                if body.get("confirm_restart") is not True:
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"error": "confirm_restart_required"})
+                    return
+                chat_thread_id = getattr(self.server, "omnidoer_chat_thread_id", None)
+                from omnidoer.omni_control.chat_runner import tui_restart_command
+                from omnidoer.omni_control.tui_legacy_relay import restart_tmux_pane_for_bridge
+
+                result = restart_tmux_pane_for_bridge(
+                    chat_thread_id,
+                    restart_command=tui_restart_command(chat_thread_id),
+                )
+                AuditLog().append(
+                    "control_console_bridge_restart_requested",
+                    thread_id=chat_thread_id,
+                    pane_id=result.get("pane_id"),
+                    status=result.get("status"),
+                )
+                self._send_json(HTTPStatus.OK, result)
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
         if path == "/api/tasks":
             try:
                 session = self._require_access(mutating=True)

@@ -21,6 +21,10 @@ const I18N = {
     copyCommand: "Copy command",
     copiedCommand: "Command copied",
     copyCommandFailed: "Copy failed",
+    restartBridge: "Restart bridge",
+    restartBridgeConfirm: "Restart the active Linux console in its tmux pane to enable full phone sync?",
+    restartBridgeStarted: "Console bridge restart started",
+    restartBridgeFailed: "Restart failed",
     legacyTerminalTitle: "Live Linux Console",
     requestsCount: (open, total) => `Requests: ${open} open / ${total} total`,
     requestsTitle: "Open Requests",
@@ -196,6 +200,10 @@ const I18N = {
     copyCommand: "复制命令",
     copiedCommand: "命令已复制",
     copyCommandFailed: "复制失败",
+    restartBridge: "重启桥接",
+    restartBridgeConfirm: "要在当前 tmux pane 中重启 Linux console 以启用完整手机同步吗？",
+    restartBridgeStarted: "控制台桥接重启已开始",
+    restartBridgeFailed: "重启失败",
     legacyTerminalTitle: "实时 Linux 控制台",
     requestsCount: (open, total) => `请求：${open} 个待处理 / 共 ${total} 个`,
     requestsTitle: "待处理请求",
@@ -571,6 +579,7 @@ runtimeStatus.innerHTML = `
     <div id="runtime-command-row" class="runtime-command-row" hidden>
       <code id="runtime-command"></code>
       <button id="runtime-copy-command" class="ghost-button runtime-copy-button" type="button">${t("copyCommand")}</button>
+      <button id="runtime-restart-bridge" class="ghost-button runtime-restart-button" type="button">${t("restartBridge")}</button>
     </div>
   </div>
   <div class="runtime-actions">
@@ -662,6 +671,11 @@ if (runtimePauseAgentButton) {
 const runtimeCopyCommandButton = document.querySelector("#runtime-copy-command");
 if (runtimeCopyCommandButton) {
   runtimeCopyCommandButton.onclick = () => copyRuntimeCommand();
+}
+
+const runtimeRestartBridgeButton = document.querySelector("#runtime-restart-bridge");
+if (runtimeRestartBridgeButton) {
+  runtimeRestartBridgeButton.onclick = () => restartConsoleBridge();
 }
 
 const releaseActiveTakeoverButton = document.querySelector("#release-active-takeover");
@@ -916,6 +930,7 @@ function setStatus(message, detail = "", runtimeState = "", command = "") {
   const runtimeCommandRow = document.querySelector("#runtime-command-row");
   const runtimeCommand = document.querySelector("#runtime-command");
   const runtimeCopyCommand = document.querySelector("#runtime-copy-command");
+  const runtimeRestartBridge = document.querySelector("#runtime-restart-bridge");
   if (runtimeCommand) {
     runtimeCommand.textContent = command;
   }
@@ -925,6 +940,10 @@ function setStatus(message, detail = "", runtimeState = "", command = "") {
   if (runtimeCopyCommand) {
     runtimeCopyCommand.hidden = !command;
     runtimeCopyCommand.textContent = t("copyCommand");
+  }
+  if (runtimeRestartBridge) {
+    runtimeRestartBridge.hidden = !command;
+    runtimeRestartBridge.textContent = t("restartBridge");
   }
   document.body.dataset.runtimeState = runtimeState;
 }
@@ -941,6 +960,26 @@ async function copyRuntimeCommand() {
     if (button) button.textContent = t("copiedCommand");
   } catch {
     if (button) button.textContent = t("copyCommandFailed");
+  }
+}
+
+async function restartConsoleBridge() {
+  const button = document.querySelector("#runtime-restart-bridge");
+  if (!window.confirm(t("restartBridgeConfirm"))) return;
+  if (button) button.disabled = true;
+  try {
+    const response = await signedFetch("/api/console/restart-bridge", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...csrfHeaders() },
+      body: JSON.stringify({ confirm_restart: true })
+    });
+    if (!response.ok) throw new Error("restart failed");
+    setStatus(t("restartBridgeStarted"), t("runtimeWaitingForConsoleRestart"), "waiting_for_tui_bridge");
+    setTimeout(() => loadRuntimeStatus(), 2500);
+  } catch {
+    setStatus(t("restartBridgeFailed"), t("runtimeWaitingForConsoleRestart"), "waiting_for_tui_bridge");
+  } finally {
+    if (button) button.disabled = false;
   }
 }
 

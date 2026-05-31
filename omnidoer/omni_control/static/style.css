@@ -254,7 +254,8 @@ button:disabled {
   white-space: normal;
   word-break: break-all;
 }
-.runtime-copy-button {
+.runtime-copy-button,
+.runtime-restart-button {
   flex: 0 0 auto;
   min-width: 108px;
   min-height: 36px;
@@ -262,10 +263,12 @@ button:disabled {
   background: rgba(255, 255, 255, 0.12);
   color: #f8fafc;
 }
-.runtime-copy-button:hover {
+.runtime-copy-button:hover,
+.runtime-restart-button:hover {
   background: rgba(255, 255, 255, 0.2);
 }
-.runtime-copy-button[hidden] {
+.runtime-copy-button[hidden],
+.runtime-restart-button[hidden] {
   display: none;
 }
 .panel-heading {
@@ -706,7 +709,8 @@ button:disabled {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
   }
-  .runtime-copy-button {
+  .runtime-copy-button,
+  .runtime-restart-button {
     width: auto;
     justify-self: start;
   }
