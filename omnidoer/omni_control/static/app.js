@@ -1743,7 +1743,16 @@ function requestMetadata(request) {
     const dt = document.createElement("dt");
     dt.textContent = label;
     const dd = document.createElement("dd");
-    dd.textContent = value || "not visible";
+    if (typeof value === "string" && value.startsWith("https://")) {
+      const link = document.createElement("a");
+      link.href = value;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = value;
+      dd.append(link);
+    } else {
+      dd.textContent = value || "not visible";
+    }
     dl.append(dt, dd);
   });
   return dl;

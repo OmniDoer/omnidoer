@@ -81,6 +81,11 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("No open requests match this filter.", self.app)
         self.assertIn("request-closed", (static_root() / "style.css").read_text())
 
+    def test_request_urls_are_clickable(self) -> None:
+        self.assertIn('value.startsWith("https://")', self.app)
+        self.assertIn('link.target = "_blank"', self.app)
+        self.assertIn('link.rel = "noopener noreferrer"', self.app)
+
     def test_secure_form_drafts_survive_request_rerender(self) -> None:
         self.assertIn("captureRequestDrafts", self.app)
         self.assertIn("restoreRequestDrafts", self.app)
