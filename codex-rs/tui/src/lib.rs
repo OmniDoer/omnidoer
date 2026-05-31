@@ -159,6 +159,7 @@ mod model_migration;
 mod motion;
 mod multi_agents;
 mod notifications;
+mod omnidoer_chat_bridge;
 #[cfg(any(not(debug_assertions), test))]
 mod npm_registry;
 pub(crate) mod onboarding;

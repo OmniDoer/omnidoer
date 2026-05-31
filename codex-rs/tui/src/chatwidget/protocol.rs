@@ -13,6 +13,9 @@ impl ChatWidget {
             return;
         }
         let from_replay = replay_kind.is_some();
+        if !from_replay {
+            crate::omnidoer_chat_bridge::publish_server_notification(&notification);
+        }
         let is_resume_initial_replay =
             matches!(replay_kind, Some(ReplayKind::ResumeInitialMessages));
         let is_retry_error = matches!(

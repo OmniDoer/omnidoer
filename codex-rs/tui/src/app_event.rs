@@ -909,6 +909,13 @@ pub(crate) enum AppEvent {
         collaboration_mode: CollaborationModeMask,
     },
 
+    /// Submit a user message that was entered in a paired OmniDoer Control Client.
+    OmniDoerRemoteUserMessage {
+        message_id: String,
+        text: String,
+        local_image_paths: Vec<PathBuf>,
+    },
+
     /// Open the approval popup.
     FullScreenApprovalRequest(ApprovalRequest),
 

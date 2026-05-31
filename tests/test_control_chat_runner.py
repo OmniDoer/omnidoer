@@ -7,10 +7,29 @@ import unittest
 from pathlib import Path
 
 from omnidoer.omni_control.chat import ChatStore
-from omnidoer.omni_control.chat_runner import ChatRunner
+from omnidoer.omni_control.chat_runner import ChatRunner, live_tui_bridge_active
 
 
 class ControlChatRunnerTest(unittest.TestCase):
+    def test_chat_runner_defers_to_live_tui_bridge(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                heartbeat = Path(tmp) / "control_chat_bridge_heartbeat"
+                heartbeat.write_text("live")
+                store = ChatStore()
+                user = store.append(role="user", text="Use the active TUI")
+
+                self.assertTrue(live_tui_bridge_active())
+                self.assertIsNone(ChatRunner(codex_bin="/does/not/exist", cwd=tmp).run_once())
+                self.assertEqual(store.get(user.message_id).status, "queued")
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     def test_codex_json_events_stream_into_chat_records(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             old_home = os.environ.get("OMNIDOER_HOME")

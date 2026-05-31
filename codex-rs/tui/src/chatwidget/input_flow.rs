@@ -194,6 +194,20 @@ impl ChatWidget {
         }
     }
 
+    pub(crate) fn submit_omnidoer_remote_user_message(
+        &mut self,
+        text: String,
+        local_image_paths: Vec<PathBuf>,
+    ) {
+        if let Some(user_message) = crate::chatwidget::create_initial_user_message(
+            Some(text),
+            local_image_paths,
+            Vec::new(),
+        {
+            self.submit_user_message(user_message);
+        }
+    }
+
     #[cfg(test)]
     pub(crate) fn queued_user_message_texts(&self) -> Vec<String> {
         self.input_queue

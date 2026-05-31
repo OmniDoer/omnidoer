@@ -8,6 +8,7 @@ const I18N = {
     navSecurity: "Security",
     navTakeover: "Takeover",
     navPayments: "Payments",
+    navPair: "Pair",
     checkingRuntime: "Checking runtime...",
     runtimeDetail: "Control Client does not call OpenAI APIs or models directly.",
     runtimeOffline: "Runtime offline",
@@ -160,6 +161,7 @@ const I18N = {
     navSecurity: "安全",
     navTakeover: "接管",
     navPayments: "支付",
+    navPair: "配对",
     checkingRuntime: "正在检查运行状态...",
     runtimeDetail: "控制客户端不会直接调用 OpenAI API 或模型。",
     runtimeOffline: "运行服务离线",
@@ -370,6 +372,16 @@ function initialLanguage() {
 }
 
 let currentLanguage = initialLanguage();
+const PANEL_IDS = [
+  "task-panel",
+  "requests-panel",
+  "takeover-panel",
+  "device-panel",
+  "security",
+  "payment-approval",
+  "pairing-panel"
+];
+const DEFAULT_PANEL_ID = "task-panel";
 
 function t(key, ...args) {
   const value = I18N[currentLanguage]?.[key] ?? I18N.en[key] ?? key;
@@ -402,6 +414,7 @@ function applyLanguage() {
   setNodeText('a[href="#security"]', "navSecurity");
   setNodeText('a[href="#takeover-panel"]', "navTakeover");
   setNodeText('a[href="#payment-approval"]', "navPayments");
+  setNodeText('a[href="#pairing-panel"]', "navPair");
   setNodeText("#requests-panel h2", "requestsTitle");
   setNodeText("#requests-panel .panel-heading p", "requestsIntro");
   document.querySelector(".filter-row")?.setAttribute("aria-label", t("requestFiltersLabel"));
@@ -437,6 +450,58 @@ function applyLanguage() {
   setButtonText("#deny", "deny");
 }
 
+function initialPanelId() {
+  const fromHash = window.location.hash.replace(/^#/, "");
+  if (PANEL_IDS.includes(fromHash)) return fromHash;
+  const stored = localStorage.getItem("omnidoer_active_panel");
+  return PANEL_IDS.includes(stored) ? stored : DEFAULT_PANEL_ID;
+}
+
+function activatePanel(panelId, { persist = true, updateHash = true } = {}) {
+  const activeId = PANEL_IDS.includes(panelId) ? panelId : DEFAULT_PANEL_ID;
+  PANEL_IDS.forEach((id) => {
+    const panel = document.getElementById(id);
+    if (!panel) return;
+    panel.classList.add("control-panel");
+    const active = id === activeId;
+    panel.hidden = !active;
+    panel.setAttribute("aria-hidden", active ? "false" : "true");
+  });
+  document.querySelectorAll(".section-tabs a").forEach((link) => {
+    const selected = link.getAttribute("href") === `#${activeId}`;
+    link.classList.toggle("active", selected);
+    link.setAttribute("aria-selected", selected ? "true" : "false");
+    link.setAttribute("role", "tab");
+  });
+  document.body.dataset.activePanel = activeId;
+  if (persist) localStorage.setItem("omnidoer_active_panel", activeId);
+  if (updateHash && window.history?.replaceState) {
+    window.history.replaceState({}, document.title, `#${activeId}`);
+  }
+}
+
+function setupPanelNavigation() {
+  document.querySelector(".section-tabs")?.setAttribute("role", "tablist");
+  document.querySelectorAll(".section-tabs a").forEach((link) => {
+    const targetId = link.getAttribute("href")?.replace(/^#/, "") || "";
+    link.onclick = (event) => {
+      if (!PANEL_IDS.includes(targetId)) return;
+      event.preventDefault();
+      activatePanel(targetId);
+    };
+  });
+  window.addEventListener("hashchange", () => activatePanel(initialPanelId(), { persist: true, updateHash: false }));
+  activatePanel(initialPanelId(), { persist: false, updateHash: false });
+}
+
+function updateRequestsTabBadge(openCount, totalCount) {
+  const link = document.querySelector('a[href="#requests-panel"]');
+  if (!link) return;
+  link.dataset.count = String(openCount);
+  link.dataset.total = String(totalCount);
+  link.classList.toggle("has-open-requests", openCount > 0);
+}
+
 const main = document.querySelector("main");
 
 const runtimeStatus = document.createElement("section");
@@ -449,7 +514,7 @@ runtimeStatus.innerHTML = `
   </div>
   <div id="runtime-counts">${t("requestsCount", 0, 0)}</div>
 `;
-main.prepend(runtimeStatus);
+main.insertBefore(runtimeStatus, document.querySelector("#pairing-panel"));
 
 const requestsRoot = document.createElement("section");
 requestsRoot.id = "requests-panel";
@@ -472,6 +537,7 @@ requestsRoot.innerHTML = `
   <div id="requests-list" class="request-grid">${t("loading")}</div>
 `;
 main.insertBefore(requestsRoot, document.querySelector("#pairing-panel"));
+setupPanelNavigation();
 
 const sendChatMessageButton = document.querySelector("#send-chat-message");
 if (sendChatMessageButton) {
@@ -622,9 +688,11 @@ const initialPairingId = urlParams.get("pairing_id");
 if (initialPairingCode) {
   document.querySelector("#pairing-code").value = initialPairingCode;
   document.querySelector("#pairing-code-preview").textContent = initialPairingCode;
+  activatePanel("pairing-panel", { persist: false });
 }
 if (initialPairingId) {
   loadPairingDetails(initialPairingId);
+  activatePanel("pairing-panel", { persist: false });
 } else {
   document.querySelector("#pairing-server-url").textContent = window.location.origin;
 }
@@ -2372,10 +2440,12 @@ function renderRequestList(requests, filter = activeFilter()) {
   }
   document.querySelector("#runtime-counts").textContent = t("requestsCount", openRequests.length, requests.length);
   if (!visible.length) {
+    updateRequestsTabBadge(openRequests.length, requests.length);
     list.textContent = requests.length ? t("noMatchingOpenRequests") : t("noOpenRequests");
     restoreRequestDrafts(list, capturedDrafts);
     return;
   }
+  updateRequestsTabBadge(openRequests.length, requests.length);
   visible.forEach((request) => list.append(renderRequest(request)));
   restoreRequestDrafts(list, capturedDrafts);
 }

@@ -57,8 +57,13 @@ def build_console_env() -> dict[str, str]:
     env = os.environ.copy()
     env.update(BRAND_ENV)
     env["OMNIDOER_VERSION"] = __version__.lstrip("vV")
+    env.setdefault("OMNIDOER_HOME", str(Path.home() / ".omnidoer"))
     env.setdefault("OMNIDOER_PYTHON", sys.executable)
     env.setdefault("OMNIDOER_INSTALL_DIR", str(Path(__file__).resolve().parents[2]))
+    env.setdefault("OMNIDOER_TUI_CHAT_BRIDGE", "1")
+    found_cli = shutil.which("omnidoer")
+    if found_cli:
+        env.setdefault("OMNIDOER_CLI", found_cli)
     return env
 
 

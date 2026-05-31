@@ -14,9 +14,12 @@ from typing import Any
 
 from omnidoer.omni_control.chat import ChatMessage, ChatStore
 from omnidoer.omni_control.chat_uploads import image_attachment_paths
+from omnidoer.paths import state_file
 
 
 DEFAULT_RECORD_TEXT_LIMIT = 6000
+TUI_BRIDGE_HEARTBEAT_NAME = "control_chat_bridge_heartbeat"
+TUI_BRIDGE_STALE_SECONDS = 5.0
 
 
 def find_codex_binary(explicit: str | None = None) -> str | None:
@@ -50,6 +53,17 @@ def _clip(text: str, limit: int = DEFAULT_RECORD_TEXT_LIMIT) -> str:
 
 def _status(value: str | None) -> str:
     return value or "unknown"
+
+
+def live_tui_bridge_active(*, now: float | None = None) -> bool:
+    path = state_file(TUI_BRIDGE_HEARTBEAT_NAME)
+    try:
+        age = (now or time.time()) - path.stat().st_mtime
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return False
+    return age <= TUI_BRIDGE_STALE_SECONDS
 
 
 class CodexJsonEventBridge:
@@ -191,6 +205,8 @@ class ChatRunner:
         self.poll_interval = poll_interval
 
     def run_once(self) -> ChatMessage | None:
+        if live_tui_bridge_active():
+            return None
         user_message = self.store.next_user_message(claim=True)
         if user_message is None:
             return None
