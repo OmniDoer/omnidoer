@@ -441,21 +441,31 @@ def _ensure_browser_takeover_request(
     )
 
 
-def _wait_for_browser_takeover_release(browser_context_id: str, *, timeout_seconds: float):
+def _wait_for_browser_takeover_release(browser_context_id: str, *, timeout_seconds: float, publish_state=None):
     import time
 
     deadline = time.time() + timeout_seconds
     request = _active_browser_takeover(browser_context_id)
-    while request is not None and time.time() < deadline:
+    while request is not None:
+        if publish_state is not None:
+            publish_state()
+        if time.time() >= deadline:
+            break
         time.sleep(0.25)
         request = _active_browser_takeover(browser_context_id)
     return request
 
 
-def _pause_for_user_takeover_if_needed(arguments: dict, *, browser_context_id: str = "mcp-browser") -> dict | None:
+def _pause_for_user_takeover_if_needed(
+    arguments: dict,
+    *,
+    browser_context_id: str = "mcp-browser",
+    publish_state=None,
+) -> dict | None:
     request = _wait_for_browser_takeover_release(
         browser_context_id,
         timeout_seconds=_takeover_wait_timeout(arguments),
+        publish_state=publish_state,
     )
     if request is None:
         return None
@@ -491,55 +501,62 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
     arguments = arguments or {}
     if name.startswith("browser."):
         try:
-            from omnidoer.omni_mcp.runtime import get_browser
+            from omnidoer.omni_mcp.runtime import get_browser, publish_browser_state
 
             browser = get_browser()
+            def done(payload):
+                publish_browser_state(browser=browser)
+                return payload
+
             if name not in {"browser.detect_challenge", "browser.detect_antibot"}:
-                paused = _pause_for_user_takeover_if_needed(arguments)
+                paused = _pause_for_user_takeover_if_needed(
+                    arguments,
+                    publish_state=lambda: publish_browser_state(browser=browser),
+                )
                 if paused is not None:
-                    return paused
+                    return done(paused)
             if name == "browser.open":
                 url = arguments.get("url")
                 if not url:
-                    return _error("error", "url required")
-                return browser.open(str(url))
+                    return done(_error("error", "url required"))
+                return done(browser.open(str(url)))
             if name == "browser.observe":
-                return {"status": "ok", "observation": browser.observe_dom(), "secret_exposed_to_model": False}
+                return done({"status": "ok", "observation": browser.observe_dom(), "secret_exposed_to_model": False})
             if name == "browser.observe_accessibility":
-                return {"status": "ok", "observation": browser.observe_accessibility(), "secret_exposed_to_model": False}
+                return done({"status": "ok", "observation": browser.observe_accessibility(), "secret_exposed_to_model": False})
             if name == "browser.click":
                 selector = arguments.get("selector") or arguments.get("selector_or_description")
                 if not selector:
-                    return _error("error", "selector required")
+                    return done(_error("error", "selector required"))
                 approval = _sensitive_click_allowed(arguments, browser=browser, selector=str(selector))
                 if approval is not None:
-                    return approval
-                return browser.click(str(selector))
+                    return done(approval)
+                return done(browser.click(str(selector)))
             if name == "browser.type_text":
                 if arguments.get("secret"):
-                    return _error("rejected", "browser.type_text is for ordinary text; use credential tools for secrets")
+                    return done(_error("rejected", "browser.type_text is for ordinary text; use credential tools for secrets"))
                 selector = arguments.get("selector") or arguments.get("selector_or_description")
                 text = arguments.get("text")
                 if not selector:
-                    return _error("error", "selector required")
+                    return done(_error("error", "selector required"))
                 if text is None:
-                    return _error("error", "text required")
-                return browser.type_text(str(selector), str(text))
+                    return done(_error("error", "text required"))
+                return done(browser.type_text(str(selector), str(text)))
             if name == "browser.select":
                 selector = arguments.get("selector") or arguments.get("selector_or_description")
                 value = arguments.get("value")
                 if not selector:
-                    return _error("error", "selector required")
+                    return done(_error("error", "selector required"))
                 if value is None:
-                    return _error("error", "value required")
-                return browser.select(str(selector), str(value))
+                    return done(_error("error", "value required"))
+                return done(browser.select(str(selector), str(value)))
             if name == "browser.upload_file":
                 selector = arguments.get("selector") or arguments.get("selector_or_description")
                 file_path = arguments.get("path") or arguments.get("file_path")
                 if not selector:
-                    return _error("error", "selector required")
+                    return done(_error("error", "selector required"))
                 if not file_path:
-                    return _error("error", "path required")
+                    return done(_error("error", "path required"))
                 approval = _file_upload_allowed(
                     arguments,
                     origin=browser.current_origin(),
@@ -548,14 +565,14 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
                     selector=str(selector),
                 )
                 if approval is not None:
-                    return approval
-                return browser.upload_file(str(selector), str(file_path))
+                    return done(approval)
+                return done(browser.upload_file(str(selector), str(file_path)))
             if name == "browser.download_current_file":
                 selector = str(arguments.get("selector") or arguments.get("selector_or_description") or "a[download]")
                 path = browser.download_current_file(selector=selector, output_dir=arguments.get("output_dir"))
-                return {"status": "downloaded", "path": str(path), "secret_exposed_to_model": False}
+                return done({"status": "downloaded", "path": str(path), "secret_exposed_to_model": False})
             if name == "browser.current_origin":
-                return {"status": "ok", "origin": browser.current_origin(), "url": browser.current_url(), "secret_exposed_to_model": False}
+                return done({"status": "ok", "origin": browser.current_origin(), "url": browser.current_url(), "secret_exposed_to_model": False})
             if name == "browser.detect_challenge":
                 challenge_type = browser.detect_challenge()
                 request = None
@@ -565,7 +582,7 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
                         browser,
                         reason=f"{challenge_type} requires user takeover",
                     )
-                return {
+                return done({
                     "status": "ok",
                     "challenge_type": challenge_type,
                     "requires_user_interaction": bool(challenge_type),
@@ -575,7 +592,7 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
                     "reused": bool(request and not created),
                     "request": request.to_public_dict() if request else None,
                     "secret_exposed_to_model": False,
-                }
+                })
             if name == "browser.detect_antibot":
                 detected = browser.detect_antibot()
                 request = None
@@ -585,7 +602,7 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
                         browser,
                         reason="anti-bot page requires human takeover",
                     )
-                return {
+                return done({
                     "status": "ok",
                     "antibot_detected": detected,
                     "requires_human_takeover": detected,
@@ -594,7 +611,7 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
                     "reused": bool(request and not created),
                     "request": request.to_public_dict() if request else None,
                     "secret_exposed_to_model": False,
-                }
+                })
         except Exception as exc:
             return _error("unavailable", type(exc).__name__)
     if name in {"credential.request_from_user", "credential.create_interactive"}:

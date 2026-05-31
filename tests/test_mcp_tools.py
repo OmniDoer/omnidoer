@@ -156,6 +156,73 @@ class McpToolsTest(unittest.TestCase):
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
 
+    def test_browser_tools_process_takeover_input_while_waiting_for_release(self) -> None:
+        class FakeBrowser:
+            def __init__(self):
+                self.events = []
+
+            def current_origin(self):
+                return "https://example.com"
+
+            def current_url(self):
+                return "https://example.com/takeover"
+
+            def takeover_frame(self, *, frame_profile=None):
+                return {
+                    "frame_id": f"mcp_{frame_profile}",
+                    "captured_at": time.time(),
+                    "url": self.current_url(),
+                    "origin": self.current_origin(),
+                    "viewport": {"width": 320, "height": 240},
+                    "content_type": "image/jpeg",
+                    "data_b64": "abcd",
+                    "transport": {"profile": frame_profile},
+                    "for_control_client_only": True,
+                    "not_for_llm": True,
+                }
+
+            def apply_user_input_event(self, event):
+                self.events.append(event.event_type)
+                return {"status": "event_applied"}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                from omnidoer.omni_takeover.cross_process import enqueue_input_event, read_frame
+
+                browser = FakeBrowser()
+                request = RequestStore().create(
+                    "human_takeover",
+                    origin="https://example.com",
+                    top_level_url="https://example.com/takeover",
+                    action_summary="user took over browser",
+                    browser_context_id="mcp-browser",
+                )
+                enqueue_input_event("mcp-browser", request.request_id, {"event_type": "type", "text": "not logged"})
+
+                def release_after_input() -> None:
+                    deadline = time.time() + 2
+                    while not browser.events and time.time() < deadline:
+                        time.sleep(0.05)
+                    RequestStore().release_takeover(request.request_id)
+
+                Thread(target=release_after_input, daemon=True).start()
+                with patch("omnidoer.omni_mcp.runtime.get_browser", return_value=browser):
+                    result = call_tool("browser.current_origin", {"takeover_wait_timeout_seconds": 3})
+                self.assertEqual(result["status"], "ok")
+                self.assertEqual(browser.events, ["type"])
+                frame = read_frame("mcp-browser", max_age_seconds=10)
+                self.assertIsNotNone(frame)
+                assert frame is not None
+                self.assertEqual(frame["frame_id"], "mcp_balanced")
+                self.assertNotIn("not logged", repr(result))
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     def test_browser_detect_antibot_creates_takeover_request(self) -> None:
         class FakeBrowser:
             def current_origin(self):
