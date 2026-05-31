@@ -183,6 +183,7 @@ const I18N = {
     takeoverInputNoFrame: "Wait for the current browser frame before sending input.",
     takeoverInputRefreshingStale: "Frame is stale; refreshing before input.",
     takeoverInputDelivered: (eventType) => `${eventType} delivered to controlled browser.`,
+    takeoverInputQueued: (eventType) => `${eventType} queued for browser relay.`,
     takeoverInputFrameChanged: "Frame changed before input was delivered. Refreshing current browser frame.",
     takeoverInputDeliveryFailed: "Input was not delivered. The browser context may be disconnected.",
     takeoverPinchZooming: "Pinch zooming local browser frame. Input is not sent to the controlled browser.",
@@ -443,6 +444,7 @@ const I18N = {
     takeoverInputNoFrame: "请等待当前浏览器画面后再发送输入。",
     takeoverInputRefreshingStale: "画面已过期；输入前正在刷新。",
     takeoverInputDelivered: (eventType) => `${eventType} 已发送到受控浏览器。`,
+    takeoverInputQueued: (eventType) => `${eventType} 已进入浏览器 relay 队列。`,
     takeoverInputFrameChanged: "输入发送前画面已变化。正在刷新当前浏览器画面。",
     takeoverInputDeliveryFailed: "输入未送达。浏览器上下文可能已断开。",
     takeoverPinchZooming: "正在本地双指缩放浏览器画面。此操作不会发送到受控浏览器。",
@@ -2444,17 +2446,22 @@ async function sendTakeoverInput(request, eventPayload) {
     headers: { "content-type": "application/json", ...csrfHeaders() },
     body: JSON.stringify(payload)
   });
+  let responsePayload = {};
+  try {
+    responsePayload = await response.json();
+  } catch {
+    responsePayload = {};
+  }
   if (response.ok) {
-    updateTakeoverPanel(request, null, t("takeoverInputDelivered", eventPayload.event_type));
+    const status = responsePayload.status || "";
+    const message = status === "event_queued"
+      ? t("takeoverInputQueued", eventPayload.event_type)
+      : t("takeoverInputDelivered", eventPayload.event_type);
+    updateTakeoverPanel(request, null, message);
     scheduleTakeoverFrameRefresh(request, TAKEOVER_FRAME_AFTER_INPUT_MS);
     return true;
   } else {
-    let error = "";
-    try {
-      error = (await response.json()).error || "";
-    } catch {
-      error = "";
-    }
+    const error = responsePayload.error || "";
     if (error === "stale_takeover_frame") {
       updateTakeoverPanel(request, null, t("takeoverInputFrameChanged"));
       refreshActiveTakeoverFrame();

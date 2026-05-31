@@ -1265,13 +1265,19 @@ class ControlHandler(SimpleHTTPRequestHandler):
                             return
                         raise
                     if browser is None:
-                        from omnidoer.omni_takeover.cross_process import enqueue_input_event, get_context
+                        from omnidoer.omni_takeover.cross_process import enqueue_input_event, get_context, wait_for_input_event_result
 
                         if get_context(request.browser_context_id or ""):
-                            self._send_json(
-                                HTTPStatus.OK,
-                                enqueue_input_event(request.browser_context_id or "", request_id, body),
+                            queued = enqueue_input_event(request.browser_context_id or "", request_id, body)
+                            result = wait_for_input_event_result(
+                                request.browser_context_id or "",
+                                str(queued.get("event_id") or ""),
                             )
+                            if result is not None:
+                                status = HTTPStatus.CONFLICT if result.get("status") == "event_failed" else HTTPStatus.OK
+                                self._send_json(status, result)
+                                return
+                            self._send_json(HTTPStatus.ACCEPTED, queued)
                             return
                         self._send_json(HTTPStatus.CONFLICT, {"error": "browser context is not connected"})
                         return

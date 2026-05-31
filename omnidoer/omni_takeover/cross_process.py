@@ -23,6 +23,7 @@ BROWSER_RELAY_DIR = "browser_relay"
 CONTEXT_MAX_AGE_SECONDS = 10.0
 FRAME_MAX_AGE_SECONDS = 5.0
 PREVIEW_FRAME_INTERVAL_SECONDS = 2.0
+INPUT_RESULT_MAX_AGE_SECONDS = 30.0
 
 
 def _safe_id(value: str) -> str:
@@ -133,6 +134,61 @@ def enqueue_input_event(browser_context_id: str, request_id: str, event: dict[st
     return {"status": "event_queued", "event_id": event_id, "secret_exposed_to_model": False}
 
 
+def write_input_event_result(browser_context_id: str, event_id: str, result: dict[str, Any]) -> None:
+    if not event_id:
+        return
+    payload = {
+        "event_id": event_id,
+        "status": str(result.get("status") or "event_applied"),
+        "request_id": str(result.get("request_id") or ""),
+        "error": str(result.get("error") or "") or None,
+        "applied_at": time.time(),
+        "secret_exposed_to_model": False,
+    }
+    path = _context_dir(browser_context_id) / "input_results" / f"{_safe_id(event_id)}.json"
+    _write_json_atomic(path, payload)
+
+
+def wait_for_input_event_result(
+    browser_context_id: str,
+    event_id: str,
+    *,
+    timeout_seconds: float = 1.5,
+    poll_interval_seconds: float = 0.05,
+) -> dict[str, Any] | None:
+    if not event_id:
+        return None
+    path = _context_dir(browser_context_id) / "input_results" / f"{_safe_id(event_id)}.json"
+    deadline = time.time() + max(0.0, timeout_seconds)
+    while time.time() <= deadline:
+        payload = _read_json(path)
+        if payload:
+            try:
+                path.unlink()
+            except OSError:
+                pass
+            return {**payload, "secret_exposed_to_model": False}
+        time.sleep(max(0.01, poll_interval_seconds))
+    return None
+
+
+def cleanup_input_event_results(browser_context_id: str, *, max_age_seconds: float = INPUT_RESULT_MAX_AGE_SECONDS) -> None:
+    results = _context_dir(browser_context_id) / "input_results"
+    try:
+        paths = list(results.glob("*.json"))
+    except OSError:
+        return
+    now = time.time()
+    for path in paths:
+        payload = _read_json(path) or {}
+        applied_at = float(payload.get("applied_at") or 0.0)
+        if now - applied_at > max_age_seconds:
+            try:
+                path.unlink()
+            except OSError:
+                pass
+
+
 def consume_input_events(browser_context_id: str) -> list[dict[str, Any]]:
     inputs = _context_dir(browser_context_id) / "inputs"
     try:
@@ -190,9 +246,24 @@ class CrossProcessBrowserRelay:
                 elif time.time() - last_preview_frame_at >= PREVIEW_FRAME_INTERVAL_SECONDS:
                     write_frame(self.browser_context_id, self.browser_controller.takeover_frame(frame_profile="data_saver"))
                     last_preview_frame_at = time.time()
+                cleanup_input_event_results(self.browser_context_id)
                 for payload in consume_input_events(self.browser_context_id):
-                    event = event_from_dict(payload.get("event") or {})
-                    apply_input_event(str(payload.get("request_id") or ""), event, browser_controller=self.browser_controller)
+                    event_id = str(payload.get("event_id") or "")
+                    request_id = str(payload.get("request_id") or "")
+                    try:
+                        event = event_from_dict(payload.get("event") or {})
+                        result = apply_input_event(request_id, event, browser_controller=self.browser_controller)
+                        write_input_event_result(
+                            self.browser_context_id,
+                            event_id,
+                            {**result, "request_id": request_id},
+                        )
+                    except Exception as exc:
+                        write_input_event_result(
+                            self.browser_context_id,
+                            event_id,
+                            {"status": "event_failed", "request_id": request_id, "error": type(exc).__name__},
+                        )
             except Exception:
                 pass
             self._stop.wait(max(0.1, self.poll_interval))

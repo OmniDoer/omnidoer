@@ -12,7 +12,15 @@ from omnidoer.omni_browser.controller import BrowserController
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.server import ControlHandler
 from omnidoer.omni_takeover.browser_worker import BrowserContextWorker
-from omnidoer.omni_takeover.cross_process import consume_input_events, read_frame, start_browser_relay, write_context_status, write_frame
+from omnidoer.omni_takeover.cross_process import (
+    consume_input_events,
+    enqueue_input_event,
+    read_frame,
+    start_browser_relay,
+    wait_for_input_event_result,
+    write_context_status,
+    write_frame,
+)
 from omnidoer.omni_takeover.models import InputEvent
 from omnidoer.omni_takeover.relay import apply_input_event, release_control, request_user_control, start_stream
 from omnidoer.omni_takeover.sessions import registered_browser_context
@@ -155,6 +163,61 @@ class TakeoverBrowserRelayTest(unittest.TestCase):
                 assert frame is not None
                 self.assertEqual(frame["frame_id"], "preview_data_saver")
                 self.assertEqual(frame["transport"]["profile"], "data_saver")
+            finally:
+                relay.stop()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_cross_process_browser_relay_acknowledges_input_events(self) -> None:
+        class FakeBrowser:
+            def __init__(self):
+                self.events = []
+
+            def current_url(self):
+                return "https://example.com/working"
+
+            def current_origin(self):
+                return "https://example.com"
+
+            def takeover_frame(self, *, frame_profile=None):
+                return {
+                    "frame_id": f"ack_{frame_profile}",
+                    "captured_at": 2000000000.0,
+                    "url": "https://example.com/working",
+                    "origin": "https://example.com",
+                    "viewport": {"width": 320, "height": 240},
+                    "content_type": "image/jpeg",
+                    "data_b64": "abcd",
+                    "transport": {"profile": frame_profile},
+                    "for_control_client_only": True,
+                    "not_for_llm": True,
+                }
+
+            def apply_user_input_event(self, event):
+                self.events.append(event.event_type)
+                return {"status": "event_applied"}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            browser = FakeBrowser()
+            request = request_user_control(
+                origin="https://example.com",
+                top_level_url="https://example.com/working",
+                reason="ack test",
+                browser_context_id="ack-browser",
+            )
+            relay = start_browser_relay("ack-browser", browser, poll_interval=0.05)
+            try:
+                queued = enqueue_input_event("ack-browser", request.request_id, {"event_type": "type", "text": "sensitive-input"})
+                result = wait_for_input_event_result("ack-browser", queued["event_id"], timeout_seconds=2)
+                self.assertIsNotNone(result)
+                assert result is not None
+                self.assertEqual(result["status"], "event_applied")
+                self.assertEqual(browser.events, ["type"])
+                self.assertNotIn("sensitive-input", repr(result))
             finally:
                 relay.stop()
                 if old_home is None:
