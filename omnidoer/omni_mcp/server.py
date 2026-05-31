@@ -6,6 +6,7 @@ import json
 import sys
 
 from omnidoer.omni_mcp.tools import ALLOWED_TOOLS, call_tool, forbidden_tool_names, tool_descriptors
+from omnidoer.version import __version__
 
 
 def self_test() -> None:
@@ -22,9 +23,17 @@ def serve_stdio() -> int:
         except json.JSONDecodeError:
             continue
         method = request.get("method")
-        response = {"jsonrpc": "2.0", "id": request.get("id")}
+        request_id = request.get("id")
+        if request_id is None:
+            continue
+        response = {"jsonrpc": "2.0", "id": request_id}
         if method == "initialize":
-            response["result"] = {"protocolVersion": "2024-11-05", "serverInfo": {"name": "omnidoer", "version": "0.1.0"}}
+            params = request.get("params") or {}
+            response["result"] = {
+                "protocolVersion": params.get("protocolVersion") or "2024-11-05",
+                "capabilities": {"tools": {"listChanged": False}},
+                "serverInfo": {"name": "omnidoer", "version": __version__},
+            }
         elif method == "tools/list":
             response["result"] = {"tools": tool_descriptors()}
         elif method == "tools/call":

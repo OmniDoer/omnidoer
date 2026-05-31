@@ -51,8 +51,11 @@ def find_codex_binary() -> str | None:
 
 
 def build_console_env() -> dict[str, str]:
+    from omnidoer.version import __version__
+
     env = os.environ.copy()
     env.update(BRAND_ENV)
+    env["OMNIDOER_VERSION"] = __version__
     return env
 
 
@@ -67,8 +70,12 @@ def _print_startup_animation() -> None:
         "[===== ] OmniDoer loading safe execution tools",
         "[======] OmniDoer console ready",
     ]
+    width = max(len(frame) for frame in frames)
+    print()
+    print("    OMNIDOER")
+    print("    Safe local agent console")
     for frame in frames:
-        print(f"\r>_ {frame}", end="", flush=True)
+        print(f"\r\033[2K>_ {frame:<{width}}", end="", flush=True)
         time.sleep(0.08)
     print()
 

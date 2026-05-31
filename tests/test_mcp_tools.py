@@ -117,6 +117,30 @@ class McpToolsTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("mcp self-test passed", result.stdout)
 
+    def test_mcp_initialize_returns_standard_capabilities(self) -> None:
+        request = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {"protocolVersion": "2025-06-18"},
+        }
+        result = subprocess.run(
+            [sys.executable, "-m", "omnidoer.omni_cli.main", "mcp", "serve"],
+            input=json.dumps(request) + "\n",
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=5,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        response = json.loads(result.stdout)
+        self.assertEqual(response["id"], 1)
+        self.assertEqual(response["result"]["protocolVersion"], "2025-06-18")
+        self.assertIn("capabilities", response["result"])
+        self.assertIn("tools", response["result"]["capabilities"])
+        self.assertEqual(response["result"]["serverInfo"]["name"], "omnidoer")
+
 
 if __name__ == "__main__":
     unittest.main()

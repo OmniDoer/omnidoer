@@ -247,7 +247,7 @@ pub(crate) fn has_yolo_permissions(
 }
 #[derive(Debug)]
 pub(crate) struct SessionHeaderHistoryCell {
-    version: &'static str,
+    version: String,
     model: String,
     model_style: Style,
     reasoning_effort: Option<ReasoningEffortConfig>,
@@ -283,7 +283,7 @@ impl SessionHeaderHistoryCell {
         version: &'static str,
     ) -> Self {
         Self {
-            version,
+            version: crate::brand::display_version(version),
             model,
             model_style,
             reasoning_effort,

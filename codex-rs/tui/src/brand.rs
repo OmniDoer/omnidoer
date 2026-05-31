@@ -28,3 +28,14 @@ pub(crate) fn placeholder() -> &'static str {
         "Ask Codex to do anything"
     }
 }
+
+pub(crate) fn display_version(default_version: &str) -> String {
+    if is_omnidoer() {
+        std::env::var("OMNIDOER_VERSION")
+            .ok()
+            .filter(|version| !version.trim().is_empty())
+            .unwrap_or_else(|| default_version.to_string())
+    } else {
+        default_version.to_string()
+    }
+}
