@@ -402,6 +402,10 @@ def _takeover_wait_timeout(arguments: dict) -> float:
         return 600.0
 
 
+def _takeover_wait_requested(arguments: dict) -> bool:
+    return any(bool(arguments.get(name)) for name in ("wait", "wait_for_release", "wait_for_user", "block_until_released"))
+
+
 def _active_browser_takeover(browser_context_id: str):
     from omnidoer.omni_control.requests import RequestStore
 
@@ -474,6 +478,39 @@ def _pause_for_user_takeover_if_needed(
         "request": request.to_public_dict(),
         "agent_paused": True,
         "resume_after_user_releases_control": True,
+        "secret_exposed_to_model": False,
+    }
+
+
+def _wait_for_takeover_release_result(
+    arguments: dict,
+    *,
+    request,
+    browser_context_id: str = "mcp-browser",
+    publish_state=None,
+) -> dict:
+    from omnidoer.omni_control.requests import RequestStore
+
+    active = _wait_for_browser_takeover_release(
+        browser_context_id,
+        timeout_seconds=_takeover_wait_timeout(arguments),
+        publish_state=publish_state,
+    )
+    if active is not None:
+        return {
+            "status": "paused_for_human_takeover",
+            "request": active.to_public_dict(),
+            "agent_paused": True,
+            "resume_after_user_releases_control": True,
+            "secret_exposed_to_model": False,
+        }
+    stored = RequestStore().get(request.request_id)
+    return {
+        "status": "takeover_released",
+        "request": stored.to_public_dict(),
+        "agent_paused": False,
+        "agent_resumed": True,
+        "completed_by_user": stored.completed_by_user,
         "secret_exposed_to_model": False,
     }
 
@@ -582,12 +619,20 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
                         browser,
                         reason=f"{challenge_type} requires user takeover",
                     )
+                    if _takeover_wait_requested(arguments):
+                        waited = _wait_for_takeover_release_result(
+                            arguments,
+                            request=request,
+                            publish_state=lambda: publish_browser_state(browser=browser),
+                        )
+                        return done({**waited, "challenge_type": challenge_type, "takeover_created": created, "reused": bool(request and not created)})
                 return done({
                     "status": "ok",
                     "challenge_type": challenge_type,
                     "requires_user_interaction": bool(challenge_type),
                     "requires_human_takeover": bool(challenge_type),
                     "agent_paused": bool(challenge_type),
+                    "resume_after_user_releases_control": bool(challenge_type),
                     "takeover_created": created,
                     "reused": bool(request and not created),
                     "request": request.to_public_dict() if request else None,
@@ -602,11 +647,19 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
                         browser,
                         reason="anti-bot page requires human takeover",
                     )
+                    if _takeover_wait_requested(arguments):
+                        waited = _wait_for_takeover_release_result(
+                            arguments,
+                            request=request,
+                            publish_state=lambda: publish_browser_state(browser=browser),
+                        )
+                        return done({**waited, "antibot_detected": detected, "takeover_created": created, "reused": bool(request and not created)})
                 return done({
                     "status": "ok",
                     "antibot_detected": detected,
                     "requires_human_takeover": detected,
                     "agent_paused": detected,
+                    "resume_after_user_releases_control": detected,
                     "takeover_created": created,
                     "reused": bool(request and not created),
                     "request": request.to_public_dict() if request else None,
@@ -755,12 +808,16 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
 
         existing = _active_browser_takeover("mcp-browser")
         if existing is not None:
+            if _takeover_wait_requested(arguments):
+                waited = _wait_for_takeover_release_result(arguments, request=existing)
+                return {**waited, "handoff_created": False, "reused": True}
             return {
                 "status": "registration_handoff_active",
                 "request": existing.to_public_dict(),
                 "handoff_created": False,
                 "reused": True,
                 "agent_paused": True,
+                "resume_after_user_releases_control": True,
                 "completed_by_user": False,
                 "secret_exposed_to_model": False,
             }
@@ -775,24 +832,32 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
             risk_level=str(arguments.get("risk_level") or "medium"),
             allowed_device_id=arguments.get("allowed_device_id"),
         )
+        if _takeover_wait_requested(arguments):
+            waited = _wait_for_takeover_release_result(arguments, request=request)
+            return {**waited, "handoff_created": True, "reused": False}
         return {
             "status": "registration_handoff_created",
             "request": request.to_public_dict(),
             "handoff_created": True,
             "reused": False,
             "agent_paused": True,
+            "resume_after_user_releases_control": True,
             "completed_by_user": False,
             "secret_exposed_to_model": False,
         }
     if name == "takeover.request_user_control":
         existing = _active_browser_takeover("mcp-browser")
         if existing is not None:
+            if _takeover_wait_requested(arguments):
+                waited = _wait_for_takeover_release_result(arguments, request=existing)
+                return {**waited, "takeover_created": False, "reused": True}
             return {
                 "status": "takeover_request_active",
                 "request": existing.to_public_dict(),
                 "takeover_created": False,
                 "reused": True,
                 "agent_paused": True,
+                "resume_after_user_releases_control": True,
                 "secret_exposed_to_model": False,
             }
         origin, top_level_url = _origin_and_url(arguments)
@@ -807,12 +872,16 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
             browser_context_id="mcp-browser",
             risk_level=str(arguments.get("risk_level") or "high"),
         )
+        if _takeover_wait_requested(arguments):
+            waited = _wait_for_takeover_release_result(arguments, request=request)
+            return {**waited, "takeover_created": True, "reused": False}
         return {
             "status": "takeover_request_created",
             "request": request.to_public_dict(),
             "takeover_created": True,
             "reused": False,
             "agent_paused": True,
+            "resume_after_user_releases_control": True,
             "secret_exposed_to_model": False,
         }
     if name == "takeover.status":
