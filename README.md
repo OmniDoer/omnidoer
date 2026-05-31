@@ -444,7 +444,8 @@ The first accepted end-to-end flow is:
 ```sh
 omnidoer init
 omnidoer vault create
-omnidoer cred add --origin http://localhost:PORT
+omnidoer pair
+omnidoer cred request --origin http://localhost:PORT --wait --create-vault
 omnidoer demo start
 omnidoer agent run "Log in to the demo site and download my invoice"
 ```

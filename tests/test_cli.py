@@ -346,6 +346,84 @@ class CliTest(unittest.TestCase):
             metadata = Vault.load(vault_path).list_metadata()[0]
             self.assertEqual(metadata.allowed_origins, ["https://github.com"])
 
+    def test_cred_request_wait_creates_vault_and_saves_control_response(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            vault_path = Path(tmp) / "vault.json"
+            passphrase_env = "OMNIDOER_TEST_WAIT_VAULT_PASSPHRASE"
+            env = os.environ.copy()
+            env.update({"OMNIDOER_HOME": tmp, passphrase_env: "test-passphrase"})
+            proc = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "omnidoer.omni_cli.main",
+                    "cred",
+                    "request",
+                    "--origin",
+                    "https://github.com",
+                    "--top-level-url",
+                    "https://github.com/settings/tokens",
+                    "--summary",
+                    "Migrate GitHub PAT into Vault",
+                    "--wait",
+                    "--wait-timeout",
+                    "5s",
+                    "--create-vault",
+                    "--vault",
+                    str(vault_path),
+                    "--passphrase-env",
+                    passphrase_env,
+                ],
+                cwd=Path(__file__).resolve().parents[1],
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            stdout_lines = []
+            while proc.stdout is not None:
+                line = proc.stdout.readline()
+                if not line:
+                    break
+                stdout_lines.append(line)
+                if "waiting_for_control_client=true" in line:
+                    break
+            try:
+                initial_stdout = "".join(stdout_lines)
+                match = re.search(r"credential_request=(req_[a-f0-9]+)", initial_stdout)
+                self.assertIsNotNone(match, initial_stdout)
+                request_id = match.group(1)
+                keypair = load_or_create_keypair(Path(tmp) / "broker_key.json")
+                store = RequestStore(Path(tmp) / "control_requests.json")
+                request = store.get(request_id)
+                envelope = encrypt_for_broker(
+                    keypair.public_key_b64,
+                    {
+                        "username": "omnidoer",
+                        "password": "github_pat_wait_never_echo",
+                        "save_to_vault": True,
+                    },
+                    request_id=request.request_id,
+                    origin=request.origin,
+                    request_type=request.request_type,
+                )
+                store.submit_ciphertext(request.request_id, envelope)
+                stdout_rest, stderr = proc.communicate(timeout=10)
+            finally:
+                if proc.poll() is None:
+                    proc.kill()
+                    proc.communicate()
+            self.assertEqual(proc.returncode, 0, stderr)
+            combined = "".join(stdout_lines) + stdout_rest + stderr
+            self.assertIn("waiting_for_control_client=true", combined)
+            self.assertIn('"saved_to_vault": true', combined)
+            self.assertNotIn("github_pat_wait_never_echo", combined)
+            self.assertNotIn("test-passphrase", combined)
+            self.assertTrue(vault_path.exists())
+            self.assertNotIn("github_pat_wait_never_echo", vault_path.read_text())
+            metadata = Vault.load(vault_path).list_metadata()[0]
+            self.assertEqual(metadata.allowed_origins, ["https://github.com"])
+
     def test_git_run_uses_vault_askpass_without_echoing_token(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             vault_path = Path(tmp) / "vault.json"

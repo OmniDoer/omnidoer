@@ -24,19 +24,25 @@ conversation.
 Preferred flow for future GitHub operations:
 
 1. Create or unlock a local OmniDoer Vault.
-2. Create a Control Client credential request scoped to GitHub:
+2. Create a Control Client credential request scoped to GitHub and wait for the
+   paired phone to submit it:
 
    ```sh
    omnidoer cred request \
      --origin https://github.com \
      --top-level-url https://github.com/settings/tokens \
-     --summary "Migrate GitHub PAT into OmniDoer Vault"
+     --summary "Migrate GitHub PAT into OmniDoer Vault" \
+     --wait \
+     --create-vault \
+     --vault ~/.omnidoer/vault.json \
+     --passphrase-env OMNIDOER_VAULT_PASSPHRASE
    ```
 
 3. Open the paired Control Client and submit the GitHub username plus PAT as the
    password/token field. The token is encrypted in the browser before it reaches
    the broker.
-4. Save the fulfilled request into the Vault:
+4. If you created the request without `--wait`, save the fulfilled request into
+   the Vault manually:
 
    ```sh
    omnidoer cred save-request <request_id> \
