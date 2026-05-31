@@ -104,6 +104,9 @@ const I18N = {
     takeoverTitle: "Human Takeover",
     takeoverNoActive: "No active takeover",
     noActiveBrowserHandoff: "No active browser handoff.",
+    activeBrowserReady: "Active browser detected. Pause Agent to take over this browser.",
+    browserTakeoverCreated: "Browser takeover started",
+    browserTakeoverCreatedDetail: "The active browser is now streaming to this Control Client.",
     paymentTitle: "Payment Approval",
     noPendingPayment: "No pending payment approval.",
     paymentReviewRequired: "Payment approval requires review",
@@ -266,6 +269,9 @@ const I18N = {
     takeoverTitle: "人工接管",
     takeoverNoActive: "没有活跃接管",
     noActiveBrowserHandoff: "没有活跃浏览器接管。",
+    activeBrowserReady: "检测到活跃浏览器。点击暂停 Agent 即可接管此浏览器。",
+    browserTakeoverCreated: "浏览器接管已开始",
+    browserTakeoverCreatedDetail: "活跃浏览器画面正在流式发送到此 Control Client。",
     paymentTitle: "支付授权",
     noPendingPayment: "没有待处理支付授权。",
     paymentReviewRequired: "支付授权需要确认",
@@ -685,6 +691,7 @@ const TAKEOVER_ZOOM_STEP = 0.25;
 let cachedRequests = [];
 let cachedChatMessages = [];
 let cachedChatRecords = [];
+let cachedBrowserContexts = [];
 let requestStreamActive = false;
 let requestStreamRestart = null;
 let chatStreamActive = false;
@@ -905,6 +912,10 @@ function activeTakeoverRequest() {
   return cachedRequests.find((request) => request.request_id === activeTakeoverFrameRequest) || findActiveTakeoverRequest(cachedRequests);
 }
 
+function activeBrowserContext() {
+  return cachedBrowserContexts.find((context) => context.active && context.current_url) || null;
+}
+
 function takeoverFrameAgeMs(stream = document.querySelector("#browser-stream")) {
   const capturedAt = Number(stream?.dataset.frameCapturedAt || 0);
   if (!capturedAt) return null;
@@ -1050,7 +1061,15 @@ function syncTakeoverPanel(requests) {
   if (!request) {
     stopTakeoverFramePolling();
     updateTakeoverPanel(null);
-    stream.textContent = t("noActiveBrowserHandoff");
+    const context = activeBrowserContext();
+    if (context) {
+      setFieldText("#takeover-current-url", context.current_url || context.origin, "pending");
+      setFieldText("#takeover-frame-meta", context.browser_context_id, "waiting for browser handoff");
+      setFieldText("#takeover-input-state", t("activeBrowserReady"), "");
+      stream.textContent = t("activeBrowserReady");
+    } else {
+      stream.textContent = t("noActiveBrowserHandoff");
+    }
     return;
   }
   updateTakeoverPanel(request);
@@ -1497,6 +1516,25 @@ async function sendChatMessage() {
 async function requestTakeoverPause() {
   const button = document.querySelector("#request-takeover-pause");
   if (button) button.disabled = true;
+  await loadBrowserContexts();
+  const context = activeBrowserContext();
+  if (context) {
+    try {
+      const response = await signedFetch(`/api/browser/contexts/${encodeURIComponent(context.browser_context_id)}/takeover`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...csrfHeaders() },
+        body: JSON.stringify({ reason: t("takeoverPausePrompt") })
+      });
+      if (!response.ok) throw new Error("browser takeover failed");
+      setStatus(t("browserTakeoverCreated"), t("browserTakeoverCreatedDetail"));
+      activatePanel("takeover-panel");
+      await loadRequests();
+      if (button) button.disabled = false;
+      return;
+    } catch {
+      setStatus(t("actionFailed"), t("activeBrowserReady"));
+    }
+  }
   const clientMessageId = `control_pause_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   try {
     const response = await postChatMessage(t("takeoverPausePrompt"), { clientMessageId });
@@ -2558,6 +2596,19 @@ async function loadRequests() {
   }
 }
 
+async function loadBrowserContexts() {
+  try {
+    const payload = await signedFetch("/api/browser/contexts", { cache: "no-store" }).then((r) => {
+      if (!r.ok) throw new Error("unauthorized");
+      return r.json();
+    });
+    cachedBrowserContexts = payload.contexts || [];
+    syncTakeoverPanel(cachedRequests);
+  } catch {
+    cachedBrowserContexts = [];
+  }
+}
+
 function applyRequestEvent(payload) {
   cachedRequests = payload.requests || [];
   renderRequestList(cachedRequests);
@@ -2709,6 +2760,7 @@ async function startChatWebSocket() {
 loadRuntimeStatus();
 refreshPairingState();
 loadRequests();
+loadBrowserContexts();
 loadChatMessages();
 loadDevicesAndSessions();
 startRequestWebSocket();
@@ -2717,5 +2769,6 @@ document.addEventListener("visibilitychange", handleTakeoverVisibilityChange);
 setInterval(loadRuntimeStatus, 10000);
 setInterval(refreshPairingState, 30000);
 setInterval(loadRequests, 15000);
+setInterval(loadBrowserContexts, 5000);
 setInterval(loadChatMessages, 5000);
 setInterval(loadDevicesAndSessions, 15000);

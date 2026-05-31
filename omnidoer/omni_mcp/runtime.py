@@ -9,21 +9,28 @@ from omnidoer.omni_takeover.sessions import register_browser_context, unregister
 
 
 _browser: BrowserController | None = None
+_browser_relay = None
 
 
 def get_browser() -> BrowserController:
-    global _browser
+    global _browser, _browser_relay
     if _browser is None:
         browser = BrowserController()
         browser.__enter__()
         _browser = browser
         register_browser_context("mcp-browser", browser)
+        from omnidoer.omni_takeover.cross_process import start_browser_relay
+
+        _browser_relay = start_browser_relay("mcp-browser", browser)
         atexit.register(close_browser)
     return _browser
 
 
 def close_browser() -> None:
-    global _browser
+    global _browser, _browser_relay
+    if _browser_relay is not None:
+        _browser_relay.stop()
+        _browser_relay = None
     if _browser is None:
         return
     browser = _browser

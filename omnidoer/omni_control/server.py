@@ -365,7 +365,14 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 time.sleep(max(0.0, min(interval, 10.0)))
             request = self._get_request_for_session(store, request_id, session)
             browser = get_browser_context(request.browser_context_id)
-            frame = start_stream(request_id, browser_controller=browser, frame_profile=frame_profile)
+            if browser is None:
+                from omnidoer.omni_takeover.cross_process import read_frame
+
+                frame = read_frame(request.browser_context_id or "")
+                if frame is None:
+                    frame = start_stream(request_id, browser_controller=None, frame_profile=frame_profile)
+            else:
+                frame = start_stream(request_id, browser_controller=browser, frame_profile=frame_profile)
             store.record_takeover_frame(request_id, frame)
             self.wfile.write(websocket_text_frame({"event": "takeover_frame", "request_id": request_id, "data": frame}))
             self.wfile.flush()
@@ -724,6 +731,15 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 return
             self._send_json(HTTPStatus.OK, [request.to_public_dict() for request in self._visible_requests(store, session)])
             return
+        if path == "/api/browser/contexts":
+            try:
+                self._require_access()
+                from omnidoer.omni_takeover.cross_process import list_contexts
+
+                self._send_json(HTTPStatus.OK, {"contexts": list_contexts(), "secret_exposed_to_model": False})
+            except PermissionError:
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+            return
         if path == "/api/tasks":
             try:
                 self._require_access()
@@ -745,7 +761,14 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     frame_profile = normalize_frame_profile(query.get("profile", [None])[0])
                     request = self._get_request_for_session(store, request_id, session)
                     browser = get_browser_context(request.browser_context_id)
-                    frame = start_stream(request_id, browser_controller=browser, frame_profile=frame_profile)
+                    if browser is None:
+                        from omnidoer.omni_takeover.cross_process import read_frame
+
+                        frame = read_frame(request.browser_context_id or "")
+                        if frame is None:
+                            frame = start_stream(request_id, browser_controller=None, frame_profile=frame_profile)
+                    else:
+                        frame = start_stream(request_id, browser_controller=browser, frame_profile=frame_profile)
                     store.record_takeover_frame(request_id, frame)
                     self._send_json(HTTPStatus.OK, frame)
                 except KeyError:
@@ -872,6 +895,36 @@ class ControlHandler(SimpleHTTPRequestHandler):
                         "secret_fields_allowed": False,
                     },
                 )
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
+        if path.startswith("/api/browser/contexts/") and path.endswith("/takeover"):
+            try:
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+                return
+            try:
+                from urllib.parse import unquote
+
+                from omnidoer.omni_takeover.cross_process import get_context
+                from omnidoer.omni_takeover.relay import request_user_control
+
+                context_id = unquote(path.strip("/").split("/")[3])
+                context = get_context(context_id)
+                if not context:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "browser_context_not_found"})
+                    return
+                body = self._read_json()
+                request = request_user_control(
+                    origin=str(context.get("origin") or ""),
+                    top_level_url=str(context.get("current_url") or context.get("origin") or ""),
+                    reason=str(body.get("reason") or "User requested browser takeover from Control Client"),
+                    browser_context_id=context_id,
+                    risk_level=str(body.get("risk_level") or "high"),
+                )
+                self._send_json(HTTPStatus.CREATED, request.to_public_dict())
             except Exception as exc:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
             return
@@ -1103,9 +1156,6 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 elif action == "input":
                     request = control_request
                     browser = get_browser_context(request.browser_context_id)
-                    if browser is None:
-                        self._send_json(HTTPStatus.CONFLICT, {"error": "browser context is not connected"})
-                        return
                     body = self._read_json()
                     event = event_from_dict(body)
                     try:
@@ -1130,6 +1180,17 @@ class ControlHandler(SimpleHTTPRequestHandler):
                             )
                             return
                         raise
+                    if browser is None:
+                        from omnidoer.omni_takeover.cross_process import enqueue_input_event, get_context
+
+                        if get_context(request.browser_context_id or ""):
+                            self._send_json(
+                                HTTPStatus.OK,
+                                enqueue_input_event(request.browser_context_id or "", request_id, body),
+                            )
+                            return
+                        self._send_json(HTTPStatus.CONFLICT, {"error": "browser context is not connected"})
+                        return
                     self._send_json(HTTPStatus.OK, apply_input_event(request_id, event, browser_controller=browser))
                     return
                 else:

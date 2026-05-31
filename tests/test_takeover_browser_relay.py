@@ -8,8 +8,10 @@ from threading import Thread
 from urllib.error import HTTPError
 
 from omnidoer.omni_browser.controller import BrowserController
+from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.server import ControlHandler
 from omnidoer.omni_takeover.browser_worker import BrowserContextWorker
+from omnidoer.omni_takeover.cross_process import consume_input_events, write_context_status, write_frame
 from omnidoer.omni_takeover.models import InputEvent
 from omnidoer.omni_takeover.relay import apply_input_event, release_control, request_user_control, start_stream
 from omnidoer.omni_takeover.sessions import registered_browser_context
@@ -17,6 +19,86 @@ from tests.util_demo import DemoServerFixture
 
 
 class TakeoverBrowserRelayTest(unittest.TestCase):
+    def test_control_server_cross_process_browser_context_relay(self) -> None:
+        class FakeBrowser:
+            def current_url(self):
+                return "http://127.0.0.1:8765/antibot"
+
+            def current_origin(self):
+                return "http://127.0.0.1:8765"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            control_server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            Thread(target=control_server.serve_forever, daemon=True).start()
+            try:
+                write_context_status("mcp-browser", FakeBrowser())
+                frame = {
+                    "frame_id": "frame_cross",
+                    "captured_at": 2000000000.0,
+                    "url": "http://127.0.0.1:8765/antibot",
+                    "origin": "http://127.0.0.1:8765",
+                    "viewport": {"width": 320, "height": 240},
+                    "content_type": "image/jpeg",
+                    "data_b64": "abcd",
+                    "transport": {"profile": "balanced"},
+                    "for_control_client_only": True,
+                    "not_for_llm": True,
+                }
+                write_frame("mcp-browser", frame)
+                base = f"http://127.0.0.1:{control_server.server_address[1]}"
+                from urllib.request import Request, urlopen
+
+                contexts = json.loads(urlopen(f"{base}/api/browser/contexts", timeout=5).read().decode())
+                self.assertEqual(contexts["contexts"][0]["browser_context_id"], "mcp-browser")
+
+                body = json.dumps({"reason": "user paused browser"}).encode()
+                request_payload = json.loads(
+                    urlopen(
+                        Request(
+                            f"{base}/api/browser/contexts/mcp-browser/takeover",
+                            data=body,
+                            headers={"content-type": "application/json"},
+                            method="POST",
+                        ),
+                        timeout=5,
+                    )
+                    .read()
+                    .decode()
+                )
+                self.assertEqual(request_payload["browser_context_id"], "mcp-browser")
+                request_id = request_payload["request_id"]
+
+                delivered_frame = json.loads(urlopen(f"{base}/api/requests/{request_id}/frame", timeout=5).read().decode())
+                self.assertEqual(delivered_frame["frame_id"], "frame_cross")
+                self.assertEqual(RequestStore().get(request_id).takeover_frame_id, "frame_cross")
+
+                input_body = json.dumps({"event_type": "tap", "frame_id": "frame_cross", "x": 10, "y": 10}).encode()
+                queued = json.loads(
+                    urlopen(
+                        Request(
+                            f"{base}/api/requests/{request_id}/input",
+                            data=input_body,
+                            headers={"content-type": "application/json"},
+                            method="POST",
+                        ),
+                        timeout=5,
+                    )
+                    .read()
+                    .decode()
+                )
+                self.assertEqual(queued["status"], "event_queued")
+                events = consume_input_events("mcp-browser")
+                self.assertEqual(events[0]["event"]["event_type"], "tap")
+            finally:
+                control_server.shutdown()
+                control_server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     def test_browser_frame_and_input_event_relay(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, DemoServerFixture() as demo:
             old_home = os.environ.get("OMNIDOER_HOME")
