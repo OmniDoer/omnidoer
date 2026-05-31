@@ -46,6 +46,7 @@ pub enum SlashCommand {
     Mention,
     Status,
     Users,
+    #[strum(to_string = "pair", serialize = "pari")]
     Pair,
     DebugConfig,
     Title,
@@ -287,6 +288,7 @@ mod tests {
     fn pair_command_is_omnidoer_control_pairing() {
         assert_eq!(SlashCommand::Pair.command(), "pair");
         assert_eq!(SlashCommand::from_str("pair"), Ok(SlashCommand::Pair));
+        assert_eq!(SlashCommand::from_str("pari"), Ok(SlashCommand::Pair));
         assert!(SlashCommand::Pair.supports_inline_args());
         assert!(SlashCommand::Pair.available_during_task());
     }

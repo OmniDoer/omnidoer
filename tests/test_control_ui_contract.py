@@ -36,7 +36,7 @@ class ControlUiContractTest(unittest.TestCase):
 
     def test_challenge_no_bypass_explanation_present(self) -> None:
         self.assertIn("does not bypass CAPTCHA/MFA/Passkey/WebAuthn/3DS", self.html)
-        self.assertIn("completed by you, not by the Agent", self.app)
+        self.assertIn("Complete the challenge yourself", self.app)
         self.assertIn("No challenge answer is submitted to OmniDoer", self.app)
         self.assertIn('if (isVisualChallenge)', self.app)
 
@@ -70,6 +70,23 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("/api/requests", app)
         self.assertIn("submitEncrypted", app)
         self.assertIn("web-p256-v1", app)
+
+    def test_requests_default_to_open_items(self) -> None:
+        self.assertIn("language-toggle", self.html)
+        self.assertIn("const I18N", self.app)
+        self.assertIn("待处理请求", self.app)
+        self.assertIn('data-filter="open" class="active"', self.app)
+        self.assertIn("function isOpenRequest", self.app)
+        self.assertIn('return ["pending", "user_control"].includes(request.status);', self.app)
+        self.assertIn("No open requests match this filter.", self.app)
+        self.assertIn("request-closed", (static_root() / "style.css").read_text())
+
+    def test_secure_form_drafts_survive_request_rerender(self) -> None:
+        self.assertIn("captureRequestDrafts", self.app)
+        self.assertIn("restoreRequestDrafts", self.app)
+        self.assertIn("requestDraftInputs", self.app)
+        self.assertIn("item.dataset.requestId = request.request_id", self.app)
+        self.assertIn("activeInput.focus({ preventScroll: true })", self.app)
 
     def test_task_panel_uses_local_queue_not_direct_model_api(self) -> None:
         self.assertIn("Chat / Task", self.html)

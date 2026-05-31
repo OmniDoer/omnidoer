@@ -34,6 +34,7 @@ ALLOWED_TOOLS = [
     "control.create_pairing",
     "control.list_requests",
     "control.request_status",
+    "control.wait_request",
     "control.list_tasks",
     "control.next_user_task",
 ]
@@ -127,18 +128,16 @@ def _vault_passphrase(arguments: dict) -> str | None:
 
 
 def _create_pairing(arguments: dict) -> dict:
-    from omnidoer.omni_control.pairing import PairingStore, pairing_url, parse_duration_seconds
+    from omnidoer.omni_control.pairing import PairingStore, pairing_url, parse_duration_seconds, qr_text
+    from omnidoer.omni_control.runtime import resolve_pairing_public_url
 
-    public_url = str(
-        arguments.get("public_url")
-        or os.environ.get("OMNIDOER_CONTROL_PUBLIC_URL")
-        or "http://127.0.0.1:8787"
-    )
+    public_url = resolve_pairing_public_url(str(arguments.get("public_url") or "") or None)
     expires = arguments.get("expires") or arguments.get("ttl") or "10m"
     pairing = PairingStore().create(public_url=public_url, ttl_seconds=parse_duration_seconds(expires))
     return {
         "status": "pairing_created",
         "pairing_url": pairing_url(pairing),
+        "qr_ascii": qr_text(pairing),
         "expires_at": pairing.expires_at,
         "broker_fingerprint": pairing.broker_fingerprint,
         "web_broker_fingerprint": pairing.web_broker_fingerprint,
@@ -168,7 +167,57 @@ def _create_credential_request(arguments: dict) -> dict:
         save_to_vault=bool(arguments.get("save_to_vault", True)),
         structured_details=_credential_structured_details(arguments),
     )
+    if arguments.get("wait"):
+        waited = _wait_for_control_request(
+            {
+                "request_id": request.request_id,
+                "timeout": arguments.get("wait_timeout") or arguments.get("timeout") or "10m",
+                "require_ciphertext": True,
+            }
+        )
+        if waited.get("status") != "ok":
+            return waited
+        return {
+            "status": "credential_response_received",
+            "request": waited["request"],
+            "notified": True,
+            "has_ciphertext": waited["has_ciphertext"],
+            "secret_exposed_to_model": False,
+        }
     return {"status": "credential_request_created", "request": request.to_public_dict(), "secret_exposed_to_model": False}
+
+
+def _wait_for_control_request(arguments: dict) -> dict:
+    from omnidoer.omni_control.pairing import parse_duration_seconds
+    from omnidoer.omni_control.requests import RequestStore, wait_for_request_completion
+
+    request_id = arguments.get("request_id")
+    if not request_id:
+        return _error("error", "request_id required")
+    try:
+        request = wait_for_request_completion(
+            str(request_id),
+            timeout_seconds=parse_duration_seconds(arguments.get("timeout") or arguments.get("wait_timeout") or "10m"),
+            require_ciphertext=bool(arguments.get("require_ciphertext")),
+        )
+    except KeyError:
+        return {"status": "not_found", "secret_exposed_to_model": False}
+    except TimeoutError:
+        return {
+            "status": "timeout",
+            "request_id": str(request_id),
+            "notified": False,
+            "secret_exposed_to_model": False,
+        }
+    stored = RequestStore().get(str(request_id))
+    return {
+        "status": "ok",
+        "request": stored.to_public_dict(),
+        "notified": True,
+        "completed_by_user": stored.completed_by_user,
+        "has_ciphertext": stored.response_ciphertext is not None,
+        "secret_exposed_to_model": False,
+    }
 
 
 def _file_upload_allowed(arguments: dict, *, origin: str | None, top_level_url: str, file_path: str, selector: str) -> dict | None:
@@ -639,6 +688,8 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
         except KeyError:
             return {"status": "not_found", "secret_exposed_to_model": False}
         return {"status": "ok", "request": request.to_public_dict(), "secret_exposed_to_model": False}
+    if name == "control.wait_request":
+        return _wait_for_control_request(arguments or {})
     if name == "control.list_tasks":
         from omnidoer.omni_control.tasks import TaskStore
 

@@ -1,3 +1,249 @@
+const I18N = {
+  en: {
+    appTitle: "OmniDoer Control Client",
+    appSubtitle: "Secure approvals, credentials, challenges, and human takeover.",
+    navRequests: "Requests",
+    navTasks: "Tasks",
+    navDevices: "Devices",
+    navSecurity: "Security",
+    navTakeover: "Takeover",
+    navPayments: "Payments",
+    checkingRuntime: "Checking runtime...",
+    runtimeDetail: "Control Client does not call OpenAI APIs or models directly.",
+    runtimeOffline: "Runtime offline",
+    runtimeOfflineDetail: "Start omnidoer control serve.",
+    requestsCount: (open, total) => `Requests: ${open} open / ${total} total`,
+    requestsTitle: "Open Requests",
+    requestsIntro: "Handle the items that need your attention. Secrets stay encrypted to the local broker.",
+    requestFiltersLabel: "Request filters",
+    filterOpen: "Open",
+    filterAll: "All",
+    filterCredential: "Secrets",
+    filterChallenge: "Challenges",
+    filterApproval: "Approvals",
+    filterTakeover: "Takeover",
+    loading: "Loading...",
+    noOpenRequests: "No open requests.",
+    noMatchingOpenRequests: "No open requests match this filter.",
+    pairToViewRequests: "Pair this device to view requests in Cloud Direct Mode.",
+    pairToReceiveEvents: "Pair this device to receive signed request events in Cloud Direct Mode.",
+    waitingForUserAction: "Waiting for user action",
+    credentialClosed: (status) => `Credential request is ${status}.`,
+    challengeClosed: (status) => `Challenge request is ${status}.`,
+    takeoverClosed: (status) => `Takeover request is ${status}.`,
+    secretNote: "Secret fields are encrypted locally before submission. They are not sent to Agent/LLM context, MCP return values, logs, or DOM observation.",
+    username: "Username",
+    password: "Password",
+    totpSeed: "TOTP seed",
+    saveInVault: "Save encrypted in Vault",
+    submitCredential: "Submit Credential",
+    challengeNote: "Complete the challenge yourself. OmniDoer does not bypass CAPTCHA/MFA/Passkey/WebAuthn/3DS.",
+    visualChallengeNote: "No challenge answer is submitted to OmniDoer. Complete it in the controlled browser or external device, then mark it complete.",
+    submitChallenge: "Submit Challenge",
+    markUserCompleted: "Mark User Completed",
+    requestSubmitFailed: "Request submit failed",
+    requestSubmitFailedDetail: "Pair again if this is Cloud Direct Mode.",
+    actionFailed: "Action failed",
+    pairTitle: "Pair Device",
+    pairIntro: "Connect this browser to your own Control Service. Pair only devices you control.",
+    pairSecurity: "After pairing, secret and challenge submissions are encrypted locally.",
+    pairButton: "Pair Device",
+    forgetPairing: "Forget Local Pairing",
+    notPaired: "Not paired.",
+    controlOffline: "Control Service is offline.",
+    localTrustedMode: "Local trusted mode is active. Pairing is not required on localhost.",
+    localTrustedDevice: "local trusted mode",
+    pairingCodeLoaded: "Pairing code loaded. Confirm the server details, then pair this device.",
+    pairFreshLink: "Not paired. Use a fresh pairing link only once; after pairing this browser reuses its cached session.",
+    checkingCachedSession: "Checking cached pairing session...",
+    sessionHidden: "This browser is authenticated. The current session is not visible in the latest session list.",
+    sessionRevoked: "This browser's cached session was revoked. Pair again to continue.",
+    pairedCached: "Paired. Requests load automatically; pair again only if this session expires or is revoked.",
+    cachedPairingRejected: "Cached pairing cannot access this Control Service. Use a fresh pairing link or forget local pairing.",
+    pairingDevice: "Pairing this device...",
+    pairingFailed: "Pairing failed.",
+    pairedDevice: (name) => `Paired ${name}. This browser will reuse the cached session until it expires or is revoked.`,
+    localPairingRemoved: "Local pairing was removed from this browser. Server-side devices and sessions can still be revoked after pairing again.",
+    deviceTitle: "Devices / Sessions",
+    deviceIntro: "Review paired Control Clients and active sessions.",
+    refresh: "Refresh",
+    pairedDevices: "Paired Devices",
+    sessions: "Sessions",
+    pairToViewDevices: "Pair this device to view paired devices.",
+    pairToViewSessions: "Pair this device to view sessions.",
+    noPairedDevices: "No paired devices.",
+    noSessions: "No sessions.",
+    securityTitle: "Security",
+    taskTitle: "Chat / Task",
+    taskIntro: "Submit work to the local OmniDoer task queue.",
+    submitTask: "Submit Task",
+    noQueuedTasks: "No queued tasks.",
+    pairToViewTasks: "Pair this device to view task queue in Cloud Direct Mode.",
+    takeoverTitle: "Human Takeover",
+    takeoverNoActive: "No active takeover",
+    noActiveBrowserHandoff: "No active browser handoff.",
+    paymentTitle: "Payment Approval",
+    noPendingPayment: "No pending payment approval.",
+    paymentReviewRequired: "Payment approval requires review",
+    paymentReviewRequiredDetail: "Confirm the payment details before approving.",
+    approve: "Approve",
+    deny: "Deny",
+    languageToggle: "中文"
+  },
+  zh: {
+    appTitle: "OmniDoer 控制客户端",
+    appSubtitle: "安全处理授权、凭证、验证和人工接管。",
+    navRequests: "请求",
+    navTasks: "任务",
+    navDevices: "设备",
+    navSecurity: "安全",
+    navTakeover: "接管",
+    navPayments: "支付",
+    checkingRuntime: "正在检查运行状态...",
+    runtimeDetail: "控制客户端不会直接调用 OpenAI API 或模型。",
+    runtimeOffline: "运行服务离线",
+    runtimeOfflineDetail: "请启动 omnidoer control serve。",
+    requestsCount: (open, total) => `请求：${open} 个待处理 / 共 ${total} 个`,
+    requestsTitle: "待处理请求",
+    requestsIntro: "优先处理需要你操作的项目。敏感凭证只会加密提交到本地 broker。",
+    requestFiltersLabel: "请求筛选",
+    filterOpen: "待处理",
+    filterAll: "全部",
+    filterCredential: "凭证",
+    filterChallenge: "验证",
+    filterApproval: "授权",
+    filterTakeover: "接管",
+    loading: "加载中...",
+    noOpenRequests: "没有待处理请求。",
+    noMatchingOpenRequests: "当前筛选下没有待处理请求。",
+    pairToViewRequests: "请先配对此设备以查看 Cloud Direct 请求。",
+    pairToReceiveEvents: "请先配对此设备以接收签名请求事件。",
+    waitingForUserAction: "等待用户操作",
+    credentialClosed: (status) => `凭证请求状态：${status}。`,
+    challengeClosed: (status) => `验证请求状态：${status}。`,
+    takeoverClosed: (status) => `接管请求状态：${status}。`,
+    secretNote: "敏感字段会在本地加密后提交，不会进入 Agent/LLM 上下文、MCP 返回值、日志或 DOM 观察结果。",
+    username: "用户名",
+    password: "密码",
+    totpSeed: "TOTP 种子",
+    saveInVault: "加密保存到 Vault",
+    submitCredential: "提交凭证",
+    challengeNote: "验证由你本人完成。OmniDoer 不绕过 CAPTCHA/MFA/Passkey/WebAuthn/3DS。",
+    visualChallengeNote: "无需向 OmniDoer 提交验证答案。在受控浏览器或外部设备完成后标记完成即可。",
+    submitChallenge: "提交验证码",
+    markUserCompleted: "标记已完成",
+    requestSubmitFailed: "请求提交失败",
+    requestSubmitFailedDetail: "如果这是 Cloud Direct 模式，请重新配对。",
+    actionFailed: "操作失败",
+    pairTitle: "配对此设备",
+    pairIntro: "将此浏览器连接到你自己的 Control Service。只配对你控制的设备。",
+    pairSecurity: "配对后，凭证和验证内容会在本地加密后提交。",
+    pairButton: "配对设备",
+    forgetPairing: "清除本地配对",
+    notPaired: "未配对。",
+    controlOffline: "Control Service 离线。",
+    localTrustedMode: "本地可信模式已启用，localhost 不需要配对。",
+    localTrustedDevice: "本地可信模式",
+    pairingCodeLoaded: "已载入配对码。确认服务端信息后配对此设备。",
+    pairFreshLink: "未配对。配对链接只能使用一次；配对后浏览器会复用本地会话。",
+    checkingCachedSession: "正在检查本地配对会话...",
+    sessionHidden: "此浏览器已认证，但当前会话不在最新会话列表中。",
+    sessionRevoked: "此浏览器缓存的会话已被撤销，请重新配对。",
+    pairedCached: "已配对。请求会自动加载；只有会话过期或被撤销时才需要重新配对。",
+    cachedPairingRejected: "缓存配对无法访问此 Control Service，请使用新的配对链接或清除本地配对。",
+    pairingDevice: "正在配对此设备...",
+    pairingFailed: "配对失败。",
+    pairedDevice: (name) => `已配对 ${name}。此浏览器会复用本地会话，直到会话过期或被撤销。`,
+    localPairingRemoved: "已清除本地配对。服务端设备和会话仍可在重新配对后撤销。",
+    deviceTitle: "设备 / 会话",
+    deviceIntro: "查看已配对的控制客户端和活跃会话。",
+    refresh: "刷新",
+    pairedDevices: "已配对设备",
+    sessions: "会话",
+    pairToViewDevices: "请先配对此设备以查看已配对设备。",
+    pairToViewSessions: "请先配对此设备以查看会话。",
+    noPairedDevices: "没有已配对设备。",
+    noSessions: "没有会话。",
+    securityTitle: "安全",
+    taskTitle: "聊天 / 任务",
+    taskIntro: "提交工作到本地 OmniDoer 任务队列。",
+    submitTask: "提交任务",
+    noQueuedTasks: "没有排队任务。",
+    pairToViewTasks: "请先配对此设备以查看 Cloud Direct 任务队列。",
+    takeoverTitle: "人工接管",
+    takeoverNoActive: "没有活跃接管",
+    noActiveBrowserHandoff: "没有活跃浏览器接管。",
+    paymentTitle: "支付授权",
+    noPendingPayment: "没有待处理支付授权。",
+    paymentReviewRequired: "支付授权需要确认",
+    paymentReviewRequiredDetail: "请先确认支付详情再批准。",
+    approve: "批准",
+    deny: "拒绝",
+    languageToggle: "EN"
+  }
+};
+
+function initialLanguage() {
+  const stored = localStorage.getItem("omnidoer_language");
+  if (stored === "zh" || stored === "en") return stored;
+  return navigator.language?.toLowerCase().startsWith("zh") ? "zh" : "en";
+}
+
+let currentLanguage = initialLanguage();
+
+function t(key, ...args) {
+  const value = I18N[currentLanguage]?.[key] ?? I18N.en[key] ?? key;
+  return typeof value === "function" ? value(...args) : value;
+}
+
+function setNodeText(selector, key, ...args) {
+  const node = document.querySelector(selector);
+  if (node) node.textContent = t(key, ...args);
+}
+
+function setButtonText(selector, key) {
+  const node = document.querySelector(selector);
+  if (node) node.textContent = t(key);
+}
+
+function applyLanguage() {
+  document.documentElement.lang = currentLanguage === "zh" ? "zh-CN" : "en";
+  setNodeText(".app-header h1", "appTitle");
+  setNodeText(".app-header p", "appSubtitle");
+  setButtonText("#language-toggle", "languageToggle");
+  setNodeText('a[href="#requests-panel"]', "navRequests");
+  setNodeText('a[href="#task-panel"]', "navTasks");
+  setNodeText('a[href="#device-panel"]', "navDevices");
+  setNodeText('a[href="#security"]', "navSecurity");
+  setNodeText('a[href="#takeover-panel"]', "navTakeover");
+  setNodeText('a[href="#payment-approval"]', "navPayments");
+  setNodeText("#requests-panel h2", "requestsTitle");
+  setNodeText("#requests-panel .panel-heading p", "requestsIntro");
+  document.querySelector(".filter-row")?.setAttribute("aria-label", t("requestFiltersLabel"));
+  setButtonText('[data-filter="open"]', "filterOpen");
+  setButtonText('[data-filter="all"]', "filterAll");
+  setButtonText('[data-filter="credential"]', "filterCredential");
+  setButtonText('[data-filter="challenge"]', "filterChallenge");
+  setButtonText('[data-filter="approval"]', "filterApproval");
+  setButtonText('[data-filter="takeover"]', "filterTakeover");
+  setNodeText("#pairing-panel h2", "pairTitle");
+  setNodeText("#pairing-panel > p:nth-of-type(1)", "pairIntro");
+  setNodeText("#pairing-panel > p:nth-of-type(2)", "pairSecurity");
+  setButtonText("#pair-device", "pairButton");
+  setButtonText("#forget-local-pairing", "forgetPairing");
+  setNodeText("#device-panel h2", "deviceTitle");
+  setNodeText("#device-panel .panel-heading p", "deviceIntro");
+  setButtonText("#refresh-devices", "refresh");
+  setNodeText("#device-panel h3:nth-of-type(1)", "pairedDevices");
+  setNodeText("#security h2", "securityTitle");
+  setNodeText("#task-panel h2", "taskTitle");
+  setNodeText("#task-panel > p:nth-of-type(1)", "taskIntro");
+  setButtonText("#submit-task", "submitTask");
+  setNodeText("#takeover-panel h2", "takeoverTitle");
+  setNodeText("#payment-approval h2", "paymentTitle");
+  setNodeText("#approval-status", "noPendingPayment");
+}
+
 const main = document.querySelector("main");
 
 const runtimeStatus = document.createElement("section");
@@ -5,32 +251,34 @@ runtimeStatus.id = "runtime-status";
 runtimeStatus.className = "status-strip";
 runtimeStatus.innerHTML = `
   <div>
-    <strong id="runtime-mode">Checking runtime...</strong>
-    <span id="runtime-detail">Control Client does not call OpenAI APIs or models directly.</span>
+    <strong id="runtime-mode">${t("checkingRuntime")}</strong>
+    <span id="runtime-detail">${t("runtimeDetail")}</span>
   </div>
-  <div id="runtime-counts">Requests: 0</div>
+  <div id="runtime-counts">${t("requestsCount", 0, 0)}</div>
 `;
 main.prepend(runtimeStatus);
 
 const requestsRoot = document.createElement("section");
 requestsRoot.id = "requests-panel";
+requestsRoot.className = "priority-panel";
 requestsRoot.innerHTML = `
   <div class="panel-heading">
     <div>
-      <h2>Requests</h2>
-      <p>Handle credentials, verification, approvals, and human takeover from request-scoped controls.</p>
+      <h2>${t("requestsTitle")}</h2>
+      <p>${t("requestsIntro")}</p>
     </div>
-    <div class="filter-row" aria-label="Request filters">
-      <button data-filter="all" class="active">All</button>
-      <button data-filter="credential">Secrets</button>
-      <button data-filter="challenge">Challenges</button>
-      <button data-filter="approval">Approvals</button>
-      <button data-filter="takeover">Takeover</button>
+    <div class="filter-row" aria-label="${t("requestFiltersLabel")}">
+      <button data-filter="open" class="active">${t("filterOpen")}</button>
+      <button data-filter="all">${t("filterAll")}</button>
+      <button data-filter="credential">${t("filterCredential")}</button>
+      <button data-filter="challenge">${t("filterChallenge")}</button>
+      <button data-filter="approval">${t("filterApproval")}</button>
+      <button data-filter="takeover">${t("filterTakeover")}</button>
     </div>
   </div>
-  <div id="requests-list" class="request-grid">Loading...</div>
+  <div id="requests-list" class="request-grid">${t("loading")}</div>
 `;
-main.insertBefore(requestsRoot, document.querySelector("#task-panel"));
+main.insertBefore(requestsRoot, document.querySelector("#pairing-panel"));
 
 const submitTaskButton = document.querySelector("#submit-task");
 if (submitTaskButton) {
@@ -97,6 +345,16 @@ if (denyPaymentButton) {
   denyPaymentButton.onclick = () => denyActivePaymentRequest();
 }
 
+const languageToggleButton = document.querySelector("#language-toggle");
+if (languageToggleButton) {
+  languageToggleButton.onclick = () => {
+    currentLanguage = currentLanguage === "zh" ? "en" : "zh";
+    localStorage.setItem("omnidoer_language", currentLanguage);
+    applyLanguage();
+    renderRequestList(cachedRequests);
+  };
+}
+
 document.querySelectorAll("[data-filter]").forEach((button) => {
   button.onclick = () => {
     document.querySelectorAll("[data-filter]").forEach((item) => item.classList.remove("active"));
@@ -136,6 +394,8 @@ let takeoverFramePanMode = false;
 let activePaymentApprovalRequest = null;
 let renderedPaymentApprovalRequestId = null;
 
+applyLanguage();
+
 const urlParams = new URLSearchParams(window.location.search);
 const initialPairingCode = urlParams.get("code");
 const initialPairingId = urlParams.get("pairing_id");
@@ -168,7 +428,7 @@ function b64urlToBytes(value) {
 }
 
 function activeFilter() {
-  return document.querySelector("[data-filter].active")?.dataset.filter || "all";
+  return document.querySelector("[data-filter].active")?.dataset.filter || "open";
 }
 
 function formatTimestamp(value) {
@@ -182,6 +442,85 @@ function requestKind(request) {
   if (["file_upload", "account_delete", "password_change", "two_factor_change", "message_send"].includes(request.request_type)) return "approval";
   if (request.request_type.endsWith("_approval") || request.request_type.includes("approval")) return "approval";
   return "challenge";
+}
+
+function isOpenRequest(request) {
+  return ["pending", "user_control"].includes(request.status);
+}
+
+function requestMatchesFilter(request, filter) {
+  if (filter === "all") return true;
+  if (filter === "open") return isOpenRequest(request);
+  return isOpenRequest(request) && requestKind(request) === filter;
+}
+
+function requestDraftField(input) {
+  if (input.dataset.secretField) return `secret:${input.dataset.secretField}`;
+  if (input.dataset.challengeField) return `challenge:${input.dataset.challengeField}`;
+  if (input.hasAttribute("data-takeover-text")) return "takeover:text";
+  return input.name || input.id || "";
+}
+
+function requestDraftInputs(root) {
+  return Array.from(root.querySelectorAll("[data-secret-field], [data-challenge-field], [data-takeover-text]"));
+}
+
+function captureRequestDrafts(list) {
+  const drafts = {};
+  const active = document.activeElement;
+  let activeDraft = null;
+  list.querySelectorAll(".request[data-request-id]").forEach((item) => {
+    const requestId = item.dataset.requestId;
+    if (!requestId) return;
+    requestDraftInputs(item).forEach((input) => {
+      const field = requestDraftField(input);
+      if (!field) return;
+      const key = `${requestId}:${field}`;
+      const isCheckbox = input.type === "checkbox";
+      const value = isCheckbox ? input.checked : input.value;
+      if (value || active === input) {
+        drafts[key] = { value, isCheckbox };
+      }
+      if (active === input) {
+        activeDraft = {
+          key,
+          selectionStart: input.selectionStart,
+          selectionEnd: input.selectionEnd
+        };
+      }
+    });
+  });
+  return { drafts, activeDraft };
+}
+
+function restoreRequestDrafts(list, captured) {
+  if (!captured) return;
+  let activeInput = null;
+  list.querySelectorAll(".request[data-request-id]").forEach((item) => {
+    const requestId = item.dataset.requestId;
+    if (!requestId) return;
+    requestDraftInputs(item).forEach((input) => {
+      const field = requestDraftField(input);
+      if (!field) return;
+      const key = `${requestId}:${field}`;
+      const draft = captured.drafts[key];
+      if (!draft) return;
+      if (draft.isCheckbox) {
+        input.checked = Boolean(draft.value);
+      } else {
+        input.value = draft.value;
+      }
+      if (captured.activeDraft?.key === key) activeInput = input;
+    });
+  });
+  if (activeInput) {
+    activeInput.focus({ preventScroll: true });
+    if (typeof activeInput.setSelectionRange === "function") {
+      const start = captured.activeDraft.selectionStart;
+      const end = captured.activeDraft.selectionEnd;
+      if (start !== null && end !== null) activeInput.setSelectionRange(start, end);
+    }
+  }
 }
 
 function setStatus(message, detail = "") {
@@ -216,7 +555,7 @@ function setPairingUiState({ state, message, deviceText = "" }) {
   const forgetButton = document.querySelector("#forget-local-pairing");
   if (panel) panel.dataset.pairingState = state;
   if (status) status.textContent = message;
-  if (currentDevice) currentDevice.textContent = deviceText || "not paired";
+  if (currentDevice) currentDevice.textContent = deviceText || t("notPaired");
   if (forgetButton) {
     const identity = storedPairingIdentity();
     forgetButton.disabled = !identity.deviceId && !identity.sessionId && !identity.hasPrivateKey;
@@ -350,7 +689,7 @@ function resetTakeoverFrameView() {
 }
 
 function updateTakeoverPanel(request, frame = null, message = null) {
-  const status = request ? (request.status === "user_control" ? "Agent paused - user control active" : request.status) : "No active takeover";
+  const status = request ? (request.status === "user_control" ? "Agent paused - user control active" : request.status) : t("takeoverNoActive");
   setFieldText("#takeover-status-label", status);
   setFieldText("#takeover-active-request", request?.request_id, "pending");
   setFieldText("#takeover-current-url", request?.top_level_url || request?.origin, "pending");
@@ -361,7 +700,7 @@ function updateTakeoverPanel(request, frame = null, message = null) {
     setFieldText("#takeover-frame-meta", request ? "waiting for next browser frame" : "waiting for browser handoff");
     setFieldText("#takeover-frame-profile", request ? takeoverFrameProfileLabel() : "adaptive", "adaptive");
   }
-  setFieldText("#takeover-input-state", message || (request ? "Touch, keyboard, and text input are routed to the controlled browser only." : "No active browser handoff."), "");
+  setFieldText("#takeover-input-state", message || (request ? "Touch, keyboard, and text input are routed to the controlled browser only." : t("noActiveBrowserHandoff")), "");
   updateTakeoverFrameFreshness();
   const isActive = Boolean(request && request.status === "user_control");
   const refresh = document.querySelector("#refresh-takeover-frame");
@@ -378,7 +717,7 @@ function syncTakeoverPanel(requests) {
   if (!request) {
     stopTakeoverFramePolling();
     updateTakeoverPanel(null);
-    stream.textContent = "No active browser handoff.";
+    stream.textContent = t("noActiveBrowserHandoff");
     return;
   }
   updateTakeoverPanel(request);
@@ -484,7 +823,7 @@ function updatePaymentApprovalPanel(requests) {
   setFieldText("#final-button", detailValue(details, "final_button"));
   setFieldText("#review-fingerprint", request?.approval_fingerprint);
   setFieldText("#after-approval", detailValue(details, "after_approval") || (request ? "Submit only after approval" : ""));
-  setFieldText("#approval-status", request ? `${request.status}: ${request.action_summary || request.request_id}` : "No pending payment approval.", "");
+  setFieldText("#approval-status", request ? `${request.status}: ${request.action_summary || request.request_id}` : t("noPendingPayment"), "");
   const confirm = document.querySelector("#approval-confirm");
   if (confirm && renderedPaymentApprovalRequestId !== request?.request_id) confirm.checked = false;
   renderedPaymentApprovalRequestId = request?.request_id || null;
@@ -496,7 +835,7 @@ function approveActivePaymentRequest() {
   if (!activePaymentApprovalRequest) return;
   const confirm = document.querySelector("#approval-confirm");
   if (!confirm?.checked) {
-    setStatus("Payment approval requires review", "Confirm the payment details before approving.");
+    setStatus(t("paymentReviewRequired"), t("paymentReviewRequiredDetail"));
     updatePaymentApprovalButtons();
     return;
   }
@@ -602,7 +941,7 @@ async function pairDevice() {
   const code = document.querySelector("#pairing-code").value.trim();
   const deviceName = document.querySelector("#device-name").value.trim() || "PWA Control Client";
   if (!code) return;
-  setPairingUiState({ state: "checking", message: "Pairing this device..." });
+  setPairingUiState({ state: "checking", message: t("pairingDevice") });
   const { publicJwk } = await deviceKeyPair();
   const response = await fetch("/api/pair", {
     method: "POST",
@@ -611,7 +950,7 @@ async function pairDevice() {
   });
   const payload = await response.json();
   if (!response.ok) {
-    document.querySelector("#pairing-status").textContent = "Pairing failed.";
+    document.querySelector("#pairing-status").textContent = t("pairingFailed");
     return;
   }
   localStorage.setItem("omnidoer_device_id", payload.device.device_id);
@@ -619,7 +958,7 @@ async function pairDevice() {
   localStorage.setItem("omnidoer_csrf_token", payload.csrf_token);
   setPairingUiState({
     state: "paired",
-    message: `Paired ${payload.device.name}. This browser will reuse the cached session until it expires or is revoked.`,
+    message: t("pairedDevice", payload.device.name),
     deviceText: `${payload.device.device_id} - session expires ${formatTimestamp(payload.session.expires_at)}`
   });
   await loadRequests();
@@ -638,12 +977,12 @@ function forgetLocalPairing() {
   renderRequestList([]);
   setPairingUiState({
     state: "unpaired",
-    message: "Local pairing was removed from this browser. Server-side devices and sessions can still be revoked after pairing again."
+    message: t("localPairingRemoved")
   });
   const devicesRoot = document.querySelector("#devices-list");
   const sessionsRoot = document.querySelector("#sessions-list");
-  if (devicesRoot) devicesRoot.textContent = "Pair this device to view paired devices.";
-  if (sessionsRoot) sessionsRoot.textContent = "Pair this device to view sessions.";
+  if (devicesRoot) devicesRoot.textContent = t("pairToViewDevices");
+  if (sessionsRoot) sessionsRoot.textContent = t("pairToViewSessions");
 }
 
 function b64url(bytes) {
@@ -722,7 +1061,7 @@ async function submitEncrypted(request, payload) {
     body: JSON.stringify({ envelope })
   });
   if (!response.ok) {
-    setStatus("Request submit failed", "Pair again if this is Cloud Direct Mode.");
+    setStatus(t("requestSubmitFailed"), t("requestSubmitFailedDetail"));
   }
   await loadRequests();
 }
@@ -733,7 +1072,7 @@ async function postAction(request, action, payload = null) {
   if (payload) options.body = JSON.stringify(payload);
   const response = await signedFetch(`/api/requests/${request.request_id}/${action}`, options);
   if (!response.ok) {
-    setStatus("Action failed", `${request.request_type} ${action}`);
+    setStatus(t("actionFailed"), `${request.request_type} ${action}`);
   }
   await loadRequests();
 }
@@ -812,12 +1151,12 @@ async function loadTasks() {
     const tasks = await signedFetch("/api/tasks", { cache: "no-store" }).then((r) => r.json());
     list.innerHTML = "";
     if (!tasks.length) {
-      list.textContent = "No queued tasks.";
+      list.textContent = t("noQueuedTasks");
       return;
     }
     tasks.forEach((task) => list.append(renderTask(task)));
   } catch {
-    list.textContent = "Pair this device to view task queue in Cloud Direct Mode.";
+    list.textContent = t("pairToViewTasks");
   }
 }
 
@@ -877,18 +1216,18 @@ async function loadDevicesAndSessions() {
     devicesRoot.innerHTML = "";
     sessionsRoot.innerHTML = "";
     if (!devices.length) {
-      devicesRoot.textContent = "No paired devices.";
+      devicesRoot.textContent = t("noPairedDevices");
     } else {
       devices.forEach((device) => devicesRoot.append(renderDevice(device)));
     }
     if (!sessions.length) {
-      sessionsRoot.textContent = "No sessions.";
+      sessionsRoot.textContent = t("noSessions");
     } else {
       sessions.forEach((session) => sessionsRoot.append(renderSession(session)));
     }
   } catch {
-    devicesRoot.textContent = "Pair this device to view paired devices.";
-    sessionsRoot.textContent = "Pair this device to view sessions.";
+    devicesRoot.textContent = t("pairToViewDevices");
+    sessionsRoot.textContent = t("pairToViewSessions");
   }
 }
 
@@ -897,14 +1236,14 @@ async function refreshPairingState() {
   try {
     runtime = await fetch("/api/status", { cache: "no-store" }).then((r) => r.json());
   } catch {
-    setPairingUiState({ state: "offline", message: "Control Service is offline." });
+    setPairingUiState({ state: "offline", message: t("controlOffline") });
     return false;
   }
   if (runtime.mode === "local_dev") {
     setPairingUiState({
       state: "paired",
-      message: "Local trusted mode is active. Pairing is not required on localhost.",
-      deviceText: "local trusted mode"
+      message: t("localTrustedMode"),
+      deviceText: t("localTrustedDevice")
     });
     return true;
   }
@@ -914,14 +1253,14 @@ async function refreshPairingState() {
     setPairingUiState({
       state: "unpaired",
       message: codeLoaded
-        ? "Pairing code loaded. Confirm the server details, then pair this device."
-        : "Not paired. Use a fresh pairing link only once; after pairing this browser reuses its cached session."
+        ? t("pairingCodeLoaded")
+        : t("pairFreshLink")
     });
     return false;
   }
   setPairingUiState({
     state: "checking",
-    message: "Checking cached pairing session...",
+    message: t("checkingCachedSession"),
     deviceText: identity.deviceId
   });
   try {
@@ -933,7 +1272,7 @@ async function refreshPairingState() {
     if (!current) {
       setPairingUiState({
         state: "paired",
-        message: "This browser is authenticated. The current session is not visible in the latest session list.",
+        message: t("sessionHidden"),
         deviceText: identity.deviceId
       });
       return true;
@@ -941,21 +1280,21 @@ async function refreshPairingState() {
     if (current.revoked) {
       setPairingUiState({
         state: "stale",
-        message: "This browser's cached session was revoked. Pair again to continue.",
+        message: t("sessionRevoked"),
         deviceText: `${identity.deviceId} - revoked`
       });
       return false;
     }
     setPairingUiState({
       state: "paired",
-      message: "Paired. Requests load automatically; pair again only if this session expires or is revoked.",
+      message: t("pairedCached"),
       deviceText: `${identity.deviceId} - session expires ${formatTimestamp(current.expires_at)}`
     });
     return true;
   } catch {
     setPairingUiState({
       state: "stale",
-      message: "Cached pairing cannot access this Control Service. Use a fresh pairing link or forget local pairing.",
+      message: t("cachedPairingRejected"),
       deviceText: identity.deviceId
     });
     return false;
@@ -1380,7 +1719,7 @@ function requestHeader(request) {
   header.className = "request-header";
   const titleBlock = document.createElement("div");
   appendText(titleBlock, "h3", request.request_type.replaceAll("_", " "));
-  appendText(titleBlock, "p", request.action_summary || "Waiting for user action", "request-summary");
+  appendText(titleBlock, "p", request.action_summary || t("waitingForUserAction"), "request-summary");
   const badges = document.createElement("div");
   badges.className = "badge-row";
   appendText(badges, "span", request.status, `badge status-${request.status}`);
@@ -1422,24 +1761,24 @@ function credentialFieldRequested(request, field) {
 
 function renderCredentialControls(request, item) {
   if (request.status !== "pending") {
-    appendText(item, "p", `Credential request is ${request.status}.`, "flow-note");
+    appendText(item, "p", t("credentialClosed", request.status), "flow-note");
     return;
   }
   const vaultSaveAllowed = request.save_to_vault === true;
   const form = document.createElement("form");
   form.className = "secure-form";
   form.innerHTML = `
-    <p class="flow-note">Secret will be encrypted to Secret Broker. It will not be sent to Agent/LLM context, MCP return values, logs, or DOM observation.</p>
-    <label>Username <input id="username" data-secret-field="username" autocomplete="username"></label>
-    <label>Password <input id="password" data-secret-field="password" type="password" autocomplete="current-password"></label>
-    <label>TOTP seed <input id="totp-seed" data-secret-field="totp_seed" type="password" autocomplete="off"></label>
-    <label class="check-row"><input type="checkbox" data-secret-field="save_to_vault" ${vaultSaveAllowed ? "checked" : "disabled"}> Save encrypted in Vault</label>
-    <div class="button-row"><button type="submit">Submit Credential</button></div>
+    <p class="flow-note">${t("secretNote")}</p>
+    <label>${t("username")} <input id="username" data-secret-field="username" autocomplete="username"></label>
+    <label>${t("password")} <input id="password" data-secret-field="password" type="password" autocomplete="current-password"></label>
+    <label>${t("totpSeed")} <input id="totp-seed" data-secret-field="totp_seed" type="password" autocomplete="off"></label>
+    <label class="check-row"><input type="checkbox" data-secret-field="save_to_vault" ${vaultSaveAllowed ? "checked" : "disabled"}> ${t("saveInVault")}</label>
+    <div class="button-row"><button type="submit">${t("submitCredential")}</button></div>
   `;
   [
-    ["username", "Username"],
-    ["password", "Password"],
-    ["totp_seed", "TOTP seed"]
+    ["username", t("username")],
+    ["password", t("password")],
+    ["totp_seed", t("totpSeed")]
   ].forEach(([field, fallback]) => {
     const input = form.querySelector(`[data-secret-field='${field}']`);
     if (!input) return;
@@ -1470,17 +1809,21 @@ function renderCredentialControls(request, item) {
 }
 
 function renderChallengeControls(request, item) {
+  if (request.status !== "pending") {
+    appendText(item, "p", t("challengeClosed", request.status), "flow-note");
+    return;
+  }
   const form = document.createElement("form");
   form.className = "secure-form";
   const isVisualChallenge = ["captcha", "passkey", "webauthn", "device_confirmation"].includes(request.request_type);
   form.innerHTML = isVisualChallenge ? `
-    <p class="flow-note">Challenge will be completed by you, not by the Agent. OmniDoer will not bypass CAPTCHA/MFA/Passkey/WebAuthn/3DS.</p>
-    <p class="flow-note">No challenge answer is submitted to OmniDoer. Complete the challenge in the controlled browser or external device, then mark it complete.</p>
-    <div class="button-row"><button type="submit">Mark User Completed</button></div>
+    <p class="flow-note">${t("challengeNote")}</p>
+    <p class="flow-note">${t("visualChallengeNote")}</p>
+    <div class="button-row"><button type="submit">${t("markUserCompleted")}</button></div>
   ` : `
-    <p class="flow-note">Challenge will be completed by you, not by the Agent. OmniDoer will not bypass CAPTCHA/MFA/Passkey/WebAuthn/3DS.</p>
+    <p class="flow-note">${t("challengeNote")}</p>
     <label>One-time code <input data-challenge-field="code" inputmode="numeric" autocomplete="one-time-code"></label>
-    <div class="button-row"><button type="submit">Submit Challenge</button></div>
+    <div class="button-row"><button type="submit">${t("submitChallenge")}</button></div>
   `;
   form.onsubmit = (event) => {
     event.preventDefault();
@@ -1498,6 +1841,10 @@ function renderChallengeControls(request, item) {
 }
 
 function renderTakeoverControls(request, item) {
+  if (request.status !== "user_control") {
+    appendText(item, "p", t("takeoverClosed", request.status), "flow-note");
+    return;
+  }
   const stream = document.querySelector("#browser-stream");
   startTakeoverFramePolling(request, stream);
   if (request.request_type === "account_registration") {
@@ -1569,18 +1916,18 @@ function renderApprovalControls(request, item) {
   const actions = document.createElement("div");
   actions.className = "button-row";
   const approve = document.createElement("button");
-  approve.textContent = "Approve";
+  approve.textContent = t("approve");
   approve.disabled = confirm ? true : !isActionable;
   if (confirm) confirm.onchange = () => { approve.disabled = !confirm.checked || !isActionable; };
   approve.onclick = () => {
     if (confirm && !confirm.checked) {
-      setStatus("Payment approval requires review", "Confirm the payment details before approving.");
+      setStatus(t("paymentReviewRequired"), t("paymentReviewRequiredDetail"));
       return;
     }
     postAction(request, "approve", confirm ? paymentApprovalConfirmationPayload(request) : null);
   };
   const deny = document.createElement("button");
-  deny.textContent = "Deny";
+  deny.textContent = t("deny");
   deny.disabled = !isActionable;
   deny.onclick = () => postAction(request, "deny");
   actions.append(deny, approve);
@@ -1589,7 +1936,8 @@ function renderApprovalControls(request, item) {
 
 function renderRequest(request) {
   const item = document.createElement("article");
-  item.className = `request request-${requestKind(request)}`;
+  item.className = `request request-${requestKind(request)} ${isOpenRequest(request) ? "request-open" : "request-closed"}`;
+  item.dataset.requestId = request.request_id;
   item.append(requestHeader(request));
   item.append(requestMetadata(request));
   if (request.request_type === "credential") {
@@ -1606,27 +1954,31 @@ function renderRequest(request) {
 
 function renderRequestList(requests, filter = activeFilter()) {
   const list = document.querySelector("#requests-list");
+  const capturedDrafts = captureRequestDrafts(list);
   list.innerHTML = "";
-  const visible = filter === "all" ? requests : requests.filter((request) => requestKind(request) === filter);
+  const openRequests = requests.filter(isOpenRequest);
+  const visible = requests.filter((request) => requestMatchesFilter(request, filter));
   syncTakeoverPanel(requests);
   updatePaymentApprovalPanel(requests);
   if (activeTakeoverFrameRequest && !requests.some((request) => request.request_id === activeTakeoverFrameRequest && request.status === "user_control")) {
     stopTakeoverFramePolling();
   }
-  document.querySelector("#runtime-counts").textContent = `Requests: ${requests.length}`;
+  document.querySelector("#runtime-counts").textContent = t("requestsCount", openRequests.length, requests.length);
   if (!visible.length) {
-    list.textContent = requests.length ? "No requests match this filter." : "No pending requests.";
+    list.textContent = requests.length ? t("noMatchingOpenRequests") : t("noOpenRequests");
+    restoreRequestDrafts(list, capturedDrafts);
     return;
   }
   visible.forEach((request) => list.append(renderRequest(request)));
+  restoreRequestDrafts(list, capturedDrafts);
 }
 
 async function loadRuntimeStatus() {
   try {
     const status = await fetch("/api/status", { cache: "no-store" }).then((r) => r.json());
-    setStatus(`Mode: ${status.mode}`, "Control Client does not call OpenAI APIs or models directly.");
+    setStatus(`Mode: ${status.mode}`, t("runtimeDetail"));
   } catch {
-    setStatus("Runtime offline", "Start omnidoer control serve.");
+    setStatus(t("runtimeOffline"), t("runtimeOfflineDetail"));
   }
 }
 
@@ -1639,7 +1991,7 @@ async function loadRequests() {
     cachedRequests = requests;
     renderRequestList(requests);
   } catch {
-    document.querySelector("#requests-list").textContent = "Pair this device to view requests in Cloud Direct Mode.";
+    document.querySelector("#requests-list").textContent = t("pairToViewRequests");
   }
 }
 
@@ -1679,7 +2031,7 @@ async function startRequestStream() {
     }
   } catch {
     if (!cachedRequests.length) {
-      document.querySelector("#requests-list").textContent = "Pair this device to receive signed request events in Cloud Direct Mode.";
+      document.querySelector("#requests-list").textContent = t("pairToReceiveEvents");
     }
   } finally {
     requestStreamActive = false;

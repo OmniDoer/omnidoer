@@ -3,10 +3,16 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
+from threading import Thread
+from pathlib import Path
 
+from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.tasks import TaskStore
 from omnidoer.omni_mcp.tools import ALLOWED_TOOLS, call_tool, forbidden_tool_names
+from omnidoer.omni_control.cloud import build_config
+from omnidoer.omni_control.runtime import record_control_service_runtime
 
 
 class McpToolsTest(unittest.TestCase):
@@ -20,6 +26,7 @@ class McpToolsTest(unittest.TestCase):
         self.assertIn("browser.select", ALLOWED_TOOLS)
         self.assertIn("browser.upload_file", ALLOWED_TOOLS)
         self.assertIn("control.create_pairing", ALLOWED_TOOLS)
+        self.assertIn("control.wait_request", ALLOWED_TOOLS)
         self.assertIn("control.next_user_task", ALLOWED_TOOLS)
 
     def test_tool_result_status_only(self) -> None:
@@ -57,11 +64,75 @@ class McpToolsTest(unittest.TestCase):
                 )
                 self.assertEqual(result["status"], "pairing_created")
                 self.assertIn("https://agent.example.com/pair?code=", result["pairing_url"])
+                self.assertIn("##", result["qr_ascii"])
                 self.assertTrue(result["one_time_pairing"])
                 self.assertTrue(result["paired_sessions_are_cached"])
                 self.assertTrue(result["pairing_code_model_visible"])
                 self.assertFalse(result["secret_exposed_to_model"])
                 self.assertNotIn("session_token", repr(result))
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_create_pairing_tool_uses_running_control_service_public_url(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            old_public_url = os.environ.get("OMNIDOER_CONTROL_PUBLIC_URL")
+            os.environ["OMNIDOER_HOME"] = tmp
+            os.environ.pop("OMNIDOER_CONTROL_PUBLIC_URL", None)
+            try:
+                record_control_service_runtime(
+                    build_config(
+                        host="0.0.0.0",
+                        port=8787,
+                        cloud_direct=True,
+                        public_url="https://agent.example.com",
+                        tls_self_signed_dev=True,
+                    )
+                )
+                result = call_tool("control.create_pairing", {"expires": "30m"})
+                self.assertEqual(result["status"], "pairing_created")
+                self.assertIn("https://agent.example.com/pair?code=", result["pairing_url"])
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+                if old_public_url is None:
+                    os.environ.pop("OMNIDOER_CONTROL_PUBLIC_URL", None)
+                else:
+                    os.environ["OMNIDOER_CONTROL_PUBLIC_URL"] = old_public_url
+
+    def test_wait_request_returns_after_control_client_submission_without_secret(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                store = RequestStore(Path(tmp) / "control_requests.json")
+                request = store.create(
+                    "credential",
+                    origin="https://github.com",
+                    top_level_url="https://github.com/settings/tokens",
+                    action_summary="Migrate PAT",
+                )
+
+                def submit_later() -> None:
+                    time.sleep(0.2)
+                    store.submit_ciphertext(request.request_id, {"ciphertext": "secret-never-echo"})
+
+                worker = Thread(target=submit_later)
+                worker.start()
+                result = call_tool(
+                    "control.wait_request",
+                    {"request_id": request.request_id, "timeout": "2s", "require_ciphertext": True},
+                )
+                worker.join(timeout=2)
+                self.assertEqual(result["status"], "ok")
+                self.assertTrue(result["completed_by_user"])
+                self.assertTrue(result["has_ciphertext"])
+                self.assertNotIn("secret-never-echo", repr(result))
             finally:
                 if old_home is None:
                     os.environ.pop("OMNIDOER_HOME", None)

@@ -6,6 +6,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -162,6 +163,26 @@ class CliTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("pairing_url=https://agent.example.com/pair", result.stdout)
             self.assertNotIn("qr_ascii_begin", result.stdout)
+
+    def test_top_level_pair_uses_running_control_service_public_url(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime = {
+                "host": "0.0.0.0",
+                "port": 8787,
+                "public_url": "https://agent.example.com",
+                "public_origin": "https://agent.example.com",
+                "mode": "cloud_direct",
+                "cloud_direct": True,
+                "pid": os.getpid(),
+                "updated_at": time.time(),
+            }
+            (Path(tmp) / "control_service.json").write_text(json.dumps(runtime))
+            result = self.run_cli(
+                ["pair", "--no-qr", "--expires", "10m"],
+                env={"OMNIDOER_HOME": tmp, "OMNIDOER_CONTROL_PUBLIC_URL": ""},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("pairing_url=https://agent.example.com/pair", result.stdout)
 
     def test_update_prompt_skip_once_env_prevents_reexec_loop(self) -> None:
         with (
@@ -529,6 +550,57 @@ class CliTest(unittest.TestCase):
             self.assertNotIn("github_pat_existing_wait_never_echo", vault_path.read_text())
             metadata = Vault.load(vault_path).list_metadata()[0]
             self.assertEqual(metadata.allowed_origins, ["https://github.com"])
+
+    def test_control_wait_request_resumes_after_control_client_submission(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            env = os.environ.copy()
+            env.update({"OMNIDOER_HOME": tmp})
+            store = RequestStore(Path(tmp) / "control_requests.json")
+            request = store.create(
+                "credential",
+                origin="https://github.com",
+                top_level_url="https://github.com/settings/tokens",
+                action_summary="Migrate GitHub PAT",
+            )
+            proc = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "omnidoer.omni_cli.main",
+                    "control",
+                    "wait-request",
+                    request.request_id,
+                    "--timeout",
+                    "5s",
+                ],
+                cwd=Path(__file__).resolve().parents[1],
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            stdout_lines = []
+            while proc.stdout is not None:
+                line = proc.stdout.readline()
+                if not line:
+                    break
+                stdout_lines.append(line)
+                if "waiting_for_control_client=true" in line:
+                    break
+            try:
+                store.submit_ciphertext(request.request_id, {"ciphertext": "wait-request-secret-never-echo"})
+                stdout_rest, stderr = proc.communicate(timeout=10)
+            finally:
+                if proc.poll() is None:
+                    proc.kill()
+                    proc.communicate()
+            self.assertEqual(proc.returncode, 0, stderr)
+            combined = "".join(stdout_lines) + stdout_rest + stderr
+            self.assertIn("request_completed=true", combined)
+            self.assertIn("status=fulfilled", combined)
+            self.assertIn("completed_by_user=true", combined)
+            self.assertIn("has_ciphertext=true", combined)
+            self.assertNotIn("wait-request-secret-never-echo", combined)
 
     def test_git_run_uses_vault_askpass_without_echoing_token(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

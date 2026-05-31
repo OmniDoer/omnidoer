@@ -35,11 +35,11 @@ const SIDE_SLASH_COMMAND_UNAVAILABLE_HINT: &str =
 const GOAL_USAGE: &str = "Usage: /goal <objective>";
 const GOAL_USAGE_HINT: &str = "Example: /goal improve benchmark coverage";
 const PAIR_PROMPT: &str = concat!(
-    "Create a short-lived OmniDoer Control Client pairing link using the ",
+    "Create a short-lived OmniDoer Control Client pairing QR code using the ",
     "`control.create_pairing` MCP tool. Use the configured public URL if ",
-    "available and a 60 minute expiry. Show only the HTTPS pairing URL, ",
-    "expiry, and a short reminder that pairing is one-time while later ",
-    "device sessions are cached and revocable."
+    "available and a 60 minute expiry. Show the ASCII QR code first, then ",
+    "the HTTPS pairing URL, expiry, and a short reminder that pairing is ",
+    "one-time while later device sessions are cached and revocable."
 );
 const RAW_USAGE: &str = "Usage: /raw [on|off]";
 

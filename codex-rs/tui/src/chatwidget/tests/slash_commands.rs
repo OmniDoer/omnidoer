@@ -607,6 +607,7 @@ async fn slash_pair_submits_control_pairing_prompt() {
         Op::UserTurn { items, .. } => match &items[..] {
             [UserInput::Text { text, .. }] => {
                 assert!(text.contains("control.create_pairing"));
+                assert!(text.contains("ASCII QR code"));
                 assert!(text.contains("60 minute expiry"));
                 assert!(text.contains("device sessions are cached"));
             }

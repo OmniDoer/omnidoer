@@ -1,0 +1,19 @@
+{
+  "name": "@omnidoer/omnidoer",
+  "version": "0.1.0",
+  "description": "NPM bootstrap for the OmniDoer CLI and local control runtime.",
+  "license": "Apache-2.0",
+  "bin": {
+    "omnidoer": "bin/omnidoer.js"
+  },
+  "files": [
+    "bin/",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

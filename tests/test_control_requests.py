@@ -4,7 +4,7 @@ import unittest
 import stat
 from pathlib import Path
 
-from omnidoer.omni_control.requests import RequestStore
+from omnidoer.omni_control.requests import RequestStore, wait_for_request_completion
 from omnidoer.omni_takeover.models import InputEvent
 
 
@@ -65,6 +65,24 @@ class ControlRequestTest(unittest.TestCase):
         self.store.submit_ciphertext(req.request_id, {"ciphertext": "opaque"})
         with self.assertRaises(ValueError):
             self.store.submit_ciphertext(req.request_id, {"ciphertext": "opaque"})
+
+    def test_completion_is_audited_and_waitable_without_exposing_ciphertext(self) -> None:
+        req = self.store.create(
+            "credential",
+            origin="https://github.com",
+            top_level_url="https://github.com/settings/tokens",
+            action_summary="Migrate PAT",
+        )
+        self.store.submit_ciphertext(req.request_id, {"ciphertext": "secret-never-echo"})
+        completed = wait_for_request_completion(req.request_id, store=self.store, require_ciphertext=True)
+        public = completed.to_public_dict()
+        self.assertEqual(completed.status, "fulfilled")
+        self.assertNotIn("response_ciphertext", public)
+        audit = (Path(self.tmp.name) / "audit.log").read_text()
+        self.assertIn("control_request_created", audit)
+        self.assertIn("control_request_completed", audit)
+        self.assertIn('"has_ciphertext": true', audit)
+        self.assertNotIn("secret-never-echo", audit)
 
     def test_expired_requests_cannot_transition(self) -> None:
         approval = self.store.create(

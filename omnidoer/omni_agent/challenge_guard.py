@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import os
-import time
 from dataclasses import dataclass
 from typing import Protocol
 
 from omnidoer.omni_audit.audit import AuditLog
 from omnidoer.omni_challenge.relay import ChallengeRelay, complete_in_test_mode as complete_challenge
 from omnidoer.omni_challenge.relay import request_user_interaction
-from omnidoer.omni_control.requests import RequestStore
+from omnidoer.omni_control.requests import ABORTED_REQUEST_STATUSES, RequestStore, wait_for_request_completion
 from omnidoer.omni_control.secure_channel import ReplayGuard
 from omnidoer.omni_takeover.input_events import parse_actions
 from omnidoer.omni_takeover.models import InputEvent
@@ -67,9 +66,6 @@ TAKEOVER_FOCUS_SELECTOR = {
     "webauthn": "#passkey",
     "device_confirmation": "#passkey",
 }
-
-ABORTED_REQUEST_STATUSES = {"denied", "expired", "cancelled", "rejected", "failed"}
-
 
 @dataclass(frozen=True)
 class ChallengeResolution:
@@ -255,28 +251,32 @@ def _submit_current_form(browser: GuardBrowser) -> None:
 
 
 def _wait_for_ciphertext(store: RequestStore, request_id: str, *, timeout_seconds: int) -> None:
-    deadline = time.time() + timeout_seconds
-    while time.time() < deadline:
-        request = store.get(request_id)
-        if request.response_ciphertext is not None:
-            return
-        if request.status in ABORTED_REQUEST_STATUSES:
-            AuditLog().append("agent_challenge_wait_aborted", request_id=request_id, status=request.status)
-            raise RuntimeError(f"Control Client challenge request ended: {request.status}")
-        time.sleep(0.5)
-    AuditLog().append("agent_challenge_wait_timeout", request_id=request_id, status="timeout")
-    raise TimeoutError("timed out waiting for Control Client challenge response")
+    try:
+        request = wait_for_request_completion(
+            request_id,
+            store=store,
+            timeout_seconds=timeout_seconds,
+            require_ciphertext=True,
+        )
+    except TimeoutError:
+        AuditLog().append("agent_challenge_wait_timeout", request_id=request_id, status="timeout")
+        raise TimeoutError("timed out waiting for Control Client challenge response")
+    if request.status in ABORTED_REQUEST_STATUSES:
+        AuditLog().append("agent_challenge_wait_aborted", request_id=request_id, status=request.status)
+        raise RuntimeError(f"Control Client challenge request ended: {request.status}")
 
 
 def _wait_for_release(store: RequestStore, request_id: str, *, timeout_seconds: int) -> None:
-    deadline = time.time() + timeout_seconds
-    while time.time() < deadline:
-        request = store.get(request_id)
-        if request.status == "released":
-            return
-        if request.status in ABORTED_REQUEST_STATUSES:
-            AuditLog().append("agent_takeover_wait_aborted", request_id=request_id, status=request.status)
-            raise RuntimeError(f"Control Client takeover request ended: {request.status}")
-        time.sleep(0.5)
-    AuditLog().append("agent_takeover_wait_timeout", request_id=request_id, status="timeout")
-    raise TimeoutError("timed out waiting for Control Client release")
+    try:
+        request = wait_for_request_completion(
+            request_id,
+            store=store,
+            timeout_seconds=timeout_seconds,
+            terminal_statuses={"released"},
+        )
+    except TimeoutError:
+        AuditLog().append("agent_takeover_wait_timeout", request_id=request_id, status="timeout")
+        raise TimeoutError("timed out waiting for Control Client release")
+    if request.status in ABORTED_REQUEST_STATUSES:
+        AuditLog().append("agent_takeover_wait_aborted", request_id=request_id, status=request.status)
+        raise RuntimeError(f"Control Client takeover request ended: {request.status}")

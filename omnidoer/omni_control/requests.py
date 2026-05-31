@@ -9,6 +9,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from omnidoer.omni_audit.audit import AuditLog
 from omnidoer.omni_observer.redactor import redact_dom_snapshot
 from omnidoer.omni_takeover.models import InputEvent
 from omnidoer.paths import state_file
@@ -38,6 +39,8 @@ REQUEST_TYPES = {
 
 EXPIRABLE_STATUSES = {"pending", "user_control", "fulfilled", "approved"}
 TAKEOVER_FRAME_MAX_AGE_SECONDS = 30.0
+COMPLETED_REQUEST_STATUSES = {"fulfilled", "approved", "denied", "released", "challenge_completed"}
+ABORTED_REQUEST_STATUSES = {"denied", "expired", "cancelled", "rejected", "failed"}
 
 
 @dataclass
@@ -85,9 +88,10 @@ class ControlRequest:
 
 
 class RequestStore:
-    def __init__(self, path: Path | None = None):
+    def __init__(self, path: Path | None = None, *, audit: AuditLog | None = None):
         self.path = path or state_file("control_requests.json")
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.audit = audit or AuditLog(self.path.with_name("audit.log") if path is not None else None)
 
     def _load(self) -> dict[str, ControlRequest]:
         if not self.path.exists():
@@ -101,6 +105,18 @@ class RequestStore:
         tmp.write_text(json.dumps(serializable, indent=2, sort_keys=True))
         tmp.replace(self.path)
         self.path.chmod(0o600)
+
+    def _audit_transition(self, event_type: str, request: ControlRequest, *, previous_status: str | None = None) -> None:
+        self.audit.append(
+            event_type,
+            request_id=request.request_id,
+            request_type=request.request_type,
+            origin=request.origin,
+            previous_status=previous_status,
+            status=request.status,
+            completed_by_user=request.completed_by_user,
+            has_ciphertext=request.response_ciphertext is not None,
+        )
 
     def _expire_if_needed(self, request: ControlRequest) -> bool:
         if request.status in EXPIRABLE_STATUSES and request.is_expired():
@@ -164,6 +180,7 @@ class RequestStore:
         requests = self._load()
         requests[request.request_id] = request
         self._save(requests)
+        self._audit_transition("control_request_created", request)
         return request
 
     def get(self, request_id: str) -> ControlRequest:
@@ -179,9 +196,16 @@ class RequestStore:
 
     def update(self, request: ControlRequest) -> ControlRequest:
         requests = self._load()
+        previous = requests.get(request.request_id)
+        previous_status = previous.status if previous else None
+        had_ciphertext = previous.response_ciphertext is not None if previous else False
         request.updated_at = time.time()
         requests[request.request_id] = request
         self._save(requests)
+        became_terminal = previous_status != request.status and request.status in COMPLETED_REQUEST_STATUSES | {"expired"}
+        received_ciphertext = not had_ciphertext and request.response_ciphertext is not None
+        if became_terminal or received_ciphertext:
+            self._audit_transition("control_request_completed", request, previous_status=previous_status)
         return request
 
     def _ensure_actionable(self, request: ControlRequest, *, allow_fulfilled: bool = False) -> None:
@@ -292,3 +316,34 @@ class RequestStore:
         request.status = "consumed"
         request.used = True
         return self.update(request)
+
+
+def wait_for_request_completion(
+    request_id: str,
+    *,
+    store: RequestStore | None = None,
+    timeout_seconds: float = 300,
+    poll_interval_seconds: float = 0.5,
+    require_ciphertext: bool = False,
+    terminal_statuses: set[str] | None = None,
+) -> ControlRequest:
+    """Wait until a user-driven Control Request reaches an actionable state.
+
+    The returned request is still public-safe by default. Callers that need to
+    use encrypted payloads must pass them to the Broker/Challenge Relay instead
+    of returning decrypted fields to the model.
+    """
+
+    store = store or RequestStore()
+    deadline = time.time() + timeout_seconds
+    statuses = terminal_statuses or COMPLETED_REQUEST_STATUSES
+    while time.time() < deadline:
+        request = store.get(request_id)
+        if request.response_ciphertext is not None:
+            return request
+        if request.status in statuses and not require_ciphertext:
+            return request
+        if request.status in ABORTED_REQUEST_STATUSES:
+            return request
+        time.sleep(poll_interval_seconds)
+    raise TimeoutError("timed out waiting for Control Client request")

@@ -5,30 +5,19 @@ from __future__ import annotations
 import getpass
 import json
 import os
-import time
 from pathlib import Path
 
 from omnidoer.omni_broker.broker import SecretBroker
 from omnidoer.omni_control.pairing import parse_duration_seconds
-from omnidoer.omni_control.requests import RequestStore
+from omnidoer.omni_control.requests import ABORTED_REQUEST_STATUSES, RequestStore, wait_for_request_completion
 from omnidoer.omni_control.secure_channel import ReplayGuard, load_or_create_keypair
 from omnidoer.omni_vault.vault import Vault, _passphrase_from_source
 
 
-ABORTED_REQUEST_STATUSES = {"denied", "expired", "cancelled", "rejected", "failed"}
-
-
 def _wait_for_encrypted_response(request_id: str, *, timeout_seconds: int) -> None:
-    store = RequestStore()
-    deadline = time.time() + timeout_seconds
-    while time.time() < deadline:
-        request = store.get(request_id)
-        if request.response_ciphertext:
-            return
-        if request.status in ABORTED_REQUEST_STATUSES:
-            raise RuntimeError(f"credential request ended: {request.status}")
-        time.sleep(0.5)
-    raise TimeoutError("timed out waiting for Control Client credential response")
+    request = wait_for_request_completion(request_id, timeout_seconds=timeout_seconds, require_ciphertext=True)
+    if request.status in ABORTED_REQUEST_STATUSES:
+        raise RuntimeError(f"credential request ended: {request.status}")
 
 
 def _ensure_vault_for_save(path: str, passphrase: str, *, create_vault: bool) -> None:

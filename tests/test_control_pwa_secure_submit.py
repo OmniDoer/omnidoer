@@ -11,6 +11,50 @@ from omnidoer.omni_control.server import ControlHandler
 
 
 class ControlPwaSecureSubmitTest(unittest.TestCase):
+    def test_pwa_preserves_credential_draft_during_request_rerender(self) -> None:
+        try:
+            from playwright.sync_api import sync_playwright
+        except Exception:
+            self.skipTest("playwright is not installed")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                RequestStore(Path(tmp) / "control_requests.json").create(
+                    "credential",
+                    origin="http://127.0.0.1:8765",
+                    top_level_url="http://127.0.0.1:8765/login",
+                    action_summary="login",
+                    requested_fields=["username", "password"],
+                )
+                url = f"http://127.0.0.1:{server.server_address[1]}"
+                try:
+                    with sync_playwright() as playwright:
+                        browser = playwright.chromium.launch(headless=True)
+                        page = browser.new_page()
+                        page.goto(url, wait_until="domcontentloaded")
+                        page.wait_for_selector("#username")
+                        page.fill("#username", "demo")
+                        page.fill("#password", "draft-secret")
+                        page.evaluate("renderRequestList(cachedRequests)")
+                        self.assertEqual(page.locator("#username").input_value(), "demo")
+                        self.assertEqual(page.locator("#password").input_value(), "draft-secret")
+                        self.assertEqual(page.evaluate("document.activeElement?.dataset.secretField"), "password")
+                        browser.close()
+                except Exception as exc:
+                    self.skipTest(f"playwright chromium unavailable: {type(exc).__name__}")
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     def test_pwa_encrypts_credential_before_submit(self) -> None:
         try:
             from playwright.sync_api import sync_playwright

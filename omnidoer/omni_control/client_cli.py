@@ -9,7 +9,8 @@ import os
 from omnidoer.omni_control.cloud import build_config, security_status
 from omnidoer.omni_control.devices import DeviceStore
 from omnidoer.omni_control.pairing import PairingStore, parse_duration_seconds, pairing_url, qr_text
-from omnidoer.omni_control.requests import RequestStore
+from omnidoer.omni_control.requests import RequestStore, wait_for_request_completion
+from omnidoer.omni_control.runtime import resolve_pairing_public_url
 from omnidoer.omni_control.secure_channel import encrypt_for_broker, load_or_create_keypair
 from omnidoer.omni_control.server import serve
 from omnidoer.omni_control.sessions import SessionStore
@@ -17,7 +18,7 @@ from omnidoer.omni_control.tasks import TaskStore
 
 
 def print_pairing_invite(*, public_url: str | None = None, expires: str = "10m", print_qr: bool = True) -> None:
-    public_url = public_url or os.environ.get("OMNIDOER_CONTROL_PUBLIC_URL") or "http://127.0.0.1:8787"
+    public_url = resolve_pairing_public_url(public_url)
     pairing = PairingStore().create(public_url=public_url, ttl_seconds=parse_duration_seconds(expires))
     print("OmniDoer Control Client pairing")
     print(f"pairing_url={pairing_url(pairing)}")
@@ -134,6 +135,19 @@ def handle_control_command(args) -> int:
             insecure_dev_public=os.environ.get("OMNIDOER_CONTROL_INSECURE_DEV_PUBLIC") == "1",
         )
         print(json.dumps(security_status(config), indent=2, sort_keys=True))
+        return 0
+    if command == "wait-request":
+        print("waiting_for_control_client=true", flush=True)
+        request = wait_for_request_completion(
+            args.request_id,
+            timeout_seconds=parse_duration_seconds(args.timeout),
+        )
+        print(f"request_id={request.request_id}")
+        print("request_completed=true")
+        print(f"status={request.status}")
+        print(f"completed_by_user={str(request.completed_by_user).lower()}")
+        print(f"has_ciphertext={str(request.response_ciphertext is not None).lower()}")
+        print("secret_exposed_to_model=false")
         return 0
     if command == "tui":
         print("OmniDoer Control TUI")
