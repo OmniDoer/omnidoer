@@ -7,6 +7,8 @@ const I18N = {
     navDevices: "Devices",
     navSecurity: "Security",
     navTakeover: "Takeover",
+    takeoverTabLive: "Live",
+    takeoverTabPreview: "View",
     navPayments: "Payments",
     navPair: "Pair",
     checkingRuntime: "Checking runtime...",
@@ -209,6 +211,8 @@ const I18N = {
     navDevices: "设备",
     navSecurity: "安全",
     navTakeover: "接管",
+    takeoverTabLive: "实时",
+    takeoverTabPreview: "可看",
     navPayments: "支付",
     navPair: "配对",
     checkingRuntime: "正在检查运行状态...",
@@ -563,6 +567,7 @@ function applyLanguage() {
   setButtonText("#deny", "deny");
   updateAgentControlButtons();
   updateChatSessionStatus(cachedRuntimeStatus?.chat_runner || null);
+  updateTakeoverTabBadge(findActiveTakeoverRequest(cachedRequests), activeBrowserContext());
 }
 
 function initialPanelId() {
@@ -615,6 +620,18 @@ function updateRequestsTabBadge(openCount, totalCount) {
   link.dataset.count = String(openCount);
   link.dataset.total = String(totalCount);
   link.classList.toggle("has-open-requests", openCount > 0);
+}
+
+function updateTakeoverTabBadge(request = null, context = null) {
+  const link = document.querySelector('a[href="#takeover-panel"]');
+  if (!link) return;
+  const hasActiveTakeover = Boolean(request && request.status === "user_control");
+  const hasBrowserPreview = !hasActiveTakeover && Boolean(context?.active && context?.current_url);
+  link.classList.toggle("has-active-takeover", hasActiveTakeover);
+  link.classList.toggle("has-browser-preview", hasBrowserPreview);
+  link.dataset.badge = hasActiveTakeover ? t("takeoverTabLive") : hasBrowserPreview ? t("takeoverTabPreview") : "";
+  link.dataset.browserContextId = hasActiveTakeover ? request.browser_context_id || "" : hasBrowserPreview ? context.browser_context_id || "" : "";
+  document.body.dataset.browserHandoffState = hasActiveTakeover ? "active_takeover" : hasBrowserPreview ? "preview" : "idle";
 }
 
 const main = document.querySelector("main");
@@ -1310,11 +1327,12 @@ function updateTakeoverPanel(request, frame = null, message = null) {
 function syncTakeoverPanel(requests) {
   const stream = document.querySelector("#browser-stream");
   const request = findActiveTakeoverRequest(requests);
+  const context = activeBrowserContext();
+  updateTakeoverTabBadge(request, context);
   if (!stream) return;
   if (!request) {
     stopTakeoverFramePolling();
     updateTakeoverPanel(null);
-    const context = activeBrowserContext();
     if (context) {
       setFieldText("#takeover-current-url", context.current_url || context.origin, "pending");
       setFieldText("#takeover-frame-meta", context.browser_context_id, "waiting for browser handoff");
