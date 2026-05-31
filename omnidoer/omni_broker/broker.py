@@ -138,7 +138,7 @@ class SecretBroker:
         request_id: str,
         *,
         browser_controller,
-        username_selector: str = "input[autocomplete='username'], input[name='email'], input[name='username'], #email, #username",
+        username_selector: str = "input[autocomplete='username'], input[name='email'], input[name='username'], input[name='acct'], #email, #username",
         password_selector: str = "input[type='password']",
     ) -> dict:
         request = self.store.get(request_id)

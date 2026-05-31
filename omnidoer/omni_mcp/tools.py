@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 ALLOWED_TOOLS = [
     "browser.open",
@@ -122,6 +123,11 @@ def _vault_path(arguments: dict) -> str:
 
 def _vault_passphrase(arguments: dict) -> str | None:
     env_name = arguments.get("passphrase_env") or os.environ.get("OMNIDOER_VAULT_PASSPHRASE_ENV")
+    file_path = arguments.get("passphrase_file") or os.environ.get("OMNIDOER_VAULT_PASSPHRASE_FILE")
+    if env_name and file_path:
+        raise ValueError("use either passphrase_env or passphrase_file, not both")
+    if file_path:
+        return Path(str(file_path)).read_text().splitlines()[0]
     if env_name:
         return os.environ.get(str(env_name))
     return None
@@ -503,18 +509,45 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
             ]
         return {"status": "ok", "origin": origin, "credentials": credentials, "secret_exposed_to_model": False}
     if name in {"credential.fill_current_origin_login", "credential.fill_current_origin_totp"}:
-        from omnidoer.omni_broker.broker import validate_fill
+        from omnidoer.omni_broker.broker import SecretBroker, validate_fill
         from omnidoer.omni_mcp.runtime import get_browser
         from omnidoer.omni_vault.vault import Vault
 
-        passphrase = _vault_passphrase(arguments)
-        if passphrase is None:
-            return _error("locked", "passphrase_env is required for vault-backed MCP fill")
         browser = get_browser()
         current_url = browser.current_url()
         current_origin = browser.current_origin()
         if not current_origin:
             return _error("error", "active browser origin required")
+        username_selector = str(
+            arguments.get("username_selector")
+            or "input[autocomplete='username'], input[name='email'], input[name='username'], input[name='acct'], #email, #username"
+        )
+        password_selector = str(arguments.get("password_selector") or "input[type='password']")
+        request_id = arguments.get("request_id")
+        if request_id:
+            if name != "credential.fill_current_origin_login":
+                return _error("unsupported", "request_id fill is only supported for login credentials")
+            try:
+                return SecretBroker().fill_after_receive(
+                    str(request_id),
+                    browser_controller=browser,
+                    username_selector=username_selector,
+                    password_selector=password_selector,
+                )
+            except PermissionError as exc:
+                return {"status": "blocked", "reason": str(exc), "secret_exposed_to_model": False}
+            except KeyError:
+                return _error("not_found", "credential request not found")
+            except ValueError as exc:
+                return _error("unavailable", str(exc))
+            except Exception as exc:
+                return _error("unavailable", type(exc).__name__)
+        try:
+            passphrase = _vault_passphrase(arguments)
+        except Exception as exc:
+            return _error("locked", str(exc))
+        if passphrase is None:
+            return _error("locked", "passphrase_env or passphrase_file is required for vault-backed MCP fill")
         vault = Vault.load(_vault_path(arguments), passphrase)
         credential_id = arguments.get("credential_id")
         metadata_items = vault.list_metadata()
@@ -534,11 +567,6 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
         except Exception as exc:
             return _error("unavailable", type(exc).__name__)
         if name == "credential.fill_current_origin_login":
-            username_selector = str(
-                arguments.get("username_selector")
-                or "input[autocomplete='username'], input[name='email'], input[name='username'], #email, #username"
-            )
-            password_selector = str(arguments.get("password_selector") or "input[type='password']")
             browser.fill_field(username_selector, secret.username, secret=True)
             browser.fill_field(password_selector, secret.password, secret=True)
             return {

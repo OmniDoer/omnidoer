@@ -8,6 +8,7 @@ from urllib.parse import quote
 from omnidoer.omni_mcp.runtime import get_browser, reset_runtime_for_tests
 from omnidoer.omni_mcp.tools import call_tool
 from omnidoer.omni_control.requests import RequestStore
+from omnidoer.omni_control.secure_channel import encrypt_for_broker, load_or_create_keypair
 from omnidoer.omni_vault.vault import Vault
 from tests.util_demo import DemoServerFixture
 
@@ -163,6 +164,8 @@ class McpBrowserToolsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, DemoServerFixture() as demo:
             vault_path = Path(tmp) / "vault.json"
             passphrase_env = "OMNIDOER_TEST_MCP_VAULT_PASSPHRASE"
+            passphrase_file = Path(tmp) / "vault-passphrase"
+            passphrase_file.write_text("test-passphrase\n")
             old_passphrase = os.environ.get(passphrase_env)
             os.environ[passphrase_env] = "test-passphrase"
             try:
@@ -180,7 +183,7 @@ class McpBrowserToolsTest(unittest.TestCase):
                 self.assertEqual(listed["credentials"][0]["credential_id"], credential_id)
                 filled = call_tool(
                     "credential.fill_current_origin_login",
-                    {"credential_id": credential_id, "vault_path": str(vault_path), "passphrase_env": passphrase_env},
+                    {"credential_id": credential_id, "vault_path": str(vault_path), "passphrase_file": str(passphrase_file)},
                 )
                 self.assertEqual(filled["status"], "credential_received_and_filled")
                 self.assertNotIn("mcp-vault-password", repr(filled))
@@ -191,6 +194,42 @@ class McpBrowserToolsTest(unittest.TestCase):
                     os.environ.pop(passphrase_env, None)
                 else:
                     os.environ[passphrase_env] = old_passphrase
+
+    def test_mcp_credential_fill_accepts_one_time_request_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, DemoServerFixture() as demo:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                keypair = load_or_create_keypair()
+                request = RequestStore().create(
+                    "credential",
+                    origin=demo.origin,
+                    top_level_url=f"{demo.origin}/login",
+                    action_summary="one-time login",
+                    requested_fields=["username", "password"],
+                    save_to_vault=False,
+                )
+                envelope = encrypt_for_broker(
+                    keypair.public_key_b64,
+                    {"username": "demo", "password": "one-time-mcp-password"},
+                    request_id=request.request_id,
+                    origin=request.origin,
+                    request_type=request.request_type,
+                )
+                RequestStore().submit_ciphertext(request.request_id, envelope)
+                opened = call_tool("browser.open", {"url": f"{demo.origin}/login"})
+                if opened.get("status") == "unavailable":
+                    self.skipTest("playwright chromium unavailable")
+                filled = call_tool("credential.fill_current_origin_login", {"request_id": request.request_id})
+                self.assertEqual(filled["status"], "credential_received_and_filled")
+                self.assertNotIn("one-time-mcp-password", repr(filled))
+                observation = call_tool("browser.observe", {})
+                self.assertNotIn("one-time-mcp-password", repr(observation))
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
 
 
 if __name__ == "__main__":
