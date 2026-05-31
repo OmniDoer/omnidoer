@@ -151,14 +151,14 @@ Security and autonomy are intentionally coupled:
 
 #### Practical comparison
 
-| Stage | OpenClaw/macros | Prompt-only Codex | OmniDoer |
-|---|---|---|---|
-| Repetitive page workflows | ✅ high throughput | ✅ with manual prompting | ✅ with Codex planning and MCP execution |
-| Anti-bot, CAPTCHA, or passkey | ❌ usually blocked | ⚠️ can detect intent but no safe execution boundary | ✅ pauses and streams the live browser to the user for completion |
-| Registration, account recovery, consent | ❌ cannot complete without unsafe automation | ⚠️ can draft steps, not safely execute | ✅ user-completion handoff through the same Cloud Direct stream |
-| Payments, purchases, account changes | ❌ unsafe if automated | ⚠️ can overact without explicit approval flow | ✅ scoped approval gate with replay protection |
-| Secret custody | Usually local text/clipboard workflows | Not designed for secret custody | ✅ Vault/Broker policy boundary, secrets never enter model context |
-| Audit and compliance evidence | ⚠️ weak/implicit | ⚠️ mostly tool-level logs | ✅ tamper-evident redacted audit trail |
+| Stage                                   | OpenClaw/macros                              | Prompt-only Codex                                   | OmniDoer                                                           |
+| --------------------------------------- | -------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------ |
+| Repetitive page workflows               | ✅ high throughput                           | ✅ with manual prompting                            | ✅ with Codex planning and MCP execution                           |
+| Anti-bot, CAPTCHA, or passkey           | ❌ usually blocked                           | ⚠️ can detect intent but no safe execution boundary | ✅ pauses and streams the live browser to the user for completion  |
+| Registration, account recovery, consent | ❌ cannot complete without unsafe automation | ⚠️ can draft steps, not safely execute              | ✅ user-completion handoff through the same Cloud Direct stream    |
+| Payments, purchases, account changes    | ❌ unsafe if automated                       | ⚠️ can overact without explicit approval flow       | ✅ scoped approval gate with replay protection                     |
+| Secret custody                          | Usually local text/clipboard workflows       | Not designed for secret custody                     | ✅ Vault/Broker policy boundary, secrets never enter model context |
+| Audit and compliance evidence           | ⚠️ weak/implicit                             | ⚠️ mostly tool-level logs                           | ✅ tamper-evident redacted audit trail                             |
 
 ### Why this design solves the hard part
 
