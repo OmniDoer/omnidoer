@@ -113,6 +113,9 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("Requests load automatically; pair again only if this session expires or is revoked.", app)
         self.assertIn("this browser reuses its cached session", app)
         self.assertIn("Cached pairing cannot access this Control Service", app)
+        self.assertIn("initialPairingCode", app)
+        self.assertIn("initialPairingId", app)
+        self.assertIn("window.history.replaceState", app)
 
     def test_request_stream_uses_signed_fetch_not_eventsource(self) -> None:
         app = (static_root() / "app.js").read_text()

@@ -42,6 +42,8 @@ class ControlPwaCachedSessionTest(unittest.TestCase):
                             self.skipTest(f"playwright browser unavailable: {type(exc).__name__}")
                         page = browser.new_page(viewport={"width": 390, "height": 844})
                         page.goto(f"{base}/pair?code={pairing.code}&pairing_id={pairing.pairing_id}", wait_until="domcontentloaded")
+                        self.assertEqual(page.evaluate("window.location.search"), "")
+                        self.assertEqual(page.locator("#pairing-code").input_value(), pairing.code)
                         page.click("#pair-device")
                         expect(page.locator("#pairing-status")).to_contain_text("Paired PWA Control Client", timeout=5000)
                         device_id = page.evaluate("localStorage.getItem('omnidoer_device_id')")

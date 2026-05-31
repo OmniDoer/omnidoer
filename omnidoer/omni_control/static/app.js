@@ -137,14 +137,19 @@ let activePaymentApprovalRequest = null;
 let renderedPaymentApprovalRequestId = null;
 
 const urlParams = new URLSearchParams(window.location.search);
-if (urlParams.get("code")) {
-  document.querySelector("#pairing-code").value = urlParams.get("code");
-  document.querySelector("#pairing-code-preview").textContent = urlParams.get("code");
+const initialPairingCode = urlParams.get("code");
+const initialPairingId = urlParams.get("pairing_id");
+if (initialPairingCode) {
+  document.querySelector("#pairing-code").value = initialPairingCode;
+  document.querySelector("#pairing-code-preview").textContent = initialPairingCode;
 }
-if (urlParams.get("pairing_id")) {
-  loadPairingDetails(urlParams.get("pairing_id"));
+if (initialPairingId) {
+  loadPairingDetails(initialPairingId);
 } else {
   document.querySelector("#pairing-server-url").textContent = window.location.origin;
+}
+if ((initialPairingCode || initialPairingId) && window.history?.replaceState) {
+  window.history.replaceState({}, document.title, window.location.pathname || "/");
 }
 
 function csrfHeaders() {
