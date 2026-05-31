@@ -73,7 +73,8 @@ class PairingFlowTest(unittest.TestCase):
             self.assertNotIn(result.session_token, repr(result.to_public_dict()))
             qr = qr_text(pairing)
             self.assertGreater(qr.count("\n"), 20)
-            self.assertIn("##", qr)
+            self.assertNotIn("##", qr)
+            self.assertGreater(sum(qr.count(ch) for ch in "█▀▄"), 100)
             self.assertNotIn("[QR]", qr)
 
     def test_invalid_device_public_key_does_not_consume_pairing_code(self) -> None:
@@ -114,7 +115,15 @@ class PairingFlowTest(unittest.TestCase):
         first = ascii_qr("https://agent.example.com/pair?code=demo")
         second = ascii_qr("https://agent.example.com/pair?code=demo")
         self.assertEqual(first, second)
-        self.assertEqual({char for char in first if char != "\n"}, {"#", " "})
+        self.assertEqual({char for char in first if char != "\n"}, {"█", "▀", "▄", " "})
+        self.assertEqual({len(line) for line in first.splitlines()}, {len(first.splitlines()[0])})
+        self.assertTrue(first.splitlines()[0].isspace())
+        self.assertTrue(first.splitlines()[-1].isspace())
+
+    def test_ascii_qr_can_render_ansi_rectangles_for_terminals(self) -> None:
+        qr = ascii_qr("https://agent.example.com/pair?code=demo", ansi=True)
+        self.assertIn("\033[", qr)
+        self.assertNotIn("#", qr)
 
 
 if __name__ == "__main__":

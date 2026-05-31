@@ -76,6 +76,7 @@ class CliTest(unittest.TestCase):
         from omnidoer.version import __version__
 
         env = build_console_env()
+        self.assertEqual(env["OMNIDOER_CLI_NAME"], "omnidoer")
         self.assertEqual(env["OMNIDOER_VERSION"], __version__.lstrip("vV"))
         self.assertEqual(env["OMNIDOER_PYTHON"], sys.executable)
         self.assertTrue(env["OMNIDOER_INSTALL_DIR"].endswith("omnidoer"))
@@ -154,7 +155,8 @@ class CliTest(unittest.TestCase):
             self.assertIn("Only pair devices you control", result.stdout)
             self.assertIn("qr_ascii_begin", result.stdout)
             self.assertIn("qr_ascii_end", result.stdout)
-            self.assertGreater(result.stdout.count("##"), 100)
+            self.assertNotIn("##", result.stdout)
+            self.assertGreater(sum(result.stdout.count(ch) for ch in "█▀▄"), 100)
 
     def test_top_level_pair_can_skip_qr_for_copyable_links(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -905,7 +907,8 @@ echo "askpass_exit=$?"
             self.assertIn("Only pair devices you control", pair.stdout)
             self.assertIn("qr_ascii_begin", pair.stdout)
             self.assertIn("qr_ascii_end", pair.stdout)
-            self.assertGreater(pair.stdout.count("##"), 100)
+            self.assertNotIn("##", pair.stdout)
+            self.assertGreater(sum(pair.stdout.count(ch) for ch in "█▀▄"), 100)
             status = self.run_cli(["control", "security-status"], env=env)
             self.assertEqual(status.returncode, 0, status.stderr)
             self.assertIn('"mcp_publicly_exposed": false', status.stdout)

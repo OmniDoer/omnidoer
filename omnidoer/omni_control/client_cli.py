@@ -5,6 +5,7 @@ from __future__ import annotations
 import getpass
 import json
 import os
+import sys
 
 from omnidoer.omni_control.cloud import build_config, security_status
 from omnidoer.omni_control.devices import DeviceStore
@@ -23,7 +24,7 @@ def print_pairing_invite(*, public_url: str | None = None, expires: str = "10m",
     print("OmniDoer Control Client pairing")
     if print_qr:
         print("qr_ascii_begin")
-        print(qr_text(pairing))
+        print(qr_text(pairing, ansi=sys.stdout.isatty()))
         print("qr_ascii_end")
     print(f"pairing_url={pairing_url(pairing)}")
     print(f"expires_at={pairing.expires_at}")

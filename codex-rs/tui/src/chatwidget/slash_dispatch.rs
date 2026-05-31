@@ -13,6 +13,7 @@ use crate::bottom_pane::slash_commands::BuiltinCommandFlags;
 use crate::bottom_pane::slash_commands::ServiceTierCommand;
 use crate::bottom_pane::slash_commands::SlashCommandItem;
 use crate::bottom_pane::slash_commands::find_slash_command;
+use ratatui::text::Span;
 #[cfg(not(test))]
 use std::path::PathBuf;
 #[cfg(not(test))]
@@ -114,10 +115,51 @@ fn parse_pair_args(raw: &str) -> Result<Vec<String>, String> {
 }
 
 fn pair_invite_lines(output: &str) -> Vec<Line<'static>> {
-    output
-        .lines()
-        .map(|line| Line::from(line.to_string()))
-        .collect()
+    let mut in_qr = false;
+    let mut lines = Vec::new();
+    for line in output.lines() {
+        if line == "qr_ascii_begin" {
+            in_qr = true;
+            lines.push(Line::from(line.to_string()));
+            continue;
+        }
+        if line == "qr_ascii_end" {
+            in_qr = false;
+            lines.push(Line::from(line.to_string()));
+            continue;
+        }
+        if in_qr
+            && let Some(styled_line) = styled_qr_line(line)
+        {
+            lines.push(styled_line);
+            continue;
+        }
+        lines.push(Line::from(line.to_string()));
+    }
+    lines
+}
+
+fn styled_qr_line(line: &str) -> Option<Line<'static>> {
+    if line.is_empty() {
+        return None;
+    }
+    let mut spans = Vec::new();
+    for ch in line.chars() {
+        let (top_dark, bottom_dark) = match ch {
+            '█' => (true, true),
+            '▀' => (true, false),
+            '▄' => (false, true),
+            ' ' => (false, false),
+            _ => return None,
+        };
+        let foreground = if top_dark { Color::Black } else { Color::White };
+        let background = if bottom_dark { Color::Black } else { Color::White };
+        spans.push(Span::styled(
+            "▀".to_string(),
+            Style::default().fg(foreground).bg(background),
+        ));
+    }
+    Some(Line::from(spans))
 }
 
 #[cfg(test)]
@@ -128,7 +170,7 @@ fn create_pairing_invite(raw_args: &str) -> Result<String, String> {
         .find_map(|window| (window[0].as_str() == "--public-url").then(|| window[1].clone()))
         .unwrap_or_else(|| "https://agent.example.com".to_string());
     Ok(format!(
-        "OmniDoer Control Client pairing\nqr_ascii_begin\n## test qr ##\nqr_ascii_end\npairing_url={public_url}/pair?code=test&pairing_id=pair_test\nexpires_at=test\nbroker_fingerprint=test\nwarning=Only pair devices you control."
+        "OmniDoer Control Client pairing\nqr_ascii_begin\n▀▄█  ▄▀\nqr_ascii_end\npairing_url={public_url}/pair?code=test&pairing_id=pair_test\nexpires_at=test\nbroker_fingerprint=test\nwarning=Only pair devices you control."
     ))
 }
 

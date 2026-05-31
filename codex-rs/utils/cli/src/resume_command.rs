@@ -1,32 +1,85 @@
-//! Shared formatting for user-facing `codex resume` command hints.
+//! Shared formatting for user-facing resume command hints.
 
 use codex_protocol::ThreadId;
 use codex_shell_command::parse_command::shlex_join;
 
+const DEFAULT_RESUME_CLI: &str = "codex";
+const OMNIDOER_RESUME_CLI: &str = "omnidoer";
+
 pub fn resume_command(thread_name: Option<&str>, thread_id: Option<ThreadId>) -> Option<String> {
+    resume_command_for_cli(&resume_cli_command(), thread_name, thread_id)
+}
+
+pub fn resume_hint(thread_name: Option<&str>, thread_id: Option<ThreadId>) -> Option<String> {
+    resume_hint_for_cli(&resume_cli_command(), thread_name, thread_id)
+}
+
+fn resume_command_for_cli(
+    cli_command: &str,
+    thread_name: Option<&str>,
+    thread_id: Option<ThreadId>,
+) -> Option<String> {
     let resume_target = thread_name
         .filter(|name| !name.is_empty())
         .map(str::to_string)
         .or_else(|| thread_id.map(|thread_id| thread_id.to_string()));
     resume_target.map(|target| {
         let needs_double_dash = target.starts_with('-');
-        let escaped = shlex_join(&[target]);
+        let mut args = vec![cli_command.to_string(), "resume".to_string()];
         if needs_double_dash {
-            format!("codex resume -- {escaped}")
-        } else {
-            format!("codex resume {escaped}")
+            args.push("--".to_string());
         }
+        args.push(target);
+        shlex_join(&args)
     })
 }
 
-pub fn resume_hint(thread_name: Option<&str>, thread_id: Option<ThreadId>) -> Option<String> {
+fn resume_hint_for_cli(
+    cli_command: &str,
+    thread_name: Option<&str>,
+    thread_id: Option<ThreadId>,
+) -> Option<String> {
     let thread_id = thread_id?;
     match thread_name.filter(|name| !name.is_empty()) {
-        Some(thread_name) => Some(format!(
-            "codex resume, then select {thread_name} ({thread_id})"
-        )),
-        None => resume_command(/*thread_name*/ None, Some(thread_id)),
+        Some(thread_name) => {
+            let resume_prefix = resume_cli_command_prefix(cli_command);
+            Some(format!(
+                "{resume_prefix}, then select {thread_name} ({thread_id})"
+            ))
+        }
+        None => resume_command_for_cli(cli_command, /*thread_name*/ None, Some(thread_id)),
     }
+}
+
+fn resume_cli_command() -> String {
+    ["OMNIDOER_CLI_NAME", "CODEX_CLI_NAME"]
+        .into_iter()
+        .find_map(|env_var| {
+            std::env::var(env_var)
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        })
+        .unwrap_or_else(|| {
+            if is_omnidoer_branded_env() {
+                OMNIDOER_RESUME_CLI.to_string()
+            } else {
+                DEFAULT_RESUME_CLI.to_string()
+            }
+        })
+}
+
+fn is_omnidoer_branded_env() -> bool {
+    matches!(
+        std::env::var("OMNIDOER_CODEX_BRAND")
+            .or_else(|_| std::env::var("CODEX_CLI_BRAND"))
+            .as_deref(),
+        Ok("omnidoer") | Ok("OmniDoer")
+    ) || std::env::var_os("OMNIDOER_CONSOLE").is_some()
+}
+
+fn resume_cli_command_prefix(cli_command: &str) -> String {
+    shlex_join(&[cli_command.to_string(), "resume".to_string()])
 }
 
 #[cfg(test)]
@@ -73,6 +126,13 @@ mod tests {
     }
 
     #[test]
+    fn formats_custom_cli_command() {
+        let thread_id = ThreadId::from_string("123e4567-e89b-12d3-a456-426614174000").unwrap();
+        let command = resume_command_for_cli("omnidoer", Some("my-thread"), Some(thread_id));
+        assert_eq!(command, Some("omnidoer resume my-thread".to_string()));
+    }
+
+    #[test]
     fn resume_hint_names_picker_item_with_id() {
         let thread_id = ThreadId::from_string("123e4567-e89b-12d3-a456-426614174000").unwrap();
         let hint = resume_hint(Some("my-thread"), Some(thread_id));
@@ -80,6 +140,19 @@ mod tests {
             hint,
             Some(
                 "codex resume, then select my-thread (123e4567-e89b-12d3-a456-426614174000)"
+                    .to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn resume_hint_uses_custom_cli_command() {
+        let thread_id = ThreadId::from_string("123e4567-e89b-12d3-a456-426614174000").unwrap();
+        let hint = resume_hint_for_cli("omnidoer", Some("my-thread"), Some(thread_id));
+        assert_eq!(
+            hint,
+            Some(
+                "omnidoer resume, then select my-thread (123e4567-e89b-12d3-a456-426614174000)"
                     .to_string()
             )
         );

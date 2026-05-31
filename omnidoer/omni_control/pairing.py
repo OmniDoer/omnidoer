@@ -148,22 +148,50 @@ def pairing_url(pairing: PairingCode) -> str:
     return f"{pairing.public_url}/pair?code={pairing.code}&pairing_id={pairing.pairing_id}"
 
 
-def qr_text(pairing: PairingCode) -> str:
-    return ascii_qr(pairing_url(pairing))
+def qr_text(pairing: PairingCode, *, ansi: bool = False) -> str:
+    return ascii_qr(pairing_url(pairing), ansi=ansi)
 
 
-def ascii_qr(data: str) -> str:
-    """Render a real QR matrix as terminal-safe ASCII.
+def ascii_qr(data: str, *, ansi: bool = False) -> str:
+    """Render a real QR matrix as compact terminal-safe text.
 
     The pairing code is intentionally present in the QR payload, but it remains
     short-lived and one-time use. Do not log this output automatically.
     """
 
-    qr = qrcode.QRCode(border=2)
+    qr = qrcode.QRCode(border=4)
     qr.add_data(data)
     qr.make(fit=True)
+    matrix = qr.get_matrix()
+    if len(matrix) % 2:
+        matrix.append([False] * len(matrix[0]))
+
     buffer = StringIO()
-    for row in qr.get_matrix():
-        buffer.write("".join("##" if cell else "  " for cell in row))
+    for top, bottom in zip(matrix[0::2], matrix[1::2]):
+        row = zip(top, bottom)
+        if ansi:
+            render = _ansi_half_block
+        else:
+            render = _half_block
+        cells = (render(top_cell, bottom_cell) for top_cell, bottom_cell in row)
+        buffer.write("".join(cells))
+        if ansi:
+            buffer.write("\033[0m")
         buffer.write("\n")
-    return buffer.getvalue().rstrip()
+    return buffer.getvalue().rstrip("\n")
+
+
+def _half_block(top_dark: bool, bottom_dark: bool) -> str:
+    if top_dark and bottom_dark:
+        return "█"
+    if top_dark:
+        return "▀"
+    if bottom_dark:
+        return "▄"
+    return " "
+
+
+def _ansi_half_block(top_dark: bool, bottom_dark: bool) -> str:
+    foreground = "30" if top_dark else "97"
+    background = "40" if bottom_dark else "107"
+    return f"\033[{foreground};{background}m▀"

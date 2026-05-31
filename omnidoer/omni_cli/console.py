@@ -11,6 +11,7 @@ from pathlib import Path
 
 BRAND_ENV = {
     "OMNIDOER_CONSOLE": "1",
+    "OMNIDOER_CLI_NAME": "omnidoer",
     "OMNIDOER_CODEX_BRAND": "omnidoer",
     "CODEX_CLI_BRAND": "omnidoer",
 }
