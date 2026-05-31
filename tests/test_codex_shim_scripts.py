@@ -3,7 +3,9 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+from omnidoer.omni_cli.upgrade import _installed_codex_shim, _refresh_codex_shim_if_installed
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -39,7 +41,19 @@ class CodexShimScriptTest(unittest.TestCase):
             self.assertFalse(target.exists())
             self.assertIn("removed OmniDoer Codex shim", removed.stdout)
 
+    def test_upgrade_detects_and_refreshes_existing_codex_shim(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            install_dir = Path(tmp) / "install"
+            target = Path(tmp) / "codex"
+            source = install_dir / "omnidoer/scripts/codex-omnidoer-shim.sh"
+            source.parent.mkdir(parents=True)
+            source.write_text("#!/bin/sh\n# new shim\nOMNIDOER_REAL_CODEX=/usr/bin/codex\n", encoding="utf-8")
+            target.write_text("#!/bin/sh\n# old shim\nOMNIDOER_REAL_CODEX=/usr/bin/codex\n", encoding="utf-8")
+            self.assertTrue(_installed_codex_shim(target))
+            with patch.dict(os.environ, {"OMNIDOER_CODEX_SHIM_PATH": str(target)}):
+                _refresh_codex_shim_if_installed(install_dir)
+            self.assertEqual(target.read_text(encoding="utf-8"), source.read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()
-

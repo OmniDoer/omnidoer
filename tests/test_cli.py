@@ -49,6 +49,7 @@ class CliTest(unittest.TestCase):
         self.assertIn("OmniDoer upgrade plan", result.stdout)
         self.assertIn("install_dir=/tmp/omnidoer-install", result.stdout)
         self.assertIn("pull --ff-only origin main", result.stdout)
+        self.assertIn("refresh installed OmniDoer Codex shim", result.stdout)
 
     def test_init_creates_private_state_directory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
