@@ -5,9 +5,10 @@ import tempfile
 import textwrap
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from omnidoer.omni_control.chat import ChatStore
-from omnidoer.omni_control.chat_runner import ChatRunner, live_tui_bridge_active
+from omnidoer.omni_control.chat_runner import ChatRunner, live_tui_bridge_active, live_tui_session_active
 
 
 class ControlChatRunnerTest(unittest.TestCase):
@@ -23,6 +24,39 @@ class ControlChatRunnerTest(unittest.TestCase):
 
                 self.assertTrue(live_tui_bridge_active())
                 self.assertIsNone(ChatRunner(codex_bin="/does/not/exist", cwd=tmp).run_once())
+                self.assertEqual(store.get(user.message_id).status, "queued")
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_chat_runner_defers_to_live_interactive_tui_for_thread(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                proc_root = Path(tmp) / "proc"
+                proc_root.mkdir()
+                tui = proc_root / "1234"
+                tui.mkdir()
+                tui.joinpath("cmdline").write_bytes(
+                    b"/usr/local/lib/omnidoer/codex\0resume\0thread_active\0"
+                )
+                exec_runner = proc_root / "5678"
+                exec_runner.mkdir()
+                exec_runner.joinpath("cmdline").write_bytes(
+                    b"/usr/local/lib/omnidoer/codex\0exec\0resume\0--json\0thread_active\0"
+                )
+
+                store = ChatStore()
+                user = store.append(role="user", text="Keep this for the active TUI")
+
+                self.assertTrue(live_tui_session_active("thread_active", proc_root=proc_root))
+                self.assertFalse(live_tui_session_active("other_thread", proc_root=proc_root))
+                runner = ChatRunner(codex_bin="/does/not/exist", cwd=tmp, thread_id="thread_active")
+                with patch("omnidoer.omni_control.chat_runner.live_tui_session_active", return_value=True):
+                    self.assertIsNone(runner.run_once())
                 self.assertEqual(store.get(user.message_id).status, "queued")
             finally:
                 if old_home is None:

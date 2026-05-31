@@ -66,6 +66,38 @@ def live_tui_bridge_active(*, now: float | None = None) -> bool:
     return age <= TUI_BRIDGE_STALE_SECONDS
 
 
+def _cmdline_is_interactive_tui_for_thread(cmdline: list[str], thread_id: str) -> bool:
+    if not cmdline or not thread_id:
+        return False
+    args = cmdline[1:]
+    if "exec" in args:
+        return False
+    return "resume" in args and thread_id in args
+
+
+def live_tui_session_active(thread_id: str | None, *, proc_root: Path | str = "/proc") -> bool:
+    if not thread_id:
+        return False
+    root = Path(proc_root)
+    try:
+        entries = list(root.iterdir())
+    except OSError:
+        return False
+    for entry in entries:
+        if not entry.name.isdigit():
+            continue
+        try:
+            raw = (entry / "cmdline").read_bytes()
+        except OSError:
+            continue
+        if not raw:
+            continue
+        cmdline = [part.decode("utf-8", "ignore") for part in raw.split(b"\0") if part]
+        if _cmdline_is_interactive_tui_for_thread(cmdline, thread_id):
+            return True
+    return False
+
+
 class CodexJsonEventBridge:
     def __init__(self, store: ChatStore, assistant: ChatMessage):
         self.store = store
@@ -206,6 +238,8 @@ class ChatRunner:
 
     def run_once(self) -> ChatMessage | None:
         if live_tui_bridge_active():
+            return None
+        if live_tui_session_active(self.thread_id):
             return None
         user_message = self.store.next_user_message(claim=True)
         if user_message is None:
