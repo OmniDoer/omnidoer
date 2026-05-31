@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import re
 import stat
@@ -6,7 +7,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from threading import Thread
 from unittest.mock import patch
 from urllib.request import urlopen
 
@@ -422,6 +425,92 @@ echo "askpass_exit=$?"
             combined = result.stdout + result.stderr
             self.assertIn("askpass_exit=1", result.stdout)
             self.assertNotIn("vault-github-token-never-print", combined)
+
+    def test_github_api_uses_vault_token_without_echoing_it(self) -> None:
+        class ApiHandler(BaseHTTPRequestHandler):
+            auth = ""
+            body = ""
+
+            def log_message(self, fmt: str, *args: object) -> None:
+                return
+
+            def do_POST(self) -> None:
+                ApiHandler.auth = self.headers.get("authorization", "")
+                length = int(self.headers.get("content-length", "0"))
+                ApiHandler.body = self.rfile.read(length).decode()
+                payload = json.dumps({"ok": True, "auth": ApiHandler.auth, "body": ApiHandler.body})
+                self.send_response(200)
+                self.send_header("content-type", "application/json")
+                self.send_header("content-length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload.encode())
+
+        with tempfile.TemporaryDirectory() as tmp:
+            vault_path = Path(tmp) / "vault.json"
+            passphrase_env = "OMNIDOER_TEST_GITHUB_API_PASSPHRASE"
+            token = "github_pat_api_never_print_1234567890"
+            vault = Vault.create(vault_path, "test-passphrase")
+            vault.add_credential(username="omnidoer", password=token, allowed_origins=["https://github.com"])
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ApiHandler)
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                result = self.run_cli(
+                    [
+                        "github",
+                        "api",
+                        "POST",
+                        "/repos/OmniDoer/omnidoer/actions/workflows/test.yml/dispatches",
+                        "--api-origin",
+                        f"http://127.0.0.1:{server.server_address[1]}",
+                        "--insecure-dev-api",
+                        "--vault",
+                        str(vault_path),
+                        "--passphrase-env",
+                        passphrase_env,
+                        "--body-json",
+                        '{"ref":"main"}',
+                    ],
+                    env={"OMNIDOER_HOME": tmp, passphrase_env: "test-passphrase"},
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(ApiHandler.auth, f"Bearer {token}")
+            self.assertEqual(ApiHandler.body, '{"ref":"main"}')
+            combined = result.stdout + result.stderr
+            self.assertIn("[REDACTED]", result.stdout)
+            self.assertNotIn(token, combined)
+            self.assertNotIn("test-passphrase", combined)
+
+    def test_github_api_rejects_non_https_api_origin_without_dev_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            vault_path = Path(tmp) / "vault.json"
+            passphrase_env = "OMNIDOER_TEST_GITHUB_API_PASSPHRASE"
+            token = "github_pat_api_never_print_1234567890"
+            vault = Vault.create(vault_path, "test-passphrase")
+            vault.add_credential(username="omnidoer", password=token, allowed_origins=["https://github.com"])
+            result = self.run_cli(
+                [
+                    "github",
+                    "api",
+                    "GET",
+                    "/user",
+                    "--api-origin",
+                    "http://127.0.0.1:1",
+                    "--vault",
+                    str(vault_path),
+                    "--passphrase-env",
+                    passphrase_env,
+                ],
+                env={"OMNIDOER_HOME": tmp, passphrase_env: "test-passphrase"},
+            )
+            self.assertEqual(result.returncode, 2)
+            combined = result.stdout + result.stderr
+            self.assertIn("OmniDoer GitHub API unavailable", combined)
+            self.assertNotIn(token, combined)
+            self.assertNotIn("test-passphrase", combined)
 
     def test_cloud_direct_cli_contract(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

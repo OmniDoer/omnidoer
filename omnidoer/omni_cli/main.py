@@ -155,6 +155,19 @@ def build_parser() -> argparse.ArgumentParser:
     git_askpass = git_sub.add_parser("_askpass", help=argparse.SUPPRESS)
     git_askpass.add_argument("prompt", nargs="?")
 
+    github = sub.add_parser("github", help="Vault-backed GitHub API commands")
+    github_sub = github.add_subparsers(dest="github_command")
+    github_api = github_sub.add_parser("api")
+    github_api.add_argument("method")
+    github_api.add_argument("path")
+    github_api.add_argument("--origin", default="https://github.com")
+    github_api.add_argument("--api-origin", default="https://api.github.com")
+    github_api.add_argument("--vault", default=".omnidoer/vault.json")
+    github_api.add_argument("--passphrase-env")
+    github_api.add_argument("--credential-id")
+    github_api.add_argument("--body-json")
+    github_api.add_argument("--insecure-dev-api", action="store_true")
+
     browser = sub.add_parser("browser", help="Browser commands")
     browser_sub = browser.add_subparsers(dest="browser_command")
     browser_open = browser_sub.add_parser("open")
@@ -202,6 +215,7 @@ def main(argv: list[str] | None = None) -> int:
         "demo",
         "doctor",
         "git",
+        "github",
         "init",
         "mcp",
         "policy",
@@ -317,6 +331,11 @@ def main(argv: list[str] | None = None) -> int:
         from omnidoer.omni_vault.git_credentials import handle_git_command
 
         return handle_git_command(args)
+
+    if args.command == "github":
+        from omnidoer.omni_github.api import handle_github_command
+
+        return handle_github_command(args)
 
     if args.command == "browser" and args.browser_command == "open":
         from omnidoer.omni_browser.controller import BrowserController
