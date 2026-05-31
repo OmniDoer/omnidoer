@@ -1,10 +1,11 @@
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
 from omnidoer.omni_control.auth import authenticate_session
 from omnidoer.omni_control.devices import DeviceStore
-from omnidoer.omni_control.sessions import SessionStore
+from omnidoer.omni_control.sessions import CONTROL_SESSION_TTL_SECONDS, SessionStore
 
 
 class DeviceSessionTest(unittest.TestCase):
@@ -57,6 +58,15 @@ class DeviceSessionTest(unittest.TestCase):
             self.assertTrue(all_sessions[session_a.session_id].revoked)
             self.assertTrue(all_sessions[session_b.session_id].revoked)
             self.assertFalse(all_sessions[session_c.session_id].revoked)
+
+    def test_active_sessions_slide_expiry_to_reduce_repairing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            sessions = SessionStore(Path(tmp) / "sessions.json")
+            session, token = sessions.create(device_id="dev_phone", ttl_seconds=60)
+            original_expires_at = session.expires_at
+            authenticated = sessions.authenticate(session.session_id, token)
+            self.assertGreater(authenticated.expires_at, original_expires_at)
+            self.assertGreater(authenticated.expires_at, time.time() + CONTROL_SESSION_TTL_SECONDS - 60)
 
 
 if __name__ == "__main__":

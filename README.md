@@ -74,7 +74,7 @@ After install:
 
 ```sh
 ~/omnidoer/.venv/bin/omnidoer
-~/omnidoer/.venv/bin/omnidoer control pair --print-qr
+~/omnidoer/.venv/bin/omnidoer pair
 ~/omnidoer/.venv/bin/omnidoer control submit-task "Open the local demo and download my invoice"
 ```
 
@@ -415,8 +415,14 @@ omnidoer control serve --cloud-direct \
   --public-url https://agent.example.com \
   --behind-reverse-proxy
 
-omnidoer control pair --print-qr
+omnidoer pair
 ```
+
+`omnidoer pair` is the low-friction pairing entrypoint. It prints a short-lived
+pairing URL and a terminal QR code by default, then the Control Client caches
+the paired device identity and renews active sessions until the device or
+session is revoked. The legacy `omnidoer control pair --print-qr` command
+remains available for scripts.
 
 MCP remains local to Codex CLI. Vault, Broker, Challenge Relay, and browser
 internal interfaces are not public Control Service APIs.

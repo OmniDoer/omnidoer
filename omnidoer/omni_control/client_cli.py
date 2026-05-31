@@ -16,6 +16,20 @@ from omnidoer.omni_control.sessions import SessionStore
 from omnidoer.omni_control.tasks import TaskStore
 
 
+def print_pairing_invite(*, public_url: str | None = None, expires: str = "10m", print_qr: bool = True) -> None:
+    public_url = public_url or os.environ.get("OMNIDOER_CONTROL_PUBLIC_URL") or "http://127.0.0.1:8787"
+    pairing = PairingStore().create(public_url=public_url, ttl_seconds=parse_duration_seconds(expires))
+    print("OmniDoer Control Client pairing")
+    print(f"pairing_url={pairing_url(pairing)}")
+    print(f"expires_at={pairing.expires_at}")
+    print(f"broker_fingerprint={pairing.broker_fingerprint}")
+    print("warning=Only pair devices you control.")
+    if print_qr:
+        print("qr_ascii_begin")
+        print(qr_text(pairing))
+        print("qr_ascii_end")
+
+
 def _secret_payload(request) -> dict[str, str | bool]:
     if os.environ.get("OMNIDOER_CONTROL_TEST_MODE") == "1":
         return {
@@ -85,16 +99,7 @@ def handle_control_command(args) -> int:
         )
         return 0
     if command == "pair":
-        public_url = args.public_url or os.environ.get("OMNIDOER_CONTROL_PUBLIC_URL") or "http://127.0.0.1:8787"
-        pairing = PairingStore().create(public_url=public_url, ttl_seconds=parse_duration_seconds(args.expires))
-        print(f"pairing_url={pairing_url(pairing)}")
-        print(f"expires_at={pairing.expires_at}")
-        print(f"broker_fingerprint={pairing.broker_fingerprint}")
-        print("warning=Only pair devices you control.")
-        if args.print_qr:
-            print("qr_ascii_begin")
-            print(qr_text(pairing))
-            print("qr_ascii_end")
+        print_pairing_invite(public_url=args.public_url, expires=args.expires, print_qr=args.print_qr)
         return 0
     if command == "status":
         pending = len(RequestStore().list())

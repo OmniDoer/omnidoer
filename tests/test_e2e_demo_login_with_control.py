@@ -3,13 +3,49 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from tests.util_demo import DemoServerFixture
+from omnidoer.omni_agent.demo_agent import _credential_from_control_or_vault
 from omnidoer.omni_agent.demo_agent import run_task
 from omnidoer.omni_vault.vault import Vault
 
 
 class E2EDemoLoginTest(unittest.TestCase):
+    def test_control_credential_can_be_one_time_without_vault_save(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old = {key: os.environ.get(key) for key in ("OMNIDOER_HOME", "OMNIDOER_TEST_PASSPHRASE")}
+            os.environ.update(
+                {
+                    "OMNIDOER_HOME": tmp,
+                    "OMNIDOER_TEST_PASSPHRASE": "test-passphrase-change-me",
+                }
+            )
+            try:
+                vault_path = Path(tmp) / "vault.json"
+                Vault.create(vault_path, os.environ["OMNIDOER_TEST_PASSPHRASE"])
+                args = SimpleNamespace(vault=str(vault_path), passphrase_env="OMNIDOER_TEST_PASSPHRASE")
+                with patch(
+                    "omnidoer.omni_agent.demo_agent._wait_for_request_payload",
+                    return_value={
+                        "username": "demo",
+                        "password": "one-time-password-never-save",
+                        "save_to_vault": False,
+                    },
+                ):
+                    credential_id, secret = _credential_from_control_or_vault(args, "https://example.com")
+                self.assertTrue(credential_id.startswith("one_time:req_"))
+                self.assertEqual(secret.password, "one-time-password-never-save")
+                self.assertEqual(Vault.load(vault_path).list_metadata(), [])
+                combined = vault_path.read_text() + (Path(tmp) / "audit.jsonl").read_text()
+                self.assertNotIn("one-time-password-never-save", combined)
+            finally:
+                for key, value in old.items():
+                    if value is None:
+                        os.environ.pop(key, None)
+                    else:
+                        os.environ[key] = value
+
     def test_login_download_invoice_with_control_request(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, DemoServerFixture() as demo:
             old = {key: os.environ.get(key) for key in (

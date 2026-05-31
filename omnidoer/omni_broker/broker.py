@@ -53,6 +53,10 @@ def fill_login_status(current_url: str, allowed_origins: list[str], secret: Cred
     return FillResult(status="credential_received_and_filled", origin=decision.origin or "", fields=["username", "password"])
 
 
+def should_save_to_vault(request, payload: dict[str, Any]) -> bool:
+    return request.save_to_vault and payload.get("save_to_vault") is True
+
+
 class SecretBroker:
     """Controlled in-process secret use for Control Client credential requests."""
 
@@ -108,8 +112,7 @@ class SecretBroker:
             payload = self._payloads[request_id]
         saved_to_vault = False
         credential_id = None
-        save_requested_by_user = payload.get("save_to_vault") is True
-        if request.save_to_vault and save_requested_by_user:
+        if should_save_to_vault(request, payload):
             if self.vault_path is None or self.vault_passphrase is None:
                 raise ValueError("vault path and passphrase are required to save credentials")
             vault = Vault.load(self.vault_path, self.vault_passphrase)

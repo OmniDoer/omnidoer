@@ -23,11 +23,14 @@ them through the safe MCP tool `control.next_user_task`, then continues using
 the existing Codex CLI authentication and billing mode.
 
 In LAN Mode and Cloud Direct Mode the same PWA connects to the user's own
-Control Service. A pairing URL from `omnidoer control pair --print-qr` opens
+Control Service. A pairing URL from `omnidoer pair` opens
 the Pair Device panel, registers a device public key, receives an httpOnly
 session cookie, and stores only client-side device metadata plus a CSRF token.
 Mutating API calls include CSRF, and encrypted secret/challenge envelopes bind
 request, origin, type, device id, and expiry.
+The older `omnidoer control pair --print-qr` command is still supported for
+script compatibility. The paired PWA keeps using its local device key and a
+renewed session until the user revokes that device or session.
 
 Secrets are sent to the Secret Broker, not to Agent/LLM context. Challenge
 answers are handled by the Challenge Relay or target browser, not by the model.

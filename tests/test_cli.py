@@ -138,6 +138,31 @@ class CliTest(unittest.TestCase):
         self.assertFalse(upgraded)
         check.assert_not_called()
 
+    def test_top_level_pair_prints_qr_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.run_cli(
+                ["pair", "--public-url", "https://agent.example.com", "--expires", "10m"],
+                env={"OMNIDOER_HOME": tmp},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("OmniDoer Control Client pairing", result.stdout)
+            self.assertIn("pairing_url=https://agent.example.com/pair", result.stdout)
+            self.assertIn("broker_fingerprint=", result.stdout)
+            self.assertIn("Only pair devices you control", result.stdout)
+            self.assertIn("qr_ascii_begin", result.stdout)
+            self.assertIn("qr_ascii_end", result.stdout)
+            self.assertGreater(result.stdout.count("##"), 100)
+
+    def test_top_level_pair_can_skip_qr_for_copyable_links(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.run_cli(
+                ["pair", "--no-qr", "--public-url", "https://agent.example.com"],
+                env={"OMNIDOER_HOME": tmp},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("pairing_url=https://agent.example.com/pair", result.stdout)
+            self.assertNotIn("qr_ascii_begin", result.stdout)
+
     def test_update_prompt_skip_once_env_prevents_reexec_loop(self) -> None:
         with (
             patch.dict(os.environ, {"OMNIDOER_UPDATE_CHECK_SKIP_ONCE": "1"}),

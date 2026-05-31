@@ -89,9 +89,9 @@ echo "Start the OmniDoer interactive console:"
 echo "  $venv_dir/bin/omnidoer"
 echo "Create a pairing QR/code:"
 if [ "$cloud_direct" = "1" ]; then
-  echo "  $venv_dir/bin/omnidoer control pair --print-qr --public-url $public_url"
+  echo "  $venv_dir/bin/omnidoer pair --public-url $public_url"
 else
-  echo "  $venv_dir/bin/omnidoer control pair --print-qr"
+  echo "  $venv_dir/bin/omnidoer pair"
 fi
 echo "Submit a task:"
 echo "  $venv_dir/bin/omnidoer control submit-task \"Use OmniDoer on the local demo\""

@@ -108,7 +108,7 @@ class BrandingDocsTest(unittest.TestCase):
         self.assertIn("OMNIDOER_CLOUD_DIRECT", content)
         self.assertIn("OMNIDOER_PUBLIC_URL", content)
         self.assertIn("mcp serve --self-test", content)
-        self.assertIn("control pair --print-qr", content)
+        self.assertIn("omnidoer pair", content)
         self.assertIn("codex mcp add omnidoer", content)
 
     def test_localized_readmes_use_no_text_campaign_images(self) -> None:

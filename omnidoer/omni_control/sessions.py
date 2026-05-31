@@ -14,6 +14,10 @@ from typing import Any
 from omnidoer.paths import state_file
 
 
+CONTROL_SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
+CONTROL_SESSION_REFRESH_WINDOW_SECONDS = 7 * 24 * 60 * 60
+
+
 @dataclass
 class ControlSession:
     session_id: str
@@ -60,7 +64,7 @@ class SessionStore:
         tmp.replace(self.path)
         self.path.chmod(0o600)
 
-    def create(self, *, device_id: str, ttl_seconds: int = 86400) -> tuple[ControlSession, str]:
+    def create(self, *, device_id: str, ttl_seconds: int = CONTROL_SESSION_TTL_SECONDS) -> tuple[ControlSession, str]:
         token = secrets.token_urlsafe(32)
         session = ControlSession(
             session_id=f"sess_{uuid.uuid4().hex}",
@@ -106,7 +110,10 @@ class SessionStore:
             raise PermissionError("session expired or revoked")
         if session.token_hash != hash_session_token(token):
             raise PermissionError("session token mismatch")
-        session.last_seen_at = time.time()
+        now = time.time()
+        session.last_seen_at = now
+        if session.expires_at < now + CONTROL_SESSION_REFRESH_WINDOW_SECONDS:
+            session.expires_at = now + CONTROL_SESSION_TTL_SECONDS
         sessions[session.session_id] = session
         self._save(sessions)
         return session

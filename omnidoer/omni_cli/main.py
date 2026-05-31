@@ -65,6 +65,10 @@ def build_parser() -> argparse.ArgumentParser:
     console.add_argument("codex_args", nargs=argparse.REMAINDER)
     sub.add_parser("doctor", help="Check Codex auth mode and local runtime readiness")
     sub.add_parser("init", help="Create local OmniDoer state directory")
+    pair_top = sub.add_parser("pair", help="Create a Control Client pairing QR/code")
+    pair_top.add_argument("--expires", default="10m")
+    pair_top.add_argument("--public-url")
+    pair_top.add_argument("--no-qr", action="store_true")
     upgrade = sub.add_parser("upgrade", help="Upgrade OmniDoer in-place from the GitHub checkout")
     upgrade.add_argument("--dry-run", action="store_true")
     upgrade.add_argument("--install-dir")
@@ -218,6 +222,7 @@ def main(argv: list[str] | None = None) -> int:
         "github",
         "init",
         "mcp",
+        "pair",
         "policy",
         "telegram",
         "upgrade",
@@ -268,6 +273,12 @@ def main(argv: list[str] | None = None) -> int:
         from omnidoer.omni_cli.upgrade import handle_upgrade_command
 
         return handle_upgrade_command(args)
+
+    if args.command == "pair":
+        from omnidoer.omni_control.client_cli import print_pairing_invite
+
+        print_pairing_invite(public_url=args.public_url, expires=args.expires, print_qr=not args.no_qr)
+        return 0
 
     if args.command == "demo" and args.demo_command == "start":
         if args.background:

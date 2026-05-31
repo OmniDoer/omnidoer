@@ -17,6 +17,7 @@ from urllib.request import HTTPCookieProcessor, Request, build_opener
 from omnidoer.omni_approval.approval import decide, request_approval
 from omnidoer.omni_agent.challenge_guard import resolve_current_browser_challenge
 from omnidoer.omni_audit.audit import AuditLog
+from omnidoer.omni_broker.broker import should_save_to_vault
 from omnidoer.omni_challenge.relay import complete_in_test_mode as complete_challenge
 from omnidoer.omni_challenge.relay import request_user_interaction
 from omnidoer.omni_control.requests import RequestStore
@@ -150,14 +151,23 @@ def _credential_from_control_or_vault(args, origin: str) -> tuple[str, Credentia
         RequestStore().submit_ciphertext(request.request_id, envelope)
 
     payload = _wait_for_request_payload(request.request_id)
-    credential_id = vault.add_credential(
-        username=payload["username"],
-        password=payload["password"],
+    secret = CredentialSecret(
+        username=str(payload["username"]),
+        password=str(payload["password"]),
         totp_seed=payload.get("totp_seed") or None,
-        allowed_origins=[origin],
     )
-    AuditLog().append("credential_saved", origin=origin, credential_id=credential_id, request_id=request.request_id)
-    return credential_id, vault.decrypt_credential(credential_id)
+    if should_save_to_vault(request, payload):
+        credential_id = vault.add_credential(
+            username=secret.username,
+            password=secret.password,
+            totp_seed=secret.totp_seed,
+            allowed_origins=[origin],
+        )
+        AuditLog().append("credential_saved", origin=origin, credential_id=credential_id, request_id=request.request_id)
+        return credential_id, vault.decrypt_credential(credential_id)
+    credential_id = f"one_time:{request.request_id}"
+    AuditLog().append("credential_ready_for_one_time_use", origin=origin, request_id=request.request_id, status="ok")
+    return credential_id, secret
 
 
 def _login(args, client: DemoHttpClient) -> str:
