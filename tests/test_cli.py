@@ -318,6 +318,104 @@ class CliTest(unittest.TestCase):
             metadata = Vault.load(vault_path).list_metadata()[0]
             self.assertEqual(metadata.allowed_origins, ["https://github.com"])
 
+    def test_git_run_uses_vault_askpass_without_echoing_token(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            vault_path = Path(tmp) / "vault.json"
+            passphrase_env = "OMNIDOER_TEST_GIT_VAULT_PASSPHRASE"
+            vault = Vault.create(vault_path, "test-passphrase")
+            vault.add_credential(
+                username="omnidoer",
+                password="vault-github-token-never-print",
+                allowed_origins=["https://github.com"],
+            )
+            fake_git = Path(tmp) / "fake-git"
+            fake_git.write_text(
+                """#!/bin/sh
+echo "git_args=$*"
+user="$("$GIT_ASKPASS" "Username for 'https://github.com':")" || exit 11
+password="$("$GIT_ASKPASS" "Password for 'https://$user@github.com':")" || exit 12
+echo "user=$user"
+if [ "$password" = "vault-github-token-never-print" ]; then
+  echo "password-ok"
+else
+  echo "password-bad"
+  exit 13
+fi
+"""
+            )
+            fake_git.chmod(0o700)
+            env = {
+                "OMNIDOER_HOME": tmp,
+                passphrase_env: "test-passphrase",
+                "OMNIDOER_GIT_BIN": str(fake_git),
+            }
+            result = self.run_cli(
+                [
+                    "git",
+                    "run",
+                    "--origin",
+                    "https://github.com",
+                    "--vault",
+                    str(vault_path),
+                    "--passphrase-env",
+                    passphrase_env,
+                    "--",
+                    "push",
+                    "origin",
+                    "main",
+                ],
+                env=env,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            combined = result.stdout + result.stderr
+            self.assertIn("git_args=push origin main", result.stdout)
+            self.assertIn("user=omnidoer", result.stdout)
+            self.assertIn("password-ok", result.stdout)
+            self.assertNotIn("vault-github-token-never-print", combined)
+
+    def test_git_askpass_blocks_wrong_prompt_origin(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            vault_path = Path(tmp) / "vault.json"
+            passphrase_env = "OMNIDOER_TEST_GIT_VAULT_PASSPHRASE"
+            vault = Vault.create(vault_path, "test-passphrase")
+            vault.add_credential(
+                username="omnidoer",
+                password="vault-github-token-never-print",
+                allowed_origins=["https://github.com"],
+            )
+            fake_git = Path(tmp) / "fake-git"
+            fake_git.write_text(
+                """#!/bin/sh
+"$GIT_ASKPASS" "Password for 'https://evil.example':" >/dev/null 2>/dev/null
+echo "askpass_exit=$?"
+"""
+            )
+            fake_git.chmod(0o700)
+            env = {
+                "OMNIDOER_HOME": tmp,
+                passphrase_env: "test-passphrase",
+                "OMNIDOER_GIT_BIN": str(fake_git),
+            }
+            result = self.run_cli(
+                [
+                    "git",
+                    "run",
+                    "--origin",
+                    "https://github.com",
+                    "--vault",
+                    str(vault_path),
+                    "--passphrase-env",
+                    passphrase_env,
+                    "--",
+                    "remote-probe",
+                ],
+                env=env,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            combined = result.stdout + result.stderr
+            self.assertIn("askpass_exit=1", result.stdout)
+            self.assertNotIn("vault-github-token-never-print", combined)
+
     def test_cloud_direct_cli_contract(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             env = {"OMNIDOER_HOME": tmp}
