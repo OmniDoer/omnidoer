@@ -1196,6 +1196,7 @@ impl ChatWidget {
             | SlashCommand::Plugins
             | SlashCommand::Rollout
             | SlashCommand::Copy
+            | SlashCommand::Pair
             | SlashCommand::Raw
             | SlashCommand::Vim
             | SlashCommand::Diff
