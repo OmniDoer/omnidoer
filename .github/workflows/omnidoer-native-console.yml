@@ -35,16 +35,13 @@ jobs:
         run: cargo check --locked -p codex-tui -p codex-cli
 
       - name: Build OmniDoer console binary
-        env:
-          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
-          CARGO_PROFILE_RELEASE_LTO: "false"
-        run: cargo build --locked --release -p codex-cli
+        run: cargo build --locked --profile dev-small -p codex-cli
 
       - name: Stage binary
         run: |
           set -euo pipefail
           mkdir -p ../artifacts
-          install -m 0755 target/release/codex ../artifacts/omnidoer-codex-linux-x64
+          install -m 0755 target/dev-small/codex ../artifacts/omnidoer-codex-linux-x64
           ../artifacts/omnidoer-codex-linux-x64 --version
 
       - name: Upload binary artifact
