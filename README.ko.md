@@ -16,7 +16,7 @@ OmniDoer는 이 발견을 아키텍처로 바꿉니다. Codex는 로그인, 모�
 Secret Broker, 암호화 Vault, 승인 게이트, Challenge Relay, 감사 로그, Control
 Client가 민감한 동작을 모델 가시 상태 밖에 둡니다.
 
-페이지: [https://omnidoer.github.io/](https://omnidoer.github.io/)
+페이지: [https://omnidoer.github.io/omnidoer/](https://omnidoer.github.io/omnidoer/)
 
 ## 빠른 설치
 

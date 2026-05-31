@@ -47,7 +47,7 @@ opening the security boundary.
 
 ![OmniDoer secure browser execution story](./docs/assets/omnidoer-codex-brain-hands.jpg)
 
-Live page: [https://omnidoer.github.io/](https://omnidoer.github.io/)
+Live page: [https://omnidoer.github.io/omnidoer/](https://omnidoer.github.io/omnidoer/)
 
 ## One-Command Install
 

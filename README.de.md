@@ -17,7 +17,7 @@ Browser, Secret Broker, verschlüsselter Vault, Freigaben, Challenge Relay, Audi
 und Control Client halten sensible Aktionen außerhalb des modell-sichtbaren
 Zustands.
 
-Live-Seite: [https://omnidoer.github.io/](https://omnidoer.github.io/)
+Live-Seite: [https://omnidoer.github.io/omnidoer/](https://omnidoer.github.io/omnidoer/)
 
 ## Schnellinstallation
 

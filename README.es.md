@@ -18,7 +18,7 @@ navegador controlado, Secret Broker, Vault cifrado, aprobaciones, Challenge
 Relay, auditoría y Control Client para mantener las acciones sensibles fuera del
 estado visible para el modelo.
 
-Página: [https://omnidoer.github.io/](https://omnidoer.github.io/)
+Página: [https://omnidoer.github.io/omnidoer/](https://omnidoer.github.io/omnidoer/)
 
 ## Instalación rápida
 

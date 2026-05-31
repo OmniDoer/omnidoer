@@ -6,7 +6,7 @@
 
 [English](./README.md) | [Español](./README.es.md) | [Français](./README.fr.md) | [Deutsch](./README.de.md) | [日本語](./README.ja.md) | [한국어](./README.ko.md)
 
-落地页： [https://omnidoer.github.io/](https://omnidoer.github.io/)
+落地页： [https://omnidoer.github.io/omnidoer/](https://omnidoer.github.io/omnidoer/)
 
 一名白帽安全研究员发现了云端编码智能体里最危险的空洞：当 Agent 直接在服务器上执行时，密码、SSH 私钥、API token、应用密钥，甚至加密货币钱包密钥，都可能离模型只有一次工具调用的距离。要求模型“不要读取这些信息”，本质上只是请求模型自觉，不是真正的隔离。
 

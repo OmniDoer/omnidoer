@@ -16,7 +16,7 @@ OmniDoer はその発見をアーキテクチャに変えます。Codex は推�
 制御ブラウザ、Secret Broker、暗号化 Vault、承認ゲート、Challenge Relay、
 監査、Control Client によって、機微な操作をモデル可視状態の外に置きます。
 
-ページ: [https://omnidoer.github.io/](https://omnidoer.github.io/)
+ページ: [https://omnidoer.github.io/omnidoer/](https://omnidoer.github.io/omnidoer/)
 
 ## クイックインストール
 

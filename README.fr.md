@@ -17,7 +17,7 @@ les mains sûres : navigateur contrôlé, Secret Broker, Vault chiffré,
 approbations, Challenge Relay, audit et Control Client pour garder les actions
 sensibles hors de l'état visible par le modèle.
 
-Page : [https://omnidoer.github.io/](https://omnidoer.github.io/)
+Page : [https://omnidoer.github.io/omnidoer/](https://omnidoer.github.io/omnidoer/)
 
 ## Installation rapide
 
