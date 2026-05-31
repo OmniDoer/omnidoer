@@ -17,7 +17,7 @@ from omnidoer.omni_control.pairing import PairingStore
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.server import ControlHandler
 from omnidoer.omni_control.websocket import encode_device_auth_subprotocol
-from omnidoer.omni_takeover.cross_process import write_context_status
+from omnidoer.omni_takeover.cross_process import write_context_status, write_frame
 from omnidoer.omni_takeover.sessions import registered_browser_context
 from omnidoer.omni_takeover.stream import frame_from_image
 from tests.test_control_auth import public_jwk, sign_request
@@ -250,6 +250,99 @@ class CloudTakeoverStreamTest(unittest.TestCase):
                 self.assertTrue(payload["data"]["for_control_client_only"])
                 self.assertTrue(payload["data"]["not_for_llm"])
                 RequestStore().validate_takeover_frame(takeover.request_id, payload["data"]["frame_id"])
+                self.assertNotIn("password", repr(payload))
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_cloud_browser_context_preview_websocket_uses_signed_device_protocol(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            config = build_config(
+                host="127.0.0.1",
+                port=8787,
+                cloud_direct=True,
+                public_url="https://agent.example.com",
+                behind_reverse_proxy=True,
+            )
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_config = config  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                pairing = PairingStore().create(public_url=config.public_url, ttl_seconds=600)
+                device_key = ec.generate_private_key(ec.SECP256R1())
+                pair = urllib_request.Request(
+                    f"{base}/api/pair",
+                    data=json.dumps({"code": pairing.code, "device_name": "Phone", "device_public_key": public_jwk(device_key)}).encode(),
+                    headers={"content-type": "application/json", "origin": config.public_origin, **PROXY_HEADERS},
+                    method="POST",
+                )
+                with urllib_request.urlopen(pair, timeout=5) as response:
+                    cookie = response.headers["set-cookie"]
+                    body = json.loads(response.read().decode())
+                device_id = body["device"]["device_id"]
+                session_id = body["session"]["session_id"]
+                context_id = "preview-context"
+                write_context_status(context_id, ContextStatusBrowser())
+                write_frame(
+                    context_id,
+                    frame_from_image(
+                        b"live-preview-frame",
+                        url="https://example.com/working",
+                        origin="https://example.com",
+                        viewport_width=320,
+                        viewport_height=180,
+                        content_type="image/jpeg",
+                        frame_profile="data_saver",
+                        quality=48,
+                    ),
+                )
+                frame_path = f"/api/ws/browser/contexts/{context_id}/frames"
+                signed = sign_request(device_key, device_id=device_id, session_id=session_id, method="GET", path=frame_path, nonce="nonce-preview-ws")
+                protocol = encode_device_auth_subprotocol(
+                    device_id=device_id,
+                    timestamp=signed["timestamp"],
+                    nonce=signed["nonce"],
+                    signature=signed["signature"],
+                )
+                websocket_key = base64.b64encode(os.urandom(16)).decode()
+                request_text = "\r\n".join(
+                    [
+                        f"GET {frame_path}?snapshots=1&interval=0 HTTP/1.1",
+                        "Host: agent.example.com",
+                        "Upgrade: websocket",
+                        "Connection: Upgrade",
+                        f"Sec-WebSocket-Key: {websocket_key}",
+                        "Sec-WebSocket-Version: 13",
+                        f"Sec-WebSocket-Protocol: {protocol}",
+                        f"Origin: {config.public_origin}",
+                        "X-Forwarded-Proto: https",
+                        f"Cookie: {cookie}",
+                        "",
+                        "",
+                    ]
+                ).encode()
+                with socket.create_connection(("127.0.0.1", server.server_address[1]), timeout=5) as sock:
+                    sock.sendall(request_text)
+                    data = b""
+                    while b"\r\n\r\n" not in data:
+                        data += sock.recv(4096)
+                    headers, frame = data.split(b"\r\n\r\n", 1)
+                    self.assertIn(b"101 Switching Protocols", headers)
+                    self.assertIn(protocol.encode(), headers)
+                    payload = json.loads(read_websocket_text(sock, frame))
+                self.assertEqual(payload["event"], "browser_context_frame")
+                self.assertEqual(payload["browser_context_id"], context_id)
+                self.assertTrue(payload["data"]["for_control_client_only"])
+                self.assertTrue(payload["data"]["not_for_llm"])
+                self.assertIn("data_b64", payload["data"])
                 self.assertNotIn("password", repr(payload))
             finally:
                 server.shutdown()

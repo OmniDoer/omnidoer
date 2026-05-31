@@ -18,7 +18,7 @@ from importlib import resources
 from pathlib import Path
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -415,6 +415,37 @@ class ControlHandler(SimpleHTTPRequestHandler):
             self.wfile.flush()
         self.close_connection = True
 
+    def _browser_context_frame(self, context_id: str, *, frame_profile: str) -> dict | None:
+        browser = get_browser_context(context_id)
+        if browser is not None:
+            return browser.takeover_frame(frame_profile=frame_profile)
+        from omnidoer.omni_takeover.cross_process import read_frame
+
+        return read_frame(context_id, max_age_seconds=10.0)
+
+    def _send_browser_context_frame_websocket_stream(
+        self,
+        context_id: str,
+        *,
+        snapshots: int,
+        interval: float,
+        frame_profile: str,
+    ) -> None:
+        websocket_text_frame = self._open_websocket()
+        for index in range(max(1, min(snapshots, 120))):
+            if index:
+                time.sleep(max(0.0, min(interval, 10.0)))
+            frame = self._browser_context_frame(context_id, frame_profile=frame_profile)
+            payload = {
+                "event": "browser_context_frame",
+                "browser_context_id": context_id,
+                "data": frame or {},
+                "error": None if frame else "browser_frame_unavailable",
+            }
+            self.wfile.write(websocket_text_frame(payload))
+            self.wfile.flush()
+        self.close_connection = True
+
     def _session_cookie(self) -> tuple[str | None, str | None]:
         cookie = SimpleCookie(self.headers.get("cookie", ""))
         morsel = cookie.get("omnidoer_session")
@@ -746,6 +777,37 @@ class ControlHandler(SimpleHTTPRequestHandler):
             except ValueError:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid frame websocket options"})
             return
+        if path.startswith("/api/ws/browser/contexts/") and path.endswith("/frames"):
+            try:
+                from omnidoer.omni_control.websocket import websocket_origin_allowed
+
+                if self._requires_pairing() and not websocket_origin_allowed(self.headers.get("origin"), self.config.public_origin):
+                    raise PermissionError("websocket origin rejected")
+                if (self.headers.get("upgrade") or "").lower() != "websocket":
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"error": "websocket upgrade required"})
+                    return
+                self._require_access()
+                parts = path.strip("/").split("/")
+                if len(parts) != 6 or parts[:4] != ["api", "ws", "browser", "contexts"] or parts[5] != "frames":
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "unknown websocket stream"})
+                    return
+                query = parse_qs(parsed_url.query)
+                snapshots = int(query.get("snapshots", ["60"])[0])
+                interval = float(query.get("interval", ["0.75"])[0])
+                frame_profile = normalize_frame_profile(query.get("profile", [None])[0])
+                self._send_browser_context_frame_websocket_stream(
+                    unquote(parts[4]),
+                    snapshots=snapshots,
+                    interval=interval,
+                    frame_profile=frame_profile,
+                )
+            except PermissionError:
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            except ValueError:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid browser frame websocket options"})
+            return
         if path == "/api/ws/requests":
             try:
                 from omnidoer.omni_control.websocket import websocket_origin_allowed
@@ -805,8 +867,6 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
                 return
             try:
-                from urllib.parse import unquote
-
                 from omnidoer.omni_takeover.cross_process import read_frame
 
                 context_id = unquote(parts[3])
@@ -1020,8 +1080,6 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 self._send_permission_error(exc)
                 return
             try:
-                from urllib.parse import unquote
-
                 from omnidoer.omni_takeover.cross_process import get_context
                 from omnidoer.omni_takeover.relay import request_user_control
 

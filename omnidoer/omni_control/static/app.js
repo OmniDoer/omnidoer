@@ -1038,6 +1038,9 @@ let takeoverFrameSocket = null;
 let takeoverFrameSocketRequest = null;
 let takeoverFrameSocketRestart = null;
 let browserPreviewTimer = null;
+let browserPreviewSocket = null;
+let browserPreviewSocketContext = null;
+let browserPreviewSocketRestart = null;
 let activeBrowserPreviewContext = null;
 let takeoverFrameMisses = 0;
 let takeoverFrameVisibilityPaused = false;
@@ -1559,11 +1562,12 @@ function syncTakeoverPanel(requests) {
 function stopBrowserPreviewPolling() {
   if (browserPreviewTimer) clearInterval(browserPreviewTimer);
   browserPreviewTimer = null;
+  closeBrowserPreviewWebSocket();
   activeBrowserPreviewContext = null;
 }
 
 async function fetchBrowserContextFrame(context, stream) {
-  if (!context?.browser_context_id || !stream || document.hidden) return;
+  if (!context?.browser_context_id || !stream || document.hidden || activeBrowserPreviewContext !== context.browser_context_id) return;
   try {
     const response = await signedFetch(`/api/browser/contexts/${encodeURIComponent(context.browser_context_id)}/frame?${takeoverFrameQuery()}`, { cache: "no-store" });
     if (!response.ok) throw new Error("preview unavailable");
@@ -1577,16 +1581,112 @@ async function fetchBrowserContextFrame(context, stream) {
   }
 }
 
+function closeBrowserPreviewWebSocket() {
+  if (browserPreviewSocketRestart) clearTimeout(browserPreviewSocketRestart);
+  browserPreviewSocketRestart = null;
+  if (browserPreviewSocket) {
+    browserPreviewSocket.onclose = null;
+    browserPreviewSocket.onerror = null;
+    browserPreviewSocket.onmessage = null;
+    browserPreviewSocket.close();
+  }
+  browserPreviewSocket = null;
+  browserPreviewSocketContext = null;
+}
+
+function restartBrowserPreviewWebSocket(context, stream) {
+  if (browserPreviewSocketRestart || document.hidden) return;
+  browserPreviewSocketRestart = setTimeout(() => {
+    browserPreviewSocketRestart = null;
+    if (activeBrowserPreviewContext === context.browser_context_id && stream) {
+      startBrowserPreviewWebSocket(context, stream);
+    }
+  }, 3000);
+}
+
+async function startBrowserPreviewWebSocket(context, stream) {
+  if (!window.WebSocket || document.hidden || !context?.browser_context_id || !stream) return false;
+  if (
+    browserPreviewSocket
+    && browserPreviewSocketContext === context.browser_context_id
+    && [WebSocket.CONNECTING, WebSocket.OPEN].includes(browserPreviewSocket.readyState)
+  ) {
+    return true;
+  }
+  closeBrowserPreviewWebSocket();
+  const path = `/api/ws/browser/contexts/${encodeURIComponent(context.browser_context_id)}/frames`;
+  try {
+    const protocol = await deviceAuthSubprotocol("GET", path);
+    const target = `${path}?${takeoverFrameQuery({ snapshots: TAKEOVER_FRAME_WS_SNAPSHOTS, interval: TAKEOVER_FRAME_WS_INTERVAL_SECONDS })}`;
+    const socket = protocol ? new WebSocket(websocketUrl(target), [protocol]) : new WebSocket(websocketUrl(target));
+    browserPreviewSocket = socket;
+    browserPreviewSocketContext = context.browser_context_id;
+    socket.onopen = () => {
+      if (activeBrowserPreviewContext !== context.browser_context_id) {
+        closeBrowserPreviewWebSocket();
+        return;
+      }
+      if (browserPreviewTimer) clearInterval(browserPreviewTimer);
+      browserPreviewTimer = null;
+      updateTakeoverFrameConnection("connected", t("takeoverConnectedWebSocket"));
+    };
+    socket.onmessage = (event) => {
+      if (activeBrowserPreviewContext !== context.browser_context_id) return;
+      const payload = JSON.parse(event.data);
+      if (payload.event === "browser_context_frame" && payload.browser_context_id === context.browser_context_id) {
+        if (payload.data?.data_b64) {
+          renderTakeoverFrame(null, stream, payload.data, t("activeBrowserPreview"));
+        } else if (!stream.querySelector("#takeover-frame")) {
+          stream.textContent = t("activeBrowserPreviewWaiting");
+        }
+      }
+    };
+    socket.onerror = () => {
+      socket.close();
+    };
+    socket.onclose = () => {
+      if (browserPreviewSocket === socket) {
+        browserPreviewSocket = null;
+        browserPreviewSocketContext = null;
+      }
+      if (activeBrowserPreviewContext === context.browser_context_id && !document.hidden) {
+        updateTakeoverFrameConnection("reconnecting", t("activeBrowserPreviewWaiting"));
+        fetchBrowserContextFrame(context, stream);
+        if (!browserPreviewTimer) {
+          browserPreviewTimer = setInterval(() => fetchBrowserContextFrame(context, stream), BROWSER_PREVIEW_POLL_MS);
+        }
+        restartBrowserPreviewWebSocket(context, stream);
+      }
+    };
+    return true;
+  } catch {
+    closeBrowserPreviewWebSocket();
+    return false;
+  }
+}
+
 function startBrowserPreviewPolling(context, stream) {
   if (!context?.browser_context_id || !stream) return;
   if (activeBrowserPreviewContext !== context.browser_context_id) {
     stopBrowserPreviewPolling();
     activeBrowserPreviewContext = context.browser_context_id;
     stream.textContent = t("activeBrowserPreviewWaiting");
-    fetchBrowserContextFrame(context, stream);
+    startBrowserPreviewWebSocket(context, stream).then((started) => {
+      if (!started && activeBrowserPreviewContext === context.browser_context_id) {
+        fetchBrowserContextFrame(context, stream);
+        if (!browserPreviewTimer) {
+          browserPreviewTimer = setInterval(() => fetchBrowserContextFrame(context, stream), BROWSER_PREVIEW_POLL_MS);
+        }
+      }
+    });
+    return;
   }
-  if (!browserPreviewTimer) {
-    browserPreviewTimer = setInterval(() => fetchBrowserContextFrame(context, stream), BROWSER_PREVIEW_POLL_MS);
+  if (!browserPreviewSocket && !browserPreviewTimer) {
+    startBrowserPreviewWebSocket(context, stream).then((started) => {
+      if (!started && activeBrowserPreviewContext === context.browser_context_id && !browserPreviewTimer) {
+        browserPreviewTimer = setInterval(() => fetchBrowserContextFrame(context, stream), BROWSER_PREVIEW_POLL_MS);
+      }
+    });
   }
 }
 
@@ -2786,10 +2886,18 @@ function resumeTakeoverFramePollingFromVisibility() {
 
 function handleTakeoverVisibilityChange() {
   if (document.hidden) {
+    if (browserPreviewTimer) clearInterval(browserPreviewTimer);
+    browserPreviewTimer = null;
+    closeBrowserPreviewWebSocket();
     pauseTakeoverFramePollingForVisibility();
     return;
   }
   resumeTakeoverFramePollingFromVisibility();
+  const context = activeBrowserContext();
+  const stream = document.querySelector("#browser-stream");
+  if (context && stream && !takeoverIsActive()) {
+    startBrowserPreviewPolling(context, stream);
+  }
 }
 
 function stopTakeoverFramePolling(requestId = null) {
