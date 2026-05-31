@@ -16,6 +16,8 @@ const I18N = {
     runtimeBridgeActive: "Live Linux console bridge is active; messages sync with the current TUI.",
     runtimeLegacyRelayActive: "Temporary terminal relay is active; messages are injected into the current console. Restart for full structured sync:",
     runtimeLegacyRelayPause: "Pause sends Ctrl-C to the current console before delivering your instruction.",
+    runtimeNativeBridgeReady: "Full structured bridge is installed; restart will switch this session to native sync.",
+    runtimeNativeBridgeNotReady: "Native structured bridge is not installed yet; update OmniDoer before restarting.",
     runtimeWaitingForConsoleRestart: "Linux console is active but not yet bridged. Restart OmniDoer console with:",
     runtimeBackgroundRunner: "No live Linux console bridge; queued messages use the background Codex runner.",
     copyCommand: "Copy command",
@@ -198,6 +200,8 @@ const I18N = {
     runtimeBridgeActive: "Linux 控制台实时桥接已启用；消息会同步到当前 TUI。",
     runtimeLegacyRelayActive: "临时终端 relay 已启用；消息会注入当前 console。请重启以获得完整结构化同步：",
     runtimeLegacyRelayPause: "点击暂停会先向当前 console 发送 Ctrl-C，再投递你的指令。",
+    runtimeNativeBridgeReady: "完整结构化桥接已经安装；重启后会切换到原生同步。",
+    runtimeNativeBridgeNotReady: "原生结构化桥接尚未安装；重启前请先更新 OmniDoer。",
     runtimeWaitingForConsoleRestart: "Linux 控制台仍在运行但尚未桥接。请用下面命令重启 OmniDoer console：",
     runtimeBackgroundRunner: "没有实时 Linux 控制台桥接；排队消息将由后台 Codex runner 处理。",
     copyCommand: "复制命令",
@@ -2770,6 +2774,8 @@ async function loadRuntimeStatus() {
       if (legacyRelay.capabilities?.interrupt_on_pause) {
         detail = `${detail} ${t("runtimeLegacyRelayPause")}`;
       }
+      const nativeBridge = runner.native_console_bridge || {};
+      detail = `${detail} ${nativeBridge.ready ? t("runtimeNativeBridgeReady") : t("runtimeNativeBridgeNotReady")}`;
       runtimeState = legacyRelay.active ? "legacy_tui_relay" : "waiting_for_tui_bridge";
       restartCommand = runner.restart_command || "";
     } else if (runner.tui_bridge_active) {

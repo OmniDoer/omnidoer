@@ -20,6 +20,12 @@ from omnidoer.paths import state_file
 DEFAULT_RECORD_TEXT_LIMIT = 6000
 TUI_BRIDGE_HEARTBEAT_NAME = "control_chat_bridge_heartbeat"
 TUI_BRIDGE_STALE_SECONDS = 5.0
+TUI_BRIDGE_INSTALL_MARKERS = (
+    b"control_chat_bridge_heartbeat",
+    b"chat-log-user",
+    b"failed to publish OmniDoer user chat message",
+)
+_bridge_install_cache: dict[tuple[str, int, int], dict[str, Any]] = {}
 
 
 def find_codex_binary(explicit: str | None = None) -> str | None:
@@ -78,6 +84,52 @@ def tui_restart_command(thread_id: str | None) -> str | None:
     if not thread_id:
         return None
     return f"omnidoer console resume {thread_id}"
+
+
+def _missing_binary_markers(path: Path, markers: tuple[bytes, ...]) -> list[str]:
+    remaining = set(markers)
+    overlap = max(len(marker) for marker in markers) - 1
+    tail = b""
+    with path.open("rb") as handle:
+        while remaining:
+            chunk = handle.read(1024 * 1024)
+            if not chunk:
+                break
+            window = tail + chunk
+            for marker in list(remaining):
+                if marker in window:
+                    remaining.remove(marker)
+            tail = window[-overlap:] if overlap else b""
+    return [marker.decode("utf-8", "replace") for marker in markers if marker in remaining]
+
+
+def native_console_bridge_install_status(codex_bin: str | None = None) -> dict[str, Any]:
+    binary = find_codex_binary(codex_bin)
+    if not binary:
+        return {"ready": False, "reason": "codex_binary_not_found"}
+    path = Path(binary)
+    try:
+        stat = path.stat()
+    except OSError:
+        return {"ready": False, "reason": "codex_binary_unreadable", "codex_binary": str(path)}
+    cache_key = (str(path), stat.st_mtime_ns, stat.st_size)
+    cached = _bridge_install_cache.get(cache_key)
+    if cached is not None:
+        return dict(cached)
+    try:
+        missing = _missing_binary_markers(path, TUI_BRIDGE_INSTALL_MARKERS)
+    except OSError:
+        return {"ready": False, "reason": "codex_binary_unreadable", "codex_binary": str(path)}
+    status = {
+        "ready": not missing,
+        "reason": "ready" if not missing else "missing_bridge_markers",
+        "codex_binary": str(path),
+        "marker_count": len(TUI_BRIDGE_INSTALL_MARKERS),
+        "missing_markers": missing,
+    }
+    _bridge_install_cache.clear()
+    _bridge_install_cache[cache_key] = dict(status)
+    return status
 
 
 def _cmdline_is_interactive_tui_for_thread(cmdline: list[str], thread_id: str) -> bool:

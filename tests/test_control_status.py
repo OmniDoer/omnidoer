@@ -25,6 +25,9 @@ class ControlStatusTest(unittest.TestCase):
                     "omnidoer.omni_control.chat_runner.live_tui_session_active",
                     return_value=True,
                 ), patch(
+                    "omnidoer.omni_control.chat_runner.native_console_bridge_install_status",
+                    return_value={"ready": True, "reason": "ready", "codex_binary": "/usr/local/lib/omnidoer/codex"},
+                ), patch(
                     "omnidoer.omni_control.tui_legacy_relay.legacy_tui_relay_status",
                     return_value={"active": True, "transport": "tmux", "pane_id": "%1"},
                 ):
@@ -40,6 +43,7 @@ class ControlStatusTest(unittest.TestCase):
                 self.assertTrue(payload["chat_runner"]["restart_required"])
                 self.assertEqual(payload["chat_runner"]["restart_command"], "omnidoer console resume thread_active")
                 self.assertIn("bridge_heartbeat_age_seconds", payload["chat_runner"])
+                self.assertTrue(payload["chat_runner"]["native_console_bridge"]["ready"])
                 self.assertTrue(payload["chat_runner"]["legacy_tui_relay"]["active"])
             finally:
                 server.shutdown()
@@ -57,6 +61,9 @@ class ControlStatusTest(unittest.TestCase):
                 "omnidoer.omni_control.chat_runner.live_tui_session_active",
                 return_value=False,
             ), patch(
+                "omnidoer.omni_control.chat_runner.native_console_bridge_install_status",
+                return_value={"ready": False, "reason": "missing_bridge_markers"},
+            ), patch(
                 "omnidoer.omni_control.tui_legacy_relay.legacy_tui_relay_status",
                 return_value={"active": False, "reason": "tmux_pane_not_found"},
             ):
@@ -70,6 +77,7 @@ class ControlStatusTest(unittest.TestCase):
             self.assertTrue(payload["chat_runner"]["waiting_for_tui_bridge"])
             self.assertTrue(payload["chat_runner"]["restart_required"])
             self.assertEqual(payload["chat_runner"]["restart_command"], "omnidoer console resume thread_active")
+            self.assertFalse(payload["chat_runner"]["native_console_bridge"]["ready"])
             self.assertFalse(payload["chat_runner"]["legacy_tui_relay"]["active"])
         finally:
             server.shutdown()

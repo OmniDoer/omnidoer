@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from omnidoer.omni_control.chat import ChatStore
-from omnidoer.omni_control.chat_runner import ChatRunner, live_tui_bridge_active, live_tui_session_active
+from omnidoer.omni_control.chat_runner import ChatRunner, live_tui_bridge_active, live_tui_session_active, native_console_bridge_install_status
 
 
 class ControlChatRunnerTest(unittest.TestCase):
@@ -87,6 +87,27 @@ class ControlChatRunnerTest(unittest.TestCase):
                     os.environ.pop("OMNIDOER_HOME", None)
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_native_console_bridge_install_status_detects_required_markers(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            binary = Path(tmp) / "codex"
+            binary.write_bytes(
+                b"prefix control_chat_bridge_heartbeat middle chat-log-user suffix "
+                b"failed to publish OmniDoer user chat message"
+            )
+            binary.chmod(binary.stat().st_mode | stat.S_IXUSR)
+
+            ready = native_console_bridge_install_status(str(binary))
+            self.assertTrue(ready["ready"])
+            self.assertEqual(ready["reason"], "ready")
+
+            old = Path(tmp) / "old-codex"
+            old.write_bytes(b"control_chat_bridge_heartbeat")
+            old.chmod(old.stat().st_mode | stat.S_IXUSR)
+            stale = native_console_bridge_install_status(str(old))
+            self.assertFalse(stale["ready"])
+            self.assertEqual(stale["reason"], "missing_bridge_markers")
+            self.assertIn("chat-log-user", stale["missing_markers"])
 
     def test_codex_json_events_stream_into_chat_records(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
