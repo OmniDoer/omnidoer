@@ -31,9 +31,6 @@ jobs:
       - name: Check formatting
         run: cargo fmt -- --config imports_granularity=Item --check
 
-      - name: Check OmniDoer console crates
-        run: cargo check --locked -p codex-tui -p codex-cli
-
       - name: Build OmniDoer console binary
         run: cargo build --locked --profile dev-small -p codex-cli
 
