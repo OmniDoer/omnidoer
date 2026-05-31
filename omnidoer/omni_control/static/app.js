@@ -170,6 +170,8 @@ const I18N = {
     pauseAgentRequestDetail: "The request was queued for the active Linux console. When the TUI bridge is active, the current turn will pause before this instruction is handled.",
     takeoverPausePrompt: "Pause current browser automation now and hand the active browser to my Control Client. If a browser is running, create or keep a Human Takeover request, stream the page to me, and wait until I tap Continue Agent before resuming.",
     takeoverReleasePrompt: "I have finished controlling the browser. Continue from the current page state and resume the task.",
+    takeoverReleased: "Browser control released",
+    takeoverReleasedDetail: "Agent can continue from the browser state you left on screen.",
     releaseControl: "Continue Agent",
     openCurrentUrl: "Open current URL",
     externalHandoffNote: "Open the current URL in your browser, complete the site action yourself, then continue the Agent. No password, OTP, passkey, or recovery code is sent to the model.",
@@ -388,6 +390,8 @@ const I18N = {
     pauseAgentRequestDetail: "请求已排队给当前 Linux 控制台。TUI 桥接启用后，当前回合会先暂停再处理这条指令。",
     takeoverPausePrompt: "请立即暂停当前浏览器自动化，并把活跃浏览器交给我的 Control Client。如果正在操作浏览器，请创建或保持一个 Human Takeover 请求，把页面画面流式发送给我，并等待我点击继续交给 Agent 后再恢复。",
     takeoverReleasePrompt: "我已经完成浏览器接管操作。请从当前页面状态继续执行任务。",
+    takeoverReleased: "已释放浏览器控制",
+    takeoverReleasedDetail: "Agent 可以从你留在屏幕上的浏览器状态继续。",
     releaseControl: "继续交给 Agent",
     openCurrentUrl: "打开当前链接",
     externalHandoffNote: "在浏览器中打开当前链接，由你本人完成网站操作，然后继续交给 Agent。密码、OTP、passkey 或 recovery code 都不会发送给模型。",
@@ -1337,18 +1341,24 @@ function takeoverIsActive() {
   return Boolean(request && request.status === "user_control");
 }
 
+function takeoverHasVisibleFrame(stream = document.querySelector("#browser-stream")) {
+  return Boolean(stream?.querySelector("#takeover-frame") && stream.dataset.frameId);
+}
+
 function updateTakeoverZoomControls() {
   const isActive = takeoverIsActive();
+  const hasFrame = takeoverHasVisibleFrame();
   const zoomed = takeoverFrameZoom > TAKEOVER_ZOOM_MIN;
   const zoomOut = document.querySelector("#zoom-out-takeover-frame");
   const zoomReset = document.querySelector("#zoom-reset-takeover-frame");
   const zoomIn = document.querySelector("#zoom-in-takeover-frame");
   const pan = document.querySelector("#pan-takeover-frame");
-  if (zoomOut) zoomOut.disabled = !isActive || !zoomed;
-  if (zoomReset) zoomReset.disabled = !isActive || (!zoomed && !takeoverFramePanMode);
-  if (zoomIn) zoomIn.disabled = !isActive || takeoverFrameZoom >= TAKEOVER_ZOOM_MAX;
+  if (!isActive && !hasFrame) takeoverFramePanMode = false;
+  if (zoomOut) zoomOut.disabled = !hasFrame || !zoomed;
+  if (zoomReset) zoomReset.disabled = !hasFrame || (!zoomed && !takeoverFramePanMode);
+  if (zoomIn) zoomIn.disabled = !hasFrame || takeoverFrameZoom >= TAKEOVER_ZOOM_MAX;
   if (pan) {
-    pan.disabled = !isActive || !zoomed;
+    pan.disabled = !hasFrame || !zoomed;
     pan.textContent = takeoverFramePanMode ? "Pan On" : "Pan View";
     pan.setAttribute("aria-pressed", takeoverFramePanMode ? "true" : "false");
   }
@@ -1492,11 +1502,17 @@ async function releaseActiveTakeover() {
   if (!request) return;
   setPauseButtonsDisabled(true);
   try {
-    await postAction(request, "release");
+    const actionResponse = await postAction(request, "release");
+    if (!actionResponse?.ok) throw new Error("release failed");
+    stopTakeoverFramePolling(request.request_id);
+    await loadBrowserContexts();
     const clientMessageId = `control_continue_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     const response = await postChatMessage(t("takeoverReleasePrompt"), { clientMessageId });
     if (!response.ok) throw new Error("continue message failed");
     await loadChatMessages();
+    setStatus(t("takeoverReleased"), t("takeoverReleasedDetail"));
+  } catch {
+    setStatus(t("actionFailed"), t("releaseControl"));
   } finally {
     setPauseButtonsDisabled(false);
   }
@@ -1830,6 +1846,7 @@ async function postAction(request, action, payload = null) {
     setStatus(t("actionFailed"), `${request.request_type} ${action}`);
   }
   await loadRequests();
+  return response;
 }
 
 async function submitTask() {
@@ -2368,6 +2385,7 @@ function framePoint(event, image) {
 }
 
 function installTakeoverPointerHandlers(request, stream) {
+  clearTakeoverPointerHandlers(stream);
   let start = null;
   const activeTouchPointers = new Map();
   let pinchGesture = null;
@@ -2464,6 +2482,18 @@ function installTakeoverPointerHandlers(request, stream) {
     event.preventDefault();
     sendTakeoverInput(request, { event_type: "scroll", delta_y: Math.round(event.deltaY) });
   };
+}
+
+function clearTakeoverPointerHandlers(stream = document.querySelector("#browser-stream")) {
+  if (!stream) return;
+  stream.onpointerdown = null;
+  stream.onpointermove = null;
+  stream.onpointerup = null;
+  stream.onpointercancel = null;
+  stream.onlostpointercapture = null;
+  stream.onkeydown = null;
+  stream.onwheel = null;
+  stream.removeAttribute("tabindex");
 }
 
 function startTakeoverFrameTimers(request, stream, options = {}) {
@@ -2619,6 +2649,7 @@ function stopTakeoverFramePolling(requestId = null) {
   takeoverFrameVisibilityPaused = false;
   activeTakeoverFrameRequest = null;
   const stream = document.querySelector("#browser-stream");
+  clearTakeoverPointerHandlers(stream);
   if (stream) {
     delete stream.dataset.frameId;
     delete stream.dataset.frameCapturedAt;
