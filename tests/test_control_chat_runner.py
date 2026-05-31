@@ -1,0 +1,68 @@
+import json
+import os
+import stat
+import tempfile
+import textwrap
+import unittest
+from pathlib import Path
+
+from omnidoer.omni_control.chat import ChatStore
+from omnidoer.omni_control.chat_runner import ChatRunner
+
+
+class ControlChatRunnerTest(unittest.TestCase):
+    def test_codex_json_events_stream_into_chat_records(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                fake_codex = Path(tmp) / "fake-codex"
+                fake_codex.write_text(
+                    textwrap.dedent(
+                        """\
+                        #!/usr/bin/env python3
+                        import json
+
+                        events = [
+                            {"type": "thread.started", "thread_id": "thread_demo"},
+                            {"type": "turn.started"},
+                            {"type": "item.started", "item": {"id": "item_msg", "type": "agent_message", "text": "Hello"}},
+                            {"type": "item.updated", "item": {"id": "item_msg", "type": "agent_message", "text": "Hello there"}},
+                            {"type": "item.started", "item": {"id": "item_cmd", "type": "command_execution", "command": "date", "aggregated_output": "", "status": "in_progress", "exit_code": None}},
+                            {"type": "item.completed", "item": {"id": "item_cmd", "type": "command_execution", "command": "date", "aggregated_output": "Sun", "status": "completed", "exit_code": 0}},
+                            {"type": "turn.completed", "usage": {"input_tokens": 1, "cached_input_tokens": 0, "output_tokens": 2, "reasoning_output_tokens": 0}},
+                        ]
+                        for event in events:
+                            print(json.dumps(event), flush=True)
+                        """
+                    )
+                )
+                fake_codex.chmod(fake_codex.stat().st_mode | stat.S_IXUSR)
+
+                store = ChatStore()
+                user = store.append(role="user", text="Use OmniDoer from the client")
+                result = ChatRunner(codex_bin=str(fake_codex), cwd=tmp).run_once()
+
+                self.assertIsNotNone(result)
+                assert result is not None
+                self.assertEqual(result.role, "assistant")
+                self.assertEqual(store.get(user.message_id).status, "claimed")
+                messages = store.list()
+                assistant = [message for message in messages if message.role == "assistant"][0]
+                self.assertEqual(assistant.status, "completed")
+                self.assertEqual(assistant.text, "Hello there")
+                records = store.list_records(limit=1000)
+                record_types = [record.record_type for record in records]
+                self.assertIn("delta", record_types)
+                self.assertIn("tool_call", record_types)
+                self.assertIn("tool_output", record_types)
+                self.assertTrue(any("Codex turn completed" in record.text for record in records))
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+
+if __name__ == "__main__":
+    unittest.main()

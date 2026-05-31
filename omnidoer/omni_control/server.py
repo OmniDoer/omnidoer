@@ -1055,6 +1055,11 @@ def serve(
     tls_self_signed_dev: bool = False,
     behind_reverse_proxy: bool = False,
     insecure_dev_public: bool = False,
+    chat_runner: bool = False,
+    chat_runner_interval: float = 1.0,
+    chat_runner_cwd: str | None = None,
+    chat_codex_bin: str | None = None,
+    chat_codex_args: list[str] | None = None,
 ) -> None:
     try:
         config = build_config(
@@ -1084,5 +1089,15 @@ def serve(
         print("WARNING: --tls-self-signed-dev is for localhost/test only. Use a real certificate or reverse proxy for Cloud Direct.")
     if insecure_dev_public:
         print("WARNING: --insecure-dev-public disables Cloud Direct HTTPS enforcement. Use only for temporary testing.")
+    if chat_runner:
+        from omnidoer.omni_control.chat_runner import start_chat_runner_thread
+
+        start_chat_runner_thread(
+            codex_bin=chat_codex_bin,
+            cwd=chat_runner_cwd,
+            extra_args=chat_codex_args or [],
+            poll_interval=chat_runner_interval,
+        )
+        print("OmniDoer chat runner enabled: Control Client messages stream through codex exec --json.")
     print(f"OmniDoer Control Service listening on {config.public_url} mode={config.mode}")
     server.serve_forever()

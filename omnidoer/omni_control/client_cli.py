@@ -99,6 +99,11 @@ def handle_control_command(args) -> int:
             tls_self_signed_dev=args.tls_self_signed_dev,
             behind_reverse_proxy=args.behind_reverse_proxy,
             insecure_dev_public=args.insecure_dev_public,
+            chat_runner=args.chat_runner,
+            chat_runner_interval=args.chat_runner_interval,
+            chat_runner_cwd=args.chat_runner_cwd,
+            chat_codex_bin=args.chat_codex_bin,
+            chat_codex_args=args.chat_codex_arg,
         )
         return 0
     if command == "pair":
@@ -217,6 +222,21 @@ def handle_control_command(args) -> int:
     if command == "chat-complete":
         message = ChatStore().complete(args.message_id, text=args.text)
         print(f"completed chat message {message.message_id}")
+        return 0
+    if command == "chat-run-next":
+        from omnidoer.omni_control.chat_runner import ChatRunner
+
+        message = ChatRunner(codex_bin=args.codex_bin, cwd=args.cwd, extra_args=args.codex_arg).run_once()
+        if message is None:
+            print("no queued chat messages")
+            return 0
+        print(f"processed chat message {message.message_id}")
+        return 0
+    if command == "chat-runner":
+        from omnidoer.omni_control.chat_runner import ChatRunner
+
+        print("chat_runner_started=true", flush=True)
+        ChatRunner(codex_bin=args.codex_bin, cwd=args.cwd, extra_args=args.codex_arg, poll_interval=args.interval).run_forever()
         return 0
     if command == "complete-task":
         TaskStore().complete(args.task_id)

@@ -93,6 +93,11 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--tls-self-signed-dev", action="store_true")
     serve.add_argument("--behind-reverse-proxy", action="store_true")
     serve.add_argument("--insecure-dev-public", action="store_true")
+    serve.add_argument("--chat-runner", action="store_true")
+    serve.add_argument("--chat-runner-interval", type=float, default=1.0)
+    serve.add_argument("--chat-runner-cwd")
+    serve.add_argument("--chat-codex-bin")
+    serve.add_argument("--chat-codex-arg", action="append", default=[])
     serve.add_argument("--background", action="store_true")
     pair = control_sub.add_parser("pair")
     pair.add_argument("--print-qr", action="store_true")
@@ -139,6 +144,15 @@ def build_parser() -> argparse.ArgumentParser:
     chat_complete = control_sub.add_parser("chat-complete")
     chat_complete.add_argument("message_id")
     chat_complete.add_argument("--text")
+    chat_run_next = control_sub.add_parser("chat-run-next")
+    chat_run_next.add_argument("--codex-bin")
+    chat_run_next.add_argument("--cwd")
+    chat_run_next.add_argument("--codex-arg", action="append", default=[])
+    chat_runner = control_sub.add_parser("chat-runner")
+    chat_runner.add_argument("--codex-bin")
+    chat_runner.add_argument("--cwd")
+    chat_runner.add_argument("--codex-arg", action="append", default=[])
+    chat_runner.add_argument("--interval", type=float, default=1.0)
     for name in ("approve", "deny", "input-secret", "challenge", "takeover", "release"):
         p = control_sub.add_parser(name)
         p.add_argument("request_id")
@@ -358,14 +372,21 @@ def main(argv: list[str] | None = None) -> int:
                 ("--public-url", args.public_url),
                 ("--tls-cert", args.tls_cert),
                 ("--tls-key", args.tls_key),
+                ("--chat-runner-cwd", args.chat_runner_cwd),
+                ("--chat-codex-bin", args.chat_codex_bin),
             ):
                 if value:
                     background_args.extend([flag, value])
+            if args.chat_runner_interval != 1.0:
+                background_args.extend(["--chat-runner-interval", str(args.chat_runner_interval)])
+            for value in args.chat_codex_arg:
+                background_args.extend(["--chat-codex-arg", value])
             for flag, enabled in (
                 ("--cloud-direct", args.cloud_direct),
                 ("--tls-self-signed-dev", args.tls_self_signed_dev),
                 ("--behind-reverse-proxy", args.behind_reverse_proxy),
                 ("--insecure-dev-public", args.insecure_dev_public),
+                ("--chat-runner", args.chat_runner),
             ):
                 if enabled:
                     background_args.append(flag)
