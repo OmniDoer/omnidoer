@@ -7,6 +7,7 @@ import time
 import unittest
 from threading import Thread
 from pathlib import Path
+from unittest.mock import patch
 
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.tasks import TaskStore
@@ -82,6 +83,72 @@ class McpToolsTest(unittest.TestCase):
                 self.assertFalse(messages["control_client_calls_model"])
                 records = call_tool("control.list_chat_records", {})
                 self.assertTrue(any(item["record_type"] == "tool_call" for item in records["records"]))
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_browser_tools_pause_while_user_takeover_is_active(self) -> None:
+        class FakeBrowser:
+            def current_origin(self):
+                return "https://example.com"
+
+            def current_url(self):
+                return "https://example.com/paused"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                request = RequestStore().create(
+                    "human_takeover",
+                    origin="https://example.com",
+                    top_level_url="https://example.com/paused",
+                    action_summary="user took over browser",
+                    browser_context_id="mcp-browser",
+                )
+                with patch("omnidoer.omni_mcp.runtime.get_browser", return_value=FakeBrowser()):
+                    paused = call_tool("browser.current_origin", {"takeover_wait_timeout_seconds": 0})
+                self.assertEqual(paused["status"], "paused_for_human_takeover")
+                self.assertEqual(paused["request"]["request_id"], request.request_id)
+                self.assertTrue(paused["resume_after_user_releases_control"])
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_browser_tools_resume_after_user_releases_control(self) -> None:
+        class FakeBrowser:
+            def current_origin(self):
+                return "https://example.com"
+
+            def current_url(self):
+                return "https://example.com/resumed"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                request = RequestStore().create(
+                    "human_takeover",
+                    origin="https://example.com",
+                    top_level_url="https://example.com/resumed",
+                    action_summary="user took over browser",
+                    browser_context_id="mcp-browser",
+                )
+
+                def release_later() -> None:
+                    time.sleep(0.1)
+                    RequestStore().release_takeover(request.request_id)
+
+                Thread(target=release_later, daemon=True).start()
+                with patch("omnidoer.omni_mcp.runtime.get_browser", return_value=FakeBrowser()):
+                    result = call_tool("browser.current_origin", {"takeover_wait_timeout_seconds": 2})
+                self.assertEqual(result["status"], "ok")
+                self.assertEqual(result["origin"], "https://example.com")
+                self.assertEqual(result["url"], "https://example.com/resumed")
             finally:
                 if old_home is None:
                     os.environ.pop("OMNIDOER_HOME", None)

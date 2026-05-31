@@ -1518,6 +1518,7 @@ async function requestTakeoverPause() {
   if (button) button.disabled = true;
   await loadBrowserContexts();
   const context = activeBrowserContext();
+  let browserTakeoverStarted = false;
   if (context) {
     try {
       const response = await signedFetch(`/api/browser/contexts/${encodeURIComponent(context.browser_context_id)}/takeover`, {
@@ -1526,11 +1527,7 @@ async function requestTakeoverPause() {
         body: JSON.stringify({ reason: t("takeoverPausePrompt") })
       });
       if (!response.ok) throw new Error("browser takeover failed");
-      setStatus(t("browserTakeoverCreated"), t("browserTakeoverCreatedDetail"));
-      activatePanel("takeover-panel");
-      await loadRequests();
-      if (button) button.disabled = false;
-      return;
+      browserTakeoverStarted = true;
     } catch {
       setStatus(t("actionFailed"), t("activeBrowserReady"));
     }
@@ -1544,8 +1541,14 @@ async function requestTakeoverPause() {
     if (button) button.disabled = false;
     return;
   }
-  setStatus(t("pauseAgentRequested"), t("pauseAgentRequestDetail"));
-  activatePanel("task-panel");
+  if (browserTakeoverStarted) {
+    setStatus(t("browserTakeoverCreated"), t("browserTakeoverCreatedDetail"));
+    activatePanel("takeover-panel");
+    await loadRequests();
+  } else {
+    setStatus(t("pauseAgentRequested"), t("pauseAgentRequestDetail"));
+    activatePanel("task-panel");
+  }
   await loadChatMessages();
   if (button) button.disabled = false;
 }

@@ -391,6 +391,57 @@ def _sensitive_click_allowed(arguments: dict, *, browser, selector: str) -> dict
     }
 
 
+def _takeover_wait_timeout(arguments: dict) -> float:
+    if "takeover_wait_timeout_seconds" in arguments:
+        value = arguments.get("takeover_wait_timeout_seconds")
+    else:
+        value = os.environ.get("OMNIDOER_TAKEOVER_WAIT_TIMEOUT_SECONDS") or 600
+    try:
+        return max(0.0, float(value))
+    except (TypeError, ValueError):
+        return 600.0
+
+
+def _active_browser_takeover(browser_context_id: str):
+    from omnidoer.omni_control.requests import RequestStore
+
+    for request in RequestStore().list():
+        if (
+            request.browser_context_id == browser_context_id
+            and request.request_type in {"human_takeover", "account_registration"}
+            and request.status == "user_control"
+        ):
+            return request
+    return None
+
+
+def _wait_for_browser_takeover_release(browser_context_id: str, *, timeout_seconds: float):
+    import time
+
+    deadline = time.time() + timeout_seconds
+    request = _active_browser_takeover(browser_context_id)
+    while request is not None and time.time() < deadline:
+        time.sleep(0.25)
+        request = _active_browser_takeover(browser_context_id)
+    return request
+
+
+def _pause_for_user_takeover_if_needed(arguments: dict, *, browser_context_id: str = "mcp-browser") -> dict | None:
+    request = _wait_for_browser_takeover_release(
+        browser_context_id,
+        timeout_seconds=_takeover_wait_timeout(arguments),
+    )
+    if request is None:
+        return None
+    return {
+        "status": "paused_for_human_takeover",
+        "request": request.to_public_dict(),
+        "agent_paused": True,
+        "resume_after_user_releases_control": True,
+        "secret_exposed_to_model": False,
+    }
+
+
 def _totp_code(seed: str) -> str:
     import base64
     import hashlib
@@ -417,6 +468,9 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
             from omnidoer.omni_mcp.runtime import get_browser
 
             browser = get_browser()
+            paused = _pause_for_user_takeover_if_needed(arguments)
+            if paused is not None:
+                return paused
             if name == "browser.open":
                 url = arguments.get("url")
                 if not url:

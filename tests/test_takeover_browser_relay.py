@@ -33,7 +33,7 @@ class TakeoverBrowserRelayTest(unittest.TestCase):
             control_server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
             Thread(target=control_server.serve_forever, daemon=True).start()
             try:
-                write_context_status("mcp-browser", FakeBrowser())
+                write_context_status("cross-browser", FakeBrowser())
                 frame = {
                     "frame_id": "frame_cross",
                     "captured_at": 2000000000.0,
@@ -46,18 +46,18 @@ class TakeoverBrowserRelayTest(unittest.TestCase):
                     "for_control_client_only": True,
                     "not_for_llm": True,
                 }
-                write_frame("mcp-browser", frame)
+                write_frame("cross-browser", frame)
                 base = f"http://127.0.0.1:{control_server.server_address[1]}"
                 from urllib.request import Request, urlopen
 
                 contexts = json.loads(urlopen(f"{base}/api/browser/contexts", timeout=5).read().decode())
-                self.assertEqual(contexts["contexts"][0]["browser_context_id"], "mcp-browser")
+                self.assertTrue(any(context["browser_context_id"] == "cross-browser" for context in contexts["contexts"]))
 
                 body = json.dumps({"reason": "user paused browser"}).encode()
                 request_payload = json.loads(
                     urlopen(
                         Request(
-                            f"{base}/api/browser/contexts/mcp-browser/takeover",
+                            f"{base}/api/browser/contexts/cross-browser/takeover",
                             data=body,
                             headers={"content-type": "application/json"},
                             method="POST",
@@ -67,7 +67,7 @@ class TakeoverBrowserRelayTest(unittest.TestCase):
                     .read()
                     .decode()
                 )
-                self.assertEqual(request_payload["browser_context_id"], "mcp-browser")
+                self.assertEqual(request_payload["browser_context_id"], "cross-browser")
                 request_id = request_payload["request_id"]
 
                 delivered_frame = json.loads(urlopen(f"{base}/api/requests/{request_id}/frame", timeout=5).read().decode())
@@ -89,7 +89,7 @@ class TakeoverBrowserRelayTest(unittest.TestCase):
                     .decode()
                 )
                 self.assertEqual(queued["status"], "event_queued")
-                events = consume_input_events("mcp-browser")
+                events = consume_input_events("cross-browser")
                 self.assertEqual(events[0]["event"]["event_type"], "tap")
             finally:
                 control_server.shutdown()
