@@ -176,6 +176,7 @@ class McpToolsTest(unittest.TestCase):
                 self.assertTrue(result["requires_human_takeover"])
                 self.assertTrue(result["agent_paused"])
                 self.assertTrue(result["takeover_created"])
+                self.assertFalse(result["reused"])
                 self.assertEqual(result["request"]["request_type"], "human_takeover")
                 self.assertEqual(result["request"]["browser_context_id"], "mcp-browser")
             finally:
@@ -207,6 +208,7 @@ class McpToolsTest(unittest.TestCase):
                 self.assertTrue(result["requires_human_takeover"])
                 self.assertTrue(result["agent_paused"])
                 self.assertTrue(result["takeover_created"])
+                self.assertFalse(result["reused"])
                 self.assertEqual(result["request"]["request_type"], "human_takeover")
                 self.assertEqual(result["request"]["browser_context_id"], "mcp-browser")
             finally:
@@ -242,6 +244,7 @@ class McpToolsTest(unittest.TestCase):
                 self.assertEqual(result["status"], "ok")
                 self.assertEqual(result["challenge_type"], "captcha")
                 self.assertFalse(result["takeover_created"])
+                self.assertTrue(result["reused"])
                 self.assertEqual(result["request"]["request_id"], request.request_id)
             finally:
                 if old_home is None:
@@ -395,6 +398,7 @@ class McpToolsTest(unittest.TestCase):
                 self.assertEqual(repeated_without_origin["status"], "takeover_request_active")
                 self.assertTrue(repeated_without_origin["reused"])
                 self.assertEqual(repeated_without_origin["request"]["request_id"], takeover["request"]["request_id"])
+                RequestStore().release_takeover(takeover["request"]["request_id"])
 
                 registration = call_tool(
                     "registration.request_user_handoff",
@@ -402,7 +406,17 @@ class McpToolsTest(unittest.TestCase):
                 )
                 self.assertEqual(registration["status"], "registration_handoff_created")
                 self.assertEqual(registration["request"]["request_type"], "account_registration")
+                self.assertTrue(registration["handoff_created"])
+                self.assertFalse(registration["reused"])
                 self.assertTrue(registration["agent_paused"])
+                repeated_registration = call_tool(
+                    "registration.request_user_handoff",
+                    {**common, "top_level_url": "http://127.0.0.1:8765/register", "reason": "new account required"},
+                )
+                self.assertEqual(repeated_registration["status"], "registration_handoff_active")
+                self.assertFalse(repeated_registration["handoff_created"])
+                self.assertTrue(repeated_registration["reused"])
+                self.assertEqual(repeated_registration["request"]["request_id"], registration["request"]["request_id"])
                 self.assertNotIn("password", repr(registration))
 
                 approval = call_tool(

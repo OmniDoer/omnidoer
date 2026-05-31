@@ -572,6 +572,7 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
                     "requires_human_takeover": bool(challenge_type),
                     "agent_paused": bool(challenge_type),
                     "takeover_created": created,
+                    "reused": bool(request and not created),
                     "request": request.to_public_dict() if request else None,
                     "secret_exposed_to_model": False,
                 }
@@ -590,6 +591,7 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
                     "requires_human_takeover": detected,
                     "agent_paused": detected,
                     "takeover_created": created,
+                    "reused": bool(request and not created),
                     "request": request.to_public_dict() if request else None,
                     "secret_exposed_to_model": False,
                 }
@@ -734,6 +736,17 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
     if name == "registration.request_user_handoff":
         from omnidoer.omni_takeover.relay import request_registration_handoff
 
+        existing = _active_browser_takeover("mcp-browser")
+        if existing is not None:
+            return {
+                "status": "registration_handoff_active",
+                "request": existing.to_public_dict(),
+                "handoff_created": False,
+                "reused": True,
+                "agent_paused": True,
+                "completed_by_user": False,
+                "secret_exposed_to_model": False,
+            }
         origin, top_level_url = _origin_and_url(arguments)
         if not origin or not top_level_url:
             return _error("error", "origin or active browser required")
@@ -748,6 +761,8 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
         return {
             "status": "registration_handoff_created",
             "request": request.to_public_dict(),
+            "handoff_created": True,
+            "reused": False,
             "agent_paused": True,
             "completed_by_user": False,
             "secret_exposed_to_model": False,
