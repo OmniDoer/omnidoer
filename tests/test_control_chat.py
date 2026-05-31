@@ -9,7 +9,7 @@ from pathlib import Path
 from threading import Thread
 from urllib import request as urllib_request
 
-from omnidoer.omni_control.chat import MAX_CHAT_RECORDS, ChatStore
+from omnidoer.omni_control.chat import MAX_CHAT_MESSAGES, MAX_CHAT_RECORDS, ChatStore
 from omnidoer.omni_control.chat_uploads import ChatUploadStore
 from omnidoer.omni_control.server import ControlHandler
 
@@ -73,6 +73,17 @@ class ControlChatStoreTest(unittest.TestCase):
             self.assertLessEqual(len(records), MAX_CHAT_RECORDS)
             self.assertEqual(records[0].text, "record 40")
             self.assertEqual(records[-1].text, f"record {MAX_CHAT_RECORDS + 39}")
+
+    def test_completed_chat_messages_are_pruned_to_recent_window(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = ChatStore(Path(tmp) / "chat.json")
+            for index in range(MAX_CHAT_MESSAGES + 20):
+                message = store.append(role="user", text=f"done {index}")
+                store.complete(message.message_id)
+            messages = store.list(limit=1000)
+            self.assertLessEqual(len(messages), MAX_CHAT_MESSAGES)
+            self.assertEqual(messages[0].text, "done 20")
+            self.assertEqual(messages[-1].text, f"done {MAX_CHAT_MESSAGES + 19}")
 
 
 class ControlChatUploadStoreTest(unittest.TestCase):
@@ -154,6 +165,10 @@ class ControlChatApiTest(unittest.TestCase):
                     stream = response.read().decode()
                 self.assertIn("event: chat", stream)
                 self.assertIn("streamed", stream)
+
+                with urllib_request.urlopen(f"{base}/api/chat/events?stream=1&snapshots=2&interval=0.01", timeout=5) as response:
+                    unchanged_stream = response.read().decode()
+                self.assertEqual(unchanged_stream.count("event: chat"), 1)
             finally:
                 server.shutdown()
                 server.server_close()

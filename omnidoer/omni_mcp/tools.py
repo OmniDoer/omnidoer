@@ -919,13 +919,23 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
     if name == "control.publish_chat_message":
         from omnidoer.omni_control.chat import ChatStore
 
-        message = ChatStore().append(
+        store = ChatStore()
+        reply_to_message_id = str((arguments or {}).get("reply_to_message_id") or "") or None
+        status = str((arguments or {}).get("status") or "completed")
+        message = store.append(
             role="assistant",
             text=str((arguments or {}).get("text") or ""),
-            status=str((arguments or {}).get("status") or "completed"),
+            status=status,
             source="agent",
-            reply_to_message_id=str((arguments or {}).get("reply_to_message_id") or "") or None,
+            reply_to_message_id=reply_to_message_id,
         )
+        if reply_to_message_id and message.status == "completed":
+            try:
+                replied_to = store.get(reply_to_message_id)
+            except KeyError:
+                replied_to = None
+            if replied_to is not None and replied_to.role == "user" and replied_to.status != "completed":
+                store.complete(reply_to_message_id)
         return {"status": "ok", "message": message.to_public_dict(), "secret_exposed_to_model": False}
     if name == "control.publish_chat_record":
         from omnidoer.omni_control.chat import ChatStore

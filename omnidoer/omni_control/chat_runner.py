@@ -369,6 +369,7 @@ class ChatRunner:
         codex = find_codex_binary(self.codex_bin)
         if not codex:
             bridge.record("error", "Codex CLI binary was not found; cannot process Control Client chat.", role="system")
+            self.store.complete(user_message.message_id)
             return self.store.complete(assistant.message_id, text="Codex CLI binary was not found.")
         if self.thread_id:
             bridge.record("status", f"Resuming Codex thread {self.thread_id} in {self.cwd}", role="system")
@@ -422,9 +423,11 @@ class ChatRunner:
                 return_code = proc.wait()
         except Exception as exc:
             bridge.record("error", f"Codex JSON runner failed: {type(exc).__name__}", role="system")
+            self.store.complete(user_message.message_id)
             return self.store.complete(assistant.message_id, text=f"Codex JSON runner failed: {type(exc).__name__}")
         if return_code != 0:
             bridge.record("error", f"Codex process exited with code {return_code}.", role="system")
+        self.store.complete(user_message.message_id)
         return self.store.complete(assistant.message_id)
 
     def run_forever(self, stop_event: threading.Event | None = None) -> None:

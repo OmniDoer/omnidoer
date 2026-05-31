@@ -74,6 +74,7 @@ class McpToolsTest(unittest.TestCase):
                 published = call_tool("control.publish_chat_message", {"text": "Hi", "reply_to_message_id": user.message_id})
                 self.assertEqual(published["status"], "ok")
                 self.assertEqual(published["message"]["role"], "assistant")
+                self.assertEqual(ChatStore().get(user.message_id).status, "completed")
                 record = call_tool("control.publish_chat_record", {"record_type": "tool_call", "text": "control.next_user_message"})
                 self.assertEqual(record["status"], "ok")
                 self.assertEqual(record["record"]["record_type"], "tool_call")

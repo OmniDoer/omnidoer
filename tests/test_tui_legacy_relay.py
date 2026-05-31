@@ -70,7 +70,7 @@ class TuiLegacyRelayTest(unittest.TestCase):
                     self.assertTrue(LegacyTuiRelay(store=store, thread_id="thread_active").run_once())
 
                 self.assertEqual(injected, [("%1", "hello from phone")])
-                self.assertEqual(store.get(user.message_id).status, "claimed")
+                self.assertEqual(store.get(user.message_id).status, "completed")
                 records = store.list_records(limit=100)
                 self.assertTrue(any(record.source == "legacy_tui_relay" for record in records))
             finally:
@@ -108,7 +108,7 @@ class TuiLegacyRelayTest(unittest.TestCase):
 
                 self.assertEqual(interrupted, ["%1"])
                 self.assertEqual(injected, [("%1", "Pause Agent")])
-                self.assertEqual(store.get(user.message_id).status, "claimed")
+                self.assertEqual(store.get(user.message_id).status, "completed")
                 records = store.list_records(limit=100)
                 self.assertTrue(any(record.data.get("interrupted_turn") is True for record in records))
             finally:

@@ -276,6 +276,28 @@ class ControlHandler(SimpleHTTPRequestHandler):
             "control_client_calls_model": False,
         }
 
+    def _chat_payload_fingerprint(self, payload: dict) -> str:
+        messages = payload.get("messages") or []
+        records = payload.get("records") or []
+        terminal = payload.get("terminal") or {}
+        last_message = messages[-1] if messages else {}
+        last_record = records[-1] if records else {}
+        terminal_text = str(terminal.get("text") or "") if isinstance(terminal, dict) else ""
+        fingerprint = [
+            len(messages),
+            last_message.get("sequence"),
+            last_message.get("status"),
+            last_message.get("updated_at"),
+            len(records),
+            last_record.get("sequence"),
+            last_record.get("record_type"),
+            last_record.get("created_at"),
+            terminal.get("available") if isinstance(terminal, dict) else False,
+            len(terminal_text),
+            terminal_text[-240:],
+        ]
+        return json.dumps(fingerprint, ensure_ascii=False, sort_keys=True)
+
     def _send_sse(self, payload: dict, *, event: str = "requests") -> None:
         from omnidoer.omni_control.websocket import sse_event
 
@@ -335,19 +357,31 @@ class ControlHandler(SimpleHTTPRequestHandler):
         self.send_header("cache-control", "no-store")
         self.send_header("connection", "close")
         self.end_headers()
+        last_fingerprint = ""
         for index in range(max(1, min(snapshots, 120))):
             if index:
                 time.sleep(max(0.0, min(interval, 10.0)))
-            self.wfile.write(sse_event("chat", self._chat_payload(limit=limit, after_sequence=after_sequence)))
+            payload = self._chat_payload(limit=limit, after_sequence=after_sequence)
+            fingerprint = self._chat_payload_fingerprint(payload)
+            if index and fingerprint == last_fingerprint:
+                continue
+            last_fingerprint = fingerprint
+            self.wfile.write(sse_event("chat", payload))
             self.wfile.flush()
         self.close_connection = True
 
     def _send_chat_websocket_stream(self, *, snapshots: int, interval: float, limit: int, after_sequence: int | None) -> None:
         websocket_text_frame = self._open_websocket()
+        last_fingerprint = ""
         for index in range(max(1, min(snapshots, 120))):
             if index:
                 time.sleep(max(0.0, min(interval, 10.0)))
-            self.wfile.write(websocket_text_frame({"event": "chat", "data": self._chat_payload(limit=limit, after_sequence=after_sequence)}))
+            payload = self._chat_payload(limit=limit, after_sequence=after_sequence)
+            fingerprint = self._chat_payload_fingerprint(payload)
+            if index and fingerprint == last_fingerprint:
+                continue
+            last_fingerprint = fingerprint
+            self.wfile.write(websocket_text_frame({"event": "chat", "data": payload}))
             self.wfile.flush()
         self.close_connection = True
 

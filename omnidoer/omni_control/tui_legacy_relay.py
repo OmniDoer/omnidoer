@@ -289,19 +289,22 @@ class LegacyTuiRelay:
             )
             return False
         claimed = self.store.next_user_message(claim=True)
+        delivered = claimed or message
         self.store.append_record(
             record_type="status",
             text=f"Delivered Control Client message to live TUI terminal pane {pane.pane_id}.",
             role="system",
-            message_id=(claimed or message).message_id,
+            message_id=delivered.message_id,
             source="legacy_tui_relay",
             data={
                 "pane_id": pane.pane_id,
                 "thread_id": self.thread_id,
                 "transport": "tmux",
-                "interrupted_turn": message_requests_interrupt(claimed or message),
+                "interrupted_turn": message_requests_interrupt(delivered),
             },
         )
+        if claimed is not None:
+            self.store.complete(claimed.message_id)
         return True
 
     def publish_terminal_delta(self) -> bool:

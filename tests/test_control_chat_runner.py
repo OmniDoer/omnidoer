@@ -179,7 +179,7 @@ class ControlChatRunnerTest(unittest.TestCase):
                 self.assertIsNotNone(result)
                 assert result is not None
                 self.assertEqual(result.role, "assistant")
-                self.assertEqual(store.get(user.message_id).status, "claimed")
+                self.assertEqual(store.get(user.message_id).status, "completed")
                 messages = store.list()
                 assistant = [message for message in messages if message.role == "assistant"][0]
                 self.assertEqual(assistant.status, "completed")

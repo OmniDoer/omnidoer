@@ -171,6 +171,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("startChatWebSocket", app)
         self.assertIn("/api/ws/chat", app)
         self.assertIn("/api/chat/events?stream=1", app)
+        self.assertIn("interval=0.25", app)
         self.assertIn("renderChatRecord", app)
         self.assertIn("renderLegacyTerminal", app)
         self.assertIn("chatConversationTitle", app)
