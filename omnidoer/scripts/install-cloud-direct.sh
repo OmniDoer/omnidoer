@@ -63,15 +63,7 @@ if [ "$register_mcp" = "1" ] && command -v codex >/dev/null 2>&1; then
 fi
 
 if [ "$replace_codex" = "1" ]; then
-  if [ "$(id -u)" = "0" ]; then
-    install -m 0755 "$install_dir/omnidoer/scripts/codex-omnidoer-shim.sh" /usr/local/bin/codex
-  elif command -v sudo >/dev/null 2>&1; then
-    sudo install -m 0755 "$install_dir/omnidoer/scripts/codex-omnidoer-shim.sh" /usr/local/bin/codex
-  else
-    echo "OMNIDOER_REPLACE_CODEX=1 requires root or sudo to write /usr/local/bin/codex." >&2
-    exit 1
-  fi
-  echo "Installed OmniDoer Codex shim at /usr/local/bin/codex"
+  "$install_dir/omnidoer/scripts/install-codex-shim.sh"
 fi
 
 if [ "$start_service" = "1" ]; then

@@ -43,6 +43,20 @@ curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scr
 ~/omnidoer/.venv/bin/omnidoer --version
 ```
 
+安全地让本机 `codex` 解析到 OmniDoer shim，同时保留原始 Codex CLI 在
+`/usr/bin/codex`：
+
+```sh
+sudo omnidoer/scripts/install-codex-shim.sh
+omnidoer/scripts/verify-codex-shim.sh
+```
+
+失败或不满意时可立即回退：
+
+```sh
+sudo omnidoer/scripts/uninstall-codex-shim.sh
+```
+
 安装脚本会创建 `~/omnidoer/.venv`、初始化 OmniDoer、安装浏览器 worker、
 自检 MCP server，并在 `codex` CLI 可用时注册 `omnidoer mcp serve`。它会
 保留现有 Codex 登录、模型选择和计费路径，不把 OmniDoer 变成新的默认 OpenAI

@@ -79,6 +79,20 @@ Upgrade the CLI and sidecar in place:
 ~/omnidoer/.venv/bin/omnidoer --version
 ```
 
+Safely make `codex` resolve to the OmniDoer shim while preserving the original
+Codex CLI at `/usr/bin/codex`:
+
+```sh
+sudo omnidoer/scripts/install-codex-shim.sh
+omnidoer/scripts/verify-codex-shim.sh
+```
+
+Rollback is immediate:
+
+```sh
+sudo omnidoer/scripts/uninstall-codex-shim.sh
+```
+
 Set `OMNIDOER_INSTALL_DIR`, `OMNIDOER_HOST`, `OMNIDOER_PORT`, `OMNIDOER_START=0`,
 `OMNIDOER_REGISTER_MCP=0`, or `OMNIDOER_SKIP_PLAYWRIGHT=1` to customize the
 bootstrap.
