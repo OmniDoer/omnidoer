@@ -34,6 +34,13 @@ const SIDE_SLASH_COMMAND_UNAVAILABLE_HINT: &str =
     "Press Ctrl+C to return to the main thread first.";
 const GOAL_USAGE: &str = "Usage: /goal <objective>";
 const GOAL_USAGE_HINT: &str = "Example: /goal improve benchmark coverage";
+const PAIR_PROMPT: &str = concat!(
+    "Create a short-lived OmniDoer Control Client pairing link using the ",
+    "`control.create_pairing` MCP tool. Use the configured public URL if ",
+    "available and a 60 minute expiry. Show only the HTTPS pairing URL, ",
+    "expiry, and a short reminder that pairing is one-time while later ",
+    "device sessions are cached and revocable."
+);
 const RAW_USAGE: &str = "Usage: /raw [on|off]";
 
 fn auth_mode_label(mode: codex_app_server_protocol::AuthMode) -> &'static str {
@@ -518,6 +525,9 @@ impl ChatWidget {
             SlashCommand::Users => {
                 self.open_users_picker();
             }
+            SlashCommand::Pair => {
+                self.submit_user_message(PAIR_PROMPT.to_string().into());
+            }
             SlashCommand::Ide => {
                 self.handle_ide_command();
             }
@@ -725,6 +735,11 @@ impl ChatWidget {
                 "verbose" => self.add_mcp_output(McpServerStatusDetail::Full),
                 _ => self.add_error_message("Usage: /mcp [verbose]".to_string()),
             },
+            SlashCommand::Pair if !trimmed.is_empty() => {
+                self.submit_user_message(
+                    format!("{PAIR_PROMPT}\n\nUser-supplied pairing options: {trimmed}").into(),
+                );
+            }
             SlashCommand::Keymap => match trimmed.to_ascii_lowercase().as_str() {
                 "" => self.open_keymap_picker(),
                 "debug" => {

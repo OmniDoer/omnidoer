@@ -598,6 +598,44 @@ async fn slash_init_skips_when_project_doc_exists() {
 }
 
 #[tokio::test]
+async fn slash_pair_submits_control_pairing_prompt() {
+    let (mut chat, _rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+
+    submit_composer_text(&mut chat, "/pair");
+
+    match next_submit_op(&mut op_rx) {
+        Op::UserTurn { items, .. } => match &items[..] {
+            [UserInput::Text { text, .. }] => {
+                assert!(text.contains("control.create_pairing"));
+                assert!(text.contains("60 minute expiry"));
+                assert!(text.contains("device sessions are cached"));
+            }
+            other => panic!("expected one text item, got {other:?}"),
+        },
+        other => panic!("expected /pair to submit a user turn, got {other:?}"),
+    }
+    assert_eq!(recall_latest_after_clearing(&mut chat), "/pair");
+}
+
+#[tokio::test]
+async fn slash_pair_with_args_includes_pairing_options() {
+    let (mut chat, _rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+
+    submit_composer_text(&mut chat, "/pair https://agent.example.com 30m");
+
+    match next_submit_op(&mut op_rx) {
+        Op::UserTurn { items, .. } => match &items[..] {
+            [UserInput::Text { text, .. }] => {
+                assert!(text.contains("control.create_pairing"));
+                assert!(text.contains("https://agent.example.com 30m"));
+            }
+            other => panic!("expected one text item, got {other:?}"),
+        },
+        other => panic!("expected /pair with args to submit a user turn, got {other:?}"),
+    }
+}
+
+#[tokio::test]
 async fn bare_slash_command_is_available_from_local_recall_after_dispatch() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
 

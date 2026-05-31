@@ -46,6 +46,7 @@ pub enum SlashCommand {
     Mention,
     Status,
     Users,
+    Pair,
     DebugConfig,
     Title,
     Statusline,
@@ -100,6 +101,7 @@ impl SlashCommand {
             SlashCommand::Hooks => "view and manage lifecycle hooks",
             SlashCommand::Status => "show current session configuration and token usage",
             SlashCommand::Users => "switch between saved OmniDoer users",
+            SlashCommand::Pair => "create an OmniDoer Control Client pairing link",
             SlashCommand::DebugConfig => "show config layers and requirement sources for debugging",
             SlashCommand::Title => "configure which items appear in the terminal title",
             SlashCommand::Statusline => "configure which items appear in the status line",
@@ -158,6 +160,7 @@ impl SlashCommand {
                 | SlashCommand::Ide
                 | SlashCommand::Keymap
                 | SlashCommand::Mcp
+                | SlashCommand::Pair
                 | SlashCommand::Raw
                 | SlashCommand::Pets
                 | SlashCommand::Side
@@ -218,6 +221,7 @@ impl SlashCommand {
             | SlashCommand::Stop
             | SlashCommand::Goal
             | SlashCommand::Mcp
+            | SlashCommand::Pair
             | SlashCommand::Apps
             | SlashCommand::Plugins
             | SlashCommand::Title
@@ -277,6 +281,14 @@ mod tests {
     fn pet_alias_parses_to_pets_command() {
         assert_eq!(SlashCommand::Pets.command(), "pets");
         assert_eq!(SlashCommand::from_str("pet"), Ok(SlashCommand::Pets));
+    }
+
+    #[test]
+    fn pair_command_is_omnidoer_control_pairing() {
+        assert_eq!(SlashCommand::Pair.command(), "pair");
+        assert_eq!(SlashCommand::from_str("pair"), Ok(SlashCommand::Pair));
+        assert!(SlashCommand::Pair.supports_inline_args());
+        assert!(SlashCommand::Pair.available_during_task());
     }
 
     #[test]

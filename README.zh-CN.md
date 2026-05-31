@@ -37,6 +37,10 @@ curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scr
 ~/omnidoer/.venv/bin/omnidoer control submit-task "打开本地 demo 并下载我的发票"
 ```
 
+在 OmniDoer 原生控制台里也可以直接输入 `/pair`。这个命令会让 Agent 通过安全的
+`control.create_pairing` MCP 工具生成短期 Control Client 配对链接。设备只需要
+配对一次，后续正常使用会复用可撤销的设备会话，不需要每次重新配对。
+
 不带子命令运行 `omnidoer` 会直接进入 OmniDoer 品牌交互控制台。它继承现有
 Codex 的 ChatGPT 登录和计费路径，但启动器会注入 OmniDoer 品牌环境；当本机
 使用支持该品牌开关的原生控制台时，启动页、`/status` 和额度展示都会明确显示

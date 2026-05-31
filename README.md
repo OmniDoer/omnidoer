@@ -78,6 +78,11 @@ After install:
 ~/omnidoer/.venv/bin/omnidoer control submit-task "Open the local demo and download my invoice"
 ```
 
+Inside the OmniDoer native console, `/pair` asks the Agent to create a
+short-lived Control Client pairing URL through the safe `control.create_pairing`
+MCP tool. Pair once on a device you control; normal later use reuses the
+revocable device session instead of asking you to pair again.
+
 Running `omnidoer` with no subcommand opens the OmniDoer-branded interactive
 console. It inherits the existing Codex ChatGPT login and billing path, but the
 launcher sets OmniDoer branding so startup, status, and quota surfaces identify
