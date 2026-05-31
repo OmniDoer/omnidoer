@@ -141,8 +141,7 @@ impl ChatWidget {
                     name: user.label,
                     description: Some(description),
                     selected_description: Some(
-                        "Switch credentials and keep the current conversation context"
-                            .to_string(),
+                        "Switch credentials and keep the current conversation context".to_string(),
                     ),
                     is_current,
                     actions,

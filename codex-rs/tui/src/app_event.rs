@@ -227,7 +227,10 @@ pub(crate) enum AppEvent {
     Logout,
 
     /// Switch to a saved local auth user without leaving the current thread.
-    SwitchAuthUser { user_id: String, label: String },
+    SwitchAuthUser {
+        user_id: String,
+        label: String,
+    },
 
     /// Request to exit the application due to a fatal error.
     #[allow(dead_code)]
