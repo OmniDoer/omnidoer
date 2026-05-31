@@ -522,9 +522,10 @@ fn parse_claimed_message(stdout: &str) -> Result<Option<RemoteUserMessage>, Stri
 }
 
 fn message_requests_interrupt(message: &ControlChatMessage) -> bool {
-    message.client_message_id.as_deref().is_some_and(|id| {
-        id.starts_with("control_pause_") || id.starts_with("omnidoer_pause_")
-    })
+    message
+        .client_message_id
+        .as_deref()
+        .is_some_and(|id| id.starts_with("control_pause_") || id.starts_with("omnidoer_pause_"))
 }
 
 fn image_attachment_paths(attachments: &[ControlChatAttachment]) -> Vec<PathBuf> {
