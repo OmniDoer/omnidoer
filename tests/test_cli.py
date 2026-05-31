@@ -1,3 +1,4 @@
+import io
 import os
 import re
 import stat
@@ -6,8 +7,11 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from urllib.request import urlopen
 
+from omnidoer.omni_cli.auto_upgrade import UpdateInfo
+from omnidoer.omni_cli.auto_upgrade import maybe_prompt_for_upgrade
 from omnidoer.omni_cli.console import build_console_env
 from omnidoer.omni_audit.audit import AuditLog
 from omnidoer.omni_broker.broker import SecretBroker
@@ -68,6 +72,76 @@ class CliTest(unittest.TestCase):
 
         env = build_console_env()
         self.assertEqual(env["OMNIDOER_VERSION"], __version__.lstrip("vV"))
+
+    def test_update_prompt_runs_upgrade_when_user_accepts(self) -> None:
+        update = UpdateInfo(
+            install_dir=Path("/tmp/omnidoer-install"),
+            branch="main",
+            local_revision="a" * 40,
+            remote_revision="b" * 40,
+            dirty=False,
+            fast_forward=True,
+        )
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with (
+            patch("omnidoer.omni_cli.auto_upgrade.check_for_update", return_value=update),
+            patch("omnidoer.omni_cli.auto_upgrade.handle_upgrade_command", return_value=0) as upgrade,
+        ):
+            upgraded = maybe_prompt_for_upgrade(
+                input_func=lambda _prompt: "y",
+                stdout=stdout,
+                stderr=stderr,
+                is_interactive=lambda: True,
+            )
+        self.assertTrue(upgraded)
+        self.assertIn("OmniDoer update available", stdout.getvalue())
+        upgrade.assert_called_once()
+        args = upgrade.call_args.args[0]
+        self.assertEqual(args.install_dir, "/tmp/omnidoer-install")
+        self.assertEqual(args.branch, "main")
+
+    def test_update_prompt_continues_when_user_declines(self) -> None:
+        update = UpdateInfo(
+            install_dir=Path("/tmp/omnidoer-install"),
+            branch="main",
+            local_revision="a" * 40,
+            remote_revision="b" * 40,
+            dirty=False,
+            fast_forward=True,
+        )
+        stdout = io.StringIO()
+        with (
+            patch("omnidoer.omni_cli.auto_upgrade.check_for_update", return_value=update),
+            patch("omnidoer.omni_cli.auto_upgrade.handle_upgrade_command") as upgrade,
+        ):
+            upgraded = maybe_prompt_for_upgrade(
+                input_func=lambda _prompt: "n",
+                stdout=stdout,
+                stderr=io.StringIO(),
+                is_interactive=lambda: True,
+            )
+        self.assertFalse(upgraded)
+        self.assertIn("Continuing with the installed OmniDoer version.", stdout.getvalue())
+        upgrade.assert_not_called()
+
+    def test_update_prompt_is_disabled_by_env(self) -> None:
+        with (
+            patch.dict(os.environ, {"OMNIDOER_UPDATE_CHECK": "0"}),
+            patch("omnidoer.omni_cli.auto_upgrade.check_for_update") as check,
+        ):
+            upgraded = maybe_prompt_for_upgrade(is_interactive=lambda: True)
+        self.assertFalse(upgraded)
+        check.assert_not_called()
+
+    def test_update_prompt_skip_once_env_prevents_reexec_loop(self) -> None:
+        with (
+            patch.dict(os.environ, {"OMNIDOER_UPDATE_CHECK_SKIP_ONCE": "1"}),
+            patch("omnidoer.omni_cli.auto_upgrade.check_for_update") as check,
+        ):
+            upgraded = maybe_prompt_for_upgrade(is_interactive=lambda: True)
+        self.assertFalse(upgraded)
+        check.assert_not_called()
 
     def test_no_args_launches_console_instead_of_help(self) -> None:
         result = self.run_cli(

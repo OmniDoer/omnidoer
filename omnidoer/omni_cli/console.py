@@ -81,6 +81,14 @@ def _print_startup_animation() -> None:
 
 
 def launch_codex_console(args: list[str], *, dry_run: bool = False) -> int:
+    if not dry_run:
+        from omnidoer.omni_cli.auto_upgrade import maybe_prompt_for_upgrade
+
+        if maybe_prompt_for_upgrade():
+            env = os.environ.copy()
+            env["OMNIDOER_UPDATE_CHECK_SKIP_ONCE"] = "1"
+            os.execvpe(sys.executable, [sys.executable, "-m", "omnidoer.omni_cli.main", *sys.argv[1:]], env)
+
     codex = find_codex_binary()
     if not codex:
         print("cannot launch OmniDoer console: Codex CLI binary was not found", file=sys.stderr)

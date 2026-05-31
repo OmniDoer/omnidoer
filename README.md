@@ -107,6 +107,11 @@ Upgrade the CLI and sidecar in place:
 ~/omnidoer/.venv/bin/omnidoer --version
 ```
 
+When launched from an interactive terminal, `omnidoer` checks `origin/main` for
+a fast-forward update before opening the console and asks whether to run
+`omnidoer upgrade`. Non-TTY launches skip the prompt, and
+`OMNIDOER_UPDATE_CHECK=0` disables it.
+
 Safely make `codex` resolve to the OmniDoer shim while preserving the original
 Codex CLI at `/usr/bin/codex`:
 

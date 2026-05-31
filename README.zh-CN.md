@@ -62,6 +62,10 @@ OmniDoer 原生控制台；否则自动回退到保留的系统 Codex 二进制 
 ~/omnidoer/.venv/bin/omnidoer --version
 ```
 
+从交互式终端启动 `omnidoer` 时，它会先检查 `origin/main` 是否存在可快进的新版本，
+并询问是否立即运行 `omnidoer upgrade`。非 TTY 启动不会弹出提示；设置
+`OMNIDOER_UPDATE_CHECK=0` 可关闭这个检查。
+
 安全地让本机 `codex` 解析到 OmniDoer shim，同时保留原始 Codex CLI 在
 `/usr/bin/codex`：
 

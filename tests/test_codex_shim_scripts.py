@@ -5,7 +5,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from omnidoer.omni_cli.upgrade import _installed_codex_shim, _refresh_codex_shim_if_installed
+from omnidoer.omni_cli.upgrade import _installed_codex_shim
+from omnidoer.omni_cli.upgrade import _pip_install_command
+from omnidoer.omni_cli.upgrade import _refresh_codex_shim_if_installed
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -53,6 +55,14 @@ class CodexShimScriptTest(unittest.TestCase):
             with patch.dict(os.environ, {"OMNIDOER_CODEX_SHIM_PATH": str(target)}):
                 _refresh_codex_shim_if_installed(install_dir)
             self.assertEqual(target.read_text(encoding="utf-8"), source.read_text(encoding="utf-8"))
+
+    def test_upgrade_adds_break_system_packages_only_when_needed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            install_dir = Path(tmp)
+            with patch("omnidoer.omni_cli.upgrade._externally_managed_python", return_value=True):
+                self.assertIn("--break-system-packages", _pip_install_command(install_dir))
+            with patch("omnidoer.omni_cli.upgrade._externally_managed_python", return_value=False):
+                self.assertNotIn("--break-system-packages", _pip_install_command(install_dir))
 
 
 if __name__ == "__main__":

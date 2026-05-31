@@ -6,6 +6,7 @@ import argparse
 import os
 import subprocess
 import sys
+import sysconfig
 from pathlib import Path
 
 
@@ -29,6 +30,7 @@ def _is_dirty(install_dir: Path) -> bool:
 
 
 def _print_plan(install_dir: Path, branch: str) -> None:
+    pip_install_cmd = " ".join(_pip_install_command(install_dir))
     print("OmniDoer upgrade plan:")
     print(f"  install_dir={install_dir}")
     print(f"  branch={branch}")
@@ -36,7 +38,7 @@ def _print_plan(install_dir: Path, branch: str) -> None:
     print(f"  git -C {install_dir} fetch origin {branch}")
     print(f"  git -C {install_dir} checkout {branch}")
     print(f"  git -C {install_dir} pull --ff-only origin {branch}")
-    print(f"  {sys.executable} -m pip install -e {install_dir}[dev]")
+    print(f"  {pip_install_cmd}")
     print("  refresh installed OmniDoer Codex shim when detected")
 
 
@@ -61,6 +63,21 @@ def _refresh_codex_shim_if_installed(install_dir: Path) -> None:
     else:
         _run(["sudo", "install", "-m", "0755", str(source), str(target)])
     print(f"refreshed OmniDoer Codex shim at {target}")
+
+
+def _externally_managed_python() -> bool:
+    if sys.prefix != getattr(sys, "base_prefix", sys.prefix):
+        return False
+    stdlib = sysconfig.get_path("stdlib")
+    return bool(stdlib) and (Path(stdlib) / "EXTERNALLY-MANAGED").exists()
+
+
+def _pip_install_command(install_dir: Path) -> list[str]:
+    cmd = [sys.executable, "-m", "pip", "install"]
+    if _externally_managed_python():
+        cmd.append("--break-system-packages")
+    cmd.extend(["-e", f"{install_dir}[dev]"])
+    return cmd
 
 
 def handle_upgrade_command(args: argparse.Namespace) -> int:
@@ -88,7 +105,7 @@ def handle_upgrade_command(args: argparse.Namespace) -> int:
         _run(["git", "-C", str(install_dir), "fetch", "origin", branch])
         _run(["git", "-C", str(install_dir), "checkout", branch])
         _run(["git", "-C", str(install_dir), "pull", "--ff-only", "origin", branch])
-        _run([sys.executable, "-m", "pip", "install", "-e", f"{install_dir}[dev]"])
+        _run(_pip_install_command(install_dir))
         _refresh_codex_shim_if_installed(install_dir)
     except subprocess.CalledProcessError as exc:
         print(f"upgrade failed: {exc}", file=sys.stderr)

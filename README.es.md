@@ -47,6 +47,11 @@ El instalador crea `~/omnidoer/.venv`, inicializa OmniDoer, instala el browser
 worker, prueba el servidor MCP y registra `omnidoer mcp serve` si `codex` CLI
 está disponible.
 
+Al iniciar desde una terminal interactiva, `omnidoer` comprueba si `origin/main`
+tiene una actualización fast-forward y pregunta antes de ejecutar
+`omnidoer upgrade`. Los lanzamientos sin TTY omiten el aviso, y
+`OMNIDOER_UPDATE_CHECK=0` lo desactiva.
+
 ### Cambio de cuenta en la consola nativa
 
 En la consola nativa, `/users` abre el selector de cuentas locales ya iniciadas.

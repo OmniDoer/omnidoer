@@ -45,6 +45,11 @@ curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scr
 browser worker をインストールし、MCP server を self-test し、`codex` CLI
 がある場合は `omnidoer mcp serve` を登録します。
 
+対話型ターミナルから起動すると、`omnidoer` はコンソールを開く前に
+`origin/main` の fast-forward 更新を確認し、`omnidoer upgrade` を実行するか
+尋ねます。TTY ではない起動では表示されず、`OMNIDOER_UPDATE_CHECK=0` で
+無効化できます。
+
 ### ネイティブコンソールでのアカウント切り替え
 
 ネイティブコンソールで `/users` を入力すると、このマシンで保存済みのログイン
