@@ -100,6 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--chat-thread-id")
     serve.add_argument("--chat-codex-arg", action="append", default=[])
     serve.add_argument("--chat-upload-ttl", default=None)
+    serve.add_argument("--chat-allow-detached-thread-resume", action="store_true")
     serve.add_argument("--background", action="store_true")
     pair = control_sub.add_parser("pair")
     pair.add_argument("--print-qr", action="store_true")
@@ -155,12 +156,14 @@ def build_parser() -> argparse.ArgumentParser:
     chat_run_next.add_argument("--cwd")
     chat_run_next.add_argument("--thread-id")
     chat_run_next.add_argument("--codex-arg", action="append", default=[])
+    chat_run_next.add_argument("--allow-detached-thread-resume", action="store_true")
     chat_runner = control_sub.add_parser("chat-runner")
     chat_runner.add_argument("--codex-bin")
     chat_runner.add_argument("--cwd")
     chat_runner.add_argument("--thread-id")
     chat_runner.add_argument("--codex-arg", action="append", default=[])
     chat_runner.add_argument("--interval", type=float, default=1.0)
+    chat_runner.add_argument("--allow-detached-thread-resume", action="store_true")
     for name in ("approve", "deny", "input-secret", "challenge", "takeover", "release"):
         p = control_sub.add_parser(name)
         p.add_argument("request_id")
@@ -397,6 +400,7 @@ def main(argv: list[str] | None = None) -> int:
                 ("--behind-reverse-proxy", args.behind_reverse_proxy),
                 ("--insecure-dev-public", args.insecure_dev_public),
                 ("--chat-runner", args.chat_runner),
+                ("--chat-allow-detached-thread-resume", args.chat_allow_detached_thread_resume),
             ):
                 if enabled:
                     background_args.append(flag)

@@ -511,6 +511,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
         if path == "/api/status":
             config = getattr(self.server, "omnidoer_config", None)
             chat_thread_id = getattr(self.server, "omnidoer_chat_thread_id", None)
+            detached_runner_allowed = bool(getattr(self.server, "omnidoer_chat_allow_detached_thread_resume", False))
             from omnidoer.omni_control.chat_runner import (
                 control_chat_sync_diagnostics,
                 live_tui_bridge_active,
@@ -544,6 +545,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                         "native_console_bridge": install_status,
                         "bridge_heartbeat_age_seconds": heartbeat_age,
                         "legacy_tui_relay": legacy_relay,
+                        "detached_thread_resume_allowed": detached_runner_allowed,
                         "sync_diagnostics": control_chat_sync_diagnostics(
                             thread_id=chat_thread_id,
                             tui_bridge_active=tui_bridge_active,
@@ -551,6 +553,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                             install_status=install_status,
                             legacy_relay=legacy_relay,
                             bridge_heartbeat_age_seconds=heartbeat_age,
+                            detached_thread_resume_allowed=detached_runner_allowed,
                         ),
                     },
                 },
@@ -1310,6 +1313,7 @@ def serve(
     chat_thread_id: str | None = None,
     chat_codex_args: list[str] | None = None,
     chat_upload_ttl: str | int | None = None,
+    chat_allow_detached_thread_resume: bool = False,
 ) -> None:
     try:
         config = build_config(
@@ -1335,6 +1339,7 @@ def serve(
     server.omnidoer_config = config  # type: ignore[attr-defined]
     server.omnidoer_direct_tls = tls_context is not None  # type: ignore[attr-defined]
     server.omnidoer_chat_thread_id = chat_thread_id  # type: ignore[attr-defined]
+    server.omnidoer_chat_allow_detached_thread_resume = chat_allow_detached_thread_resume  # type: ignore[attr-defined]
     upload_ttl_seconds = chat_upload_ttl_seconds(chat_upload_ttl)
     server.omnidoer_chat_upload_ttl_seconds = upload_ttl_seconds  # type: ignore[attr-defined]
     ChatUploadStore().cleanup_expired(ttl_seconds=upload_ttl_seconds)
@@ -1355,18 +1360,25 @@ def serve(
         from omnidoer.omni_control.chat_runner import start_chat_runner_thread
         from omnidoer.omni_control.tui_legacy_relay import start_legacy_tui_relay_thread
 
-        start_chat_runner_thread(
-            codex_bin=chat_codex_bin,
-            cwd=chat_runner_cwd,
-            thread_id=chat_thread_id,
-            extra_args=chat_codex_args or [],
-            poll_interval=chat_runner_interval,
-            require_live_tui_for_thread=bool(chat_thread_id),
-        )
+        detached_runner_allowed = bool(chat_allow_detached_thread_resume or not chat_thread_id)
+        if detached_runner_allowed:
+            start_chat_runner_thread(
+                codex_bin=chat_codex_bin,
+                cwd=chat_runner_cwd,
+                thread_id=chat_thread_id,
+                extra_args=chat_codex_args or [],
+                poll_interval=chat_runner_interval,
+                require_live_tui_for_thread=bool(chat_thread_id),
+                allow_detached_thread_resume=bool(chat_allow_detached_thread_resume),
+            )
         if chat_thread_id:
             start_legacy_tui_relay_thread(thread_id=chat_thread_id, poll_interval=chat_runner_interval)
-        if chat_thread_id:
+        if chat_thread_id and detached_runner_allowed:
             print(f"OmniDoer chat runner enabled: Control Client messages resume Codex thread {chat_thread_id}.")
+        elif chat_thread_id:
+            print(
+                "OmniDoer chat runner bound to live console only: Control Client messages use native bridge or terminal relay, not detached codex exec."
+            )
         else:
             print("OmniDoer chat runner enabled: Control Client messages stream through codex exec --json.")
     print(f"OmniDoer Control Service listening on {config.public_url} mode={config.mode}")

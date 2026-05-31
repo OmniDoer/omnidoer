@@ -106,6 +106,7 @@ def handle_control_command(args) -> int:
             chat_thread_id=args.chat_thread_id,
             chat_codex_args=args.chat_codex_arg,
             chat_upload_ttl=args.chat_upload_ttl,
+            chat_allow_detached_thread_resume=args.chat_allow_detached_thread_resume,
         )
         return 0
     if command == "pair":
@@ -237,7 +238,13 @@ def handle_control_command(args) -> int:
     if command == "chat-run-next":
         from omnidoer.omni_control.chat_runner import ChatRunner
 
-        message = ChatRunner(codex_bin=args.codex_bin, cwd=args.cwd, thread_id=args.thread_id, extra_args=args.codex_arg).run_once()
+        message = ChatRunner(
+            codex_bin=args.codex_bin,
+            cwd=args.cwd,
+            thread_id=args.thread_id,
+            extra_args=args.codex_arg,
+            allow_detached_thread_resume=args.allow_detached_thread_resume,
+        ).run_once()
         if message is None:
             print("no queued chat messages")
             return 0
@@ -253,6 +260,7 @@ def handle_control_command(args) -> int:
             thread_id=args.thread_id,
             extra_args=args.codex_arg,
             poll_interval=args.interval,
+            allow_detached_thread_resume=args.allow_detached_thread_resume,
         ).run_forever()
         return 0
     if command == "complete-task":

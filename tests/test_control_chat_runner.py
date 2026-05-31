@@ -70,7 +70,7 @@ class ControlChatRunnerTest(unittest.TestCase):
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
 
-    def test_bound_thread_runner_can_require_live_tui(self) -> None:
+    def test_bound_thread_runner_defers_without_explicit_detached_resume(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             old_home = os.environ.get("OMNIDOER_HOME")
             os.environ["OMNIDOER_HOME"] = tmp
@@ -83,7 +83,6 @@ class ControlChatRunnerTest(unittest.TestCase):
                     codex_bin="/does/not/exist",
                     cwd=tmp,
                     thread_id="thread_active",
-                    require_live_tui_for_thread=True,
                 )
                 with patch("omnidoer.omni_control.chat_runner.live_tui_session_active", return_value=False):
                     self.assertIsNone(runner.run_once())
@@ -129,6 +128,7 @@ class ControlChatRunnerTest(unittest.TestCase):
         self.assertFalse(legacy["current_cli_context_attached"])
         self.assertEqual(legacy["phone_to_current_cli_delivery"], "terminal_relay")
         self.assertTrue(legacy["restart_ready"])
+        self.assertFalse(legacy["detached_thread_resume_allowed"])
 
         native = control_chat_sync_diagnostics(
             thread_id="thread_demo",
@@ -142,6 +142,7 @@ class ControlChatRunnerTest(unittest.TestCase):
         self.assertTrue(native["current_cli_context_attached"])
         self.assertEqual(native["current_cli_to_phone_stream"], "structured_records")
         self.assertFalse(native["requires_restart_for_native_sync"])
+        self.assertFalse(native["detached_thread_resume_allowed"])
 
     def test_codex_json_events_stream_into_chat_records(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -219,7 +220,12 @@ class ControlChatRunnerTest(unittest.TestCase):
                 fake_codex.chmod(fake_codex.stat().st_mode | stat.S_IXUSR)
 
                 ChatStore().append(role="user", text="Use the active context")
-                ChatRunner(codex_bin=str(fake_codex), cwd=tmp, thread_id="thread_active").run_once()
+                ChatRunner(
+                    codex_bin=str(fake_codex),
+                    cwd=tmp,
+                    thread_id="thread_active",
+                    allow_detached_thread_resume=True,
+                ).run_once()
 
                 argv = json.loads(argv_path.read_text())
                 self.assertEqual(argv[:2], ["exec", "resume"])

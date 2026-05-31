@@ -140,6 +140,7 @@ def control_chat_sync_diagnostics(
     install_status: dict[str, Any],
     legacy_relay: dict[str, Any],
     bridge_heartbeat_age_seconds: float | None = None,
+    detached_thread_resume_allowed: bool = False,
 ) -> dict[str, Any]:
     native_ready = bool(install_status.get("ready"))
     legacy_active = bool(legacy_relay.get("active"))
@@ -168,6 +169,7 @@ def control_chat_sync_diagnostics(
         "temporary_terminal_relay": legacy_active,
         "requires_restart_for_native_sync": requires_restart,
         "restart_ready": bool(requires_restart and native_ready and bound_thread),
+        "detached_thread_resume_allowed": bool(detached_thread_resume_allowed),
         "bridge_heartbeat_age_seconds": bridge_heartbeat_age_seconds,
     }
 
@@ -334,7 +336,8 @@ class ChatRunner:
         thread_id: str | None = None,
         extra_args: list[str] | None = None,
         poll_interval: float = 1.0,
-        require_live_tui_for_thread: bool = False,
+        require_live_tui_for_thread: bool = True,
+        allow_detached_thread_resume: bool = False,
     ):
         self.store = store or ChatStore()
         self.codex_bin = codex_bin
@@ -343,13 +346,14 @@ class ChatRunner:
         self.extra_args = extra_args if extra_args is not None else shlex.split(os.environ.get("OMNIDOER_CHAT_CODEX_ARGS", ""))
         self.poll_interval = poll_interval
         self.require_live_tui_for_thread = require_live_tui_for_thread
+        self.allow_detached_thread_resume = allow_detached_thread_resume
 
     def run_once(self) -> ChatMessage | None:
         if live_tui_bridge_active():
             return None
         if live_tui_session_active(self.thread_id):
             return None
-        if self.thread_id and self.require_live_tui_for_thread:
+        if self.thread_id and self.require_live_tui_for_thread and not self.allow_detached_thread_resume:
             return None
         user_message = self.store.next_user_message(claim=True)
         if user_message is None:
@@ -459,7 +463,8 @@ def start_chat_runner_thread(
     thread_id: str | None = None,
     extra_args: list[str] | None = None,
     poll_interval: float = 1.0,
-    require_live_tui_for_thread: bool = False,
+    require_live_tui_for_thread: bool = True,
+    allow_detached_thread_resume: bool = False,
 ) -> threading.Thread:
     runner = ChatRunner(
         codex_bin=codex_bin,
@@ -468,6 +473,7 @@ def start_chat_runner_thread(
         extra_args=extra_args,
         poll_interval=poll_interval,
         require_live_tui_for_thread=require_live_tui_for_thread,
+        allow_detached_thread_resume=allow_detached_thread_resume,
     )
     thread = threading.Thread(target=runner.run_forever, name="omnidoer-chat-runner", daemon=True)
     thread.start()
