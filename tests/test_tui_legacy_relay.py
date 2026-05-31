@@ -8,6 +8,7 @@ from omnidoer.omni_control.chat import ChatStore
 from omnidoer.omni_control.tui_legacy_relay import (
     LegacyTuiRelay,
     TmuxPane,
+    stable_terminal_lines,
     terminal_delta,
     find_tmux_pane_for_thread,
     legacy_tui_relay_status,
@@ -139,6 +140,17 @@ class TuiLegacyRelayTest(unittest.TestCase):
         current = ["two", "three", "four", "five"]
         self.assertEqual(terminal_delta(previous, current), ["four", "five"])
         self.assertEqual(terminal_delta(["one", "old"], ["one", "new"]), ["new"])
+
+    def test_stable_terminal_lines_drop_volatile_tui_chrome(self) -> None:
+        text = "\n".join(
+            [
+                "real output",
+                "• Working (3m 49s • esc to interrupt)",
+                "› Ask OmniDoer to do anything",
+                "gpt-5.5 xhigh · ~ Pursuing goal (2h 49m)",
+            ]
+        )
+        self.assertEqual(stable_terminal_lines(text), ["real output"])
 
     def test_relay_publishes_terminal_delta_records(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

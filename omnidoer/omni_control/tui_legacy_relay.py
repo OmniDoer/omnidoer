@@ -218,6 +218,23 @@ def clip_terminal_record(lines: list[str], *, limit: int = TERMINAL_RECORD_LIMIT
     return f"{text[-limit:]}\n...[truncated {omitted} leading chars]"
 
 
+def terminal_line_is_volatile(line: str) -> bool:
+    text = line.strip()
+    if not text:
+        return True
+    if "Working (" in text and "esc to interrupt" in text:
+        return True
+    if text.startswith("› Ask OmniDoer to do anything"):
+        return True
+    if "Pursuing goal" in text and "gpt-" in text:
+        return True
+    return False
+
+
+def stable_terminal_lines(text: str) -> list[str]:
+    return [line for line in text.splitlines() if not terminal_line_is_volatile(line)]
+
+
 class LegacyTuiRelay:
     def __init__(
         self,
@@ -279,7 +296,7 @@ class LegacyTuiRelay:
             self._last_terminal_lines = []
             return False
         text = capture_tmux_pane(pane.pane_id, line_count=TERMINAL_CAPTURE_LINES)
-        current = text.splitlines()
+        current = stable_terminal_lines(text)
         delta = terminal_delta(self._last_terminal_lines, current)
         self._last_terminal_lines = current
         body = clip_terminal_record(delta)
@@ -303,10 +320,9 @@ class LegacyTuiRelay:
     def run_forever(self, stop_event: threading.Event | None = None) -> None:
         stop = stop_event or threading.Event()
         while not stop.is_set():
-            processed = self.run_once()
-            published = self.publish_terminal_delta()
-            if not processed and not published:
-                stop.wait(max(0.1, self.poll_interval))
+            self.run_once()
+            self.publish_terminal_delta()
+            stop.wait(max(0.1, self.poll_interval))
 
 
 def start_legacy_tui_relay_thread(
