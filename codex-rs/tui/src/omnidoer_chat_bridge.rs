@@ -177,7 +177,11 @@ pub(crate) fn publish_server_notification(notification: &ServerNotification) {
                 error,
                 ..
             } => {
-                let record_type = if error.is_some() { "error" } else { "tool_output" };
+                let record_type = if error.is_some() {
+                    "error"
+                } else {
+                    "tool_output"
+                };
                 let text = if let Some(error) = error {
                     format!("{server}.{tool} failed: {error:?}")
                 } else {
