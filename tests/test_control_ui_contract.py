@@ -21,6 +21,12 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn('id="totp-seed"', self.app)
         self.assertIn('data-secret-field="totp_seed" type="password"', self.app)
 
+    def test_vault_save_is_request_scoped_and_user_confirmed(self) -> None:
+        self.assertIn('request.status !== "pending"', self.app)
+        self.assertIn("vaultSaveAllowed = request.save_to_vault === true", self.app)
+        self.assertIn('data-secret-field="save_to_vault" ${vaultSaveAllowed ? "checked" : "disabled"}', self.app)
+        self.assertIn("Boolean(vaultSaveAllowed && saveToVault.checked)", self.app)
+
     def test_challenge_no_bypass_explanation_present(self) -> None:
         self.assertIn("does not bypass CAPTCHA/MFA/Passkey/WebAuthn/3DS", self.html)
         self.assertIn("completed by you, not by the Agent", self.app)

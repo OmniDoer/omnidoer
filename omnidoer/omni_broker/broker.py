@@ -108,7 +108,8 @@ class SecretBroker:
             payload = self._payloads[request_id]
         saved_to_vault = False
         credential_id = None
-        if payload.get("save_to_vault") or request.save_to_vault:
+        save_requested_by_user = payload.get("save_to_vault") is True
+        if request.save_to_vault and save_requested_by_user:
             if self.vault_path is None or self.vault_passphrase is None:
                 raise ValueError("vault path and passphrase are required to save credentials")
             vault = Vault.load(self.vault_path, self.vault_passphrase)

@@ -1284,6 +1284,11 @@ function requestMetadata(request) {
 }
 
 function renderCredentialControls(request, item) {
+  if (request.status !== "pending") {
+    appendText(item, "p", `Credential request is ${request.status}.`, "flow-note");
+    return;
+  }
+  const vaultSaveAllowed = request.save_to_vault === true;
   const form = document.createElement("form");
   form.className = "secure-form";
   form.innerHTML = `
@@ -1291,16 +1296,17 @@ function renderCredentialControls(request, item) {
     <label>Username <input id="username" data-secret-field="username" autocomplete="username"></label>
     <label>Password <input id="password" data-secret-field="password" type="password" autocomplete="current-password"></label>
     <label>TOTP seed <input id="totp-seed" data-secret-field="totp_seed" type="password" autocomplete="off"></label>
-    <label class="check-row"><input type="checkbox" data-secret-field="save_to_vault" checked> Save encrypted in Vault</label>
+    <label class="check-row"><input type="checkbox" data-secret-field="save_to_vault" ${vaultSaveAllowed ? "checked" : "disabled"}> Save encrypted in Vault</label>
     <div class="button-row"><button type="submit">Submit Credential</button></div>
   `;
   form.onsubmit = (event) => {
     event.preventDefault();
+    const saveToVault = form.querySelector("[data-secret-field='save_to_vault']");
     const payload = {
       username: form.querySelector("[data-secret-field='username']").value,
       password: form.querySelector("[data-secret-field='password']").value,
       totp_seed: form.querySelector("[data-secret-field='totp_seed']").value,
-      save_to_vault: form.querySelector("[data-secret-field='save_to_vault']").checked
+      save_to_vault: Boolean(vaultSaveAllowed && saveToVault.checked)
     };
     submitEncrypted(request, payload).then(() => {
       form.querySelector("[data-secret-field='password']").value = "";
