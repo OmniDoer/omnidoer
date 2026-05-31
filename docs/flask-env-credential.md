@@ -56,5 +56,8 @@ Preferred flow for future GitHub operations:
 
 `omnidoer git run` only invokes `git ...`, creates a temporary askpass helper,
 and validates that Git's credential prompt matches the configured origin before
-supplying the Vault credential to Git. The PAT must not be printed, embedded in
-the remote URL, or returned to the model.
+supplying the Vault credential to Git. The decrypted credential stays in the
+parent-side in-memory askpass broker; the Git subprocess receives only a
+temporary Unix socket path and one-time grant token, not the Vault path,
+passphrase environment variable name, passphrase value, or PAT. The PAT must
+not be printed, embedded in the remote URL, or returned to the model.

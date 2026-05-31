@@ -332,6 +332,9 @@ class CliTest(unittest.TestCase):
             fake_git.write_text(
                 """#!/bin/sh
 echo "git_args=$*"
+if [ -z "${OMNIDOER_TEST_GIT_VAULT_PASSPHRASE+x}" ]; then echo "passphrase-env-absent"; else echo "passphrase-env-present"; fi
+if [ -z "${OMNIDOER_GIT_VAULT+x}" ]; then echo "vault-path-env-absent"; else echo "vault-path-env-present"; fi
+if [ -z "${OMNIDOER_GIT_PASSPHRASE_ENV+x}" ]; then echo "passphrase-name-env-absent"; else echo "passphrase-name-env-present"; fi
 user="$("$GIT_ASKPASS" "Username for 'https://github.com':")" || exit 11
 password="$("$GIT_ASKPASS" "Password for 'https://$user@github.com':")" || exit 12
 echo "user=$user"
@@ -369,9 +372,13 @@ fi
             self.assertEqual(result.returncode, 0, result.stderr)
             combined = result.stdout + result.stderr
             self.assertIn("git_args=push origin main", result.stdout)
+            self.assertIn("passphrase-env-absent", result.stdout)
+            self.assertIn("vault-path-env-absent", result.stdout)
+            self.assertIn("passphrase-name-env-absent", result.stdout)
             self.assertIn("user=omnidoer", result.stdout)
             self.assertIn("password-ok", result.stdout)
             self.assertNotIn("vault-github-token-never-print", combined)
+            self.assertNotIn("test-passphrase", combined)
 
     def test_git_askpass_blocks_wrong_prompt_origin(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
