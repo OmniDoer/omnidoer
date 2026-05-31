@@ -9,6 +9,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from omnidoer.omni_control.state_io import atomic_write_json, locked_state_file
 from omnidoer.paths import state_file
 
 
@@ -47,10 +48,7 @@ class TaskStore:
 
     def _save(self, tasks: dict[str, UserTask]) -> None:
         serializable = {key: asdict(value) for key, value in tasks.items()}
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(serializable, indent=2, sort_keys=True))
-        tmp.replace(self.path)
-        self.path.chmod(0o600)
+        atomic_write_json(self.path, serializable)
 
     def list(self, include_completed: bool = False) -> list[UserTask]:
         tasks = sorted(self._load().values(), key=lambda task: task.created_at)
@@ -71,54 +69,58 @@ class TaskStore:
             raise ValueError("task text is required")
         if len(cleaned) > 4000:
             raise ValueError("task text is too long")
-        now = time.time()
-        task = UserTask(
-            task_id=f"task_{uuid.uuid4().hex}",
-            text=cleaned,
-            source=source,
-            created_at=now,
-            updated_at=now,
-        )
-        tasks = self._load()
-        tasks[task.task_id] = task
-        self._save(tasks)
-        return task
+        with locked_state_file(self.path):
+            now = time.time()
+            task = UserTask(
+                task_id=f"task_{uuid.uuid4().hex}",
+                text=cleaned,
+                source=source,
+                created_at=now,
+                updated_at=now,
+            )
+            tasks = self._load()
+            tasks[task.task_id] = task
+            self._save(tasks)
+            return task
 
     def next_pending(self, *, claim: bool = True) -> UserTask | None:
-        tasks = self._load()
-        pending = sorted((task for task in tasks.values() if task.status == "pending"), key=lambda task: task.created_at)
-        if not pending:
-            return None
-        task = pending[0]
-        if claim:
+        with locked_state_file(self.path):
+            tasks = self._load()
+            pending = sorted((task for task in tasks.values() if task.status == "pending"), key=lambda task: task.created_at)
+            if not pending:
+                return None
+            task = pending[0]
+            if claim:
+                now = time.time()
+                task.status = "claimed"
+                task.claimed_at = now
+                task.updated_at = now
+                tasks[task.task_id] = task
+                self._save(tasks)
+            return task
+
+    def complete(self, task_id: str) -> UserTask:
+        with locked_state_file(self.path):
+            tasks = self._load()
+            task = tasks[task_id]
+            if task.status == "cancelled":
+                raise ValueError("task is cancelled")
             now = time.time()
-            task.status = "claimed"
-            task.claimed_at = now
+            task.status = "completed"
+            task.completed_at = now
             task.updated_at = now
             tasks[task.task_id] = task
             self._save(tasks)
-        return task
-
-    def complete(self, task_id: str) -> UserTask:
-        task = self.get(task_id)
-        if task.status == "cancelled":
-            raise ValueError("task is cancelled")
-        now = time.time()
-        task.status = "completed"
-        task.completed_at = now
-        task.updated_at = now
-        tasks = self._load()
-        tasks[task.task_id] = task
-        self._save(tasks)
-        return task
+            return task
 
     def cancel(self, task_id: str) -> UserTask:
-        task = self.get(task_id)
-        if task.status == "completed":
-            raise ValueError("task is completed")
-        task.status = "cancelled"
-        task.updated_at = time.time()
-        tasks = self._load()
-        tasks[task.task_id] = task
-        self._save(tasks)
-        return task
+        with locked_state_file(self.path):
+            tasks = self._load()
+            task = tasks[task_id]
+            if task.status == "completed":
+                raise ValueError("task is completed")
+            task.status = "cancelled"
+            task.updated_at = time.time()
+            tasks[task.task_id] = task
+            self._save(tasks)
+            return task

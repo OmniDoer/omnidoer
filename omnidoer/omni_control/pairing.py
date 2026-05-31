@@ -15,6 +15,7 @@ from io import StringIO
 import qrcode
 
 from omnidoer.omni_control.secure_channel import load_or_create_keypair, load_or_create_web_keypair
+from omnidoer.omni_control.state_io import atomic_write_json, locked_state_file
 from omnidoer.paths import state_file
 
 
@@ -85,48 +86,47 @@ class PairingStore:
         return pairings
 
     def _save(self, pairings: dict[str, PairingCode]) -> None:
-        tmp = self.path.with_suffix(".tmp")
         payload = {}
         for key, value in pairings.items():
             item = asdict(value)
             item["code"] = ""
             payload[key] = item
-        tmp.write_text(json.dumps(payload, indent=2, sort_keys=True))
-        tmp.replace(self.path)
-        self.path.chmod(0o600)
+        atomic_write_json(self.path, payload)
 
     def create(self, *, public_url: str, ttl_seconds: int = 600) -> PairingCode:
-        keypair = load_or_create_keypair()
-        web_keypair = load_or_create_web_keypair()
-        code = generate_pairing_code()
-        pairing = PairingCode(
-            pairing_id=f"pair_{uuid.uuid4().hex}",
-            code=code,
-            code_hash=pairing_code_hash(code),
-            public_url=public_url.rstrip("/"),
-            broker_fingerprint=keypair.fingerprint,
-            web_broker_fingerprint=web_keypair.fingerprint,
-            expires_at=time.time() + ttl_seconds,
-        )
-        pairings = self._load()
-        pairings[pairing.pairing_id] = pairing
-        self._save(pairings)
-        return pairing
+        with locked_state_file(self.path):
+            keypair = load_or_create_keypair()
+            web_keypair = load_or_create_web_keypair()
+            code = generate_pairing_code()
+            pairing = PairingCode(
+                pairing_id=f"pair_{uuid.uuid4().hex}",
+                code=code,
+                code_hash=pairing_code_hash(code),
+                public_url=public_url.rstrip("/"),
+                broker_fingerprint=keypair.fingerprint,
+                web_broker_fingerprint=web_keypair.fingerprint,
+                expires_at=time.time() + ttl_seconds,
+            )
+            pairings = self._load()
+            pairings[pairing.pairing_id] = pairing
+            self._save(pairings)
+            return pairing
 
     def consume(self, code: str, now: float | None = None) -> PairingCode:
-        pairings = self._load()
-        code_hash = pairing_code_hash(code)
-        for pairing in pairings.values():
-            if pairing.code_hash == code_hash:
-                if pairing.used:
-                    raise ValueError("pairing code already used")
-                if pairing.is_expired(now):
-                    raise ValueError("pairing code expired")
-                pairing.used = True
-                pairings[pairing.pairing_id] = pairing
-                self._save(pairings)
-                return pairing
-        raise ValueError("invalid pairing code")
+        with locked_state_file(self.path):
+            pairings = self._load()
+            code_hash = pairing_code_hash(code)
+            for pairing in pairings.values():
+                if pairing.code_hash == code_hash:
+                    if pairing.used:
+                        raise ValueError("pairing code already used")
+                    if pairing.is_expired(now):
+                        raise ValueError("pairing code expired")
+                    pairing.used = True
+                    pairings[pairing.pairing_id] = pairing
+                    self._save(pairings)
+                    return pairing
+            raise ValueError("invalid pairing code")
 
     def get(self, pairing_id: str, now: float | None = None) -> PairingCode:
         pairings = self._load()

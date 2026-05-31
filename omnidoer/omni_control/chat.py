@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from omnidoer.omni_control.chat_uploads import append_attachments_to_text, normalize_attachments
+from omnidoer.omni_control.state_io import atomic_write_json, locked_state_file
 from omnidoer.paths import state_file
 
 
@@ -107,10 +108,7 @@ class ChatStore:
             "messages": {key: asdict(value) for key, value in messages.items()},
             "records": {key: asdict(value) for key, value in records.items()},
         }
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(payload, indent=2, sort_keys=True))
-        tmp.replace(self.path)
-        self.path.chmod(0o600)
+        atomic_write_json(self.path, payload)
 
     def _prune(
         self,
@@ -209,57 +207,114 @@ class ChatStore:
             raise ValueError("chat text is required")
         if len(cleaned) > MAX_CHAT_TEXT_LENGTH:
             raise ValueError("chat text is too long")
-        next_sequence, messages, next_record_sequence, records = self._load_payload()
-        now = time.time()
-        resolved_status = status or ("queued" if role == "user" else "completed")
-        message = ChatMessage(
-            message_id=f"msg_{uuid.uuid4().hex}",
-            sequence=next_sequence,
-            role=role,
-            text=cleaned,
-            status=resolved_status,
-            source=source,
-            author_device_id=author_device_id,
-            client_message_id=client_message_id,
-            reply_to_message_id=reply_to_message_id,
-            attachments=normalized_attachments,
-            created_at=now,
-            updated_at=now,
-            completed_at=now if resolved_status == "completed" else None,
-        )
-        messages[message.message_id] = message
-        record = self._new_record(
-            next_record_sequence,
-            record_type="message",
-            text=message.text,
-            role=message.role,
-            message_id=message.message_id,
-            source=source,
-            data={"status": message.status, "attachments": normalized_attachments},
-        )
-        records[record.record_id] = record
-        self._save(next_sequence + 1, messages, next_record_sequence + 1, records)
-        return message
+        with locked_state_file(self.path):
+            next_sequence, messages, next_record_sequence, records = self._load_payload()
+            now = time.time()
+            resolved_status = status or ("queued" if role == "user" else "completed")
+            message = ChatMessage(
+                message_id=f"msg_{uuid.uuid4().hex}",
+                sequence=next_sequence,
+                role=role,
+                text=cleaned,
+                status=resolved_status,
+                source=source,
+                author_device_id=author_device_id,
+                client_message_id=client_message_id,
+                reply_to_message_id=reply_to_message_id,
+                attachments=normalized_attachments,
+                created_at=now,
+                updated_at=now,
+                completed_at=now if resolved_status == "completed" else None,
+            )
+            messages[message.message_id] = message
+            record = self._new_record(
+                next_record_sequence,
+                record_type="message",
+                text=message.text,
+                role=message.role,
+                message_id=message.message_id,
+                source=source,
+                data={"status": message.status, "attachments": normalized_attachments},
+            )
+            records[record.record_id] = record
+            self._save(next_sequence + 1, messages, next_record_sequence + 1, records)
+            return message
 
     def next_user_message(self, *, claim: bool = True) -> ChatMessage | None:
-        next_sequence, messages, next_record_sequence, records = self._load_payload()
-        pending = sorted(
-            (message for message in messages.values() if message.role == "user" and message.status == "queued"),
-            key=lambda message: message.sequence,
-        )
-        if not pending:
-            return None
-        message = pending[0]
-        if claim:
+        with locked_state_file(self.path):
+            next_sequence, messages, next_record_sequence, records = self._load_payload()
+            pending = sorted(
+                (message for message in messages.values() if message.role == "user" and message.status == "queued"),
+                key=lambda message: message.sequence,
+            )
+            if not pending:
+                return None
+            message = pending[0]
+            if claim:
+                now = time.time()
+                message.status = "claimed"
+                message.claimed_at = now
+                message.updated_at = now
+                messages[message.message_id] = message
+                record = self._new_record(
+                    next_record_sequence,
+                    record_type="status",
+                    text="User message delivered to local agent.",
+                    role="system",
+                    message_id=message.message_id,
+                    source="control_service",
+                    data={"status": message.status},
+                )
+                records[record.record_id] = record
+                self._save(next_sequence, messages, next_record_sequence + 1, records)
+            return message
+
+    def append_delta(self, message_id: str, delta: str) -> ChatMessage:
+        if not delta:
+            return self.get(message_id)
+        with locked_state_file(self.path):
+            next_sequence, messages, next_record_sequence, records = self._load_payload()
+            message = messages[message_id]
+            if message.role != "assistant":
+                raise ValueError("only assistant messages can stream")
+            if message.status not in {"streaming", "claimed"}:
+                raise ValueError("message is not streaming")
+            if len(message.text) + len(delta) > MAX_CHAT_TEXT_LENGTH:
+                raise ValueError("chat text is too long")
+            message.text += delta
+            message.status = "streaming"
+            message.updated_at = time.time()
+            messages[message.message_id] = message
+            record = self._new_record(
+                next_record_sequence,
+                record_type="delta",
+                text=delta,
+                role="assistant",
+                message_id=message.message_id,
+                source=message.source,
+                data={"status": message.status},
+            )
+            records[record.record_id] = record
+            self._save(next_sequence, messages, next_record_sequence + 1, records)
+            return message
+
+    def complete(self, message_id: str, *, text: str | None = None) -> ChatMessage:
+        with locked_state_file(self.path):
+            next_sequence, messages, next_record_sequence, records = self._load_payload()
+            message = messages[message_id]
+            if text is not None:
+                if len(text) > MAX_CHAT_TEXT_LENGTH:
+                    raise ValueError("chat text is too long")
+                message.text = text
             now = time.time()
-            message.status = "claimed"
-            message.claimed_at = now
+            message.status = "completed"
             message.updated_at = now
+            message.completed_at = now
             messages[message.message_id] = message
             record = self._new_record(
                 next_record_sequence,
                 record_type="status",
-                text="User message delivered to local agent.",
+                text="Assistant message completed.",
                 role="system",
                 message_id=message.message_id,
                 source="control_service",
@@ -267,79 +322,27 @@ class ChatStore:
             )
             records[record.record_id] = record
             self._save(next_sequence, messages, next_record_sequence + 1, records)
-        return message
-
-    def append_delta(self, message_id: str, delta: str) -> ChatMessage:
-        if not delta:
-            return self.get(message_id)
-        next_sequence, messages, next_record_sequence, records = self._load_payload()
-        message = messages[message_id]
-        if message.role != "assistant":
-            raise ValueError("only assistant messages can stream")
-        if message.status not in {"streaming", "claimed"}:
-            raise ValueError("message is not streaming")
-        if len(message.text) + len(delta) > MAX_CHAT_TEXT_LENGTH:
-            raise ValueError("chat text is too long")
-        message.text += delta
-        message.status = "streaming"
-        message.updated_at = time.time()
-        messages[message.message_id] = message
-        record = self._new_record(
-            next_record_sequence,
-            record_type="delta",
-            text=delta,
-            role="assistant",
-            message_id=message.message_id,
-            source=message.source,
-            data={"status": message.status},
-        )
-        records[record.record_id] = record
-        self._save(next_sequence, messages, next_record_sequence + 1, records)
-        return message
-
-    def complete(self, message_id: str, *, text: str | None = None) -> ChatMessage:
-        next_sequence, messages, next_record_sequence, records = self._load_payload()
-        message = messages[message_id]
-        if text is not None:
-            if len(text) > MAX_CHAT_TEXT_LENGTH:
-                raise ValueError("chat text is too long")
-            message.text = text
-        now = time.time()
-        message.status = "completed"
-        message.updated_at = now
-        message.completed_at = now
-        messages[message.message_id] = message
-        record = self._new_record(
-            next_record_sequence,
-            record_type="status",
-            text="Assistant message completed.",
-            role="system",
-            message_id=message.message_id,
-            source="control_service",
-            data={"status": message.status},
-        )
-        records[record.record_id] = record
-        self._save(next_sequence, messages, next_record_sequence + 1, records)
-        return message
+            return message
 
     def cancel(self, message_id: str) -> ChatMessage:
-        next_sequence, messages, next_record_sequence, records = self._load_payload()
-        message = messages[message_id]
-        message.status = "cancelled"
-        message.updated_at = time.time()
-        messages[message.message_id] = message
-        record = self._new_record(
-            next_record_sequence,
-            record_type="status",
-            text="Chat message cancelled.",
-            role="system",
-            message_id=message.message_id,
-            source="control_service",
-            data={"status": message.status},
-        )
-        records[record.record_id] = record
-        self._save(next_sequence, messages, next_record_sequence + 1, records)
-        return message
+        with locked_state_file(self.path):
+            next_sequence, messages, next_record_sequence, records = self._load_payload()
+            message = messages[message_id]
+            message.status = "cancelled"
+            message.updated_at = time.time()
+            messages[message.message_id] = message
+            record = self._new_record(
+                next_record_sequence,
+                record_type="status",
+                text="Chat message cancelled.",
+                role="system",
+                message_id=message.message_id,
+                source="control_service",
+                data={"status": message.status},
+            )
+            records[record.record_id] = record
+            self._save(next_sequence, messages, next_record_sequence + 1, records)
+            return message
 
     def append_record(
         self,
@@ -351,16 +354,17 @@ class ChatStore:
         source: str = "agent",
         data: dict[str, Any] | None = None,
     ) -> ChatRecord:
-        next_sequence, messages, next_record_sequence, records = self._load_payload()
-        record = self._new_record(
-            next_record_sequence,
-            record_type=record_type,
-            text=text,
-            role=role,
-            message_id=message_id,
-            source=source,
-            data=data,
-        )
-        records[record.record_id] = record
-        self._save(next_sequence, messages, next_record_sequence + 1, records)
-        return record
+        with locked_state_file(self.path):
+            next_sequence, messages, next_record_sequence, records = self._load_payload()
+            record = self._new_record(
+                next_record_sequence,
+                record_type=record_type,
+                text=text,
+                role=role,
+                message_id=message_id,
+                source=source,
+                data=data,
+            )
+            records[record.record_id] = record
+            self._save(next_sequence, messages, next_record_sequence + 1, records)
+            return record

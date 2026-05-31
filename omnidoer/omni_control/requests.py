@@ -11,6 +11,7 @@ from typing import Any
 
 from omnidoer.omni_audit.audit import AuditLog
 from omnidoer.omni_observer.redactor import redact_dom_snapshot
+from omnidoer.omni_control.state_io import atomic_write_json, locked_state_file
 from omnidoer.omni_takeover.models import InputEvent
 from omnidoer.paths import state_file
 
@@ -101,10 +102,7 @@ class RequestStore:
 
     def _save(self, requests: dict[str, ControlRequest]) -> None:
         serializable = {key: asdict(value) for key, value in requests.items()}
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(serializable, indent=2, sort_keys=True))
-        tmp.replace(self.path)
-        self.path.chmod(0o600)
+        atomic_write_json(self.path, serializable)
 
     def _audit_transition(self, event_type: str, request: ControlRequest, *, previous_status: str | None = None) -> None:
         self.audit.append(
@@ -126,14 +124,15 @@ class RequestStore:
         return False
 
     def list(self, include_expired: bool = False) -> list[ControlRequest]:
-        requests = self._load()
-        for request in requests.values():
-            self._expire_if_needed(request)
-        self._save(requests)
-        values = list(requests.values())
-        if include_expired:
-            return values
-        return [request for request in values if request.status != "expired"]
+        with locked_state_file(self.path):
+            requests = self._load()
+            for request in requests.values():
+                self._expire_if_needed(request)
+            self._save(requests)
+            values = list(requests.values())
+            if include_expired:
+                return values
+            return [request for request in values if request.status != "expired"]
 
     def create(
         self,
@@ -177,31 +176,34 @@ class RequestStore:
         if request_type in {"human_takeover", "account_registration"}:
             request.control_owner = "user"
             request.status = "user_control"
-        requests = self._load()
-        requests[request.request_id] = request
-        self._save(requests)
+        with locked_state_file(self.path):
+            requests = self._load()
+            requests[request.request_id] = request
+            self._save(requests)
         self._audit_transition("control_request_created", request)
         return request
 
     def get(self, request_id: str) -> ControlRequest:
-        requests = self._load()
-        try:
-            request = requests[request_id]
-        except KeyError as exc:
-            raise KeyError(f"request not found: {request_id}") from exc
-        if self._expire_if_needed(request):
-            requests[request_id] = request
-            self._save(requests)
-        return request
+        with locked_state_file(self.path):
+            requests = self._load()
+            try:
+                request = requests[request_id]
+            except KeyError as exc:
+                raise KeyError(f"request not found: {request_id}") from exc
+            if self._expire_if_needed(request):
+                requests[request_id] = request
+                self._save(requests)
+            return request
 
     def update(self, request: ControlRequest) -> ControlRequest:
-        requests = self._load()
-        previous = requests.get(request.request_id)
-        previous_status = previous.status if previous else None
-        had_ciphertext = previous.response_ciphertext is not None if previous else False
-        request.updated_at = time.time()
-        requests[request.request_id] = request
-        self._save(requests)
+        with locked_state_file(self.path):
+            requests = self._load()
+            previous = requests.get(request.request_id)
+            previous_status = previous.status if previous else None
+            had_ciphertext = previous.response_ciphertext is not None if previous else False
+            request.updated_at = time.time()
+            requests[request.request_id] = request
+            self._save(requests)
         became_terminal = previous_status != request.status and request.status in COMPLETED_REQUEST_STATUSES | {"expired"}
         received_ciphertext = not had_ciphertext and request.response_ciphertext is not None
         if became_terminal or received_ciphertext:

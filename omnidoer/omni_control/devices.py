@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from omnidoer.omni_control.state_io import atomic_write_json, locked_state_file
 from omnidoer.paths import state_file
 
 
@@ -46,23 +47,21 @@ class DeviceStore:
         return {key: Device(**value) for key, value in raw.items()}
 
     def _save(self, devices: dict[str, Device]) -> None:
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({key: asdict(value) for key, value in devices.items()}, indent=2, sort_keys=True))
-        tmp.replace(self.path)
-        self.path.chmod(0o600)
+        atomic_write_json(self.path, {key: asdict(value) for key, value in devices.items()})
 
     def register(self, *, name: str, public_key: str) -> Device:
-        fingerprint = hashlib.sha256(public_key.encode()).hexdigest()[:32]
-        device = Device(
-            device_id=f"dev_{uuid.uuid4().hex}",
-            name=name.strip() or "Control Client",
-            public_key=public_key,
-            fingerprint=":".join(fingerprint[i : i + 2] for i in range(0, len(fingerprint), 2)),
-        )
-        devices = self._load()
-        devices[device.device_id] = device
-        self._save(devices)
-        return device
+        with locked_state_file(self.path):
+            fingerprint = hashlib.sha256(public_key.encode()).hexdigest()[:32]
+            device = Device(
+                device_id=f"dev_{uuid.uuid4().hex}",
+                name=name.strip() or "Control Client",
+                public_key=public_key,
+                fingerprint=":".join(fingerprint[i : i + 2] for i in range(0, len(fingerprint), 2)),
+            )
+            devices = self._load()
+            devices[device.device_id] = device
+            self._save(devices)
+            return device
 
     def get(self, device_id: str) -> Device:
         devices = self._load()
@@ -75,19 +74,21 @@ class DeviceStore:
         return sorted(self._load().values(), key=lambda item: item.created_at)
 
     def revoke(self, device_id: str) -> Device:
-        devices = self._load()
-        device = devices[device_id]
-        device.revoked = True
-        devices[device_id] = device
-        self._save(devices)
-        return device
+        with locked_state_file(self.path):
+            devices = self._load()
+            device = devices[device_id]
+            device.revoked = True
+            devices[device_id] = device
+            self._save(devices)
+            return device
 
     def touch(self, device_id: str) -> Device:
-        devices = self._load()
-        device = devices[device_id]
-        if device.revoked:
-            raise PermissionError("device revoked")
-        device.last_seen_at = time.time()
-        devices[device_id] = device
-        self._save(devices)
-        return device
+        with locked_state_file(self.path):
+            devices = self._load()
+            device = devices[device_id]
+            if device.revoked:
+                raise PermissionError("device revoked")
+            device.last_seen_at = time.time()
+            devices[device_id] = device
+            self._save(devices)
+            return device

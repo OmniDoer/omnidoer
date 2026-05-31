@@ -11,6 +11,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from omnidoer.omni_control.state_io import atomic_write_json, locked_state_file
 from omnidoer.paths import state_file
 
 
@@ -59,61 +60,62 @@ class SessionStore:
         return {key: ControlSession(**value) for key, value in raw.items()}
 
     def _save(self, sessions: dict[str, ControlSession]) -> None:
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({key: asdict(value) for key, value in sessions.items()}, indent=2, sort_keys=True))
-        tmp.replace(self.path)
-        self.path.chmod(0o600)
+        atomic_write_json(self.path, {key: asdict(value) for key, value in sessions.items()})
 
     def create(self, *, device_id: str, ttl_seconds: int = CONTROL_SESSION_TTL_SECONDS) -> tuple[ControlSession, str]:
-        token = secrets.token_urlsafe(32)
-        session = ControlSession(
-            session_id=f"sess_{uuid.uuid4().hex}",
-            device_id=device_id,
-            token_hash=hash_session_token(token),
-            csrf_token=secrets.token_urlsafe(24),
-            expires_at=time.time() + ttl_seconds,
-        )
-        sessions = self._load()
-        sessions[session.session_id] = session
-        self._save(sessions)
-        return session, token
+        with locked_state_file(self.path):
+            token = secrets.token_urlsafe(32)
+            session = ControlSession(
+                session_id=f"sess_{uuid.uuid4().hex}",
+                device_id=device_id,
+                token_hash=hash_session_token(token),
+                csrf_token=secrets.token_urlsafe(24),
+                expires_at=time.time() + ttl_seconds,
+            )
+            sessions = self._load()
+            sessions[session.session_id] = session
+            self._save(sessions)
+            return session, token
 
     def list(self) -> list[ControlSession]:
         return sorted(self._load().values(), key=lambda item: item.created_at)
 
     def revoke(self, session_id: str) -> ControlSession:
-        sessions = self._load()
-        session = sessions[session_id]
-        session.revoked = True
-        sessions[session_id] = session
-        self._save(sessions)
-        return session
+        with locked_state_file(self.path):
+            sessions = self._load()
+            session = sessions[session_id]
+            session.revoked = True
+            sessions[session_id] = session
+            self._save(sessions)
+            return session
 
     def revoke_for_device(self, device_id: str) -> list[ControlSession]:
-        sessions = self._load()
-        revoked: list[ControlSession] = []
-        for session in sessions.values():
-            if session.device_id == device_id and not session.revoked:
-                session.revoked = True
-                revoked.append(session)
-                sessions[session.session_id] = session
-        self._save(sessions)
-        return revoked
+        with locked_state_file(self.path):
+            sessions = self._load()
+            revoked: list[ControlSession] = []
+            for session in sessions.values():
+                if session.device_id == device_id and not session.revoked:
+                    session.revoked = True
+                    revoked.append(session)
+                    sessions[session.session_id] = session
+            self._save(sessions)
+            return revoked
 
     def authenticate(self, session_id: str, token: str) -> ControlSession:
-        sessions = self._load()
-        try:
-            session = sessions[session_id]
-        except KeyError as exc:
-            raise PermissionError("session not found") from exc
-        if session.revoked or session.is_expired():
-            raise PermissionError("session expired or revoked")
-        if session.token_hash != hash_session_token(token):
-            raise PermissionError("session token mismatch")
-        now = time.time()
-        session.last_seen_at = now
-        if session.expires_at < now + CONTROL_SESSION_REFRESH_WINDOW_SECONDS:
-            session.expires_at = now + CONTROL_SESSION_TTL_SECONDS
-        sessions[session.session_id] = session
-        self._save(sessions)
-        return session
+        with locked_state_file(self.path):
+            sessions = self._load()
+            try:
+                session = sessions[session_id]
+            except KeyError as exc:
+                raise PermissionError("session not found") from exc
+            if session.revoked or session.is_expired():
+                raise PermissionError("session expired or revoked")
+            if session.token_hash != hash_session_token(token):
+                raise PermissionError("session token mismatch")
+            now = time.time()
+            session.last_seen_at = now
+            if session.expires_at < now + CONTROL_SESSION_REFRESH_WINDOW_SECONDS:
+                session.expires_at = now + CONTROL_SESSION_TTL_SECONDS
+            sessions[session.session_id] = session
+            self._save(sessions)
+            return session

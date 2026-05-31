@@ -13,6 +13,7 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, utils
 
+from omnidoer.omni_control.state_io import atomic_write_json, locked_state_file
 from omnidoer.paths import state_file
 
 
@@ -105,22 +106,20 @@ class DeviceNonceStore:
         return {key: DeviceNonce(**value) for key, value in raw.items()}
 
     def _save(self, nonces: dict[str, DeviceNonce]) -> None:
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({key: asdict(value) for key, value in nonces.items()}, indent=2, sort_keys=True))
-        tmp.replace(self.path)
-        self.path.chmod(0o600)
+        atomic_write_json(self.path, {key: asdict(value) for key, value in nonces.items()})
 
     def consume(self, *, device_id: str, nonce: str, timestamp: str, now: float | None = None, skew_seconds: int = 300) -> None:
-        now = now or time.time()
-        try:
-            ts = float(timestamp)
-        except ValueError as exc:
-            raise PermissionError("invalid device timestamp") from exc
-        if abs(now - ts) > skew_seconds:
-            raise PermissionError("device signature timestamp outside allowed window")
-        key = f"{device_id}:{nonce}"
-        nonces = {item_key: item for item_key, item in self._load().items() if item.expires_at > now}
-        if key in nonces:
-            raise PermissionError("device signature nonce replayed")
-        nonces[key] = DeviceNonce(key=key, expires_at=now + skew_seconds)
-        self._save(nonces)
+        with locked_state_file(self.path):
+            now = now or time.time()
+            try:
+                ts = float(timestamp)
+            except ValueError as exc:
+                raise PermissionError("invalid device timestamp") from exc
+            if abs(now - ts) > skew_seconds:
+                raise PermissionError("device signature timestamp outside allowed window")
+            key = f"{device_id}:{nonce}"
+            nonces = {item_key: item for item_key, item in self._load().items() if item.expires_at > now}
+            if key in nonces:
+                raise PermissionError("device signature nonce replayed")
+            nonces[key] = DeviceNonce(key=key, expires_at=now + skew_seconds)
+            self._save(nonces)

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from omnidoer.omni_control.cloud import ControlServiceConfig, validate_public_url
+from omnidoer.omni_control.state_io import atomic_write_json
 from omnidoer.paths import home, state_file
 
 
@@ -17,11 +18,7 @@ RUNTIME_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
 
 
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(payload, indent=2, sort_keys=True))
-    tmp.replace(path)
-    path.chmod(0o600)
+    atomic_write_json(path, payload)
 
 
 def _pid_is_running(pid: object) -> bool:
