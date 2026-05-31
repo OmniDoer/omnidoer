@@ -105,11 +105,7 @@ fn parse_pair_args(raw: &str) -> Result<Vec<String>, String> {
         }
     }
 
-    let mut args = vec![
-        "pair".to_string(),
-        "--expires".to_string(),
-        expires,
-    ];
+    let mut args = vec!["pair".to_string(), "--expires".to_string(), expires];
     if let Some(public_url) = public_url {
         args.push("--public-url".to_string());
         args.push(public_url);
