@@ -484,11 +484,11 @@ function applyLanguage() {
   setNodeText("#takeover-panel h2", "takeoverTitle");
   setNodeText("#payment-approval h2", "paymentTitle");
   setNodeText("#approval-status", "noPendingPayment");
-  setButtonText("#runtime-pause-agent", "pauseAgent");
   setButtonText("#request-takeover-pause", "pauseAgent");
   setButtonText("#release-active-takeover", "releaseControl");
   setButtonText("#approve", "approve");
   setButtonText("#deny", "deny");
+  updateAgentControlButtons();
 }
 
 function initialPanelId() {
@@ -631,7 +631,13 @@ if (requestTakeoverPauseButton) {
 
 const runtimePauseAgentButton = document.querySelector("#runtime-pause-agent");
 if (runtimePauseAgentButton) {
-  runtimePauseAgentButton.onclick = () => requestTakeoverPause();
+  runtimePauseAgentButton.onclick = () => {
+    if (takeoverIsActive()) {
+      releaseActiveTakeover();
+    } else {
+      requestTakeoverPause();
+    }
+  };
 }
 
 const releaseActiveTakeoverButton = document.querySelector("#release-active-takeover");
@@ -733,6 +739,7 @@ let takeoverFrameMisses = 0;
 let takeoverFrameVisibilityPaused = false;
 let takeoverFrameZoom = TAKEOVER_ZOOM_MIN;
 let takeoverFramePanMode = false;
+let agentControlBusy = false;
 let activePaymentApprovalRequest = null;
 let renderedPaymentApprovalRequestId = null;
 
@@ -1071,9 +1078,9 @@ function updateTakeoverPanel(request, frame = null, message = null) {
   const isActive = Boolean(request && request.status === "user_control");
   const refresh = document.querySelector("#refresh-takeover-frame");
   const release = document.querySelector("#release-active-takeover");
-  setPauseButtonsDisabled(isActive);
+  updateAgentControlButtons();
   if (refresh) refresh.disabled = !isActive;
-  if (release) release.disabled = !isActive;
+  if (release) release.disabled = !isActive || agentControlBusy;
   updateTakeoverZoomControls();
 }
 
@@ -1116,10 +1123,15 @@ function scheduleTakeoverFrameRefresh(request = activeTakeoverRequest(), delayMs
   }, delayMs);
 }
 
-function releaseActiveTakeover() {
+async function releaseActiveTakeover() {
   const request = activeTakeoverRequest();
   if (!request) return;
-  postAction(request, "release");
+  setPauseButtonsDisabled(true);
+  try {
+    await postAction(request, "release");
+  } finally {
+    setPauseButtonsDisabled(false);
+  }
 }
 
 function renderTakeoverFrame(request, stream, frame, message = "Live browser frame ready. Input is bound to the frame currently visible here.") {
@@ -1536,10 +1548,22 @@ async function sendChatMessage() {
   await loadChatMessages();
 }
 
+function updateAgentControlButtons() {
+  const isActive = takeoverIsActive();
+  const quick = document.querySelector("#runtime-pause-agent");
+  if (quick) {
+    quick.textContent = isActive ? t("releaseControl") : t("pauseAgent");
+    quick.dataset.agentAction = isActive ? "release" : "pause";
+    quick.classList.toggle("quick-continue-button", isActive);
+    quick.disabled = agentControlBusy;
+  }
+  const pause = document.querySelector("#request-takeover-pause");
+  if (pause) pause.disabled = agentControlBusy || isActive;
+}
+
 function setPauseButtonsDisabled(disabled) {
-  document.querySelectorAll("#request-takeover-pause, #runtime-pause-agent").forEach((button) => {
-    button.disabled = disabled;
-  });
+  agentControlBusy = Boolean(disabled);
+  updateAgentControlButtons();
 }
 
 async function requestTakeoverPause() {
@@ -1578,7 +1602,7 @@ async function requestTakeoverPause() {
     activatePanel("task-panel");
   }
   await loadChatMessages();
-  setPauseButtonsDisabled(Boolean(activeTakeoverRequest()));
+  setPauseButtonsDisabled(false);
 }
 
 function chatStatusLabel(status) {

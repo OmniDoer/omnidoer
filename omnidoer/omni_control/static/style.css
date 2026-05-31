@@ -220,6 +220,14 @@ button:disabled {
 .quick-pause-button:hover {
   background: #e2e8f0;
 }
+.quick-pause-button.quick-continue-button {
+  border-color: #67e8f9;
+  background: #cffafe;
+  color: #164e63;
+}
+.quick-pause-button.quick-continue-button:hover {
+  background: #a5f3fc;
+}
 .quick-pause-button:disabled {
   border-color: rgba(255, 255, 255, 0.26);
   background: rgba(255, 255, 255, 0.14);
