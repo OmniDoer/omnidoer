@@ -500,6 +500,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
             return
         parsed_url = urlparse(self.path)
         path = parsed_url.path
+        parts = path.strip("/").split("/")
         store = RequestStore()
         if path in {"/pair", "/pair/"}:
             self._send_pwa_index()
@@ -739,6 +740,32 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 self._send_json(HTTPStatus.OK, {"contexts": list_contexts(), "secret_exposed_to_model": False})
             except PermissionError:
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+            return
+        if len(parts) == 5 and parts[:3] == ["api", "browser", "contexts"] and parts[4] == "frame":
+            try:
+                self._require_access()
+            except PermissionError:
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                return
+            try:
+                from urllib.parse import unquote
+
+                from omnidoer.omni_takeover.cross_process import read_frame
+
+                context_id = unquote(parts[3])
+                query = parse_qs(parsed_url.query)
+                frame_profile = normalize_frame_profile(query.get("profile", [None])[0])
+                browser = get_browser_context(context_id)
+                if browser is not None:
+                    frame = browser.takeover_frame(frame_profile=frame_profile)
+                else:
+                    frame = read_frame(context_id, max_age_seconds=10.0)
+                if frame is None:
+                    self._send_json(HTTPStatus.CONFLICT, {"error": "browser_frame_unavailable", "secret_exposed_to_model": False})
+                    return
+                self._send_json(HTTPStatus.OK, {**frame, "preview_only": True, "secret_exposed_to_model": False})
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
             return
         if path == "/api/tasks":
             try:

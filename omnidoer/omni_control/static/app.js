@@ -119,6 +119,8 @@ const I18N = {
     takeoverNoActive: "No active takeover",
     noActiveBrowserHandoff: "No active browser handoff.",
     activeBrowserReady: "Active browser detected. Pause Agent to take over this browser.",
+    activeBrowserPreview: "Live browser preview. Pause Agent to take control.",
+    activeBrowserPreviewWaiting: "Waiting for live browser preview.",
     browserTakeoverCreated: "Browser takeover started",
     browserTakeoverCreatedDetail: "The active browser is now streaming to this Control Client.",
     paymentTitle: "Payment Approval",
@@ -298,6 +300,8 @@ const I18N = {
     takeoverNoActive: "没有活跃接管",
     noActiveBrowserHandoff: "没有活跃浏览器接管。",
     activeBrowserReady: "检测到活跃浏览器。点击暂停 Agent 即可接管此浏览器。",
+    activeBrowserPreview: "浏览器实时预览。点击暂停 Agent 即可接管。",
+    activeBrowserPreviewWaiting: "正在等待浏览器实时预览。",
     browserTakeoverCreated: "浏览器接管已开始",
     browserTakeoverCreatedDetail: "活跃浏览器画面正在流式发送到此 Control Client。",
     paymentTitle: "支付授权",
@@ -748,6 +752,7 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const TAKEOVER_FRAME_MAX_AGE_MS = 30000;
 const TAKEOVER_FRAME_POLL_MS = 1500;
+const BROWSER_PREVIEW_POLL_MS = 2000;
 const TAKEOVER_FRAME_AFTER_INPUT_MS = 180;
 const TAKEOVER_FRAME_WS_SNAPSHOTS = 120;
 const TAKEOVER_FRAME_WS_INTERVAL_SECONDS = 0.75;
@@ -773,6 +778,8 @@ let takeoverFrameFetchQueued = false;
 let takeoverFrameSocket = null;
 let takeoverFrameSocketRequest = null;
 let takeoverFrameSocketRestart = null;
+let browserPreviewTimer = null;
+let activeBrowserPreviewContext = null;
 let takeoverFrameMisses = 0;
 let takeoverFrameVisibilityPaused = false;
 let takeoverFrameZoom = TAKEOVER_ZOOM_MIN;
@@ -1182,14 +1189,50 @@ function syncTakeoverPanel(requests) {
       setFieldText("#takeover-current-url", context.current_url || context.origin, "pending");
       setFieldText("#takeover-frame-meta", context.browser_context_id, "waiting for browser handoff");
       setFieldText("#takeover-input-state", t("activeBrowserReady"), "");
-      stream.textContent = t("activeBrowserReady");
+      startBrowserPreviewPolling(context, stream);
     } else {
+      stopBrowserPreviewPolling();
       stream.textContent = t("noActiveBrowserHandoff");
     }
     return;
   }
+  stopBrowserPreviewPolling();
   updateTakeoverPanel(request);
   startTakeoverFramePolling(request, stream);
+}
+
+function stopBrowserPreviewPolling() {
+  if (browserPreviewTimer) clearInterval(browserPreviewTimer);
+  browserPreviewTimer = null;
+  activeBrowserPreviewContext = null;
+}
+
+async function fetchBrowserContextFrame(context, stream) {
+  if (!context?.browser_context_id || !stream || document.hidden) return;
+  try {
+    const response = await signedFetch(`/api/browser/contexts/${encodeURIComponent(context.browser_context_id)}/frame?${takeoverFrameQuery()}`, { cache: "no-store" });
+    if (!response.ok) throw new Error("preview unavailable");
+    const frame = await response.json();
+    renderTakeoverFrame(null, stream, frame, t("activeBrowserPreview"));
+  } catch {
+    if (!stream.querySelector("#takeover-frame")) {
+      stream.textContent = t("activeBrowserPreviewWaiting");
+    }
+    updateTakeoverFrameConnection("reconnecting", t("activeBrowserPreviewWaiting"));
+  }
+}
+
+function startBrowserPreviewPolling(context, stream) {
+  if (!context?.browser_context_id || !stream) return;
+  if (activeBrowserPreviewContext !== context.browser_context_id) {
+    stopBrowserPreviewPolling();
+    activeBrowserPreviewContext = context.browser_context_id;
+    stream.textContent = t("activeBrowserPreviewWaiting");
+    fetchBrowserContextFrame(context, stream);
+  }
+  if (!browserPreviewTimer) {
+    browserPreviewTimer = setInterval(() => fetchBrowserContextFrame(context, stream), BROWSER_PREVIEW_POLL_MS);
+  }
 }
 
 function refreshActiveTakeoverFrame() {

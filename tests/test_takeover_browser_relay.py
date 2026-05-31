@@ -1,6 +1,7 @@
 import os
 import json
 import tempfile
+import time
 import unittest
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -11,7 +12,7 @@ from omnidoer.omni_browser.controller import BrowserController
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.server import ControlHandler
 from omnidoer.omni_takeover.browser_worker import BrowserContextWorker
-from omnidoer.omni_takeover.cross_process import consume_input_events, write_context_status, write_frame
+from omnidoer.omni_takeover.cross_process import consume_input_events, read_frame, start_browser_relay, write_context_status, write_frame
 from omnidoer.omni_takeover.models import InputEvent
 from omnidoer.omni_takeover.relay import apply_input_event, release_control, request_user_control, start_stream
 from omnidoer.omni_takeover.sessions import registered_browser_context
@@ -52,6 +53,9 @@ class TakeoverBrowserRelayTest(unittest.TestCase):
 
                 contexts = json.loads(urlopen(f"{base}/api/browser/contexts", timeout=5).read().decode())
                 self.assertTrue(any(context["browser_context_id"] == "cross-browser" for context in contexts["contexts"]))
+                preview_frame = json.loads(urlopen(f"{base}/api/browser/contexts/cross-browser/frame", timeout=5).read().decode())
+                self.assertEqual(preview_frame["frame_id"], "frame_cross")
+                self.assertTrue(preview_frame["preview_only"])
 
                 body = json.dumps({"reason": "user paused browser"}).encode()
                 request_payload = json.loads(
@@ -94,6 +98,50 @@ class TakeoverBrowserRelayTest(unittest.TestCase):
             finally:
                 control_server.shutdown()
                 control_server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_cross_process_relay_publishes_preview_frames_before_takeover(self) -> None:
+        class FakeBrowser:
+            def current_url(self):
+                return "https://example.com/working"
+
+            def current_origin(self):
+                return "https://example.com"
+
+            def takeover_frame(self, *, frame_profile=None):
+                return {
+                    "frame_id": f"preview_{frame_profile}",
+                    "captured_at": 2000000000.0,
+                    "url": "https://example.com/working",
+                    "origin": "https://example.com",
+                    "viewport": {"width": 320, "height": 240},
+                    "content_type": "image/jpeg",
+                    "data_b64": "abcd",
+                    "transport": {"profile": frame_profile},
+                    "for_control_client_only": True,
+                    "not_for_llm": True,
+                }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            relay = start_browser_relay("preview-browser", FakeBrowser(), poll_interval=0.1)
+            try:
+                frame = None
+                for _ in range(30):
+                    frame = read_frame("preview-browser", max_age_seconds=10)
+                    if frame:
+                        break
+                    time.sleep(0.1)
+                self.assertIsNotNone(frame)
+                assert frame is not None
+                self.assertEqual(frame["frame_id"], "preview_data_saver")
+                self.assertEqual(frame["transport"]["profile"], "data_saver")
+            finally:
+                relay.stop()
                 if old_home is None:
                     os.environ.pop("OMNIDOER_HOME", None)
                 else:

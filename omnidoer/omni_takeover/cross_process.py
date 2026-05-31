@@ -22,6 +22,7 @@ from omnidoer.paths import state_file
 BROWSER_RELAY_DIR = "browser_relay"
 CONTEXT_MAX_AGE_SECONDS = 10.0
 FRAME_MAX_AGE_SECONDS = 5.0
+PREVIEW_FRAME_INTERVAL_SECONDS = 2.0
 
 
 def _safe_id(value: str) -> str:
@@ -172,6 +173,7 @@ class CrossProcessBrowserRelay:
         from omnidoer.omni_takeover.relay import apply_input_event
 
         store = RequestStore()
+        last_preview_frame_at = 0.0
         while not self._stop.is_set():
             try:
                 write_context_status(self.browser_context_id, self.browser_controller)
@@ -184,6 +186,10 @@ class CrossProcessBrowserRelay:
                 ]
                 if active_requests:
                     write_frame(self.browser_context_id, self.browser_controller.takeover_frame(frame_profile="balanced"))
+                    last_preview_frame_at = time.time()
+                elif time.time() - last_preview_frame_at >= PREVIEW_FRAME_INTERVAL_SECONDS:
+                    write_frame(self.browser_context_id, self.browser_controller.takeover_frame(frame_profile="data_saver"))
+                    last_preview_frame_at = time.time()
                 for payload in consume_input_events(self.browser_context_id):
                     event = event_from_dict(payload.get("event") or {})
                     apply_input_event(str(payload.get("request_id") or ""), event, browser_controller=self.browser_controller)
