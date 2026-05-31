@@ -829,9 +829,10 @@ function restoreRequestDrafts(list, captured) {
   }
 }
 
-function setStatus(message, detail = "") {
+function setStatus(message, detail = "", runtimeState = "") {
   document.querySelector("#runtime-mode").textContent = message;
   document.querySelector("#runtime-detail").textContent = detail;
+  document.body.dataset.runtimeState = runtimeState;
 }
 
 function displayValue(value, fallback = "pending") {
@@ -2461,16 +2462,20 @@ async function loadRuntimeStatus() {
     const status = await fetch("/api/status", { cache: "no-store" }).then((r) => r.json());
     const runner = status.chat_runner || {};
     let detail = t("runtimeDetail");
+    let runtimeState = "";
     if (runner.waiting_for_tui_bridge) {
       detail = t("runtimeWaitingForConsoleRestart");
+      runtimeState = "waiting_for_tui_bridge";
     } else if (runner.tui_bridge_active) {
       detail = t("runtimeBridgeActive");
+      runtimeState = "tui_bridge_active";
     } else if (runner.thread_id) {
       detail = t("runtimeBackgroundRunner");
+      runtimeState = "background_runner";
     }
-    setStatus(`Mode: ${status.mode}`, detail);
+    setStatus(`Mode: ${status.mode}`, detail, runtimeState);
   } catch {
-    setStatus(t("runtimeOffline"), t("runtimeOfflineDetail"));
+    setStatus(t("runtimeOffline"), t("runtimeOfflineDetail"), "offline");
   }
 }
 

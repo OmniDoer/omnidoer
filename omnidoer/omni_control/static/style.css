@@ -585,6 +585,12 @@ button:disabled {
     font-size: 0.88rem;
   }
   .status-strip #runtime-detail { display: none; }
+  body[data-runtime-state="waiting_for_tui_bridge"] .status-strip #runtime-detail,
+  body[data-runtime-state="offline"] .status-strip #runtime-detail {
+    display: block;
+    margin: 4px 0 0;
+    line-height: 1.25;
+  }
   .filter-row { margin-top: 12px; }
   .request-grid, .split-grid { grid-template-columns: 1fr; }
   .metadata { grid-template-columns: 1fr; }
