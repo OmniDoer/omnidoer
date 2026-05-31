@@ -1,8 +1,24 @@
 # OmniDoer
 
-![Póster cinematográfico de OmniDoer en español](./docs/assets/localized/omnidoer-readme-es.jpg)
+![OmniDoer frontera de seguridad white-hat](./docs/assets/omnidoer-whitehat-hero.jpg)
 
 [English](./README.md) | [中文](./README.zh-CN.md) | [Français](./README.fr.md) | [Deutsch](./README.de.md) | [日本語](./README.ja.md) | [한국어](./README.ko.md)
+
+**El control seguro es lo que permite más libertad.**
+
+Un investigador white-hat encontró la frontera ausente de los agentes de código
+en la nube: en un servidor real, contraseñas, claves SSH, tokens API, claves
+privadas y secretos de wallet pueden quedar a una llamada de herramienta. Pedirle
+al modelo que no los lea es una petición de conducta, no una frontera de
+aislamiento.
+
+OmniDoer convierte ese hallazgo en arquitectura. Codex conserva el cerebro de
+razonamiento, login, modelo y cuota; OmniDoer aporta las manos seguras:
+navegador controlado, Secret Broker, Vault cifrado, aprobaciones, Challenge
+Relay, auditoría y Control Client para mantener las acciones sensibles fuera del
+estado visible para el modelo.
+
+Página: [https://omnidoer.github.io/](https://omnidoer.github.io/)
 
 ## Instalación rápida
 
@@ -22,6 +38,7 @@ curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scr
 Después de instalar:
 
 ```sh
+~/omnidoer/.venv/bin/omnidoer
 ~/omnidoer/.venv/bin/omnidoer control pair --print-qr
 ~/omnidoer/.venv/bin/omnidoer control submit-task "Abre la demo local y descarga mi factura"
 ```

@@ -1,8 +1,22 @@
 # OmniDoer
 
-![OmniDoer 日本語版シネマティックポスター](./docs/assets/localized/omnidoer-readme-ja.jpg)
+![OmniDoer ホワイトハット安全境界ビジュアル](./docs/assets/omnidoer-whitehat-hero.jpg)
 
 [English](./README.md) | [中文](./README.zh-CN.md) | [Español](./README.es.md) | [Français](./README.fr.md) | [Deutsch](./README.de.md) | [한국어](./README.ko.md)
+
+**安全に制御できてこそ、より自由に任せられます。**
+
+あるホワイトハット研究者は、クラウド型コーディングエージェントに欠けている境界を
+見つけました。実サーバー上では、パスワード、SSH 鍵、API token、秘密鍵、
+ウォレットシークレットが、たった一つの tool call の先にある可能性があります。
+「読まないで」とモデルに頼むことは、隔離ではなく行動上のお願いにすぎません。
+
+OmniDoer はその発見をアーキテクチャに変えます。Codex は推論の頭脳として
+ログイン、モデル選択、クォータを保ち、OmniDoer は安全な手を提供します。
+制御ブラウザ、Secret Broker、暗号化 Vault、承認ゲート、Challenge Relay、
+監査、Control Client によって、機微な操作をモデル可視状態の外に置きます。
+
+ページ: [https://omnidoer.github.io/](https://omnidoer.github.io/)
 
 ## クイックインストール
 
@@ -22,6 +36,7 @@ curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scr
 インストール後:
 
 ```sh
+~/omnidoer/.venv/bin/omnidoer
 ~/omnidoer/.venv/bin/omnidoer control pair --print-qr
 ~/omnidoer/.venv/bin/omnidoer control submit-task "ローカルデモを開いて請求書をダウンロードする"
 ```

@@ -2,14 +2,24 @@
 
 All-purpose web action, inside the security boundary.
 
-**Control makes freedom possible.**
+**Secure control is what makes freedom possible.**
 
-![OmniDoer brand mark](./icon.png)
+![OmniDoer white-hat security boundary](./docs/assets/omnidoer-whitehat-hero.jpg)
 
-OmniDoer is the secure execution layer for agents that need to operate real
-websites, not just describe them. Its thesis is practical: if a person can
-legitimately complete a workflow in their browser, OmniDoer should be able to
-orchestrate the same workflow on the user's own Linux server.
+A white-hat security researcher found the uncomfortable gap in cloud coding
+agents: once an agent runs on a real server, passwords, SSH keys, API tokens,
+private keys, and wallet secrets can sit one tool call away. Asking the model to
+"please avoid secrets" is a behavioral request, not an isolation boundary.
+
+OmniDoer turns that finding into product architecture. Codex remains the
+reasoning brain and keeps its login, model choice, and quota path. OmniDoer adds
+the secure hands: controlled browser execution, Secret Broker, encrypted Vault,
+approval gates, challenge relay, audit trail, and Control Client surfaces that
+keep sensitive actions outside model-visible state.
+
+The thesis is practical: if a person can legitimately complete a workflow in
+their browser, OmniDoer should be able to orchestrate the same workflow on the
+user's own Linux server without moving the security boundary into the model.
 
 The core model is cloud-native. Codex remains the reasoning engine and keeps
 its own authentication, model choice, and billing behavior. OmniDoer adds the
@@ -35,14 +45,9 @@ open sites, sign up, log in, navigate, fill forms, upload/download, prepare
 purchases, and complete sensitive pages through user-approved handoff without
 opening the security boundary.
 
-![OmniDoer English edition cinematic poster](./docs/assets/localized/omnidoer-readme-en.jpg)
+![OmniDoer secure browser execution story](./docs/assets/omnidoer-codex-brain-hands.jpg)
 
 Live page: [https://omnidoer.github.io/](https://omnidoer.github.io/)
-
-This README belongs to the project-source repository; project pages are typically
-served at `omnidoer.github.io/omnidoer` by default. For a direct
-`omnidoer.github.io` landing URL, publish the page assets in the user-site repo
-named `omnidoer.github.io`.
 
 ## One-Command Install
 

@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 from urllib.request import urlopen
 
+from omnidoer.omni_cli.console import build_console_env
 from omnidoer.omni_audit.audit import AuditLog
 from omnidoer.omni_broker.broker import SecretBroker
 from omnidoer.omni_control.requests import RequestStore
@@ -61,6 +62,12 @@ class CliTest(unittest.TestCase):
         self.assertIn("binary=/bin/echo", result.stdout)
         self.assertIn("brand=omnidoer", result.stdout)
         self.assertIn("--version", result.stdout)
+
+    def test_console_env_uses_unprefixed_brand_version(self) -> None:
+        from omnidoer.version import __version__
+
+        env = build_console_env()
+        self.assertEqual(env["OMNIDOER_VERSION"], __version__.lstrip("vV"))
 
     def test_no_args_launches_console_instead_of_help(self) -> None:
         result = self.run_cli(

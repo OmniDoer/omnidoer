@@ -23,6 +23,11 @@ class BrandingDocsTest(unittest.TestCase):
             "docs/assets/omnidoer-cinematic-poster.jpg",
             "docs/assets/omnidoer-cinematic-readme.png",
             "docs/assets/omnidoer-cinematic-share.jpg",
+            "docs/assets/omnidoer-whitehat-hero.jpg",
+            "docs/assets/omnidoer-secret-leak-risk.jpg",
+            "docs/assets/omnidoer-model-self-restraint.jpg",
+            "docs/assets/omnidoer-secure-boundary-born.jpg",
+            "docs/assets/omnidoer-codex-brain-hands.jpg",
             "docs/assets/omnidoer-cloud-control-service.jpg",
             "docs/assets/omnidoer-cloud-control-service.png",
             "docs/assets/omnidoer-feature-matrix.jpg",
@@ -106,19 +111,23 @@ class BrandingDocsTest(unittest.TestCase):
         self.assertIn("control pair --print-qr", content)
         self.assertIn("codex mcp add omnidoer", content)
 
-    def test_localized_readmes_use_distinct_cinematic_images(self) -> None:
+    def test_localized_readmes_use_no_text_campaign_images(self) -> None:
         expected = {
-            "README.md": "docs/assets/localized/omnidoer-readme-en.jpg",
-            "README.zh-CN.md": "docs/assets/localized/omnidoer-readme-zh-CN.jpg",
-            "README.es.md": "docs/assets/localized/omnidoer-readme-es.jpg",
-            "README.fr.md": "docs/assets/localized/omnidoer-readme-fr.jpg",
-            "README.de.md": "docs/assets/localized/omnidoer-readme-de.jpg",
-            "README.ja.md": "docs/assets/localized/omnidoer-readme-ja.jpg",
-            "README.ko.md": "docs/assets/localized/omnidoer-readme-ko.jpg",
+            "README.md": (
+                "docs/assets/omnidoer-whitehat-hero.jpg",
+                "docs/assets/omnidoer-codex-brain-hands.jpg",
+            ),
+            "README.zh-CN.md": ("docs/assets/omnidoer-whitehat-hero.jpg",),
+            "README.es.md": ("docs/assets/omnidoer-whitehat-hero.jpg",),
+            "README.fr.md": ("docs/assets/omnidoer-whitehat-hero.jpg",),
+            "README.de.md": ("docs/assets/omnidoer-whitehat-hero.jpg",),
+            "README.ja.md": ("docs/assets/omnidoer-whitehat-hero.jpg",),
+            "README.ko.md": ("docs/assets/omnidoer-whitehat-hero.jpg",),
         }
-        for readme_name, image in expected.items():
+        for readme_name, images in expected.items():
             content = (self.root / readme_name).read_text()
-            self.assertIn(image, content, readme_name)
+            for image in images:
+                self.assertIn(image, content, readme_name)
             self.assertIn("Codex", content, readme_name)
             self.assertIn("OpenAI API", content, readme_name)
             self.assertIn("install-cloud-direct.sh", content, readme_name)
@@ -139,17 +148,24 @@ class BrandingDocsTest(unittest.TestCase):
         self.assertIn("Technical Proof", page)
         self.assertIn("install-cloud-direct.sh", page)
         self.assertIn("OMNIDOER_CLOUD_DIRECT=1", page)
-        self.assertIn("All-purpose web action on the user's own server", page)
+        self.assertIn("A white-hat researcher found the missing boundary", page)
+        self.assertIn('id="campaign"', page)
+        self.assertIn("campaign_heading", page)
+        self.assertIn("From Security Finding To Safer Agents", page)
         self.assertIn("install_after_commands", page)
         self.assertIn("打开本地 demo 并下载我的发票", page)
         self.assertIn('href="#install"', page)
+        self.assertIn('href="#campaign"', page)
         self.assertIn('class="language-switcher"', page)
         self.assertIn('data-lang="zh-CN"', page)
         self.assertIn('data-lang="es"', page)
         self.assertIn('data-i18n="hero_tagline"', page)
         self.assertIn("heroImageByLang", page)
-        self.assertIn("assets/localized/omnidoer-readme-en.jpg", page)
-        self.assertIn("assets/omnidoer-cinematic-share.jpg", page)
+        self.assertIn("assets/omnidoer-whitehat-hero.jpg", page)
+        self.assertIn("assets/omnidoer-secret-leak-risk.jpg", page)
+        self.assertIn("assets/omnidoer-model-self-restraint.jpg", page)
+        self.assertIn("assets/omnidoer-secure-boundary-born.jpg", page)
+        self.assertIn("assets/omnidoer-codex-brain-hands.jpg", page)
         self.assertIn("assets/omnidoer-human-loop-web-agent.jpg", page)
         self.assertIn("assets/omnidoer-cloud-control-service.jpg", page)
         self.assertIn("assets/omnidoer-feature-matrix.jpg", page)
@@ -184,6 +200,17 @@ class BrandingDocsTest(unittest.TestCase):
             "proof_tests_1",
             "proof_tests_2",
             "proof_tests_3",
+            "nav_campaign",
+            "campaign_heading",
+            "campaign_copy",
+            "campaign_finding_title",
+            "campaign_finding_copy",
+            "campaign_restraint_title",
+            "campaign_restraint_copy",
+            "campaign_boundary_title",
+            "campaign_boundary_copy",
+            "campaign_companion_title",
+            "campaign_companion_copy",
         )
         def extract_language_block(content: str, lang: str) -> str:
             marker = f'\n      "{lang}": {{'

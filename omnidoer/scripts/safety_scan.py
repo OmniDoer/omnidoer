@@ -6,7 +6,8 @@ stay true even as individual tests move around:
 - no default OpenAI API client path in OmniDoer code;
 - no forbidden bypass/secret-returning MCP tools in the registry;
 - no forbidden bypass tool names in model-visible code;
-- localized README posters and Control Client release docs remain wired.
+- public no-text campaign visuals, legacy reference posters, and Control Client
+  release docs remain available.
 """
 
 from __future__ import annotations
@@ -101,11 +102,22 @@ def scan_forbidden_tool_mentions(failures: list[str]) -> None:
 
 
 def scan_public_branding_contract(failures: list[str]) -> None:
+    campaign_assets = (
+        "omnidoer-whitehat-hero.jpg",
+        "omnidoer-secret-leak-risk.jpg",
+        "omnidoer-model-self-restraint.jpg",
+        "omnidoer-secure-boundary-born.jpg",
+        "omnidoer-codex-brain-hands.jpg",
+    )
+    for asset in campaign_assets:
+        image = ROOT / "docs" / "assets" / asset
+        if not image.is_file():
+            failures.append(f"missing public campaign visual: {image.relative_to(ROOT)}")
     languages = ("en", "zh-CN", "es", "fr", "de", "ja", "ko")
     for lang in languages:
         image = ROOT / "docs" / "assets" / "localized" / f"omnidoer-readme-{lang}.jpg"
         if not image.is_file():
-            failures.append(f"missing localized README poster: {image.relative_to(ROOT)}")
+            failures.append(f"missing legacy localized poster reference: {image.relative_to(ROOT)}")
     release_doc = ROOT / "docs" / "control-client-release.md"
     if release_doc.is_file():
         text = release_doc.read_text(encoding="utf-8", errors="ignore")

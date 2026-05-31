@@ -55,7 +55,7 @@ def build_console_env() -> dict[str, str]:
 
     env = os.environ.copy()
     env.update(BRAND_ENV)
-    env["OMNIDOER_VERSION"] = __version__
+    env["OMNIDOER_VERSION"] = __version__.lstrip("vV")
     return env
 
 

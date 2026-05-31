@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="OmniDoer is a Codex CLI MCP sidecar for all-purpose web action inside a controlled security boundary.">
+  <meta name="description" content="OmniDoer turns a white-hat finding about cloud agent secret exposure into a controlled execution layer for Codex.">
   <meta property="og:title" content="OmniDoer">
-  <meta property="og:description" content="All-purpose web action inside the security boundary. Secrets stay with the broker, vault, and user-controlled client.">
-  <meta property="og:image" content="assets/omnidoer-cinematic-share.jpg">
+  <meta property="og:description" content="Codex keeps the reasoning brain; OmniDoer adds the broker, vault, approval gates, browser worker, and Control Client that keep secrets out of model context.">
+  <meta property="og:image" content="assets/omnidoer-whitehat-hero.jpg">
   <title>OmniDoer</title>
   <style>
     :root {
@@ -200,6 +200,48 @@
       line-height: 1.5;
       padding: 12px 14px;
     }
+    .campaign-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .campaign-card {
+      position: relative;
+      min-height: 280px;
+      margin: 0;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #020617;
+    }
+    .campaign-card img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      min-height: 280px;
+      object-fit: cover;
+      filter: brightness(0.7) saturate(0.9);
+    }
+    .campaign-card figcaption {
+      position: absolute;
+      inset: auto 0 0;
+      padding: 18px;
+      background: linear-gradient(180deg, rgba(2, 6, 23, 0), rgba(2, 6, 23, 0.9) 24%, rgba(2, 6, 23, 0.96));
+      color: white;
+    }
+    .campaign-card h3 {
+      margin: 0 0 8px;
+      font-size: 1.12rem;
+      letter-spacing: 0;
+    }
+    .campaign-card p {
+      margin: 0;
+      max-width: none;
+      color: #dbeafe;
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
     .deploy-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -263,13 +305,14 @@
       .hero-copy { padding: 34svh 16px 34px; }
       .tagline { max-width: 100%; }
       main, nav { padding-left: 16px; padding-right: 16px; }
-      .grid, .deploy-grid, .visual-grid { grid-template-columns: 1fr; }
+      .grid, .deploy-grid, .visual-grid, .campaign-grid { grid-template-columns: 1fr; }
+      .campaign-card, .campaign-card img { min-height: 240px; }
     }
   </style>
 </head>
 <body>
   <header>
-    <img id="hero-image" class="hero-media" src="assets/localized/omnidoer-readme-en.jpg" alt="OmniDoer visual banner">
+    <img id="hero-image" class="hero-media" src="assets/omnidoer-whitehat-hero.jpg" alt="White-hat researcher discovers AI agent secret-leak risk and OmniDoer security boundary">
     <div class="hero-overlay" aria-hidden="true"></div>
     <div class="language-switcher" aria-label="Language">
       <button type="button" data-lang="en" aria-pressed="true">English</button>
@@ -282,12 +325,13 @@
     </div>
     <div class="hero-copy">
       <h1>OmniDoer</h1>
-      <p class="tagline" data-i18n="hero_tagline">All-purpose web action on the user's own server: Codex plans with GPT strengths, while secrets stay behind Broker/Vault boundaries and sensitive flows are handed to the human in a secure stream.</p>
+      <p class="tagline" data-i18n="hero_tagline">A white-hat researcher found the missing boundary in cloud coding agents: passwords, private keys, and wallet secrets can sit one prompt away. OmniDoer turns that warning into a controlled execution layer.</p>
     </div>
   </header>
   <nav aria-label="Primary">
     <a href="https://github.com/OmniDoer/omnidoer" data-i18n="nav_github">GitHub</a>
     <a href="#install" data-i18n="nav_install">Install</a>
+    <a href="#campaign" data-i18n="nav_campaign">Story</a>
     <a href="#technical-proof" data-i18n="nav_proof">Technical Proof</a>
     <a href="control-service-cloud.md" data-i18n="nav_cloud">Cloud Direct</a>
     <a href="control-client.md" data-i18n="nav_control">Control Client</a>
@@ -326,6 +370,41 @@
         <li data-i18n="beyond_handoff">Seamless handoff: anti-bot, registration, and passkey flows stream live to the user client for completion.</li>
         <li data-i18n="beyond_payment">Cost-aware autonomy: high-risk actions remain user-approved and always run under explicit billing and release control.</li>
       </ul>
+    </section>
+
+    <section id="campaign">
+      <h2 data-i18n="campaign_heading">From Security Finding To Safer Agents</h2>
+      <p data-i18n="campaign_copy">OmniDoer starts from a concrete white-hat finding: telling an agent not to read secrets is only a request. Real safety requires brokered credentials, vault custody, approval gates, and a boundary the model cannot cross.</p>
+      <div class="campaign-grid">
+        <figure class="campaign-card">
+          <img src="assets/omnidoer-secret-leak-risk.jpg" alt="" loading="lazy">
+          <figcaption>
+            <h3 data-i18n="campaign_finding_title">The white-hat finding</h3>
+            <p data-i18n="campaign_finding_copy">On a real server, an agent may be near passwords, SSH keys, API tokens, and wallet material. Prompt discipline is not isolation.</p>
+          </figcaption>
+        </figure>
+        <figure class="campaign-card">
+          <img src="assets/omnidoer-model-self-restraint.jpg" alt="" loading="lazy">
+          <figcaption>
+            <h3 data-i18n="campaign_restraint_title">Model self-restraint is not enough</h3>
+            <p data-i18n="campaign_restraint_copy">A sentence that says "do not read secrets" cannot replace policy enforcement, scoped release, and process-level separation.</p>
+          </figcaption>
+        </figure>
+        <figure class="campaign-card">
+          <img src="assets/omnidoer-secure-boundary-born.jpg" alt="" loading="lazy">
+          <figcaption>
+            <h3 data-i18n="campaign_boundary_title">OmniDoer adds the missing boundary</h3>
+            <p data-i18n="campaign_boundary_copy">Broker, Vault, policy, browser worker, audit, and Control Client keep sensitive actions outside model-visible state.</p>
+          </figcaption>
+        </figure>
+        <figure class="campaign-card">
+          <img src="assets/omnidoer-codex-brain-hands.jpg" alt="" loading="lazy">
+          <figcaption>
+            <h3 data-i18n="campaign_companion_title">Codex keeps the brain. OmniDoer supplies the hands.</h3>
+            <p data-i18n="campaign_companion_copy">Keep ChatGPT/Codex reasoning, login, and quota; add controlled tools that do not hand secrets to the model.</p>
+          </figcaption>
+        </figure>
+      </div>
     </section>
 
     <section id="technical-proof">
@@ -425,18 +504,18 @@
   <footer data-i18n="footer_copy">OmniDoer is a user-authorized local execution layer, not a credential stealer, CAPTCHA bypasser, or autonomous spender.</footer>
   <script>
     const heroImageByLang = {
-      "en": "assets/localized/omnidoer-readme-en.jpg",
-      "zh-CN": "assets/localized/omnidoer-readme-zh-CN.jpg",
-      "es": "assets/localized/omnidoer-readme-es.jpg",
-      "fr": "assets/localized/omnidoer-readme-fr.jpg",
-      "de": "assets/localized/omnidoer-readme-de.jpg",
-      "ja": "assets/localized/omnidoer-readme-ja.jpg",
-      "ko": "assets/localized/omnidoer-readme-ko.jpg"
+      "en": "assets/omnidoer-whitehat-hero.jpg",
+      "zh-CN": "assets/omnidoer-whitehat-hero.jpg",
+      "es": "assets/omnidoer-whitehat-hero.jpg",
+      "fr": "assets/omnidoer-whitehat-hero.jpg",
+      "de": "assets/omnidoer-whitehat-hero.jpg",
+      "ja": "assets/omnidoer-whitehat-hero.jpg",
+      "ko": "assets/omnidoer-whitehat-hero.jpg"
     };
     const copy = {
       "en": {
-        hero_tagline: "All-purpose web action on the user's own server: Codex plans with GPT strengths, while secrets stay behind Broker/Vault boundaries and sensitive flows are handed to the human in a secure stream.",
-        nav_github: "GitHub", nav_install: "Install", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Security Model", nav_tools: "MCP Tools",
+        hero_tagline: "A white-hat researcher found the missing boundary in cloud coding agents: passwords, private keys, and wallet secrets can sit one prompt away. OmniDoer turns that warning into a controlled execution layer.",
+        nav_github: "GitHub", nav_install: "Install", nav_campaign: "Story", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Security Model", nav_tools: "MCP Tools",
         secrets_heading: "Secrets Stay Out Of The Model",
         secrets_copy: "The agent may request an action. The broker checks the origin. The vault uses the secret. The browser receives the credential. The model never does.",
         card_codex_title: "Codex Preserved", card_codex_copy: "OmniDoer keeps Codex as the model and billing entrypoint, then runs execution tools on the user's server through MCP.",
@@ -458,6 +537,16 @@
         beyond_security: "Secure boundary: secrets and challenge materials stay in the encrypted Broker/Vault path, not model context.",
         beyond_handoff: "Seamless switch: anti-bot, registration, and passkey flows stream live to the user client for completion.",
         beyond_payment: "Cost-aware autonomy: high-risk actions remain user-approved and always run under explicit billing and release control.",
+        campaign_heading: "From Security Finding To Safer Agents",
+        campaign_copy: "OmniDoer starts from a concrete white-hat finding: telling an agent not to read secrets is only a request. Real safety requires brokered credentials, vault custody, approval gates, and a boundary the model cannot cross.",
+        campaign_finding_title: "The white-hat finding",
+        campaign_finding_copy: "On a real server, an agent may be near passwords, SSH keys, API tokens, and wallet material. Prompt discipline is not isolation.",
+        campaign_restraint_title: "Model self-restraint is not enough",
+        campaign_restraint_copy: "A sentence that says \"do not read secrets\" cannot replace policy enforcement, scoped release, and process-level separation.",
+        campaign_boundary_title: "OmniDoer adds the missing boundary",
+        campaign_boundary_copy: "Broker, Vault, policy, browser worker, audit, and Control Client keep sensitive actions outside model-visible state.",
+        campaign_companion_title: "Codex keeps the brain. OmniDoer supplies the hands.",
+        campaign_companion_copy: "Keep ChatGPT/Codex reasoning, login, and quota; add controlled tools that do not hand secrets to the model.",
         nav_proof: "Technical Proof",
         proof_heading: "Technical Proof of Superiority",
         proof_copy: "The advantage is not model trickery; it is boundary-first design: encrypted secret custody, challenge projection to the user's client, and explicit approvals for high-risk actions.",
@@ -481,8 +570,8 @@
         footer_copy: "OmniDoer is a user-authorized local execution layer, not a credential stealer, CAPTCHA bypasser, or autonomous spender."
       },
       "zh-CN": {
-        hero_tagline: "安全边界内的全能网页行动。Codex CLI 的 MCP/sidecar 安全执行层，secret 留在 Broker、Vault 和用户控制的 Control Client 内，反爬、注册、支付环节由用户确认。",
-        nav_github: "GitHub", nav_install: "安装", nav_cloud: "Cloud Direct", nav_control: "控制客户端", nav_security: "安全模型", nav_tools: "MCP 工具",
+        hero_tagline: "一名白帽安全研究员发现：云端编码智能体运行在服务器上时，密码、私钥、加密货币钱包密钥可能离模型只有一个提示词的距离。OmniDoer 把这个警报变成真正的安全执行边界。",
+        nav_github: "GitHub", nav_install: "安装", nav_campaign: "故事线", nav_cloud: "Cloud Direct", nav_control: "控制客户端", nav_security: "安全模型", nav_tools: "MCP 工具",
         secrets_heading: "Secret 不进入模型上下文",
         secrets_copy: "Agent 可以请求行动；Broker 校验来源；Vault 使用 secret；浏览器接收凭据；模型永远只看到脱敏状态。",
         card_codex_title: "保留 Codex", card_codex_copy: "OmniDoer 通过 MCP 扩展 Codex CLI，不创建默认 OpenAI API 客户端，也不改变计费路径。",
@@ -504,6 +593,16 @@
         beyond_security: "安全边界前置：密码、挑战答案不进入模型上下文。",
         beyond_handoff: "无缝切换：CAPTCHA、anti-bot、passkey 流程会实时投影到 Control Client 由用户完成。",
         beyond_payment: "成本与自治并重：高风险动作保持用户审批，支出与关键变更可追溯可控。",
+        campaign_heading: "从白帽发现到安全智能体",
+        campaign_copy: "OmniDoer 的故事起点很具体：要求模型“不要读取 secret”只是请求，不是隔离。真正的安全需要 Broker、Vault、审批门和模型无法跨越的执行边界。",
+        campaign_finding_title: "白帽发现",
+        campaign_finding_copy: "在真实服务器上，Agent 可能靠近密码、SSH 私钥、API token 和钱包密钥。仅靠提示词自觉，不是安全边界。",
+        campaign_restraint_title: "模型自觉不等于隔离",
+        campaign_restraint_copy: "一句“不要读取敏感信息”无法替代策略执行、作用域释放和进程级隔离。",
+        campaign_boundary_title: "OmniDoer 补上缺失边界",
+        campaign_boundary_copy: "Broker、Vault、Policy、Browser Worker、Audit 与 Control Client 把敏感动作挡在模型可见状态之外。",
+        campaign_companion_title: "Codex 保留大脑，OmniDoer 提供双手",
+        campaign_companion_copy: "继续使用 ChatGPT/Codex 的推理、登录和额度，同时给它不泄露 secret 的受控执行工具。",
         nav_proof: "技术验证",
         proof_heading: "超越性执行的技术证据",
         proof_copy: "执行优势来自“边界设计”而非模型技巧：密钥和凭据控制、挑战页安全投影给人类，以及高风险动作审批闭环。",
@@ -527,8 +626,8 @@
         footer_copy: "OmniDoer 是用户授权的本地执行层，不是窃取凭据、绕过 CAPTCHA 或自主消费的工具。"
       },
       "es": {
-        hero_tagline: "Acción web de propósito general dentro del límite de seguridad. Un sidecar MCP para Codex CLI donde los secretos permanecen en Broker, Vault y Control Client.",
-        nav_github: "GitHub", nav_install: "Instalar", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Modelo de seguridad", nav_tools: "Herramientas MCP",
+        hero_tagline: "Un investigador white-hat encontró la frontera ausente en los agentes de código en la nube: contraseñas, claves privadas y secretos de wallet pueden quedar a un prompt de distancia. OmniDoer convierte esa alerta en una capa de ejecución controlada.",
+        nav_github: "GitHub", nav_install: "Instalar", nav_campaign: "Historia", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Modelo de seguridad", nav_tools: "Herramientas MCP",
         secrets_heading: "Los secretos no entran al modelo", secrets_copy: "El agente solicita una acción; el Broker valida el origen; Vault usa el secreto; el navegador recibe la credencial; el modelo no.",
         card_codex_title: "Codex preservado", card_codex_copy: "OmniDoer extiende Codex CLI con MCP sin crear un cliente OpenAI API ni una ruta de facturación predeterminada.",
         card_control_title: "Control Client", card_control_copy: "El usuario gestiona credenciales, aprobaciones, desafíos y takeover humano en una interfaz PWA.",
@@ -548,6 +647,16 @@
         beyond_security: "No se mueve ningún secreto al contexto del modelo.",
         beyond_handoff: "Cambio transparente: sesiones de CAPTCHA/anti-bot/passkey se envían al Control Client para completar en vivo.",
         beyond_payment: "Pago con autonomía controlada: las acciones críticas requieren aprobación humana explícita.",
+        campaign_heading: "Del hallazgo white-hat a agentes más seguros",
+        campaign_copy: "OmniDoer nace de un hallazgo concreto: pedirle al modelo que no lea secretos es solo una petición. La seguridad real exige credenciales mediadas, custodia en Vault, aprobaciones y una frontera que el modelo no pueda cruzar.",
+        campaign_finding_title: "El hallazgo white-hat",
+        campaign_finding_copy: "En un servidor real, un agente puede estar cerca de contraseñas, claves SSH, tokens API y material de wallet. La disciplina de prompt no es aislamiento.",
+        campaign_restraint_title: "La autocontención del modelo no basta",
+        campaign_restraint_copy: "Una frase como \"no leas secretos\" no sustituye la política, la liberación con alcance ni la separación de procesos.",
+        campaign_boundary_title: "OmniDoer añade la frontera que faltaba",
+        campaign_boundary_copy: "Broker, Vault, Policy, Browser Worker, Audit y Control Client mantienen las acciones sensibles fuera del estado visible para el modelo.",
+        campaign_companion_title: "Codex conserva el cerebro. OmniDoer pone las manos.",
+        campaign_companion_copy: "Mantén razonamiento, login y cuota de ChatGPT/Codex; añade herramientas controladas que no entregan secretos al modelo.",
         nav_proof: "Prueba técnica",
         proof_heading: "Prueba técnica de superioridad",
         proof_copy: "La ventaja de ejecución proviene de tres límites, no de trucos de modelo: custodia estricta de secretos, proyección humana en tiempo real de retos y aprobaciones explícitas para acciones de alto riesgo.",
@@ -571,8 +680,8 @@
         footer_copy: "OmniDoer es una capa de ejecución autorizada por el usuario, no una herramienta para robar credenciales, evadir CAPTCHA o gastar sola."
       },
       "fr": {
-        hero_tagline: "Action web polyvalente dans la limite de sécurité. Un sidecar MCP pour Codex CLI où les secrets restent dans Broker, Vault et Control Client.",
-        nav_github: "GitHub", nav_install: "Installer", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Modèle de sécurité", nav_tools: "Outils MCP",
+        hero_tagline: "Un chercheur white-hat a trouvé la limite manquante des agents de code cloud : mots de passe, clés privées et secrets de wallet peuvent être à un prompt du modèle. OmniDoer transforme cette alerte en couche d'exécution contrôlée.",
+        nav_github: "GitHub", nav_install: "Installer", nav_campaign: "Récit", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Modèle de sécurité", nav_tools: "Outils MCP",
         secrets_heading: "Les secrets restent hors du modèle", secrets_copy: "L'agent demande une action; le Broker vérifie l'origine; Vault utilise le secret; le navigateur reçoit l'identifiant; le modèle jamais.",
         card_codex_title: "Codex préservé", card_codex_copy: "OmniDoer étend Codex CLI via MCP sans créer de client OpenAI API ni de chemin de facturation par défaut.",
         card_control_title: "Control Client", card_control_copy: "L'utilisateur gère identifiants, approbations, défis et takeover humain depuis une interface PWA.",
@@ -592,6 +701,16 @@
         beyond_security: "Les secrets ne quittent jamais le contexte modèle.",
         beyond_handoff: "Passage fluide: flux CAPTCHA/anti-bot/passkey envoyés au Control Client pour fin d'interaction en direct.",
         beyond_payment: "Coût contrôlé: les actions risquées exigent une approbation humaine explicite.",
+        campaign_heading: "D'un constat white-hat à des agents plus sûrs",
+        campaign_copy: "OmniDoer part d'un constat concret : demander au modèle de ne pas lire les secrets n'est qu'une consigne. La vraie sécurité exige Broker, Vault, approbations et une limite que le modèle ne peut pas franchir.",
+        campaign_finding_title: "Le constat white-hat",
+        campaign_finding_copy: "Sur un vrai serveur, un agent peut côtoyer mots de passe, clés SSH, tokens API et clés de wallet. La discipline du prompt n'est pas une isolation.",
+        campaign_restraint_title: "L'autodiscipline du modèle ne suffit pas",
+        campaign_restraint_copy: "Une phrase comme « ne lis pas les secrets » ne remplace pas la politique, la libération scoped et la séparation des processus.",
+        campaign_boundary_title: "OmniDoer ajoute la limite manquante",
+        campaign_boundary_copy: "Broker, Vault, Policy, Browser Worker, Audit et Control Client gardent les actions sensibles hors de l'état visible par le modèle.",
+        campaign_companion_title: "Codex garde le cerveau. OmniDoer apporte les mains.",
+        campaign_companion_copy: "Conservez raisonnement, login et quota ChatGPT/Codex, avec des outils contrôlés qui ne livrent pas les secrets au modèle.",
         nav_proof: "Preuve technique",
         proof_heading: "Preuve technique de supériorité",
         proof_copy: "L'avantage de l'exécution vient de trois limites, pas de l'astuce du modèle : conservation stricte des secrets, projection humaine en direct des défis et approbations explicites pour les actions à risque.",
@@ -615,8 +734,8 @@
         footer_copy: "OmniDoer est une couche d'exécution autorisée par l'utilisateur, pas un voleur d'identifiants, un contournement CAPTCHA ou un dépensier autonome."
       },
       "de": {
-        hero_tagline: "Allzweck-Webaktionen innerhalb der Sicherheitsgrenze. Ein MCP-Sidecar für Codex CLI, bei dem Secrets in Broker, Vault und Control Client bleiben.",
-        nav_github: "GitHub", nav_install: "Installieren", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Sicherheitsmodell", nav_tools: "MCP-Tools",
+        hero_tagline: "Ein White-Hat-Forscher fand die fehlende Grenze bei Cloud-Coding-Agenten: Passwörter, private Schlüssel und Wallet-Secrets können nur einen Prompt entfernt sein. OmniDoer macht daraus eine kontrollierte Ausführungsschicht.",
+        nav_github: "GitHub", nav_install: "Installieren", nav_campaign: "Story", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Sicherheitsmodell", nav_tools: "MCP-Tools",
         secrets_heading: "Geheimnisse bleiben aus dem Modell", secrets_copy: "Der Agent fordert eine Aktion an; der Broker prüft den Ursprung; Vault nutzt das Secret; der Browser erhält die Anmeldedaten; das Modell nie.",
         card_codex_title: "Codex bleibt erhalten", card_codex_copy: "OmniDoer erweitert Codex CLI per MCP und erstellt keinen Standard-OpenAI-API-Client oder Billing-Pfad.",
         card_control_title: "Control Client", card_control_copy: "Nutzer steuern Zugangsdaten, Freigaben, Challenges und Human Takeover in einer PWA-Oberfläche.",
@@ -636,6 +755,16 @@
         beyond_security: "Secrets bleiben vor dem Modell verborgen.",
         beyond_handoff: "Nahtloser Wechsel: CAPTCHA/anti-bot/passkey-Flüsse werden in den Control Client für Live-Interaktion projiziert.",
         beyond_payment: "Kostensensitives Vorgehen: risikobehaftete Aktionen brauchen explizite Nutzerfreigabe.",
+        campaign_heading: "Vom White-Hat-Befund zu sichereren Agenten",
+        campaign_copy: "OmniDoer beginnt mit einem konkreten Befund: Einem Modell zu sagen, es solle keine Secrets lesen, ist nur eine Bitte. Echte Sicherheit braucht Broker, Vault, Freigaben und eine Grenze, die das Modell nicht überschreiten kann.",
+        campaign_finding_title: "Der White-Hat-Befund",
+        campaign_finding_copy: "Auf einem echten Server kann ein Agent nahe an Passwörtern, SSH-Schlüsseln, API-Tokens und Wallet-Material arbeiten. Prompt-Disziplin ist keine Isolation.",
+        campaign_restraint_title: "Selbstbeschränkung des Modells reicht nicht",
+        campaign_restraint_copy: "Ein Satz wie \"lies keine Secrets\" ersetzt keine Policy, keine Freigabe mit Scope und keine Prozessgrenze.",
+        campaign_boundary_title: "OmniDoer ergänzt die fehlende Grenze",
+        campaign_boundary_copy: "Broker, Vault, Policy, Browser Worker, Audit und Control Client halten sensible Aktionen außerhalb des modell-sichtbaren Zustands.",
+        campaign_companion_title: "Codex bleibt das Gehirn. OmniDoer liefert die Hände.",
+        campaign_companion_copy: "ChatGPT/Codex-Reasoning, Login und Quota bleiben erhalten; kontrollierte Tools geben dem Modell keine Secrets.",
         nav_proof: "Technischer Nachweis",
         proof_heading: "Technischer Nachweis der Überlegenheit",
         proof_copy: "Die Ausführungs-Überlegenheit beruht auf drei Grenzen, nicht auf Modelltricks: sichere Secret-Verwahrung, direkte Mensch-Projektion bei Challenge-Flows und explizite Freigaben bei risikoreichen Aktionen.",
@@ -659,8 +788,8 @@
         footer_copy: "OmniDoer ist eine vom Nutzer autorisierte Ausführungsschicht, kein Credential-Stealer, CAPTCHA-Bypass oder autonomer Käufer."
       },
       "ja": {
-        hero_tagline: "安全境界内の全能 Web アクション。Codex CLI 向け MCP sidecar として、secret を Broker、Vault、Control Client に閉じ込めたまま Web 操作を行います。",
-        nav_github: "GitHub", nav_install: "インストール", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "セキュリティモデル", nav_tools: "MCP ツール",
+        hero_tagline: "あるホワイトハット研究者は、クラウド型コーディングエージェントに欠けている境界を見つけました。パスワード、秘密鍵、ウォレットシークレットが、たった一つのプロンプトの先にある可能性があります。OmniDoer はその警告を制御された実行層に変えます。",
+        nav_github: "GitHub", nav_install: "インストール", nav_campaign: "ストーリー", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "セキュリティモデル", nav_tools: "MCP ツール",
         secrets_heading: "Secret はモデルに渡さない", secrets_copy: "Agent は操作を要求し、Broker が origin を検証し、Vault が secret を使い、ブラウザだけが資格情報を受け取ります。",
         card_codex_title: "Codex を維持", card_codex_copy: "OmniDoer は MCP で Codex CLI を拡張し、既定の OpenAI API クライアントや課金経路を作りません。",
         card_control_title: "Control Client", card_control_copy: "資格情報、承認、チャレンジ、Human Takeover を PWA 対応 UI で扱います。",
@@ -680,6 +809,16 @@
         beyond_security: "シークレットはモデルのコンテキストへ入らない。",
         beyond_handoff: "CAPTCHA / anti-bot / passkey は Control Client へライブ投影され、本人の操作で完了。",
         beyond_payment: "高リスクな支払い・変更操作はユーザー承認付きでのみ実行される。",
+        campaign_heading: "ホワイトハットの発見から、より安全なエージェントへ",
+        campaign_copy: "OmniDoer の出発点は具体的です。モデルに「secret を読まないで」と頼むだけでは境界になりません。本当の安全には Broker、Vault、承認ゲート、そしてモデルが越えられない実行境界が必要です。",
+        campaign_finding_title: "ホワイトハットの発見",
+        campaign_finding_copy: "実サーバー上では、Agent がパスワード、SSH 鍵、API token、ウォレット素材の近くで動くことがあります。プロンプト上の自制は隔離ではありません。",
+        campaign_restraint_title: "モデルの自制だけでは足りない",
+        campaign_restraint_copy: "「secret を読まない」という一文は、ポリシー実行、スコープ付き解放、プロセス分離の代わりにはなりません。",
+        campaign_boundary_title: "OmniDoer が欠けていた境界を追加する",
+        campaign_boundary_copy: "Broker、Vault、Policy、Browser Worker、Audit、Control Client が、機微な操作をモデル可視状態の外に保ちます。",
+        campaign_companion_title: "Codex は頭脳のまま。OmniDoer が手を担う。",
+        campaign_companion_copy: "ChatGPT/Codex の推論、ログイン、クォータを保ちながら、secret をモデルに渡さない制御ツールを追加します。",
         nav_proof: "技術的根拠",
         proof_heading: "優位性の技術的証拠",
         proof_copy: "実行の優位性はモデルの高度化ではなく、3 つの境界にあります。厳格な Secret 管理、挑戦系フローのライブ投影、人手承認の高リスク管理です。",
@@ -703,8 +842,8 @@
         footer_copy: "OmniDoer はユーザー承認のローカル実行層であり、資格情報窃取、CAPTCHA 回避、自律支払いの道具ではありません。"
       },
       "ko": {
-        hero_tagline: "보안 경계 안의 전방위 웹 액션. Codex CLI용 MCP sidecar로, secret은 Broker, Vault, Control Client 안에 둔 채 웹 작업을 수행합니다.",
-        nav_github: "GitHub", nav_install: "설치", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "보안 모델", nav_tools: "MCP 도구",
+        hero_tagline: "한 화이트햇 연구자가 클라우드 코딩 에이전트의 빠진 경계를 발견했습니다. 비밀번호, 개인키, 지갑 시드가 단 하나의 프롬프트 거리 안에 있을 수 있습니다. OmniDoer는 그 경고를 통제된 실행 계층으로 바꿉니다.",
+        nav_github: "GitHub", nav_install: "설치", nav_campaign: "스토리", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "보안 모델", nav_tools: "MCP 도구",
         secrets_heading: "Secret은 모델로 가지 않습니다", secrets_copy: "Agent는 작업을 요청하고, Broker가 origin을 확인하고, Vault가 secret을 사용하며, 브라우저만 자격 증명을 받습니다.",
         card_codex_title: "Codex 유지", card_codex_copy: "OmniDoer는 MCP로 Codex CLI를 확장하며 기본 OpenAI API 클라이언트나 별도 결제 경로를 만들지 않습니다.",
         card_control_title: "Control Client", card_control_copy: "사용자는 PWA 친화 UI에서 자격 증명, 승인, challenge, Human Takeover를 처리합니다.",
@@ -724,6 +863,16 @@
         beyond_security: "비밀값은 절대 모델 컨텍스트로 전송되지 않는다.",
         beyond_handoff: "CAPTCHA/anti-bot/passkey 세션은 Control Client로 실시간 투영되어 사용자 직접 완료.",
         beyond_payment: "고위험 지불/계정 변경은 사용자 승인 후에만 진행.",
+        campaign_heading: "화이트햇 발견에서 더 안전한 에이전트로",
+        campaign_copy: "OmniDoer의 출발점은 구체적입니다. 모델에게 secret을 읽지 말라고 요청하는 것은 경계가 아닙니다. 진짜 안전에는 Broker, Vault, 승인 게이트, 그리고 모델이 넘을 수 없는 실행 경계가 필요합니다.",
+        campaign_finding_title: "화이트햇 발견",
+        campaign_finding_copy: "실제 서버에서 Agent는 비밀번호, SSH 키, API 토큰, 지갑 키 가까이에서 실행될 수 있습니다. 프롬프트 규율은 격리가 아닙니다.",
+        campaign_restraint_title: "모델의 자제만으로는 부족합니다",
+        campaign_restraint_copy: "\"secret을 읽지 마라\"라는 문장은 정책 집행, 범위 제한 릴리스, 프로세스 격리를 대체할 수 없습니다.",
+        campaign_boundary_title: "OmniDoer가 빠진 경계를 채웁니다",
+        campaign_boundary_copy: "Broker, Vault, Policy, Browser Worker, Audit, Control Client가 민감한 동작을 모델 가시 상태 밖에 둡니다.",
+        campaign_companion_title: "Codex는 두뇌로 남고, OmniDoer가 손을 제공합니다.",
+        campaign_companion_copy: "ChatGPT/Codex의 추론, 로그인, quota는 유지하면서 secret을 모델에 넘기지 않는 제어 도구를 더합니다.",
         nav_proof: "기술 증명",
         proof_heading: "우위성의 기술적 근거",
         proof_copy: "실행 우위는 모델 트릭이 아니라 세 가지 경계에서 나옵니다. 엄격한 비밀 보호, 챌린지 플로우의 실시간 사용자 투영, 고위험 동작의 명시적 승인 체인입니다.",

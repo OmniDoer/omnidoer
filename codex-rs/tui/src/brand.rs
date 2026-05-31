@@ -30,12 +30,17 @@ pub(crate) fn placeholder() -> &'static str {
 }
 
 pub(crate) fn display_version(default_version: &str) -> String {
-    if is_omnidoer() {
+    let version = if is_omnidoer() {
         std::env::var("OMNIDOER_VERSION")
             .ok()
-            .filter(|version| !version.trim().is_empty())
+            .map(|version| version.trim().to_string())
+            .filter(|version| !version.is_empty())
             .unwrap_or_else(|| default_version.to_string())
     } else {
         default_version.to_string()
-    }
+    };
+    version
+        .trim_start_matches('v')
+        .trim_start_matches('V')
+        .to_string()
 }

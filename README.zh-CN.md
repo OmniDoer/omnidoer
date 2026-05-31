@@ -2,17 +2,17 @@
 
 **安全可控，才能更自由。**
 
-![OmniDoer 中文版电影质感海报](./docs/assets/localized/omnidoer-readme-zh-CN.jpg)
+![OmniDoer 白帽安全边界主视觉](./docs/assets/omnidoer-whitehat-hero.jpg)
 
 [English](./README.md) | [Español](./README.es.md) | [Français](./README.fr.md) | [Deutsch](./README.de.md) | [日本語](./README.ja.md) | [한국어](./README.ko.md)
 
 落地页： [https://omnidoer.github.io/](https://omnidoer.github.io/)
 
-项目页默认会带上仓库路径；如果你要纯根域 `omnidoer.github.io`，可以使用
-`omnidoer.github.io` 用户站仓库（推荐）或将该 Pages 绑定到自定义域。
+一名白帽安全研究员发现了云端编码智能体里最危险的空洞：当 Agent 直接在服务器上执行时，密码、SSH 私钥、API token、应用密钥，甚至加密货币钱包密钥，都可能离模型只有一次工具调用的距离。要求模型“不要读取这些信息”，本质上只是请求模型自觉，不是真正的隔离。
 
-OmniDoer 目标是把“人类能在网页上完成的动作”安全地交给智能体延续执行：如果用户有权限在网页上完成一个流程，OmniDoer 在不越界的前提下可把该流程接上去。
-关键规则是：模型负责推理与决策，执行在用户自己控制的 Linux 服务器里完成，任何密钥、验证码、支付决策都不允许离开安全边界。
+OmniDoer 把这个发现转化为产品架构。Codex 保留为推理大脑，继续使用原有登录、模型选择和额度路径；OmniDoer 提供受控的执行双手：真实浏览器、Secret Broker、加密 Vault、审批门、Challenge Relay、审计链和 Control Client，把敏感动作挡在模型可见状态之外。
+
+OmniDoer 目标是把“人类能在网页上完成的动作”安全地交给智能体延续执行：如果用户有权限在网页上完成一个流程，OmniDoer 在不越界的前提下把该流程接上去。关键规则是：模型负责推理与决策，执行在用户自己控制的 Linux 服务器里完成，任何密钥、验证码、支付决策都不允许离开安全边界。
 
 ## 一键部署
 

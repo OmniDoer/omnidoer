@@ -56,6 +56,16 @@
 - Cloud Direct is the primary deployment model. The root Pages site and project
   Pages site both publish one-command install instructions for local and Cloud
   Direct setups.
+- The public README and GitHub Pages landing page now lead with the white-hat
+  security finding that motivated OmniDoer: cloud agents can run near passwords,
+  SSH keys, API tokens, private keys, and wallet material, while prompt-only
+  self-restraint is not a real isolation boundary. The Pages campaign section
+  uses no-text generated visuals and localized HTML copy across English,
+  Chinese, Spanish, French, German, Japanese, and Korean.
+- The `omnidoer` command is the preferred console entry point. It preserves the
+  existing ChatGPT/Codex login and quota path while setting OmniDoer branding,
+  startup animation, MCP registration, and status/quota surfaces for native
+  console builds that support the OmniDoer brand environment.
 - Control Client pairing uses device identity, signed requests, CSRF, origin
   checks, rate limiting, and request/device scoping.
 - Secret and challenge submissions are encrypted to the broker path and are not
@@ -100,8 +110,8 @@
 - README lead copy has been tightened around the product promise: all-purpose
   web action inside the security boundary, with Codex kept as the model entry
   point and the Control Client handling human authentication, consent, payment,
-  and anti-bot judgment. The English lead now has a regression test against
-  stray Chinese body copy.
+  and anti-bot judgment. The multilingual lead copy now emphasizes secure
+  control as the condition for agent freedom.
 - Redaction now treats error-message, raw-error, exception, traceback, and
   stack-trace fields as sensitive surfaces so failed browser, challenge, or
   takeover operations cannot echo typed user input into audit or model-visible

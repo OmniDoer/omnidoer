@@ -1,8 +1,22 @@
 # OmniDoer
 
-![OmniDoer 한국어판 시네마틱 포스터](./docs/assets/localized/omnidoer-readme-ko.jpg)
+![OmniDoer 화이트햇 보안 경계 비주얼](./docs/assets/omnidoer-whitehat-hero.jpg)
 
 [English](./README.md) | [中文](./README.zh-CN.md) | [Español](./README.es.md) | [Français](./README.fr.md) | [Deutsch](./README.de.md) | [日本語](./README.ja.md)
+
+**안전하게 통제할 수 있어야 더 자유롭게 맡길 수 있습니다.**
+
+한 화이트햇 연구자가 클라우드 코딩 에이전트의 빠진 경계를 발견했습니다. 실제
+서버에서 에이전트가 실행될 때 비밀번호, SSH 키, API 토큰, 개인키, 지갑 seed는
+단 하나의 tool call 거리에 있을 수 있습니다. 모델에게 읽지 말라고 요청하는 것은
+행동 요청이지 격리 경계가 아닙니다.
+
+OmniDoer는 이 발견을 아키텍처로 바꿉니다. Codex는 로그인, 모델 선택, quota를
+유지한 추론 두뇌로 남고, OmniDoer는 안전한 손을 제공합니다. 제어 브라우저,
+Secret Broker, 암호화 Vault, 승인 게이트, Challenge Relay, 감사 로그, Control
+Client가 민감한 동작을 모델 가시 상태 밖에 둡니다.
+
+페이지: [https://omnidoer.github.io/](https://omnidoer.github.io/)
 
 ## 빠른 설치
 
@@ -22,6 +36,7 @@ curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scr
 설치 후:
 
 ```sh
+~/omnidoer/.venv/bin/omnidoer
 ~/omnidoer/.venv/bin/omnidoer control pair --print-qr
 ~/omnidoer/.venv/bin/omnidoer control submit-task "로컬 데모를 열고 내 청구서를 다운로드"
 ```
