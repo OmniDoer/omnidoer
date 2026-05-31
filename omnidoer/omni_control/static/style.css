@@ -399,13 +399,14 @@ button:disabled {
 .task p, .mini-record p { margin: 6px 0; overflow-wrap: anywhere; }
 #task-panel {
   display: grid;
-  grid-template-rows: auto auto minmax(320px, 1fr) auto;
+  grid-template-rows: auto auto auto minmax(320px, 1fr) auto;
   min-height: min(780px, calc(100svh - 190px));
   padding: 0;
   overflow: hidden;
   background: #ffffff;
 }
 .chat-panel-header {
+  grid-row: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -422,6 +423,7 @@ button:disabled {
   font-size: 0.92rem;
 }
 .chat-session-status {
+  grid-row: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -460,7 +462,51 @@ button:disabled {
 .chat-session-restart[hidden] {
   display: none;
 }
+.browser-handoff-strip {
+  grid-row: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 18px;
+  border-bottom: 1px solid #dbeafe;
+  background: #f0f9ff;
+}
+.browser-handoff-strip[hidden] {
+  display: none;
+}
+.browser-handoff-strip[data-handoff-state="active_takeover"] {
+  border-bottom-color: #fecaca;
+  background: #fff7ed;
+}
+.browser-handoff-strip strong {
+  display: block;
+  font-size: 0.94rem;
+}
+.browser-handoff-strip p {
+  margin: 3px 0 0;
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+.browser-handoff-meta {
+  color: #334155;
+  overflow-wrap: anywhere;
+}
+.browser-handoff-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.browser-handoff-actions button {
+  min-width: 104px;
+  min-height: 40px;
+}
+.browser-handoff-actions button[hidden] {
+  display: none;
+}
 .chat-feed {
+  grid-row: 4;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -496,6 +542,7 @@ button:disabled {
   color: var(--muted);
 }
 .chat-composer {
+  grid-row: 5;
   position: sticky;
   bottom: 0;
   display: grid;
@@ -819,6 +866,19 @@ button:disabled {
   .chat-session-restart {
     width: auto;
     justify-self: start;
+  }
+  .browser-handoff-strip {
+    display: grid;
+    grid-template-columns: 1fr;
+    padding: 10px 14px;
+  }
+  .browser-handoff-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .browser-handoff-actions button {
+    width: auto;
+    flex: 1 1 0;
   }
   .chat-feed { padding: 14px 12px; }
   .chat-composer { padding: 10px 12px max(14px, env(safe-area-inset-bottom)); }

@@ -143,6 +143,14 @@ const I18N = {
     activeBrowserReady: "Active browser detected. Pause Agent to take over this browser.",
     activeBrowserPreview: "Live browser preview. Pause Agent to take control.",
     activeBrowserPreviewWaiting: "Waiting for live browser preview.",
+    browserHandoffPreviewTitle: "Browser ready to view",
+    browserHandoffPreviewDetail: "Pause Agent to control the active browser, or open Takeover to inspect the live preview first.",
+    browserHandoffActiveTitle: "You control the browser",
+    browserHandoffActiveDetail: "Touch, scroll, and text input are routed to the controlled browser until you continue the Agent.",
+    browserHandoffView: "View",
+    browserHandoffPause: "Pause Agent",
+    browserHandoffContinue: "Continue Agent",
+    browserHandoffNoUrl: "Active browser",
     browserTakeoverCreated: "Browser takeover started",
     browserTakeoverCreatedDetail: "The active browser is now streaming to this Control Client.",
     paymentTitle: "Payment Approval",
@@ -347,6 +355,14 @@ const I18N = {
     activeBrowserReady: "检测到活跃浏览器。点击暂停 Agent 即可接管此浏览器。",
     activeBrowserPreview: "浏览器实时预览。点击暂停 Agent 即可接管。",
     activeBrowserPreviewWaiting: "正在等待浏览器实时预览。",
+    browserHandoffPreviewTitle: "浏览器可查看",
+    browserHandoffPreviewDetail: "可以先打开接管页查看实时预览，也可以暂停 Agent 后接管活跃浏览器。",
+    browserHandoffActiveTitle: "你正在控制浏览器",
+    browserHandoffActiveDetail: "触摸、滚动和文本输入会发送到受控浏览器，直到你点击继续交给 Agent。",
+    browserHandoffView: "查看",
+    browserHandoffPause: "暂停 Agent",
+    browserHandoffContinue: "继续交给 Agent",
+    browserHandoffNoUrl: "活跃浏览器",
     browserTakeoverCreated: "浏览器接管已开始",
     browserTakeoverCreatedDetail: "活跃浏览器画面正在流式发送到此 Control Client。",
     paymentTitle: "支付授权",
@@ -563,11 +579,14 @@ function applyLanguage() {
   setButtonText("#runtime-copy-command", "copyCommand");
   setButtonText("#request-takeover-pause", "pauseAgent");
   setButtonText("#release-active-takeover", "releaseControl");
+  setButtonText("#browser-handoff-view", "browserHandoffView");
+  setButtonText("#browser-handoff-pause", "browserHandoffPause");
+  setButtonText("#browser-handoff-continue", "browserHandoffContinue");
   setButtonText("#approve", "approve");
   setButtonText("#deny", "deny");
   updateAgentControlButtons();
   updateChatSessionStatus(cachedRuntimeStatus?.chat_runner || null);
-  updateTakeoverTabBadge(findActiveTakeoverRequest(cachedRequests), activeBrowserContext());
+  updateBrowserHandoffState(findActiveTakeoverRequest(cachedRequests), activeBrowserContext());
 }
 
 function initialPanelId() {
@@ -632,6 +651,42 @@ function updateTakeoverTabBadge(request = null, context = null) {
   link.dataset.badge = hasActiveTakeover ? t("takeoverTabLive") : hasBrowserPreview ? t("takeoverTabPreview") : "";
   link.dataset.browserContextId = hasActiveTakeover ? request.browser_context_id || "" : hasBrowserPreview ? context.browser_context_id || "" : "";
   document.body.dataset.browserHandoffState = hasActiveTakeover ? "active_takeover" : hasBrowserPreview ? "preview" : "idle";
+}
+
+function browserHandoffUrl(request = null, context = null) {
+  return request?.top_level_url || request?.origin || context?.current_url || context?.origin || context?.browser_context_id || "";
+}
+
+function updateBrowserHandoffState(request = null, context = null) {
+  updateTakeoverTabBadge(request, context);
+  const strip = document.querySelector("#browser-handoff-strip");
+  if (!strip) return;
+  const hasActiveTakeover = Boolean(request && request.status === "user_control");
+  const hasBrowserPreview = !hasActiveTakeover && Boolean(context?.active && context?.current_url);
+  const visible = hasActiveTakeover || hasBrowserPreview;
+  strip.hidden = !visible;
+  strip.dataset.handoffState = hasActiveTakeover ? "active_takeover" : hasBrowserPreview ? "preview" : "idle";
+  if (!visible) return;
+  const title = document.querySelector("#browser-handoff-title");
+  const detail = document.querySelector("#browser-handoff-detail");
+  const meta = document.querySelector("#browser-handoff-meta");
+  const view = document.querySelector("#browser-handoff-view");
+  const pause = document.querySelector("#browser-handoff-pause");
+  const resume = document.querySelector("#browser-handoff-continue");
+  if (title) title.textContent = t(hasActiveTakeover ? "browserHandoffActiveTitle" : "browserHandoffPreviewTitle");
+  if (detail) detail.textContent = t(hasActiveTakeover ? "browserHandoffActiveDetail" : "browserHandoffPreviewDetail");
+  if (meta) meta.textContent = browserHandoffUrl(request, context) || t("browserHandoffNoUrl");
+  if (view) view.textContent = t("browserHandoffView");
+  if (pause) {
+    pause.hidden = hasActiveTakeover;
+    pause.textContent = t("browserHandoffPause");
+    pause.disabled = agentControlBusy || hasActiveTakeover;
+  }
+  if (resume) {
+    resume.hidden = !hasActiveTakeover;
+    resume.textContent = t("browserHandoffContinue");
+    resume.disabled = agentControlBusy || !hasActiveTakeover;
+  }
 }
 
 const main = document.querySelector("main");
@@ -743,6 +798,21 @@ if (runtimeCopyCommandButton) {
 const runtimeRestartBridgeButton = document.querySelector("#runtime-restart-bridge");
 if (runtimeRestartBridgeButton) {
   runtimeRestartBridgeButton.onclick = () => restartConsoleBridge();
+}
+
+const browserHandoffViewButton = document.querySelector("#browser-handoff-view");
+if (browserHandoffViewButton) {
+  browserHandoffViewButton.onclick = () => activatePanel("takeover-panel");
+}
+
+const browserHandoffPauseButton = document.querySelector("#browser-handoff-pause");
+if (browserHandoffPauseButton) {
+  browserHandoffPauseButton.onclick = () => requestTakeoverPause();
+}
+
+const browserHandoffContinueButton = document.querySelector("#browser-handoff-continue");
+if (browserHandoffContinueButton) {
+  browserHandoffContinueButton.onclick = () => releaseActiveTakeover();
 }
 
 const chatSessionRestartButton = document.querySelector("#chat-session-restart");
@@ -1328,7 +1398,7 @@ function syncTakeoverPanel(requests) {
   const stream = document.querySelector("#browser-stream");
   const request = findActiveTakeoverRequest(requests);
   const context = activeBrowserContext();
-  updateTakeoverTabBadge(request, context);
+  updateBrowserHandoffState(request, context);
   if (!stream) return;
   if (!request) {
     stopTakeoverFramePolling();
@@ -1845,6 +1915,10 @@ function updateAgentControlButtons() {
   }
   const pause = document.querySelector("#request-takeover-pause");
   if (pause) pause.disabled = agentControlBusy || isActive;
+  const handoffPause = document.querySelector("#browser-handoff-pause");
+  if (handoffPause) handoffPause.disabled = agentControlBusy || isActive;
+  const handoffContinue = document.querySelector("#browser-handoff-continue");
+  if (handoffContinue) handoffContinue.disabled = agentControlBusy || !isActive;
 }
 
 function setPauseButtonsDisabled(disabled) {

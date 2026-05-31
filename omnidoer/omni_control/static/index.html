@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icon-192.png">
-  <link rel="stylesheet" href="/style.css?v=20260531-takeover-tab-state">
+  <link rel="stylesheet" href="/style.css?v=20260531-browser-handoff-strip">
   <title>OmniDoer Control Client</title>
 </head>
 <body>
@@ -91,6 +91,18 @@
         </div>
         <button id="chat-session-restart" class="ghost-button chat-session-restart" type="button" hidden>Restart bridge</button>
       </div>
+      <div id="browser-handoff-strip" class="browser-handoff-strip" data-handoff-state="idle" hidden>
+        <div>
+          <strong id="browser-handoff-title">Browser ready</strong>
+          <p id="browser-handoff-detail">Pause Agent to take control of the active browser.</p>
+          <p id="browser-handoff-meta" class="browser-handoff-meta"></p>
+        </div>
+        <div class="browser-handoff-actions">
+          <button id="browser-handoff-view" class="ghost-button" type="button">View</button>
+          <button id="browser-handoff-pause" type="button">Pause Agent</button>
+          <button id="browser-handoff-continue" type="button" hidden>Continue Agent</button>
+        </div>
+      </div>
       <div id="chat-messages" class="chat-feed">Loading messages...</div>
       <div class="chat-composer">
         <label id="chat-input-label" for="chat-input"><span id="chat-input-label-text">Message</span></label>
@@ -152,6 +164,6 @@
       </div>
     </section>
   </main>
-  <script src="/app.js?v=20260531-takeover-tab-state"></script>
+  <script src="/app.js?v=20260531-browser-handoff-strip"></script>
 </body>
 </html>
