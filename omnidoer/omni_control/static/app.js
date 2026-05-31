@@ -149,6 +149,46 @@ const I18N = {
     activeBrowserReady: "Active browser detected. Pause Agent to take over this browser.",
     activeBrowserPreview: "Live browser preview. Pause Agent to take control.",
     activeBrowserPreviewWaiting: "Waiting for live browser preview.",
+    takeoverFrameWaiting: "Waiting for browser handoff",
+    takeoverFrameWaitingControlled: "Waiting for the controlled browser frame...",
+    takeoverFrameNextWaiting: "Waiting for next browser frame",
+    takeoverFrameFresh: (seconds) => `Fresh ${seconds}s`,
+    takeoverFrameStale: (seconds) => `Stale ${seconds}s - refresh before input`,
+    takeoverFrameAdaptive: "adaptive",
+    takeoverConnected: "connected",
+    takeoverConnectedWebSocket: "connected - websocket",
+    takeoverConnecting: "connecting",
+    takeoverPausedHidden: "paused - page hidden",
+    takeoverResuming: "resuming",
+    takeoverPanOn: "Pan On",
+    takeoverPanView: "Pan View",
+    takeoverPanSuffix: " pan",
+    refreshFrame: "Refresh Frame",
+    zoomOut: "Zoom out",
+    zoomReset: "Reset",
+    zoomIn: "Zoom in",
+    takeoverAgentPausedStatus: "Agent paused - user control active",
+    takeoverFrameReady: "Live browser frame ready. Input is bound to the frame currently visible here.",
+    takeoverFrameReadyWebSocket: "Live browser frame ready over WebSocket. Input is bound to the frame currently visible here.",
+    takeoverDisconnected: "Browser context is not connected in this process.",
+    takeoverWebSocketDisconnected: "Live frame WebSocket disconnected.",
+    takeoverFrameFetchFailed: "Browser frame fetch failed.",
+    takeoverReconnectRetry: (attempt) => `reconnecting - retry ${attempt}`,
+    takeoverKeepingLastFrameShort: "keeping last frame",
+    takeoverKeepingLastFrame: (message) => `${message} Keeping the last frame visible; stale frames remain blocked for input.`,
+    takeoverInactive: "Takeover is not active. Agent control can resume after release.",
+    takeoverLoadingFrame: "Loading control-only browser frame...",
+    takeoverInputStateActive: "Touch, keyboard, and text input are routed to the controlled browser only.",
+    takeoverInputHidden: "Input is blocked while this Control Client is hidden or frame polling is paused. Bring it to the foreground and refresh the frame before sending input.",
+    takeoverInputNoFrame: "Wait for the current browser frame before sending input.",
+    takeoverInputRefreshingStale: "Frame is stale; refreshing before input.",
+    takeoverInputDelivered: (eventType) => `${eventType} delivered to controlled browser.`,
+    takeoverInputFrameChanged: "Frame changed before input was delivered. Refreshing current browser frame.",
+    takeoverInputDeliveryFailed: "Input was not delivered. The browser context may be disconnected.",
+    takeoverPinchZooming: "Pinch zooming local browser frame. Input is not sent to the controlled browser.",
+    takeoverPollingPausedHidden: "Frame polling paused while this Control Client is hidden. Last frame is retained and stale input remains blocked.",
+    takeoverVisibleRefreshing: "Control Client visible again; refreshing current browser frame.",
+    controlledBrowserFrameAlt: "Controlled browser frame",
     browserHandoffPreviewTitle: "Browser ready to view",
     browserHandoffPreviewDetail: "Pause Agent to control the active browser, or open Takeover to inspect the live preview first.",
     browserHandoffActiveTitle: "You control the browser",
@@ -369,6 +409,46 @@ const I18N = {
     activeBrowserReady: "检测到活跃浏览器。点击暂停 Agent 即可接管此浏览器。",
     activeBrowserPreview: "浏览器实时预览。点击暂停 Agent 即可接管。",
     activeBrowserPreviewWaiting: "正在等待浏览器实时预览。",
+    takeoverFrameWaiting: "等待浏览器交接",
+    takeoverFrameWaitingControlled: "正在等待受控浏览器画面...",
+    takeoverFrameNextWaiting: "等待下一帧浏览器画面",
+    takeoverFrameFresh: (seconds) => `新鲜 ${seconds}s`,
+    takeoverFrameStale: (seconds) => `已过期 ${seconds}s - 输入前请刷新`,
+    takeoverFrameAdaptive: "自适应",
+    takeoverConnected: "已连接",
+    takeoverConnectedWebSocket: "已连接 - WebSocket",
+    takeoverConnecting: "正在连接",
+    takeoverPausedHidden: "已暂停 - 页面在后台",
+    takeoverResuming: "正在恢复",
+    takeoverPanOn: "平移开",
+    takeoverPanView: "平移视图",
+    takeoverPanSuffix: " 平移",
+    refreshFrame: "刷新画面",
+    zoomOut: "缩小",
+    zoomReset: "重置",
+    zoomIn: "放大",
+    takeoverAgentPausedStatus: "Agent 已暂停 - 用户正在接管",
+    takeoverFrameReady: "实时浏览器画面已就绪。输入会发送到当前可见的这一帧。",
+    takeoverFrameReadyWebSocket: "WebSocket 实时浏览器画面已就绪。输入会发送到当前可见的这一帧。",
+    takeoverDisconnected: "此进程中未连接浏览器上下文。",
+    takeoverWebSocketDisconnected: "实时画面 WebSocket 已断开。",
+    takeoverFrameFetchFailed: "获取浏览器画面失败。",
+    takeoverReconnectRetry: (attempt) => `正在重连 - 第 ${attempt} 次`,
+    takeoverKeepingLastFrameShort: "保留最后一帧",
+    takeoverKeepingLastFrame: (message) => `${message} 保留最后一帧可见；过期画面仍会阻止输入。`,
+    takeoverInactive: "接管未激活。释放后 Agent 可以恢复控制。",
+    takeoverLoadingFrame: "正在加载仅控制用浏览器画面...",
+    takeoverInputStateActive: "触摸、键盘和文本输入只会发送到受控浏览器。",
+    takeoverInputHidden: "Control Client 在后台或画面轮询已暂停时不会发送输入。请切回前台并刷新画面后再输入。",
+    takeoverInputNoFrame: "请等待当前浏览器画面后再发送输入。",
+    takeoverInputRefreshingStale: "画面已过期；输入前正在刷新。",
+    takeoverInputDelivered: (eventType) => `${eventType} 已发送到受控浏览器。`,
+    takeoverInputFrameChanged: "输入发送前画面已变化。正在刷新当前浏览器画面。",
+    takeoverInputDeliveryFailed: "输入未送达。浏览器上下文可能已断开。",
+    takeoverPinchZooming: "正在本地双指缩放浏览器画面。此操作不会发送到受控浏览器。",
+    takeoverPollingPausedHidden: "Control Client 在后台，画面轮询已暂停。最后一帧会保留，过期输入仍会被阻止。",
+    takeoverVisibleRefreshing: "Control Client 已回到前台；正在刷新当前浏览器画面。",
+    controlledBrowserFrameAlt: "受控浏览器画面",
     browserHandoffPreviewTitle: "浏览器可查看",
     browserHandoffPreviewDetail: "可以先打开接管页查看实时预览，也可以暂停 Agent 后接管活跃浏览器。",
     browserHandoffActiveTitle: "你正在控制浏览器",
@@ -595,6 +675,19 @@ function applyLanguage() {
   setButtonText("#runtime-copy-command", "copyCommand");
   setButtonText("#request-takeover-pause", "pauseAgent");
   setButtonText("#release-active-takeover", "releaseControl");
+  setButtonText("#refresh-takeover-frame", "refreshFrame");
+  setButtonText("#zoom-reset-takeover-frame", "zoomReset");
+  const zoomOut = document.querySelector("#zoom-out-takeover-frame");
+  if (zoomOut) {
+    zoomOut.title = t("zoomOut");
+    zoomOut.setAttribute("aria-label", t("zoomOut"));
+  }
+  const zoomIn = document.querySelector("#zoom-in-takeover-frame");
+  if (zoomIn) {
+    zoomIn.title = t("zoomIn");
+    zoomIn.setAttribute("aria-label", t("zoomIn"));
+  }
+  updateTakeoverZoomControls();
   setButtonText("#browser-handoff-view", "browserHandoffView");
   setButtonText("#browser-handoff-pause", "browserHandoffPause");
   setButtonText("#browser-handoff-continue", "browserHandoffContinue");
@@ -1319,13 +1412,13 @@ function updateTakeoverFrameFreshness(stream = document.querySelector("#browser-
   const frameId = stream?.dataset.frameId || "";
   const age = takeoverFrameAgeMs(stream);
   if (!frameId || age === null) {
-    field.textContent = "waiting for browser handoff";
+    field.textContent = t("takeoverFrameWaiting");
     field.className = "";
     return;
   }
   const seconds = Math.round(age / 1000);
   const stale = age > TAKEOVER_FRAME_MAX_AGE_MS;
-  field.textContent = stale ? `stale ${seconds}s - refresh before input` : `fresh ${seconds}s`;
+  field.textContent = stale ? t("takeoverFrameStale", seconds) : t("takeoverFrameFresh", seconds);
   field.className = stale ? "frame-stale" : "frame-fresh";
 }
 
@@ -1359,7 +1452,7 @@ function updateTakeoverZoomControls() {
   if (zoomIn) zoomIn.disabled = !hasFrame || takeoverFrameZoom >= TAKEOVER_ZOOM_MAX;
   if (pan) {
     pan.disabled = !hasFrame || !zoomed;
-    pan.textContent = takeoverFramePanMode ? "Pan On" : "Pan View";
+    pan.textContent = takeoverFramePanMode ? t("takeoverPanOn") : t("takeoverPanView");
     pan.setAttribute("aria-pressed", takeoverFramePanMode ? "true" : "false");
   }
 }
@@ -1376,7 +1469,7 @@ function applyTakeoverFrameZoom(stream = document.querySelector("#browser-stream
     image.style.width = zoomed ? `${zoomPercent}%` : "";
     image.style.maxWidth = zoomed ? "none" : "100%";
   }
-  setFieldText("#takeover-frame-zoom", `${zoomPercent}%${takeoverFramePanMode ? " pan" : ""}`);
+  setFieldText("#takeover-frame-zoom", `${zoomPercent}%${takeoverFramePanMode ? t("takeoverPanSuffix") : ""}`);
   updateTakeoverZoomControls();
 }
 
@@ -1399,18 +1492,18 @@ function resetTakeoverFrameView() {
 }
 
 function updateTakeoverPanel(request, frame = null, message = null) {
-  const status = request ? (request.status === "user_control" ? "Agent paused - user control active" : request.status) : t("takeoverNoActive");
+  const status = request ? (request.status === "user_control" ? t("takeoverAgentPausedStatus") : displayStatus(request.status)) : t("takeoverNoActive");
   setFieldText("#takeover-status-label", status);
-  setFieldText("#takeover-active-request", request?.request_id, "pending");
-  setFieldText("#takeover-current-url", request?.top_level_url || request?.origin, "pending");
+  setFieldText("#takeover-active-request", request?.request_id, displayStatus("pending"));
+  setFieldText("#takeover-current-url", request?.top_level_url || request?.origin, displayStatus("pending"));
   if (frame) {
-    setFieldText("#takeover-frame-meta", frame.url || frame.origin || request?.top_level_url, "waiting for browser handoff");
-    setFieldText("#takeover-frame-profile", takeoverFrameProfileLabel(frame), "adaptive");
+    setFieldText("#takeover-frame-meta", frame.url || frame.origin || request?.top_level_url, t("takeoverFrameWaiting"));
+    setFieldText("#takeover-frame-profile", takeoverFrameProfileLabel(frame), t("takeoverFrameAdaptive"));
   } else {
-    setFieldText("#takeover-frame-meta", request ? "waiting for next browser frame" : "waiting for browser handoff");
-    setFieldText("#takeover-frame-profile", request ? takeoverFrameProfileLabel() : "adaptive", "adaptive");
+    setFieldText("#takeover-frame-meta", request ? t("takeoverFrameNextWaiting") : t("takeoverFrameWaiting"));
+    setFieldText("#takeover-frame-profile", request ? takeoverFrameProfileLabel() : t("takeoverFrameAdaptive"), t("takeoverFrameAdaptive"));
   }
-  setFieldText("#takeover-input-state", message || (request ? "Touch, keyboard, and text input are routed to the controlled browser only." : t("noActiveBrowserHandoff")), "");
+  setFieldText("#takeover-input-state", message || (request ? t("takeoverInputStateActive") : t("noActiveBrowserHandoff")), "");
   updateTakeoverFrameFreshness();
   const isActive = Boolean(request && request.status === "user_control");
   const refresh = document.querySelector("#refresh-takeover-frame");
@@ -1431,8 +1524,8 @@ function syncTakeoverPanel(requests) {
     stopTakeoverFramePolling();
     updateTakeoverPanel(null);
     if (context) {
-      setFieldText("#takeover-current-url", context.current_url || context.origin, "pending");
-      setFieldText("#takeover-frame-meta", context.browser_context_id, "waiting for browser handoff");
+      setFieldText("#takeover-current-url", context.current_url || context.origin, displayStatus("pending"));
+      setFieldText("#takeover-frame-meta", context.browser_context_id, t("takeoverFrameWaiting"));
       setFieldText("#takeover-input-state", t("activeBrowserReady"), "");
       startBrowserPreviewPolling(context, stream);
     } else {
@@ -1518,14 +1611,14 @@ async function releaseActiveTakeover() {
   }
 }
 
-function renderTakeoverFrame(request, stream, frame, message = "Live browser frame ready. Input is bound to the frame currently visible here.") {
+function renderTakeoverFrame(request, stream, frame, message = null) {
   if (!frame.data_b64) {
-    markTakeoverFrameReconnect(request, stream, "Browser context is not connected in this process.");
+    markTakeoverFrameReconnect(request, stream, t("takeoverDisconnected"));
     return;
   }
   const image = document.createElement("img");
   image.id = "takeover-frame";
-  image.alt = "Controlled browser frame";
+  image.alt = t("controlledBrowserFrameAlt");
   image.src = `data:${frame.content_type};base64,${frame.data_b64}`;
   image.dataset.frameId = frame.frame_id || "";
   image.dataset.frameCapturedAt = frame.captured_at || "";
@@ -1540,8 +1633,8 @@ function renderTakeoverFrame(request, stream, frame, message = "Live browser fra
   takeoverFrameVisibilityPaused = false;
   stream.classList.remove("frame-reconnecting");
   applyTakeoverFrameZoom(stream);
-  updateTakeoverFrameConnection("connected", "connected");
-  updateTakeoverPanel(request, frame, message);
+  updateTakeoverFrameConnection("connected", t("takeoverConnected"));
+  updateTakeoverPanel(request, frame, message || t("takeoverFrameReady"));
   updateTakeoverFrameFreshness(stream);
 }
 
@@ -2328,16 +2421,16 @@ async function refreshPairingState() {
 async function sendTakeoverInput(request, eventPayload) {
   const stream = document.querySelector("#browser-stream");
   if (document.hidden || takeoverFrameVisibilityPaused) {
-    updateTakeoverPanel(request, null, "Input is blocked while this Control Client is hidden or frame polling is paused. Bring it to the foreground and refresh the frame before sending input.");
+    updateTakeoverPanel(request, null, t("takeoverInputHidden"));
     return false;
   }
   const frameId = eventPayload.frame_id || stream?.dataset.frameId || "";
   if (!frameId) {
-    updateTakeoverPanel(request, null, "Wait for the current browser frame before sending input.");
+    updateTakeoverPanel(request, null, t("takeoverInputNoFrame"));
     return false;
   }
   if (!takeoverFrameIsFresh(stream)) {
-    updateTakeoverPanel(request, null, "Frame is stale; refreshing before input.");
+    updateTakeoverPanel(request, null, t("takeoverInputRefreshingStale"));
     refreshActiveTakeoverFrame();
     return false;
   }
@@ -2352,7 +2445,7 @@ async function sendTakeoverInput(request, eventPayload) {
     body: JSON.stringify(payload)
   });
   if (response.ok) {
-    updateTakeoverPanel(request, null, `${eventPayload.event_type} delivered to controlled browser.`);
+    updateTakeoverPanel(request, null, t("takeoverInputDelivered", eventPayload.event_type));
     scheduleTakeoverFrameRefresh(request, TAKEOVER_FRAME_AFTER_INPUT_MS);
     return true;
   } else {
@@ -2363,11 +2456,11 @@ async function sendTakeoverInput(request, eventPayload) {
       error = "";
     }
     if (error === "stale_takeover_frame") {
-      updateTakeoverPanel(request, null, "Frame changed before input was delivered. Refreshing current browser frame.");
+      updateTakeoverPanel(request, null, t("takeoverInputFrameChanged"));
       refreshActiveTakeoverFrame();
       return false;
     }
-    updateTakeoverPanel(request, null, "Input was not delivered. The browser context may be disconnected.");
+    updateTakeoverPanel(request, null, t("takeoverInputDeliveryFailed"));
     scheduleTakeoverFrameRefresh(request, TAKEOVER_FRAME_AFTER_INPUT_MS);
     return false;
   }
@@ -2419,7 +2512,7 @@ function installTakeoverPointerHandlers(request, stream) {
         start = null;
         suppressTouchInput = true;
         pinchGesture = { startDistance: Math.max(1, touchDistance()), startZoom: takeoverFrameZoom };
-        updateTakeoverPanel(request, null, "Pinch zooming local browser frame. Input is not sent to the controlled browser.");
+        updateTakeoverPanel(request, null, t("takeoverPinchZooming"));
         return;
       }
     }
@@ -2434,7 +2527,7 @@ function installTakeoverPointerHandlers(request, stream) {
       event.preventDefault();
       const distance = Math.max(1, touchDistance());
       setTakeoverFrameZoom(pinchGesture.startZoom * (distance / pinchGesture.startDistance));
-      updateTakeoverPanel(request, null, "Pinch zooming local browser frame. Input is not sent to the controlled browser.");
+      updateTakeoverPanel(request, null, t("takeoverPinchZooming"));
     }
   };
   stream.onpointerup = (event) => {
@@ -2556,13 +2649,13 @@ async function startTakeoverFrameWebSocket(request, stream) {
       if (takeoverFrameTimer) clearInterval(takeoverFrameTimer);
       takeoverFrameTimer = null;
       startTakeoverFrameTimers(request, stream, { framePolling: false });
-      updateTakeoverFrameConnection("connected", "connected - websocket");
+      updateTakeoverFrameConnection("connected", t("takeoverConnectedWebSocket"));
     };
     socket.onmessage = (event) => {
       if (activeTakeoverFrameRequest !== request.request_id) return;
       const payload = JSON.parse(event.data);
       if (payload.event === "takeover_frame" && payload.request_id === request.request_id) {
-        renderTakeoverFrame(request, stream, payload.data || {}, "Live browser frame ready over WebSocket. Input is bound to the frame currently visible here.");
+        renderTakeoverFrame(request, stream, payload.data || {}, t("takeoverFrameReadyWebSocket"));
       }
     };
     socket.onerror = () => {
@@ -2576,7 +2669,7 @@ async function startTakeoverFrameWebSocket(request, stream) {
       const activeRequest = activeTakeoverRequest();
       const activeStream = document.querySelector("#browser-stream");
       if (activeRequest?.request_id === request.request_id && activeStream && activeRequest.status === "user_control" && !document.hidden) {
-        markTakeoverFrameReconnect(request, stream, "Live frame WebSocket disconnected.");
+        markTakeoverFrameReconnect(request, stream, t("takeoverWebSocketDisconnected"));
         startTakeoverFrameTimers(request, stream);
         fetchTakeoverFrame(request, stream);
         restartTakeoverFrameWebSocket(request, stream);
@@ -2602,10 +2695,10 @@ function pauseTakeoverFramePollingForVisibility() {
   takeoverFrameRefreshTimer = null;
   takeoverFrameFetchQueued = false;
   takeoverFrameVisibilityPaused = true;
-  updateTakeoverFrameConnection("paused", "paused - page hidden");
+  updateTakeoverFrameConnection("paused", t("takeoverPausedHidden"));
   updateTakeoverFrameFreshness(stream);
   if (request) {
-    updateTakeoverPanel(request, null, "Frame polling paused while this Control Client is hidden. Last frame is retained and stale input remains blocked.");
+    updateTakeoverPanel(request, null, t("takeoverPollingPausedHidden"));
   }
 }
 
@@ -2615,8 +2708,8 @@ function resumeTakeoverFramePollingFromVisibility() {
   const stream = document.querySelector("#browser-stream");
   takeoverFrameVisibilityPaused = false;
   if (!request || !stream || request.status !== "user_control") return;
-  updateTakeoverFrameConnection("connecting", "resuming");
-  updateTakeoverPanel(request, null, "Control Client visible again; refreshing current browser frame.");
+  updateTakeoverFrameConnection("connecting", t("takeoverResuming"));
+  updateTakeoverPanel(request, null, t("takeoverVisibleRefreshing"));
   installTakeoverPointerHandlers(request, stream);
   startTakeoverFrameTimers(request, stream, { framePolling: false });
   startTakeoverFrameWebSocket(request, stream).then((started) => {
@@ -2658,7 +2751,7 @@ function stopTakeoverFramePolling(requestId = null) {
     delete stream.dataset.frameContentType;
   }
   resetTakeoverFrameView();
-  updateTakeoverFrameConnection("", "waiting for browser handoff");
+  updateTakeoverFrameConnection("", t("takeoverFrameWaiting"));
   updateTakeoverFrameFreshness(stream);
 }
 
@@ -2666,17 +2759,17 @@ function markTakeoverFrameReconnect(request, stream, message) {
   if (!stream) return;
   takeoverFrameMisses += 1;
   const hasLastFrame = Boolean(stream.querySelector("#takeover-frame") && stream.dataset.frameId);
-  const retryLabel = `reconnecting - retry ${takeoverFrameMisses}`;
+  const retryLabel = t("takeoverReconnectRetry", takeoverFrameMisses);
   if (hasLastFrame) {
     stream.classList.add("frame-reconnecting");
-    updateTakeoverFrameConnection("reconnecting", `${retryLabel}, keeping last frame`);
-    updateTakeoverPanel(request, null, `${message} Keeping the last frame visible; stale frames remain blocked for input.`);
+    updateTakeoverFrameConnection("reconnecting", `${retryLabel}, ${t("takeoverKeepingLastFrameShort")}`);
+    updateTakeoverPanel(request, null, t("takeoverKeepingLastFrame", message));
     updateTakeoverFrameFreshness(stream);
     return;
   }
-  stream.textContent = "Waiting for the controlled browser frame...";
+  stream.textContent = t("takeoverFrameWaitingControlled");
   updateTakeoverFrameConnection("connecting", retryLabel);
-  updateTakeoverPanel(request, null, "Waiting for the controlled browser frame...");
+  updateTakeoverPanel(request, null, t("takeoverFrameWaitingControlled"));
 }
 
 async function fetchTakeoverFrame(request, stream) {
@@ -2696,11 +2789,11 @@ async function fetchTakeoverFrame(request, stream) {
     if (frame.data_b64) {
       renderTakeoverFrame(request, stream, frame);
     } else {
-      markTakeoverFrameReconnect(request, stream, "Browser context is not connected in this process.");
+      markTakeoverFrameReconnect(request, stream, t("takeoverDisconnected"));
     }
   } catch {
     if (activeTakeoverFrameRequest === request.request_id) {
-      markTakeoverFrameReconnect(request, stream, "Browser frame fetch failed.");
+      markTakeoverFrameReconnect(request, stream, t("takeoverFrameFetchFailed"));
     }
   } finally {
     takeoverFrameFetchInFlight = false;
@@ -2719,8 +2812,8 @@ async function fetchTakeoverFrame(request, stream) {
 function startTakeoverFramePolling(request, stream) {
   if (request.status !== "user_control") {
     stopTakeoverFramePolling(request.request_id);
-    stream.textContent = "Takeover is not active. Agent control can resume after release.";
-    updateTakeoverPanel(request, null, "Takeover is not active. Agent control can resume after release.");
+    stream.textContent = t("takeoverInactive");
+    updateTakeoverPanel(request, null, t("takeoverInactive"));
     return;
   }
   if (activeTakeoverFrameRequest && activeTakeoverFrameRequest !== request.request_id) {
@@ -2730,18 +2823,18 @@ function startTakeoverFramePolling(request, stream) {
   activeTakeoverFrameRequest = request.request_id;
   takeoverFrameMisses = 0;
   resetTakeoverFrameView();
-  stream.textContent = "Loading control-only browser frame...";
+  stream.textContent = t("takeoverLoadingFrame");
   stream.classList.remove("frame-reconnecting");
   if (document.hidden) {
     takeoverFrameVisibilityPaused = true;
-    updateTakeoverFrameConnection("paused", "paused - page hidden");
-    updateTakeoverPanel(request, null, "Frame polling paused while this Control Client is hidden. Last frame is retained and stale input remains blocked.");
+    updateTakeoverFrameConnection("paused", t("takeoverPausedHidden"));
+    updateTakeoverPanel(request, null, t("takeoverPollingPausedHidden"));
     installTakeoverPointerHandlers(request, stream);
     return;
   }
   takeoverFrameVisibilityPaused = false;
-  updateTakeoverFrameConnection("connecting", "connecting");
-  updateTakeoverPanel(request, null, "Loading control-only browser frame...");
+  updateTakeoverFrameConnection("connecting", t("takeoverConnecting"));
+  updateTakeoverPanel(request, null, t("takeoverLoadingFrame"));
   installTakeoverPointerHandlers(request, stream);
   startTakeoverFrameTimers(request, stream, { framePolling: false });
   startTakeoverFrameWebSocket(request, stream).then((started) => {
