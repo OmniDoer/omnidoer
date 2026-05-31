@@ -202,6 +202,29 @@ button:disabled {
 }
 .status-strip span, .status-strip div { color: inherit; }
 .status-strip #runtime-detail { color: #cbd5e1; margin-left: 8px; }
+.runtime-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+.quick-pause-button {
+  min-width: 118px;
+  min-height: 40px;
+  border-color: #f8fafc;
+  background: #f8fafc;
+  color: #111827;
+  box-shadow: none;
+}
+.quick-pause-button:hover {
+  background: #e2e8f0;
+}
+.quick-pause-button:disabled {
+  border-color: rgba(255, 255, 255, 0.26);
+  background: rgba(255, 255, 255, 0.14);
+  color: #cbd5e1;
+}
 .status-strip #runtime-command {
   display: inline-block;
   margin: 8px 0 0;
@@ -631,6 +654,15 @@ button:disabled {
   .status-strip {
     padding: 9px 10px;
     font-size: 0.88rem;
+  }
+  .runtime-actions {
+    margin-top: 8px;
+    justify-content: space-between;
+  }
+  .quick-pause-button {
+    width: auto;
+    min-width: 116px;
+    flex: 0 0 auto;
   }
   .status-strip #runtime-detail { display: none; }
   body[data-runtime-state="waiting_for_tui_bridge"] .status-strip #runtime-detail,
