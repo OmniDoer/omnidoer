@@ -48,18 +48,18 @@ est disponible.
 
 Au lancement depuis un terminal interactif, `omnidoer` vérifie si `origin/main`
 contient une mise à jour fast-forward et demande confirmation avant d'exécuter
-`omnidoer upgrade`. Les lancements sans TTY ignorent cette invite, et
+`omnidoer upgrade`. Cette invite n'apparaît pas sans TTY, et
 `OMNIDOER_UPDATE_CHECK=0` la désactive.
 
 ### Changement de compte dans la console native
 
 Dans la console native, `/users` ouvre le sélecteur des comptes déjà connectés
 sur cette machine. La liste indique le compte courant, se parcourt avec les
-flèches et valide avec Entrée. OmniDoer conserve chaque compte dans son propre
-emplacement d'authentification local, recharge l'app-server en cours d'exécution
-et garde le contexte de la conversation actuelle. C'est utile pour passer à un
-compte ChatGPT/Codex doté d'une capacité précise ou pour continuer avec un autre
-quota lorsqu'un compte est épuisé.
+flèches; appuyez sur Entrée pour confirmer. OmniDoer conserve chaque compte dans
+son propre emplacement d'authentification local, recharge l'app-server en cours
+d'exécution et garde le contexte de la conversation actuelle. C'est utile pour
+passer à un compte ChatGPT/Codex doté d'une capacité précise ou pour continuer
+avec un autre quota lorsqu'un compte est épuisé.
 
 Le sélecteur et les logs n'impriment jamais les tokens, API keys ni clés
 privées. L'index des comptes ne contient que des métadonnées d'affichage; les
