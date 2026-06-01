@@ -1250,6 +1250,7 @@ const TAKEOVER_ZOOM_MAX = 3;
 const TAKEOVER_ZOOM_STEP = 0.25;
 const TAKEOVER_DOUBLE_TAP_MS = 320;
 const TAKEOVER_DOUBLE_TAP_DISTANCE = 24;
+const AUTO_SYNC_REQUEST_COOLDOWN_MS = 60000;
 let cachedRequests = [];
 let cachedChatMessages = [];
 let cachedChatRecords = [];
@@ -1292,6 +1293,8 @@ let renderedPaymentApprovalRequestId = null;
 let bridgeActivationMonitor = null;
 let bridgeActivationDeadline = 0;
 let activeChatSyncApprovalRequestId = null;
+let autoSyncRequestInFlight = false;
+let autoSyncRequestLastAt = 0;
 let pairingSuccessHoldUntil = 0;
 let pairingSuccessMessage = "";
 let cachedPairingAuthenticated = false;
@@ -1387,6 +1390,16 @@ function requestMatchesFilter(request, filter) {
 
 function pendingConsoleRestartRequest() {
   return cachedRequests.find((request) => request.request_type === "console_restart" && request.status === "pending") || null;
+}
+
+function upsertCachedRequest(request) {
+  if (!request?.request_id) return;
+  const existingIndex = cachedRequests.findIndex((item) => item.request_id === request.request_id);
+  if (existingIndex >= 0) {
+    cachedRequests[existingIndex] = request;
+  } else {
+    cachedRequests = [request, ...cachedRequests];
+  }
 }
 
 function updateChatSyncApprovalButtons() {
@@ -1676,6 +1689,7 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
     fileLabel.setAttribute("aria-disabled", canSend ? "false" : "true");
   }
   updateChatSyncApprovalCard(syncRequest);
+  ensureChatSyncApprovalRequest(runner);
 }
 
 async function copyRuntimeCommand() {
@@ -1734,6 +1748,32 @@ async function monitorBridgeActivation() {
     setStatus(t("restartBridgeStarted"), t("restartBridgeChecking"), "waiting_for_tui_bridge", "", "enableCurrentSessionSync");
   }
   bridgeActivationMonitor = setTimeout(monitorBridgeActivation, 1200);
+}
+
+async function ensureChatSyncApprovalRequest(runner) {
+  if (!cachedPairingAuthenticated) return;
+  if (!runnerCanRestartCurrentConsole(runner) || !runnerNeedsCurrentSessionSync(runner)) return;
+  if (pendingConsoleRestartRequest()) return;
+  const now = Date.now();
+  if (autoSyncRequestInFlight || now - autoSyncRequestLastAt < AUTO_SYNC_REQUEST_COOLDOWN_MS) return;
+  autoSyncRequestInFlight = true;
+  autoSyncRequestLastAt = now;
+  try {
+    const response = await signedFetch("/api/console/restart-bridge/request", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...csrfHeaders() },
+      body: "{}"
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "restart request failed");
+    upsertCachedRequest(payload.request);
+    renderRequestList(cachedRequests);
+    updateChatSessionStatus(runner);
+  } catch {
+    autoSyncRequestLastAt = Date.now();
+  } finally {
+    autoSyncRequestInFlight = false;
+  }
 }
 
 async function requestConsoleRestartApproval({ renew = false } = {}) {
