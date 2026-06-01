@@ -2041,9 +2041,15 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
     titleKey = "chatSessionOfflineTitle";
     detailKey = "chatSessionOfflineDetail";
   } else if (modeRequiresPairing(cachedRuntimeStatus?.mode) && !cachedPairingAuthenticated) {
-    state = "unpaired";
-    titleKey = "chatSessionUnpairedTitle";
-    detailKey = "chatSessionUnpairedDetail";
+    if (storedPairingLikelyPresent()) {
+      state = "checking";
+      titleKey = "chatSessionCheckingTitle";
+      detailKey = "chatSessionCheckingDetail";
+    } else {
+      state = "unpaired";
+      titleKey = "chatSessionUnpairedTitle";
+      detailKey = "chatSessionUnpairedDetail";
+    }
   } else if (runner?.tui_bridge_active) {
     state = "attached";
     titleKey = "chatSessionAttachedTitle";
@@ -2260,6 +2266,11 @@ function storedPairingIdentity() {
     sessionId: localStorage.getItem("omnidoer_session_id") || "",
     hasPrivateKey: Boolean(localStorage.getItem("omnidoer_device_private_jwk"))
   };
+}
+
+function storedPairingLikelyPresent() {
+  const identity = storedPairingIdentity();
+  return Boolean(identity.deviceId && identity.sessionId && identity.hasPrivateKey);
 }
 
 function setPairingUiState({ state, message, deviceText = "", forceStatus = false }) {
@@ -4779,9 +4790,15 @@ async function loadRuntimeStatus() {
     let restartLabelKey = "restartBridge";
     let restartActionAvailable = true;
     if (modeRequiresPairing(status.mode) && !cachedPairingAuthenticated) {
-      mode = t("runtimeModeUnpaired");
-      detail = t("runtimeUnpairedDetail");
-      runtimeState = "unpaired";
+      if (storedPairingLikelyPresent()) {
+        mode = t("checkingCachedSession");
+        detail = t("checkingCachedSession");
+        runtimeState = "checking_pairing";
+      } else {
+        mode = t("runtimeModeUnpaired");
+        detail = t("runtimeUnpairedDetail");
+        runtimeState = "unpaired";
+      }
       restartActionAvailable = false;
     } else if (runner.waiting_for_tui_bridge) {
       const legacyRelay = runner.legacy_tui_relay || {};
