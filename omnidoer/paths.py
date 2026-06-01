@@ -7,7 +7,8 @@ from pathlib import Path
 
 
 def home() -> Path:
-    return Path(os.environ.get("OMNIDOER_HOME", ".omnidoer")).expanduser().resolve()
+    configured = os.environ.get("OMNIDOER_HOME")
+    return Path(configured).expanduser().resolve() if configured else (Path.home() / ".omnidoer").resolve()
 
 
 def ensure_home() -> Path:
