@@ -103,6 +103,8 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn('id="overview-panel"', self.html)
         self.assertIn('id="overview-next-card"', self.html)
         self.assertIn('id="overview-primary-action"', self.html)
+        self.assertIn('id="overview-sync-approval"', self.html)
+        self.assertIn('id="overview-sync-confirm"', self.html)
         self.assertIn('id="overview-sync-card"', self.html)
         self.assertIn('id="overview-requests-card"', self.html)
         self.assertIn('id="overview-browser-card"', self.html)
@@ -115,6 +117,11 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("overviewRuntimeState", self.app)
         self.assertIn("setOverviewAction", self.app)
         self.assertIn("runOverviewAction", self.app)
+        self.assertIn("updateOverviewSyncApprovalCard", self.app)
+        self.assertIn("updateOverviewSyncApprovalButtons", self.app)
+        self.assertIn("approvePendingSyncRequestFromOverview", self.app)
+        self.assertIn('primaryAction: "sync-approve"', self.app)
+        self.assertIn('explicitApprovalConfirmationPayload(request)', self.app)
         self.assertIn('document.querySelectorAll(".overview-card")', self.app)
         self.assertIn("pendingConsoleRestartRequest()", self.app)
         self.assertIn("findActiveTakeoverRequest(cachedRequests)", self.app)
@@ -123,6 +130,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn(".overview-panel", style)
         self.assertIn(".overview-hero", style)
         self.assertIn(".overview-grid", style)
+        self.assertIn(".overview-sync-approval", style)
         self.assertIn(".overview-card[data-state=\"active\"]", style)
 
     def test_request_urls_are_clickable(self) -> None:

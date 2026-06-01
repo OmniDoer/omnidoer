@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icon-192.png">
-  <link rel="stylesheet" href="/style.css?v=20260601-overview-panel">
+  <link rel="stylesheet" href="/style.css?v=20260601-overview-sync-approve">
   <title>OmniDoer Control Client</title>
 </head>
 <body>
@@ -42,6 +42,17 @@
           <span id="overview-next-label">Next action</span>
           <strong id="overview-next-title">Checking runtime...</strong>
           <p id="overview-next-detail">Loading current Control Service state.</p>
+          <div id="overview-sync-approval" class="overview-sync-approval" hidden>
+            <dl class="metadata overview-sync-metadata">
+              <dt id="overview-sync-thread-label">Thread</dt><dd id="overview-sync-thread">pending</dd>
+              <dt id="overview-sync-pid-label">CLI PID</dt><dd id="overview-sync-pid">pending</dd>
+              <dt id="overview-sync-expires-label">Expires</dt><dd id="overview-sync-expires">pending</dd>
+            </dl>
+            <label class="check-row approval-confirm overview-sync-confirm">
+              <input id="overview-sync-confirm" type="checkbox">
+              <span id="overview-sync-confirm-text">I understand this restarts the active Codex TUI and keeps the same thread.</span>
+            </label>
+          </div>
           <div class="overview-actions">
             <button id="overview-primary-action" type="button" data-action="chat">Open</button>
             <button id="overview-secondary-action" class="ghost-button" type="button" data-action="takeover" hidden>Details</button>
@@ -237,6 +248,6 @@
       </div>
     </section>
   </main>
-  <script src="/app.js?v=20260601-overview-panel"></script>
+  <script src="/app.js?v=20260601-overview-sync-approve"></script>
 </body>
 </html>

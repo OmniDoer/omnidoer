@@ -851,6 +851,10 @@ function applyLanguage() {
   setNodeText("#overview-browser-title", "overviewBrowserTitle");
   setNodeText("#overview-chat-title", "overviewChatTitle");
   setNodeText("#overview-pairing-title", "overviewPairingTitle");
+  setNodeText("#overview-sync-thread-label", "syncApprovalThread");
+  setNodeText("#overview-sync-pid-label", "syncApprovalPid");
+  setNodeText("#overview-sync-expires-label", "syncApprovalExpires");
+  setNodeText("#overview-sync-confirm-text", "syncApprovalConfirmText");
   document.querySelector(".filter-row")?.setAttribute("aria-label", t("requestFiltersLabel"));
   setButtonText('[data-filter="open"]', "filterOpen");
   setButtonText('[data-filter="all"]', "filterAll");
@@ -1123,12 +1127,48 @@ function setOverviewAction({ title, detail, primaryLabel, primaryAction, seconda
   if (primary) {
     primary.textContent = primaryLabel || t("overviewPrimaryAction");
     primary.dataset.action = primaryAction || "chat";
+    primary.disabled = false;
   }
   if (secondary) {
     secondary.hidden = !secondaryAction;
     secondary.textContent = secondaryLabel || t("overviewSecondaryAction");
     secondary.dataset.action = secondaryAction || "";
+    secondary.disabled = false;
   }
+}
+
+function updateOverviewSyncApprovalButtons() {
+  const request = pendingConsoleRestartRequest();
+  const confirm = document.querySelector("#overview-sync-confirm");
+  const primary = document.querySelector("#overview-primary-action");
+  if (primary?.dataset.action === "sync-approve") {
+    primary.disabled = !request || !confirm?.checked;
+  } else if (primary) {
+    primary.disabled = false;
+  }
+}
+
+function updateOverviewSyncApprovalCard(request = pendingConsoleRestartRequest()) {
+  const card = document.querySelector("#overview-sync-approval");
+  if (!card) return;
+  const visible = Boolean(request);
+  card.hidden = !visible;
+  const confirm = document.querySelector("#overview-sync-confirm");
+  if (!visible) {
+    activeOverviewSyncApprovalRequestId = null;
+    if (confirm) confirm.checked = false;
+    updateOverviewSyncApprovalButtons();
+    return;
+  }
+  if (activeOverviewSyncApprovalRequestId !== request.request_id && confirm) {
+    confirm.checked = false;
+  }
+  activeOverviewSyncApprovalRequestId = request.request_id;
+  const details = request.structured_details || {};
+  setFieldText("#overview-sync-thread", details.thread_id, request.request_id);
+  setFieldText("#overview-sync-pid", details.active_cli_pid, t("notVisible"));
+  setFieldText("#overview-sync-expires", request.expires_at ? formatTimestamp(request.expires_at) : "", t("notVisible"));
+  updateOverviewSyncApprovalButtons();
 }
 
 function updateOverview() {
@@ -1168,7 +1208,9 @@ function updateOverview() {
     meta: storedPairingIdentity().deviceId || cachedRuntimeStatus?.public_url || window.location.origin
   });
 
+  const syncRequest = pendingConsoleRestartRequest();
   if (!paired) {
+    updateOverviewSyncApprovalCard(null);
     setOverviewAction({
       title: t("overviewActionPairTitle"),
       detail: t("overviewActionPairDetail"),
@@ -1177,17 +1219,19 @@ function updateOverview() {
     });
     return;
   }
-  if (pendingConsoleRestartRequest()) {
+  if (syncRequest) {
     setOverviewAction({
       title: t("overviewActionSyncTitle"),
       detail: t("overviewActionSyncDetail"),
       primaryLabel: t("syncApprovalApprove"),
-      primaryAction: "sync",
+      primaryAction: "sync-approve",
       secondaryLabel: t("syncApprovalOpenRequest"),
       secondaryAction: "requests"
     });
+    updateOverviewSyncApprovalCard(syncRequest);
     return;
   }
+  updateOverviewSyncApprovalCard(null);
   if (primaryRequest) {
     setOverviewAction({
       title: t("overviewActionRequestTitle", displayRequestType(primaryRequest)),
@@ -1230,6 +1274,8 @@ function updateOverview() {
 function runOverviewAction(action) {
   if (action === "pair") {
     activatePanel("pairing-panel");
+  } else if (action === "sync-approve") {
+    approvePendingSyncRequestFromOverview();
   } else if (action === "sync") {
     const request = pendingConsoleRestartRequest();
     if (request) {
@@ -1330,6 +1376,11 @@ if (overviewPrimaryActionButton) {
 const overviewSecondaryActionButton = document.querySelector("#overview-secondary-action");
 if (overviewSecondaryActionButton) {
   overviewSecondaryActionButton.onclick = () => runOverviewAction(overviewSecondaryActionButton.dataset.action || "takeover");
+}
+
+const overviewSyncConfirm = document.querySelector("#overview-sync-confirm");
+if (overviewSyncConfirm) {
+  overviewSyncConfirm.onchange = () => updateOverviewSyncApprovalButtons();
 }
 
 document.querySelectorAll(".overview-card").forEach((card) => {
@@ -1593,6 +1644,7 @@ let renderedPaymentApprovalRequestId = null;
 let bridgeActivationMonitor = null;
 let bridgeActivationDeadline = 0;
 let activeChatSyncApprovalRequestId = null;
+let activeOverviewSyncApprovalRequestId = null;
 let autoOpenedSyncRequestId = "";
 let autoSyncRequestInFlight = false;
 let autoSyncRequestLastAt = 0;
@@ -2937,6 +2989,23 @@ async function approvePendingSyncRequestFromChat() {
   if (!confirm?.checked) {
     setStatus(t("consoleRestartReviewRequired"), t("consoleRestartReviewRequiredDetail"));
     updateChatSyncApprovalButtons();
+    return;
+  }
+  await postAction(request, "approve", explicitApprovalConfirmationPayload(request));
+}
+
+async function approvePendingSyncRequestFromOverview() {
+  const request = pendingConsoleRestartRequest();
+  const confirm = document.querySelector("#overview-sync-confirm");
+  if (!request) return;
+  if (requestExpiresInMs(request) <= 0) {
+    setStatus(t("syncApprovalExpired"), t("restartBridgeApprovalRequestedDetail"), "waiting_for_tui_bridge");
+    await requestConsoleRestartApproval({ renew: true });
+    return;
+  }
+  if (!confirm?.checked) {
+    setStatus(t("consoleRestartReviewRequired"), t("consoleRestartReviewRequiredDetail"));
+    updateOverviewSyncApprovalButtons();
     return;
   }
   await postAction(request, "approve", explicitApprovalConfirmationPayload(request));
