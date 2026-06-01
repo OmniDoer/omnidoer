@@ -65,6 +65,9 @@ PAIR_RATE_LIMIT = RateLimiter(max_attempts=8, window_seconds=60, lockout_seconds
 CONTROL_MUTATION_RATE_LIMIT = RateLimiter(max_attempts=120, window_seconds=60, lockout_seconds=60)
 CONSOLE_RESTART_REQUEST_TTL_SECONDS = 30 * 60
 CONSOLE_RESTART_REQUEST_RENEW_WINDOW_SECONDS = 5 * 60
+REQUEST_STREAM_DEFAULT_SNAPSHOTS = 1200
+REQUEST_STREAM_MAX_SNAPSHOTS = 1200
+REQUEST_STREAM_HEARTBEAT_SECONDS = 30.0
 CHAT_STREAM_DEFAULT_SNAPSHOTS = 1200
 CHAT_STREAM_MAX_SNAPSHOTS = 1200
 CHAT_STREAM_HEARTBEAT_SECONDS = 30.0
@@ -428,6 +431,9 @@ class ControlHandler(SimpleHTTPRequestHandler):
     def _sse_payload(self, store: RequestStore, session: ControlSession | None) -> dict:
         return {"requests": [request.to_public_dict() for request in self._visible_requests(store, session)]}
 
+    def _request_payload_fingerprint(self, payload: dict) -> str:
+        return json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
     def _chat_payload(self, *, limit: int = 200, after_sequence: int | None = None) -> dict:
         store = ChatStore()
         messages = store.list(limit=limit)
@@ -519,11 +525,24 @@ class ControlHandler(SimpleHTTPRequestHandler):
         self.send_header("cache-control", "no-store")
         self.send_header("connection", "close")
         self.end_headers()
-        for index in range(max(1, min(snapshots, 30))):
+        last_fingerprint = ""
+        last_write_at = 0.0
+        for index in range(max(1, min(snapshots, REQUEST_STREAM_MAX_SNAPSHOTS))):
             if index:
                 time.sleep(max(0.0, min(interval, 10.0)))
-            self.wfile.write(sse_event("requests", self._sse_payload(store, session)))
+            payload = self._sse_payload(store, session)
+            fingerprint = self._request_payload_fingerprint(payload)
+            if index and fingerprint == last_fingerprint:
+                now = time.monotonic()
+                if now - last_write_at >= REQUEST_STREAM_HEARTBEAT_SECONDS:
+                    self.wfile.write(sse_event("heartbeat", self._stream_heartbeat_payload()))
+                    self.wfile.flush()
+                    last_write_at = now
+                continue
+            last_fingerprint = fingerprint
+            self.wfile.write(sse_event("requests", payload))
             self.wfile.flush()
+            last_write_at = time.monotonic()
         self.close_connection = True
 
     def _open_websocket(self):
@@ -544,11 +563,24 @@ class ControlHandler(SimpleHTTPRequestHandler):
 
     def _send_websocket_stream(self, store: RequestStore, session: ControlSession | None, *, snapshots: int, interval: float) -> None:
         websocket_text_frame = self._open_websocket()
-        for index in range(max(1, min(snapshots, 30))):
+        last_fingerprint = ""
+        last_write_at = 0.0
+        for index in range(max(1, min(snapshots, REQUEST_STREAM_MAX_SNAPSHOTS))):
             if index:
                 time.sleep(max(0.0, min(interval, 10.0)))
-            self.wfile.write(websocket_text_frame({"event": "requests", "data": self._sse_payload(store, session)}))
+            payload = self._sse_payload(store, session)
+            fingerprint = self._request_payload_fingerprint(payload)
+            if index and fingerprint == last_fingerprint:
+                now = time.monotonic()
+                if now - last_write_at >= REQUEST_STREAM_HEARTBEAT_SECONDS:
+                    self.wfile.write(websocket_text_frame({"event": "heartbeat", "data": self._stream_heartbeat_payload()}))
+                    self.wfile.flush()
+                    last_write_at = now
+                continue
+            last_fingerprint = fingerprint
+            self.wfile.write(websocket_text_frame({"event": "requests", "data": payload}))
             self.wfile.flush()
+            last_write_at = time.monotonic()
         self.close_connection = True
 
     def _send_chat_sse_stream(self, *, snapshots: int, interval: float, limit: int, after_sequence: int | None) -> None:
@@ -1061,7 +1093,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 session = self._require_access()
                 query = parse_qs(parsed_url.query)
                 if query.get("stream", ["0"])[0] == "1":
-                    snapshots = int(query.get("snapshots", ["12"])[0])
+                    snapshots = int(query.get("snapshots", [str(REQUEST_STREAM_DEFAULT_SNAPSHOTS)])[0])
                     interval = float(query.get("interval", ["2"])[0])
                     self._send_sse_stream(store, session, snapshots=snapshots, interval=interval)
                 else:
@@ -1252,7 +1284,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     return
                 session = self._require_access()
                 query = parse_qs(parsed_url.query)
-                snapshots = int(query.get("snapshots", ["30"])[0])
+                snapshots = int(query.get("snapshots", [str(REQUEST_STREAM_DEFAULT_SNAPSHOTS)])[0])
                 interval = float(query.get("interval", ["2"])[0])
                 self._send_websocket_stream(store, session, snapshots=snapshots, interval=interval)
             except PermissionError:

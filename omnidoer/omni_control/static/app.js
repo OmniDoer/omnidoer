@@ -4157,7 +4157,7 @@ async function startRequestStream() {
   requestStreamActive = true;
   if (requestStreamRestart) clearTimeout(requestStreamRestart);
   try {
-    const response = await signedFetch("/api/events?stream=1&snapshots=30&interval=2", { cache: "no-store" });
+    const response = await signedFetch("/api/events?stream=1&snapshots=1200&interval=2", { cache: "no-store" });
     if (!response.ok || !response.body) throw new Error("request stream unavailable");
     const reader = response.body.getReader();
     let buffer = "";
@@ -4197,8 +4197,8 @@ async function startRequestWebSocket() {
   try {
     const protocol = await deviceAuthSubprotocol("GET", path);
     const socket = protocol
-      ? new WebSocket(websocketUrl(`${path}?snapshots=30&interval=2`), [protocol])
-      : new WebSocket(websocketUrl(`${path}?snapshots=30&interval=2`));
+      ? new WebSocket(websocketUrl(`${path}?snapshots=1200&interval=2`), [protocol])
+      : new WebSocket(websocketUrl(`${path}?snapshots=1200&interval=2`));
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data);
       if (message.event === "requests") applyRequestEvent(message.data);

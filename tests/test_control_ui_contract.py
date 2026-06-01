@@ -344,6 +344,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("deviceAuthSubprotocol", app)
         self.assertIn("omnidoer-v1.", app)
         self.assertIn("/api/events?stream=1", app)
+        self.assertIn("snapshots=1200&interval=2", app)
         self.assertIn("ReadableStream", app)
         self.assertIn("signedFetch(\"/api/events?stream=1", app)
         self.assertNotIn("new EventSource", app)

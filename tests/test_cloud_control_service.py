@@ -8,6 +8,7 @@ from contextlib import redirect_stdout
 from io import StringIO
 from http.server import ThreadingHTTPServer
 from threading import Thread
+from unittest.mock import patch
 from urllib import request as urllib_request
 
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -17,7 +18,13 @@ from omnidoer.omni_control.csrf import CSRF_HEADER
 from omnidoer.omni_control.device_signing import DEVICE_ID_HEADER, DEVICE_NONCE_HEADER, DEVICE_SIG_HEADER, DEVICE_TS_HEADER
 from omnidoer.omni_control.pairing import PairingStore
 from omnidoer.omni_control.requests import RequestStore
-from omnidoer.omni_control.server import ControlHandler, sanitize_log_value
+from omnidoer.omni_control.server import (
+    ControlHandler,
+    REQUEST_STREAM_DEFAULT_SNAPSHOTS,
+    REQUEST_STREAM_HEARTBEAT_SECONDS,
+    REQUEST_STREAM_MAX_SNAPSHOTS,
+    sanitize_log_value,
+)
 from omnidoer.omni_control.secure_channel import encrypt_for_broker, load_or_create_keypair
 from omnidoer.omni_control.websocket import encode_device_auth_subprotocol
 from tests.test_control_auth import public_jwk, sign_request
@@ -48,6 +55,43 @@ def read_websocket_text(sock: socket.socket, initial: bytes = b"") -> str:
 
 
 class CloudControlServiceTest(unittest.TestCase):
+    def test_request_stream_defaults_keep_mobile_request_updates_connected_longer(self) -> None:
+        self.assertEqual(REQUEST_STREAM_DEFAULT_SNAPSHOTS, 1200)
+        self.assertEqual(REQUEST_STREAM_MAX_SNAPSHOTS, 1200)
+        self.assertEqual(REQUEST_STREAM_HEARTBEAT_SECONDS, 30.0)
+
+    def test_request_stream_sends_heartbeat_when_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                RequestStore().create(
+                    "credential",
+                    origin="https://example.com",
+                    top_level_url="https://example.com/login",
+                    action_summary="streamed login",
+                )
+                with patch("omnidoer.omni_control.server.REQUEST_STREAM_HEARTBEAT_SECONDS", 0.0):
+                    with urllib_request.urlopen(
+                        f"{base}/api/events?stream=1&snapshots=2&interval=0",
+                        timeout=5,
+                    ) as response:
+                        stream = response.read().decode()
+                self.assertEqual(stream.count("event: requests"), 1)
+                self.assertIn("event: heartbeat", stream)
+                self.assertIn('"secret_exposed_to_model":false', stream)
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     def test_refuses_public_bind_without_cloud_direct(self) -> None:
         with self.assertRaises(ValueError):
             build_config(host="0.0.0.0", port=8787)
