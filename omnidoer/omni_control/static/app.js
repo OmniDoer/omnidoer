@@ -1252,6 +1252,7 @@ const TAKEOVER_ZOOM_MAX = 3;
 const TAKEOVER_ZOOM_STEP = 0.25;
 const TAKEOVER_DOUBLE_TAP_MS = 320;
 const TAKEOVER_DOUBLE_TAP_DISTANCE = 24;
+const PENDING_TAKEOVER_PAUSE_TTL_MS = 60000;
 const AUTO_SYNC_REQUEST_COOLDOWN_MS = 60000;
 let cachedRequests = [];
 let cachedChatMessages = [];
@@ -1288,6 +1289,9 @@ let takeoverFramePanMode = false;
 let takeoverPendingTap = null;
 let takeoverPendingTapTimer = null;
 let agentControlBusy = false;
+let pendingTakeoverPauseClientMessageId = "";
+let pendingTakeoverPauseRequestedAt = 0;
+let pendingTakeoverAutoStartBusy = false;
 let autoOpenedTakeoverRequestId = "";
 let autoOpenedPreviewContextId = "";
 let activePaymentApprovalRequest = null;
@@ -2773,6 +2777,54 @@ function setPauseButtonsDisabled(disabled) {
   updateAgentControlButtons();
 }
 
+function takeoverPausePending() {
+  return Boolean(
+    pendingTakeoverPauseClientMessageId &&
+      Date.now() - pendingTakeoverPauseRequestedAt <= PENDING_TAKEOVER_PAUSE_TTL_MS
+  );
+}
+
+function clearPendingTakeoverPause() {
+  pendingTakeoverPauseClientMessageId = "";
+  pendingTakeoverPauseRequestedAt = 0;
+}
+
+async function createBrowserTakeoverFromContext(context, { clientMessageId, notifyAgent = true } = {}) {
+  if (!context?.browser_context_id) throw new Error("browser context missing");
+  const response = await signedFetch(`/api/browser/contexts/${encodeURIComponent(context.browser_context_id)}/takeover`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...csrfHeaders() },
+    body: JSON.stringify({
+      reason: t("takeoverPausePrompt"),
+      notify_agent: notifyAgent,
+      client_message_id: clientMessageId || `control_pause_${Date.now()}_${Math.random().toString(16).slice(2)}`
+    })
+  });
+  if (!response.ok) throw new Error("browser takeover failed");
+  return response.json().catch(() => ({}));
+}
+
+async function maybeAutoStartPendingTakeover() {
+  if (!takeoverPausePending() || pendingTakeoverAutoStartBusy || activeTakeoverRequest()) return;
+  const context = activeBrowserContext();
+  if (!context) return;
+  pendingTakeoverAutoStartBusy = true;
+  try {
+    await createBrowserTakeoverFromContext(context, {
+      clientMessageId: pendingTakeoverPauseClientMessageId,
+      notifyAgent: false
+    });
+    clearPendingTakeoverPause();
+    setStatus(t("browserTakeoverCreated"), t("browserTakeoverCreatedDetail"));
+    activatePanel("takeover-panel", { persist: false });
+    await loadRequests();
+  } catch {
+    pendingTakeoverPauseRequestedAt = Date.now();
+  } finally {
+    pendingTakeoverAutoStartBusy = false;
+  }
+}
+
 async function requestTakeoverPause() {
   setPauseButtonsDisabled(true);
   await loadBrowserContexts();
@@ -2782,19 +2834,10 @@ async function requestTakeoverPause() {
   const clientMessageId = `control_pause_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   if (context) {
     try {
-      const response = await signedFetch(`/api/browser/contexts/${encodeURIComponent(context.browser_context_id)}/takeover`, {
-        method: "POST",
-        headers: { "content-type": "application/json", ...csrfHeaders() },
-        body: JSON.stringify({
-          reason: t("takeoverPausePrompt"),
-          notify_agent: true,
-          client_message_id: clientMessageId
-        })
-      });
-      if (!response.ok) throw new Error("browser takeover failed");
-      const payload = await response.json().catch(() => ({}));
+      const payload = await createBrowserTakeoverFromContext(context, { clientMessageId, notifyAgent: true });
       browserTakeoverStarted = true;
       agentPauseQueuedByTakeover = Boolean(payload.reused || (payload.agent_pause && !payload.agent_pause.error));
+      clearPendingTakeoverPause();
     } catch {
       setStatus(t("actionFailed"), t("activeBrowserReady"));
     }
@@ -2803,6 +2846,10 @@ async function requestTakeoverPause() {
     try {
       const response = await postChatMessage(t("takeoverPausePrompt"), { clientMessageId });
       if (!response.ok) throw new Error("pause request failed");
+      if (!browserTakeoverStarted) {
+        pendingTakeoverPauseClientMessageId = clientMessageId;
+        pendingTakeoverPauseRequestedAt = Date.now();
+      }
     } catch {
       if (!browserTakeoverStarted) {
         setStatus(t("actionFailed"), t("pairToViewChat"));
@@ -4116,6 +4163,7 @@ async function loadBrowserContexts() {
 function applyBrowserContextsEvent(payload) {
   cachedBrowserContexts = payload.contexts || [];
   syncTakeoverPanel(cachedRequests);
+  maybeAutoStartPendingTakeover();
 }
 
 function applyRequestEvent(payload) {
