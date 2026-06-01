@@ -2,6 +2,7 @@ const I18N = {
   en: {
     appTitle: "OmniDoer Control Client",
     appSubtitle: "Secure approvals, credentials, challenges, and human takeover.",
+    navOverview: "Home",
     navRequests: "Requests",
     navTasks: "Chat",
     navDevices: "Devices",
@@ -50,6 +51,39 @@ const I18N = {
     chatSyncDiagnosticStaleBinary: "Diagnostic: this is the current console, but its running binary lacks the native bridge. Restart is required for structured two-way sync.",
     chatSyncDiagnosticWaiting: "Diagnostic: paired to this server, but the current CLI conversation is not attached yet.",
     chatSyncDiagnosticBackground: "Diagnostic: using background runner, not a live CLI conversation.",
+    overviewTitle: "Control Center",
+    overviewIntro: "Session sync, requests, browser handoff, and chat stay in one touch-first workspace.",
+    overviewNextActionTitle: "Next action",
+    overviewSyncTitle: "Session sync",
+    overviewRequestsTitle: "Requests",
+    overviewBrowserTitle: "Browser",
+    overviewChatTitle: "Chat",
+    overviewPairingTitle: "Pairing",
+    overviewOpenRequests: (open, total) => `${open} open / ${total} total`,
+    overviewChatRecords: (messages, records) => `${messages} messages · ${records} activity records`,
+    overviewPaired: "Paired",
+    overviewUnpaired: "Not paired",
+    overviewSyncAttached: "Native sync active",
+    overviewSyncNeedsRestart: "Enable current session sync",
+    overviewSyncServerOnly: "CLI not attached",
+    overviewSyncBackground: "Background runner",
+    overviewSyncOffline: "Offline",
+    overviewBrowserIdle: "No live browser handoff.",
+    overviewBrowserPreview: "Browser preview available.",
+    overviewBrowserActive: "You control the browser.",
+    overviewNoUrgentAction: "No urgent action",
+    overviewNoUrgentDetail: "Use Chat or Takeover when you need to direct the Agent.",
+    overviewActionPairTitle: "Pair this browser",
+    overviewActionPairDetail: "Pair this device before using requests or current-session sync.",
+    overviewActionSyncTitle: "Approve current-session sync",
+    overviewActionSyncDetail: "Restart the active Linux CLI to attach this phone to the same thread.",
+    overviewActionRequestTitle: (type) => `Review ${type}`,
+    overviewActionRequestDetail: (summary) => summary || "A request needs your attention.",
+    overviewActionBrowserTitle: "Take over browser",
+    overviewActionBrowserDetail: "A live browser can be viewed or paused for human control.",
+    overviewActionChatTitle: "Open chat",
+    overviewPrimaryAction: "Open",
+    overviewSecondaryAction: "Details",
     sendToCurrentCli: "Send to current CLI",
     sendToCurrentConsole: "Paste to CLI",
     sendToBackgroundRunner: "Send to background",
@@ -319,6 +353,7 @@ const I18N = {
   zh: {
     appTitle: "OmniDoer 控制客户端",
     appSubtitle: "安全处理授权、凭证、验证和人工接管。",
+    navOverview: "总览",
     navRequests: "请求",
     navTasks: "对话",
     navDevices: "设备",
@@ -367,6 +402,39 @@ const I18N = {
     chatSyncDiagnosticStaleBinary: "诊断：这是当前 console，但正在运行的二进制缺少原生桥接。结构化双向同步必须重启后才能启用。",
     chatSyncDiagnosticWaiting: "诊断：已配对到这台服务器，但当前 CLI 对话尚未接入。",
     chatSyncDiagnosticBackground: "诊断：正在使用后台 runner，不是实时 CLI 对话。",
+    overviewTitle: "控制中心",
+    overviewIntro: "会话同步、待处理请求、浏览器接管和对话集中在一个适合触屏操作的工作区。",
+    overviewNextActionTitle: "下一步",
+    overviewSyncTitle: "会话同步",
+    overviewRequestsTitle: "请求",
+    overviewBrowserTitle: "浏览器",
+    overviewChatTitle: "对话",
+    overviewPairingTitle: "配对",
+    overviewOpenRequests: (open, total) => `${open} 个待处理 / 共 ${total} 个`,
+    overviewChatRecords: (messages, records) => `${messages} 条消息 · ${records} 条活动记录`,
+    overviewPaired: "已配对",
+    overviewUnpaired: "未配对",
+    overviewSyncAttached: "原生同步已启用",
+    overviewSyncNeedsRestart: "启用当前会话同步",
+    overviewSyncServerOnly: "CLI 尚未接入",
+    overviewSyncBackground: "后台 runner",
+    overviewSyncOffline: "离线",
+    overviewBrowserIdle: "没有实时浏览器交接。",
+    overviewBrowserPreview: "可查看实时浏览器。",
+    overviewBrowserActive: "你正在控制浏览器。",
+    overviewNoUrgentAction: "暂无紧急操作",
+    overviewNoUrgentDetail: "需要指挥 Agent 时，可进入对话或接管页。",
+    overviewActionPairTitle: "配对此浏览器",
+    overviewActionPairDetail: "配对此设备后才能使用请求和当前会话同步。",
+    overviewActionSyncTitle: "批准当前会话同步",
+    overviewActionSyncDetail: "重启活跃 Linux CLI，把手机接入同一个 thread。",
+    overviewActionRequestTitle: (type) => `处理${type}`,
+    overviewActionRequestDetail: (summary) => summary || "有一个请求需要你处理。",
+    overviewActionBrowserTitle: "接管浏览器",
+    overviewActionBrowserDetail: "实时浏览器可查看，也可暂停 Agent 后人工控制。",
+    overviewActionChatTitle: "打开对话",
+    overviewPrimaryAction: "打开",
+    overviewSecondaryAction: "详情",
     sendToCurrentCli: "发送到当前 CLI",
     sendToCurrentConsole: "临时粘贴到 CLI",
     sendToBackgroundRunner: "发送到后台",
@@ -638,7 +706,8 @@ const I18N = {
 const EXTRA_I18N = {
   es: {
     appSubtitle: "Aprobaciones, credenciales, verificaciones y toma de control seguras.",
-    navRequests: "Solicitudes", navTasks: "Tareas", navDevices: "Dispositivos", navSecurity: "Seguridad", navTakeover: "Control", navPayments: "Pagos",
+    navOverview: "Inicio", navRequests: "Solicitudes", navTasks: "Chat", navDevices: "Dispositivos", navSecurity: "Seguridad", navTakeover: "Control", navPayments: "Pagos",
+    overviewTitle: "Centro de control", overviewNextActionTitle: "Siguiente accion", overviewSyncTitle: "Sesion", overviewRequestsTitle: "Solicitudes", overviewBrowserTitle: "Navegador", overviewChatTitle: "Chat", overviewPairingTitle: "Emparejamiento",
     attentionTitle: (count) => `${count} solicitudes requieren atencion`, attentionDetail: (type, status) => `${type} · ${status}`, attentionAction: "Revisar",
     requestsTitle: "Solicitudes pendientes", filterOpen: "Pendientes", filterAll: "Todas", filterCredential: "Secretos", filterChallenge: "Verificaciones", filterApproval: "Aprobaciones", filterTakeover: "Control",
     chatFilesLabel: "Adjuntar", chatSelectedFiles: "Archivos seleccionados", uploadFailed: "Carga fallida",
@@ -650,7 +719,8 @@ const EXTRA_I18N = {
   },
   fr: {
     appSubtitle: "Approbations, identifiants, validations et prise de controle securises.",
-    navRequests: "Demandes", navTasks: "Taches", navDevices: "Appareils", navSecurity: "Securite", navTakeover: "Controle", navPayments: "Paiements",
+    navOverview: "Accueil", navRequests: "Demandes", navTasks: "Chat", navDevices: "Appareils", navSecurity: "Securite", navTakeover: "Controle", navPayments: "Paiements",
+    overviewTitle: "Centre de controle", overviewNextActionTitle: "Prochaine action", overviewSyncTitle: "Session", overviewRequestsTitle: "Demandes", overviewBrowserTitle: "Navigateur", overviewChatTitle: "Chat", overviewPairingTitle: "Appairage",
     attentionTitle: (count) => `${count} demandes a traiter`, attentionDetail: (type, status) => `${type} · ${status}`, attentionAction: "Examiner",
     requestsTitle: "Demandes en attente", filterOpen: "En attente", filterAll: "Toutes", filterCredential: "Secrets", filterChallenge: "Verifications", filterApproval: "Approbations", filterTakeover: "Controle",
     chatFilesLabel: "Joindre", chatSelectedFiles: "Fichiers selectionnes", uploadFailed: "Echec d'envoi",
@@ -662,7 +732,8 @@ const EXTRA_I18N = {
   },
   de: {
     appSubtitle: "Sichere Freigaben, Zugangsdaten, Pruefungen und manuelle Uebernahme.",
-    navRequests: "Anfragen", navTasks: "Aufgaben", navDevices: "Geraete", navSecurity: "Sicherheit", navTakeover: "Uebernahme", navPayments: "Zahlungen",
+    navOverview: "Start", navRequests: "Anfragen", navTasks: "Chat", navDevices: "Geraete", navSecurity: "Sicherheit", navTakeover: "Uebernahme", navPayments: "Zahlungen",
+    overviewTitle: "Kontrollzentrum", overviewNextActionTitle: "Naechste Aktion", overviewSyncTitle: "Sitzung", overviewRequestsTitle: "Anfragen", overviewBrowserTitle: "Browser", overviewChatTitle: "Chat", overviewPairingTitle: "Kopplung",
     attentionTitle: (count) => `${count} offene Anfragen`, attentionDetail: (type, status) => `${type} · ${status}`, attentionAction: "Pruefen",
     requestsTitle: "Offene Anfragen", filterOpen: "Offen", filterAll: "Alle", filterCredential: "Secrets", filterChallenge: "Pruefungen", filterApproval: "Freigaben", filterTakeover: "Uebernahme",
     chatFilesLabel: "Anhaengen", chatSelectedFiles: "Ausgewaehlte Dateien", uploadFailed: "Upload fehlgeschlagen",
@@ -674,7 +745,8 @@ const EXTRA_I18N = {
   },
   ja: {
     appSubtitle: "承認、認証情報、検証、人間による操作を安全に扱います。",
-    navRequests: "リクエスト", navTasks: "タスク", navDevices: "デバイス", navSecurity: "セキュリティ", navTakeover: "操作", navPayments: "支払い",
+    navOverview: "ホーム", navRequests: "リクエスト", navTasks: "チャット", navDevices: "デバイス", navSecurity: "セキュリティ", navTakeover: "操作", navPayments: "支払い",
+    overviewTitle: "コントロールセンター", overviewNextActionTitle: "次の操作", overviewSyncTitle: "セッション", overviewRequestsTitle: "リクエスト", overviewBrowserTitle: "ブラウザ", overviewChatTitle: "チャット", overviewPairingTitle: "ペアリング",
     attentionTitle: (count) => `${count}件の対応が必要`, attentionDetail: (type, status) => `${type} · ${status}`, attentionAction: "確認",
     requestsTitle: "未処理リクエスト", filterOpen: "未処理", filterAll: "すべて", filterCredential: "シークレット", filterChallenge: "検証", filterApproval: "承認", filterTakeover: "操作",
     chatFilesLabel: "添付", chatSelectedFiles: "選択したファイル", uploadFailed: "アップロード失敗",
@@ -686,7 +758,8 @@ const EXTRA_I18N = {
   },
   ko: {
     appSubtitle: "승인, 자격 증명, 인증, 사용자 제어를 안전하게 처리합니다.",
-    navRequests: "요청", navTasks: "작업", navDevices: "기기", navSecurity: "보안", navTakeover: "제어", navPayments: "결제",
+    navOverview: "홈", navRequests: "요청", navTasks: "채팅", navDevices: "기기", navSecurity: "보안", navTakeover: "제어", navPayments: "결제",
+    overviewTitle: "제어 센터", overviewNextActionTitle: "다음 작업", overviewSyncTitle: "세션", overviewRequestsTitle: "요청", overviewBrowserTitle: "브라우저", overviewChatTitle: "채팅", overviewPairingTitle: "페어링",
     attentionTitle: (count) => `${count}개 요청 처리 필요`, attentionDetail: (type, status) => `${type} · ${status}`, attentionAction: "검토",
     requestsTitle: "대기 중인 요청", filterOpen: "대기", filterAll: "전체", filterCredential: "비밀", filterChallenge: "인증", filterApproval: "승인", filterTakeover: "제어",
     chatFilesLabel: "첨부", chatSelectedFiles: "선택한 파일", uploadFailed: "업로드 실패",
@@ -721,6 +794,7 @@ function initialLanguage() {
 
 let currentLanguage = initialLanguage();
 const PANEL_IDS = [
+  "overview-panel",
   "task-panel",
   "requests-panel",
   "takeover-panel",
@@ -729,7 +803,7 @@ const PANEL_IDS = [
   "payment-approval",
   "pairing-panel"
 ];
-const DEFAULT_PANEL_ID = "task-panel";
+const DEFAULT_PANEL_ID = "overview-panel";
 const SYNC_REQUEST_RENEW_WINDOW_MS = 2 * 60 * 1000;
 
 function t(key, ...args) {
@@ -759,6 +833,7 @@ function applyLanguage() {
   setButtonText("#attention-review", "attentionAction");
   const languageSelect = document.querySelector("#language-select");
   if (languageSelect) languageSelect.value = currentLanguage;
+  setNodeText('a[href="#overview-panel"]', "navOverview");
   setNodeText('a[href="#requests-panel"]', "navRequests");
   setNodeText('a[href="#task-panel"]', "navTasks");
   setNodeText('a[href="#device-panel"]', "navDevices");
@@ -768,6 +843,14 @@ function applyLanguage() {
   setNodeText('a[href="#pairing-panel"]', "navPair");
   setNodeText("#requests-panel h2", "requestsTitle");
   setNodeText("#requests-panel .panel-heading p", "requestsIntro");
+  setNodeText("#overview-title", "overviewTitle");
+  setNodeText("#overview-intro", "overviewIntro");
+  setNodeText("#overview-next-label", "overviewNextActionTitle");
+  setNodeText("#overview-sync-title", "overviewSyncTitle");
+  setNodeText("#overview-requests-title", "overviewRequestsTitle");
+  setNodeText("#overview-browser-title", "overviewBrowserTitle");
+  setNodeText("#overview-chat-title", "overviewChatTitle");
+  setNodeText("#overview-pairing-title", "overviewPairingTitle");
   document.querySelector(".filter-row")?.setAttribute("aria-label", t("requestFiltersLabel"));
   setButtonText('[data-filter="open"]', "filterOpen");
   setButtonText('[data-filter="all"]', "filterAll");
@@ -838,6 +921,7 @@ function applyLanguage() {
   updateAgentControlButtons();
   updateChatSessionStatus(cachedRuntimeStatus?.chat_runner || null);
   updateBrowserHandoffState(findActiveTakeoverRequest(cachedRequests), activeBrowserContext());
+  updateOverview();
 }
 
 function initialPanelId() {
@@ -1005,6 +1089,170 @@ function updateBrowserHandoffState(request = null, context = null) {
   }
 }
 
+function setOverviewCard(cardId, { state = "idle", detail = "", meta = "" } = {}) {
+  const card = document.querySelector(`#${cardId}`);
+  if (!card) return;
+  card.dataset.state = state;
+  const detailNode = card.querySelector("[data-overview-detail]");
+  const metaNode = card.querySelector("[data-overview-meta]");
+  if (detailNode) detailNode.textContent = detail;
+  if (metaNode) metaNode.textContent = meta;
+}
+
+function overviewRuntimeState(runner = cachedRuntimeStatus?.chat_runner || {}) {
+  if (!cachedRuntimeStatus) return { state: "blocked", detail: t("overviewSyncOffline") };
+  if (modeRequiresPairing(cachedRuntimeStatus.mode) && !cachedPairingAuthenticated) {
+    return { state: "blocked", detail: t("overviewUnpaired") };
+  }
+  if (runner?.tui_bridge_active) return { state: "ok", detail: t("overviewSyncAttached") };
+  if (runner?.waiting_for_tui_bridge) {
+    return {
+      state: runnerCanRestartCurrentConsole(runner) ? "warn" : "blocked",
+      detail: runnerCanRestartCurrentConsole(runner) ? t("overviewSyncNeedsRestart") : t("overviewSyncServerOnly")
+    };
+  }
+  if (runner?.thread_id) return { state: "warn", detail: t("overviewSyncBackground") };
+  return { state: "blocked", detail: t("overviewSyncOffline") };
+}
+
+function setOverviewAction({ title, detail, primaryLabel, primaryAction, secondaryLabel = "", secondaryAction = "" }) {
+  setFieldText("#overview-next-title", title, t("overviewNoUrgentAction"));
+  setFieldText("#overview-next-detail", detail, "");
+  const primary = document.querySelector("#overview-primary-action");
+  const secondary = document.querySelector("#overview-secondary-action");
+  if (primary) {
+    primary.textContent = primaryLabel || t("overviewPrimaryAction");
+    primary.dataset.action = primaryAction || "chat";
+  }
+  if (secondary) {
+    secondary.hidden = !secondaryAction;
+    secondary.textContent = secondaryLabel || t("overviewSecondaryAction");
+    secondary.dataset.action = secondaryAction || "";
+  }
+}
+
+function updateOverview() {
+  const runner = cachedRuntimeStatus?.chat_runner || {};
+  const openRequests = cachedRequests.filter(isOpenRequest);
+  const primaryRequest = primaryOpenRequest(openRequests);
+  const takeoverRequest = findActiveTakeoverRequest(cachedRequests);
+  const browserContext = activeBrowserContext();
+  const runtime = overviewRuntimeState(runner);
+  const paired = cachedRuntimeStatus
+    ? (!modeRequiresPairing(cachedRuntimeStatus.mode) || cachedPairingAuthenticated)
+    : cachedPairingAuthenticated;
+  setOverviewCard("overview-sync-card", {
+    state: runtime.state,
+    detail: runtime.detail,
+    meta: runner.thread_id || cachedRuntimeStatus?.mode || ""
+  });
+  setOverviewCard("overview-requests-card", {
+    state: openRequests.length ? "warn" : "ok",
+    detail: t("overviewOpenRequests", openRequests.length, cachedRequests.length),
+    meta: primaryRequest ? displayRequestType(primaryRequest) : t("noOpenRequests")
+  });
+  const browserState = takeoverRequest ? "active" : browserContext ? "warn" : "idle";
+  setOverviewCard("overview-browser-card", {
+    state: browserState,
+    detail: takeoverRequest ? t("overviewBrowserActive") : browserContext ? t("overviewBrowserPreview") : t("overviewBrowserIdle"),
+    meta: browserHandoffUrl(takeoverRequest, browserContext)
+  });
+  setOverviewCard("overview-chat-card", {
+    state: document.body.dataset.chatSendMode === "blocked" ? "blocked" : "ok",
+    detail: t("overviewChatRecords", cachedChatMessages.length, cachedChatRecords.length),
+    meta: document.querySelector("#chat-session-title")?.textContent || ""
+  });
+  setOverviewCard("overview-pairing-card", {
+    state: paired ? "ok" : "blocked",
+    detail: paired ? t("overviewPaired") : t("overviewUnpaired"),
+    meta: storedPairingIdentity().deviceId || cachedRuntimeStatus?.public_url || window.location.origin
+  });
+
+  if (!paired) {
+    setOverviewAction({
+      title: t("overviewActionPairTitle"),
+      detail: t("overviewActionPairDetail"),
+      primaryLabel: t("pairButton"),
+      primaryAction: "pair"
+    });
+    return;
+  }
+  if (pendingConsoleRestartRequest()) {
+    setOverviewAction({
+      title: t("overviewActionSyncTitle"),
+      detail: t("overviewActionSyncDetail"),
+      primaryLabel: t("syncApprovalApprove"),
+      primaryAction: "sync",
+      secondaryLabel: t("syncApprovalOpenRequest"),
+      secondaryAction: "requests"
+    });
+    return;
+  }
+  if (primaryRequest) {
+    setOverviewAction({
+      title: t("overviewActionRequestTitle", displayRequestType(primaryRequest)),
+      detail: t("overviewActionRequestDetail", primaryRequest.action_summary || primaryRequest.origin || primaryRequest.request_id),
+      primaryLabel: t("attentionAction"),
+      primaryAction: "requests"
+    });
+    return;
+  }
+  if (takeoverRequest || browserContext) {
+    setOverviewAction({
+      title: takeoverRequest ? t("browserHandoffActiveTitle") : t("overviewActionBrowserTitle"),
+      detail: takeoverRequest ? t("browserHandoffActiveDetail") : t("overviewActionBrowserDetail"),
+      primaryLabel: takeoverRequest ? t("browserHandoffView") : t("browserHandoffPause"),
+      primaryAction: takeoverRequest ? "takeover" : "pause-browser",
+      secondaryLabel: t("browserHandoffView"),
+      secondaryAction: "takeover"
+    });
+    return;
+  }
+  if (runnerNeedsCurrentSessionSync(runner) && runnerCanRestartCurrentConsole(runner)) {
+    setOverviewAction({
+      title: t("overviewActionSyncTitle"),
+      detail: t("overviewActionSyncDetail"),
+      primaryLabel: t("enableCurrentSessionSync"),
+      primaryAction: "sync"
+    });
+    return;
+  }
+  setOverviewAction({
+    title: t("overviewNoUrgentAction"),
+    detail: t("overviewNoUrgentDetail"),
+    primaryLabel: t("overviewActionChatTitle"),
+    primaryAction: "chat",
+    secondaryLabel: t("browserHandoffView"),
+    secondaryAction: "takeover"
+  });
+}
+
+function runOverviewAction(action) {
+  if (action === "pair") {
+    activatePanel("pairing-panel");
+  } else if (action === "sync") {
+    const request = pendingConsoleRestartRequest();
+    if (request) {
+      activatePanel("task-panel", { persist: false });
+      document.querySelector("#chat-sync-approval")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      requestConsoleRestartApproval();
+    }
+  } else if (action === "requests") {
+    if (!openPendingSyncRequest()) {
+      setRequestFilter("open");
+      activatePanel("requests-panel");
+      renderRequestList(cachedRequests, "open");
+    }
+  } else if (action === "pause-browser") {
+    requestTakeoverPause();
+  } else if (action === "takeover") {
+    activatePanel("takeover-panel");
+  } else {
+    activatePanel("task-panel");
+  }
+}
+
 const main = document.querySelector("main");
 
 const runtimeStatus = document.createElement("section");
@@ -1073,6 +1321,20 @@ if (attentionReviewButton) {
     setTimeout(() => focusRequestCard(requestId), 50);
   };
 }
+
+const overviewPrimaryActionButton = document.querySelector("#overview-primary-action");
+if (overviewPrimaryActionButton) {
+  overviewPrimaryActionButton.onclick = () => runOverviewAction(overviewPrimaryActionButton.dataset.action || "chat");
+}
+
+const overviewSecondaryActionButton = document.querySelector("#overview-secondary-action");
+if (overviewSecondaryActionButton) {
+  overviewSecondaryActionButton.onclick = () => runOverviewAction(overviewSecondaryActionButton.dataset.action || "takeover");
+}
+
+document.querySelectorAll(".overview-card").forEach((card) => {
+  card.onclick = () => runOverviewAction(card.dataset.action || "chat");
+});
 
 const sendChatMessageButton = document.querySelector("#send-chat-message");
 if (sendChatMessageButton) {
@@ -2562,6 +2824,7 @@ function forgetLocalPairing() {
   const sessionsRoot = document.querySelector("#sessions-list");
   if (devicesRoot) devicesRoot.textContent = t("pairToViewDevices");
   if (sessionsRoot) sessionsRoot.textContent = t("pairToViewSessions");
+  updateOverview();
 }
 
 function b64url(bytes) {
@@ -4068,6 +4331,7 @@ function renderRequestList(requests, filter = activeFilter()) {
   updatePaymentApprovalPanel(requests);
   updateChatSyncApprovalCard(pendingConsoleRestartRequest());
   updateAttentionStrip(openRequests);
+  updateOverview();
   if (activeTakeoverFrameRequest && !requests.some((request) => request.request_id === activeTakeoverFrameRequest && request.status === "user_control")) {
     stopTakeoverFramePolling();
   }
@@ -4129,10 +4393,12 @@ async function loadRuntimeStatus() {
     }
     updateChatSessionStatus(runner);
     setStatus(mode, detail, runtimeState, restartCommand, restartLabelKey, restartActionAvailable);
+    updateOverview();
   } catch {
     cachedRuntimeStatus = null;
     updateChatSessionStatus(null, { offline: true });
     setStatus(t("runtimeModeOffline"), t("runtimeOfflineDetail"), "offline");
+    updateOverview();
   }
 }
 
@@ -4196,6 +4462,7 @@ function applyBrowserContextsEvent(payload) {
   cachedBrowserContexts = payload.contexts || [];
   syncTakeoverPanel(cachedRequests);
   maybeAutoStartPendingTakeover();
+  updateOverview();
 }
 
 function applyRequestEvent(payload) {
@@ -4214,6 +4481,7 @@ function applyChatEvent(payload) {
   cachedChatRecords = records;
   cachedChatTerminal = terminal;
   renderChatTimeline(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
+  updateOverview();
   if (changed) scheduleRealtimeRefreshFromChat();
 }
 

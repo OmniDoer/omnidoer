@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icon-192.png">
-  <link rel="stylesheet" href="/style.css?v=20260601-mobile-attention-signals">
+  <link rel="stylesheet" href="/style.css?v=20260601-overview-panel">
   <title>OmniDoer Control Client</title>
 </head>
 <body>
@@ -23,14 +23,59 @@
       </label>
     </header>
     <nav class="section-tabs" aria-label="Control sections">
-      <a href="#requests-panel">Requests</a>
+      <a href="#overview-panel">Home</a>
       <a href="#task-panel">Chat</a>
+      <a href="#requests-panel">Requests</a>
+      <a href="#takeover-panel">Takeover</a>
       <a href="#device-panel">Devices</a>
       <a href="#security">Security</a>
-      <a href="#takeover-panel">Takeover</a>
       <a href="#payment-approval">Payments</a>
       <a href="#pairing-panel">Pair</a>
     </nav>
+    <section id="overview-panel" class="overview-panel">
+      <div class="overview-hero">
+        <div>
+          <h2 id="overview-title">Control Center</h2>
+          <p id="overview-intro">Session sync, requests, browser handoff, and chat stay in one touch-first workspace.</p>
+        </div>
+        <div id="overview-next-card" class="overview-next-card">
+          <span id="overview-next-label">Next action</span>
+          <strong id="overview-next-title">Checking runtime...</strong>
+          <p id="overview-next-detail">Loading current Control Service state.</p>
+          <div class="overview-actions">
+            <button id="overview-primary-action" type="button" data-action="chat">Open</button>
+            <button id="overview-secondary-action" class="ghost-button" type="button" data-action="takeover" hidden>Details</button>
+          </div>
+        </div>
+      </div>
+      <div class="overview-grid">
+        <button id="overview-sync-card" class="overview-card" type="button" data-action="sync">
+          <span id="overview-sync-title">Session sync</span>
+          <strong data-overview-detail>Checking runtime...</strong>
+          <small data-overview-meta></small>
+        </button>
+        <button id="overview-requests-card" class="overview-card" type="button" data-action="requests">
+          <span id="overview-requests-title">Requests</span>
+          <strong data-overview-detail>0 open / 0 total</strong>
+          <small data-overview-meta></small>
+        </button>
+        <button id="overview-browser-card" class="overview-card" type="button" data-action="takeover">
+          <span id="overview-browser-title">Browser</span>
+          <strong data-overview-detail>No live browser handoff.</strong>
+          <small data-overview-meta></small>
+        </button>
+        <button id="overview-chat-card" class="overview-card" type="button" data-action="chat">
+          <span id="overview-chat-title">Chat</span>
+          <strong data-overview-detail>0 messages · 0 activity records</strong>
+          <small data-overview-meta></small>
+        </button>
+        <button id="overview-pairing-card" class="overview-card" type="button" data-action="pair">
+          <span id="overview-pairing-title">Pairing</span>
+          <strong data-overview-detail>Not paired</strong>
+          <small data-overview-meta></small>
+        </button>
+      </div>
+    </section>
     <section id="pairing-panel">
       <h2>Pair Device</h2>
       <p>Pairing connects this Control Client directly to your own OmniDoer Control Service. Only pair devices you control.</p>
@@ -192,6 +237,6 @@
       </div>
     </section>
   </main>
-  <script src="/app.js?v=20260601-mobile-attention-signals"></script>
+  <script src="/app.js?v=20260601-overview-panel"></script>
 </body>
 </html>
