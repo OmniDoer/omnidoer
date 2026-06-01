@@ -65,6 +65,8 @@ PAIR_RATE_LIMIT = RateLimiter(max_attempts=8, window_seconds=60, lockout_seconds
 CONTROL_MUTATION_RATE_LIMIT = RateLimiter(max_attempts=120, window_seconds=60, lockout_seconds=60)
 CONSOLE_RESTART_REQUEST_TTL_SECONDS = 30 * 60
 CONSOLE_RESTART_REQUEST_RENEW_WINDOW_SECONDS = 5 * 60
+CHAT_STREAM_DEFAULT_SNAPSHOTS = 1200
+CHAT_STREAM_MAX_SNAPSHOTS = 1200
 SENSITIVE_LOG_PATTERNS = [
     re.compile(r"(omnidoer_session=)[^;\s]+"),
     re.compile(r"(code=)[^&\s]+"),
@@ -545,7 +547,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
         self.send_header("connection", "close")
         self.end_headers()
         last_fingerprint = ""
-        for index in range(max(1, min(snapshots, 120))):
+        for index in range(max(1, min(snapshots, CHAT_STREAM_MAX_SNAPSHOTS))):
             if index:
                 time.sleep(max(0.0, min(interval, 10.0)))
             payload = self._chat_payload(limit=limit, after_sequence=after_sequence)
@@ -560,7 +562,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
     def _send_chat_websocket_stream(self, *, snapshots: int, interval: float, limit: int, after_sequence: int | None) -> None:
         websocket_text_frame = self._open_websocket()
         last_fingerprint = ""
-        for index in range(max(1, min(snapshots, 120))):
+        for index in range(max(1, min(snapshots, CHAT_STREAM_MAX_SNAPSHOTS))):
             if index:
                 time.sleep(max(0.0, min(interval, 10.0)))
             payload = self._chat_payload(limit=limit, after_sequence=after_sequence)
@@ -1046,7 +1048,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
             try:
                 self._require_access()
                 query = parse_qs(parsed_url.query)
-                snapshots = int(query.get("snapshots", ["60"])[0])
+                snapshots = int(query.get("snapshots", [str(CHAT_STREAM_DEFAULT_SNAPSHOTS)])[0])
                 interval = float(query.get("interval", ["1"])[0])
                 limit = int(query.get("limit", ["200"])[0])
                 after = query.get("after_sequence", [None])[0]
@@ -1094,7 +1096,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     return
                 self._require_access()
                 query = parse_qs(parsed_url.query)
-                snapshots = int(query.get("snapshots", ["120"])[0])
+                snapshots = int(query.get("snapshots", [str(CHAT_STREAM_DEFAULT_SNAPSHOTS)])[0])
                 interval = float(query.get("interval", ["1"])[0])
                 limit = int(query.get("limit", ["200"])[0])
                 after = query.get("after_sequence", [None])[0]

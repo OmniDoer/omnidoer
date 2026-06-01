@@ -4209,7 +4209,7 @@ async function startChatStream() {
   chatStreamActive = true;
   if (chatStreamRestart) clearTimeout(chatStreamRestart);
   try {
-    const response = await signedFetch("/api/chat/events?stream=1&snapshots=120&interval=0.25", { cache: "no-store" });
+    const response = await signedFetch("/api/chat/events?stream=1&snapshots=1200&interval=0.25", { cache: "no-store" });
     if (!response.ok || !response.body) throw new Error("chat stream unavailable");
     const reader = response.body.getReader();
     let buffer = "";
@@ -4243,8 +4243,8 @@ async function startChatWebSocket() {
   try {
     const protocol = await deviceAuthSubprotocol("GET", path);
     const socket = protocol
-      ? new WebSocket(websocketUrl(`${path}?snapshots=120&interval=0.25`), [protocol])
-      : new WebSocket(websocketUrl(`${path}?snapshots=120&interval=0.25`));
+      ? new WebSocket(websocketUrl(`${path}?snapshots=1200&interval=0.25`), [protocol])
+      : new WebSocket(websocketUrl(`${path}?snapshots=1200&interval=0.25`));
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data);
       if (message.event === "chat") applyChatEvent(message.data);
