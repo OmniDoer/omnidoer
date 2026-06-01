@@ -1176,6 +1176,8 @@ let requestStreamActive = false;
 let requestStreamRestart = null;
 let chatStreamActive = false;
 let chatStreamRestart = null;
+let browserContextStreamActive = false;
+let browserContextStreamRestart = null;
 let activeTakeoverFrameRequest = null;
 let takeoverFrameTimer = null;
 let takeoverFreshnessTimer = null;
@@ -3853,11 +3855,15 @@ async function loadBrowserContexts() {
       if (!r.ok) throw new Error("unauthorized");
       return r.json();
     });
-    cachedBrowserContexts = payload.contexts || [];
-    syncTakeoverPanel(cachedRequests);
+    applyBrowserContextsEvent(payload);
   } catch {
     cachedBrowserContexts = [];
   }
+}
+
+function applyBrowserContextsEvent(payload) {
+  cachedBrowserContexts = payload.contexts || [];
+  syncTakeoverPanel(cachedRequests);
 }
 
 function applyRequestEvent(payload) {
@@ -3891,6 +3897,9 @@ function handleSseBlock(block) {
   }
   if (eventName === "chat" && data) {
     applyChatEvent(JSON.parse(data));
+  }
+  if (eventName === "browser_contexts" && data) {
+    applyBrowserContextsEvent(JSON.parse(data));
   }
 }
 
@@ -3955,6 +3964,62 @@ async function startRequestWebSocket() {
   } catch {
     requestStreamActive = false;
     startRequestStream();
+  }
+}
+
+async function startBrowserContextStream() {
+  if (browserContextStreamActive || !window.ReadableStream) return;
+  browserContextStreamActive = true;
+  if (browserContextStreamRestart) clearTimeout(browserContextStreamRestart);
+  try {
+    const response = await signedFetch("/api/browser/contexts/events?stream=1&snapshots=120&interval=1", { cache: "no-store" });
+    if (!response.ok || !response.body) throw new Error("browser context stream unavailable");
+    const reader = response.body.getReader();
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const blocks = buffer.split("\n\n");
+      buffer = blocks.pop();
+      blocks.filter(Boolean).forEach(handleSseBlock);
+    }
+  } catch {
+    await loadBrowserContexts();
+  } finally {
+    browserContextStreamActive = false;
+    browserContextStreamRestart = setTimeout(startBrowserContextStream, 3000);
+  }
+}
+
+async function startBrowserContextWebSocket() {
+  if (!window.WebSocket) {
+    startBrowserContextStream();
+    return;
+  }
+  if (browserContextStreamActive) return;
+  browserContextStreamActive = true;
+  if (browserContextStreamRestart) clearTimeout(browserContextStreamRestart);
+  const path = "/api/ws/browser/contexts";
+  try {
+    const protocol = await deviceAuthSubprotocol("GET", path);
+    const socket = protocol
+      ? new WebSocket(websocketUrl(`${path}?snapshots=120&interval=1`), [protocol])
+      : new WebSocket(websocketUrl(`${path}?snapshots=120&interval=1`));
+    socket.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      if (message.event === "browser_contexts") applyBrowserContextsEvent(message.data);
+    };
+    socket.onerror = () => {
+      socket.close();
+    };
+    socket.onclose = () => {
+      browserContextStreamActive = false;
+      browserContextStreamRestart = setTimeout(startBrowserContextWebSocket, 3000);
+    };
+  } catch {
+    browserContextStreamActive = false;
+    startBrowserContextStream();
   }
 }
 
@@ -4023,6 +4088,7 @@ loadBrowserContexts();
 loadChatMessages();
 loadDevicesAndSessions();
 startRequestWebSocket();
+startBrowserContextWebSocket();
 startChatWebSocket();
 document.addEventListener("visibilitychange", handleTakeoverVisibilityChange);
 setInterval(loadRuntimeStatus, 10000);

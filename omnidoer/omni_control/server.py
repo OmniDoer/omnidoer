@@ -300,6 +300,29 @@ class ControlHandler(SimpleHTTPRequestHandler):
         ]
         return json.dumps(fingerprint, ensure_ascii=False, sort_keys=True)
 
+    def _browser_context_payload(self) -> dict:
+        from omnidoer.omni_takeover.cross_process import list_contexts
+
+        return {
+            "contexts": list_contexts(),
+            "streaming": True,
+            "secret_exposed_to_model": False,
+        }
+
+    def _browser_context_payload_fingerprint(self, payload: dict) -> str:
+        contexts = payload.get("contexts") or []
+        fingerprint = [
+            [
+                item.get("browser_context_id"),
+                item.get("current_url"),
+                item.get("origin"),
+                item.get("updated_at"),
+                item.get("active"),
+            ]
+            for item in contexts
+        ]
+        return json.dumps(fingerprint, ensure_ascii=False, sort_keys=True)
+
     def _send_sse(self, payload: dict, *, event: str = "requests") -> None:
         from omnidoer.omni_control.websocket import sse_event
 
@@ -414,6 +437,42 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 frame = start_stream(request_id, browser_controller=browser, frame_profile=frame_profile)
             store.record_takeover_frame(request_id, frame)
             self.wfile.write(websocket_text_frame({"event": "takeover_frame", "request_id": request_id, "data": frame}))
+            self.wfile.flush()
+        self.close_connection = True
+
+    def _send_browser_context_sse_stream(self, *, snapshots: int, interval: float) -> None:
+        from omnidoer.omni_control.websocket import sse_event
+
+        self.send_response(HTTPStatus.OK)
+        self.send_header("content-type", "text/event-stream; charset=utf-8")
+        self.send_header("cache-control", "no-store")
+        self.send_header("connection", "close")
+        self.end_headers()
+        last_fingerprint = ""
+        for index in range(max(1, min(snapshots, 120))):
+            if index:
+                time.sleep(max(0.0, min(interval, 10.0)))
+            payload = self._browser_context_payload()
+            fingerprint = self._browser_context_payload_fingerprint(payload)
+            if index and fingerprint == last_fingerprint:
+                continue
+            last_fingerprint = fingerprint
+            self.wfile.write(sse_event("browser_contexts", payload))
+            self.wfile.flush()
+        self.close_connection = True
+
+    def _send_browser_context_websocket_stream(self, *, snapshots: int, interval: float) -> None:
+        websocket_text_frame = self._open_websocket()
+        last_fingerprint = ""
+        for index in range(max(1, min(snapshots, 120))):
+            if index:
+                time.sleep(max(0.0, min(interval, 10.0)))
+            payload = self._browser_context_payload()
+            fingerprint = self._browser_context_payload_fingerprint(payload)
+            if index and fingerprint == last_fingerprint:
+                continue
+            last_fingerprint = fingerprint
+            self.wfile.write(websocket_text_frame({"event": "browser_contexts", "data": payload}))
             self.wfile.flush()
         self.close_connection = True
 
@@ -919,6 +978,23 @@ class ControlHandler(SimpleHTTPRequestHandler):
             except ValueError:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid chat stream options"})
             return
+        if path == "/api/browser/contexts/events":
+            try:
+                self._require_access()
+                query = parse_qs(parsed_url.query)
+                snapshots = int(query.get("snapshots", ["120"])[0])
+                interval = float(query.get("interval", ["1"])[0])
+                if query.get("stream", ["0"])[0] == "1":
+                    self._send_browser_context_sse_stream(snapshots=snapshots, interval=interval)
+                else:
+                    self._send_sse(self._browser_context_payload(), event="browser_contexts")
+            except PermissionError:
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            except ValueError:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid browser context stream options"})
+            return
         if path == "/api/ws/chat":
             try:
                 from omnidoer.omni_control.websocket import websocket_origin_allowed
@@ -946,6 +1022,27 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 pass
             except ValueError:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid chat websocket options"})
+            return
+        if path == "/api/ws/browser/contexts":
+            try:
+                from omnidoer.omni_control.websocket import websocket_origin_allowed
+
+                if self._requires_pairing() and not websocket_origin_allowed(self.headers.get("origin"), self.config.public_origin):
+                    raise PermissionError("websocket origin rejected")
+                if (self.headers.get("upgrade") or "").lower() != "websocket":
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"error": "websocket upgrade required"})
+                    return
+                self._require_access()
+                query = parse_qs(parsed_url.query)
+                snapshots = int(query.get("snapshots", ["120"])[0])
+                interval = float(query.get("interval", ["1"])[0])
+                self._send_browser_context_websocket_stream(snapshots=snapshots, interval=interval)
+            except PermissionError:
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            except ValueError:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid browser context websocket options"})
             return
         if path.startswith("/api/ws/requests/") and path.endswith("/frames"):
             try:
