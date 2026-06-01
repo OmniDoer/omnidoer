@@ -7,6 +7,7 @@ import unittest
 from http.server import ThreadingHTTPServer
 from threading import Thread
 from urllib import request as urllib_request
+from unittest.mock import patch
 
 from cryptography.hazmat.primitives.asymmetric import ec
 
@@ -16,7 +17,14 @@ from omnidoer.omni_control.csrf import CSRF_HEADER
 from omnidoer.omni_control.device_signing import DEVICE_ID_HEADER, DEVICE_NONCE_HEADER, DEVICE_SIG_HEADER, DEVICE_TS_HEADER
 from omnidoer.omni_control.pairing import PairingStore
 from omnidoer.omni_control.requests import RequestStore
-from omnidoer.omni_control.server import ControlHandler
+from omnidoer.omni_control.server import (
+    BROWSER_CONTEXT_STREAM_DEFAULT_SNAPSHOTS,
+    BROWSER_CONTEXT_STREAM_HEARTBEAT_SECONDS,
+    BROWSER_CONTEXT_STREAM_MAX_SNAPSHOTS,
+    BROWSER_FRAME_STREAM_DEFAULT_SNAPSHOTS,
+    BROWSER_FRAME_STREAM_MAX_SNAPSHOTS,
+    ControlHandler,
+)
 from omnidoer.omni_control.websocket import encode_device_auth_subprotocol
 from omnidoer.omni_takeover.cross_process import write_context_status, write_frame
 from omnidoer.omni_takeover.sessions import registered_browser_context
@@ -75,6 +83,39 @@ def read_websocket_text(sock: socket.socket, initial: bytes = b"") -> str:
 
 
 class CloudTakeoverStreamTest(unittest.TestCase):
+    def test_browser_stream_defaults_keep_mobile_takeover_connected_longer(self) -> None:
+        self.assertEqual(BROWSER_CONTEXT_STREAM_DEFAULT_SNAPSHOTS, 1200)
+        self.assertEqual(BROWSER_CONTEXT_STREAM_MAX_SNAPSHOTS, 1200)
+        self.assertEqual(BROWSER_CONTEXT_STREAM_HEARTBEAT_SECONDS, 30.0)
+        self.assertEqual(BROWSER_FRAME_STREAM_DEFAULT_SNAPSHOTS, 1200)
+        self.assertEqual(BROWSER_FRAME_STREAM_MAX_SNAPSHOTS, 1200)
+
+    def test_browser_context_stream_sends_heartbeat_when_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                with patch("omnidoer.omni_control.server.BROWSER_CONTEXT_STREAM_HEARTBEAT_SECONDS", 0.0):
+                    with urllib_request.urlopen(
+                        f"{base}/api/browser/contexts/events?stream=1&snapshots=2&interval=0",
+                        timeout=5,
+                    ) as response:
+                        stream = response.read().decode()
+                self.assertEqual(stream.count("event: browser_contexts"), 1)
+                self.assertIn("event: heartbeat", stream)
+                self.assertIn('"secret_exposed_to_model":false', stream)
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     def test_takeover_frame_endpoint_passes_adaptive_profile_to_browser(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             old_home = os.environ.get("OMNIDOER_HOME")

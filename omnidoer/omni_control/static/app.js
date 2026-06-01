@@ -1237,7 +1237,7 @@ const TAKEOVER_FRAME_MAX_AGE_MS = 30000;
 const TAKEOVER_FRAME_POLL_MS = 1500;
 const BROWSER_PREVIEW_POLL_MS = 2000;
 const TAKEOVER_FRAME_AFTER_INPUT_MS = 180;
-const TAKEOVER_FRAME_WS_SNAPSHOTS = 120;
+const TAKEOVER_FRAME_WS_SNAPSHOTS = 1200;
 const TAKEOVER_FRAME_WS_INTERVAL_SECONDS = 0.75;
 const TAKEOVER_FRAME_PROFILE_DEFAULT = "balanced";
 const TAKEOVER_FRAME_PROFILE_DATA_SAVER = "data_saver";
@@ -4153,7 +4153,7 @@ async function startBrowserContextStream() {
   browserContextStreamActive = true;
   if (browserContextStreamRestart) clearTimeout(browserContextStreamRestart);
   try {
-    const response = await signedFetch("/api/browser/contexts/events?stream=1&snapshots=120&interval=1", { cache: "no-store" });
+    const response = await signedFetch("/api/browser/contexts/events?stream=1&snapshots=1200&interval=1", { cache: "no-store" });
     if (!response.ok || !response.body) throw new Error("browser context stream unavailable");
     const reader = response.body.getReader();
     let buffer = "";
@@ -4185,8 +4185,8 @@ async function startBrowserContextWebSocket() {
   try {
     const protocol = await deviceAuthSubprotocol("GET", path);
     const socket = protocol
-      ? new WebSocket(websocketUrl(`${path}?snapshots=120&interval=1`), [protocol])
-      : new WebSocket(websocketUrl(`${path}?snapshots=120&interval=1`));
+      ? new WebSocket(websocketUrl(`${path}?snapshots=1200&interval=1`), [protocol])
+      : new WebSocket(websocketUrl(`${path}?snapshots=1200&interval=1`));
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data);
       if (message.event === "browser_contexts") applyBrowserContextsEvent(message.data);

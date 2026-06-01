@@ -68,6 +68,11 @@ CONSOLE_RESTART_REQUEST_RENEW_WINDOW_SECONDS = 5 * 60
 CHAT_STREAM_DEFAULT_SNAPSHOTS = 1200
 CHAT_STREAM_MAX_SNAPSHOTS = 1200
 CHAT_STREAM_HEARTBEAT_SECONDS = 30.0
+BROWSER_CONTEXT_STREAM_DEFAULT_SNAPSHOTS = 1200
+BROWSER_CONTEXT_STREAM_MAX_SNAPSHOTS = 1200
+BROWSER_CONTEXT_STREAM_HEARTBEAT_SECONDS = 30.0
+BROWSER_FRAME_STREAM_DEFAULT_SNAPSHOTS = 1200
+BROWSER_FRAME_STREAM_MAX_SNAPSHOTS = 1200
 SENSITIVE_LOG_PATTERNS = [
     re.compile(r"(omnidoer_session=)[^;\s]+"),
     re.compile(r"(code=)[^&\s]+"),
@@ -465,7 +470,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
         ]
         return json.dumps(fingerprint, ensure_ascii=False, sort_keys=True)
 
-    def _chat_heartbeat_payload(self) -> dict:
+    def _stream_heartbeat_payload(self) -> dict:
         return {
             "status": "ok",
             "secret_exposed_to_model": False,
@@ -564,7 +569,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
             if index and fingerprint == last_fingerprint:
                 now = time.monotonic()
                 if now - last_write_at >= CHAT_STREAM_HEARTBEAT_SECONDS:
-                    self.wfile.write(sse_event("heartbeat", self._chat_heartbeat_payload()))
+                    self.wfile.write(sse_event("heartbeat", self._stream_heartbeat_payload()))
                     self.wfile.flush()
                     last_write_at = now
                 continue
@@ -586,7 +591,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
             if index and fingerprint == last_fingerprint:
                 now = time.monotonic()
                 if now - last_write_at >= CHAT_STREAM_HEARTBEAT_SECONDS:
-                    self.wfile.write(websocket_text_frame({"event": "heartbeat", "data": self._chat_heartbeat_payload()}))
+                    self.wfile.write(websocket_text_frame({"event": "heartbeat", "data": self._stream_heartbeat_payload()}))
                     self.wfile.flush()
                     last_write_at = now
                 continue
@@ -608,7 +613,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
     ) -> None:
         self._get_request_for_session(store, request_id, session)
         websocket_text_frame = self._open_websocket()
-        for index in range(max(1, min(snapshots, 120))):
+        for index in range(max(1, min(snapshots, BROWSER_FRAME_STREAM_MAX_SNAPSHOTS))):
             if index:
                 time.sleep(max(0.0, min(interval, 10.0)))
             request = self._get_request_for_session(store, request_id, session)
@@ -635,31 +640,45 @@ class ControlHandler(SimpleHTTPRequestHandler):
         self.send_header("connection", "close")
         self.end_headers()
         last_fingerprint = ""
-        for index in range(max(1, min(snapshots, 120))):
+        last_write_at = 0.0
+        for index in range(max(1, min(snapshots, BROWSER_CONTEXT_STREAM_MAX_SNAPSHOTS))):
             if index:
                 time.sleep(max(0.0, min(interval, 10.0)))
             payload = self._browser_context_payload()
             fingerprint = self._browser_context_payload_fingerprint(payload)
             if index and fingerprint == last_fingerprint:
+                now = time.monotonic()
+                if now - last_write_at >= BROWSER_CONTEXT_STREAM_HEARTBEAT_SECONDS:
+                    self.wfile.write(sse_event("heartbeat", self._stream_heartbeat_payload()))
+                    self.wfile.flush()
+                    last_write_at = now
                 continue
             last_fingerprint = fingerprint
             self.wfile.write(sse_event("browser_contexts", payload))
             self.wfile.flush()
+            last_write_at = time.monotonic()
         self.close_connection = True
 
     def _send_browser_context_websocket_stream(self, *, snapshots: int, interval: float) -> None:
         websocket_text_frame = self._open_websocket()
         last_fingerprint = ""
-        for index in range(max(1, min(snapshots, 120))):
+        last_write_at = 0.0
+        for index in range(max(1, min(snapshots, BROWSER_CONTEXT_STREAM_MAX_SNAPSHOTS))):
             if index:
                 time.sleep(max(0.0, min(interval, 10.0)))
             payload = self._browser_context_payload()
             fingerprint = self._browser_context_payload_fingerprint(payload)
             if index and fingerprint == last_fingerprint:
+                now = time.monotonic()
+                if now - last_write_at >= BROWSER_CONTEXT_STREAM_HEARTBEAT_SECONDS:
+                    self.wfile.write(websocket_text_frame({"event": "heartbeat", "data": self._stream_heartbeat_payload()}))
+                    self.wfile.flush()
+                    last_write_at = now
                 continue
             last_fingerprint = fingerprint
             self.wfile.write(websocket_text_frame({"event": "browser_contexts", "data": payload}))
             self.wfile.flush()
+            last_write_at = time.monotonic()
         self.close_connection = True
 
     def _browser_context_frame(self, context_id: str, *, frame_profile: str) -> dict | None:
@@ -679,7 +698,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
         frame_profile: str,
     ) -> None:
         websocket_text_frame = self._open_websocket()
-        for index in range(max(1, min(snapshots, 120))):
+        for index in range(max(1, min(snapshots, BROWSER_FRAME_STREAM_MAX_SNAPSHOTS))):
             if index:
                 time.sleep(max(0.0, min(interval, 10.0)))
             frame = self._browser_context_frame(context_id, frame_profile=frame_profile)
@@ -1094,7 +1113,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
             try:
                 self._require_access()
                 query = parse_qs(parsed_url.query)
-                snapshots = int(query.get("snapshots", ["120"])[0])
+                snapshots = int(query.get("snapshots", [str(BROWSER_CONTEXT_STREAM_DEFAULT_SNAPSHOTS)])[0])
                 interval = float(query.get("interval", ["1"])[0])
                 if query.get("stream", ["0"])[0] == "1":
                     self._send_browser_context_sse_stream(snapshots=snapshots, interval=interval)
@@ -1146,7 +1165,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     return
                 self._require_access()
                 query = parse_qs(parsed_url.query)
-                snapshots = int(query.get("snapshots", ["120"])[0])
+                snapshots = int(query.get("snapshots", [str(BROWSER_CONTEXT_STREAM_DEFAULT_SNAPSHOTS)])[0])
                 interval = float(query.get("interval", ["1"])[0])
                 self._send_browser_context_websocket_stream(snapshots=snapshots, interval=interval)
             except PermissionError:
@@ -1171,7 +1190,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     self._send_json(HTTPStatus.NOT_FOUND, {"error": "unknown websocket stream"})
                     return
                 query = parse_qs(parsed_url.query)
-                snapshots = int(query.get("snapshots", ["60"])[0])
+                snapshots = int(query.get("snapshots", [str(BROWSER_FRAME_STREAM_DEFAULT_SNAPSHOTS)])[0])
                 interval = float(query.get("interval", ["0.75"])[0])
                 frame_profile = normalize_frame_profile(query.get("profile", [None])[0])
                 self._send_takeover_frame_websocket_stream(
@@ -1206,7 +1225,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     self._send_json(HTTPStatus.NOT_FOUND, {"error": "unknown websocket stream"})
                     return
                 query = parse_qs(parsed_url.query)
-                snapshots = int(query.get("snapshots", ["60"])[0])
+                snapshots = int(query.get("snapshots", [str(BROWSER_FRAME_STREAM_DEFAULT_SNAPSHOTS)])[0])
                 interval = float(query.get("interval", ["0.75"])[0])
                 frame_profile = normalize_frame_profile(query.get("profile", [None])[0])
                 self._send_browser_context_frame_websocket_stream(
