@@ -1952,6 +1952,11 @@ function setStatus(
 ) {
   document.querySelector("#runtime-mode").textContent = message;
   document.querySelector("#runtime-detail").textContent = detail;
+  const runtimeStatusPanel = document.querySelector("#runtime-status");
+  if (runtimeStatusPanel) {
+    runtimeStatusPanel.title = detail ? `${message}: ${detail}` : message;
+    runtimeStatusPanel.setAttribute("aria-label", runtimeStatusPanel.title);
+  }
   const runtimeCommandRow = document.querySelector("#runtime-command-row");
   const runtimeCommand = document.querySelector("#runtime-command");
   const runtimeCopyCommand = document.querySelector("#runtime-copy-command");
