@@ -69,6 +69,18 @@ const I18N = {
     restartBridgeActivated: "Current CLI session sync is active.",
     restartBridgeStillWaiting: "Restart was requested, but the current CLI is still not publishing native bridge heartbeats.",
     restartBridgeFailed: "Restart failed",
+    restartBridgeApprovalRequested: "Sync enablement needs approval",
+    restartBridgeApprovalRequestedDetail: "A high-risk request was created. Review and approve it in Requests to restart the current CLI.",
+    consoleRestartReviewRequired: "Current session sync needs confirmation",
+    consoleRestartReviewRequiredDetail: "Check the restart details before approving.",
+    consoleRestartConfirmText: "I understand this restarts the active Codex TUI in its tmux pane and keeps the same thread.",
+    consoleRestartThread: "Thread",
+    consoleRestartCommand: "Restart command",
+    consoleRestartCurrentState: "Current state",
+    consoleRestartCurrentPid: "Current CLI PID",
+    consoleRestartPane: "tmux pane",
+    consoleRestartNativeSync: "Native sync active",
+    consoleRestartAfterApproval: "After approval",
     legacyTerminalTitle: "Live Linux Console",
     requestsCount: (open, total) => `Requests: ${open} open / ${total} total`,
     requestsTitle: "Open Requests",
@@ -258,6 +270,7 @@ const I18N = {
       fulfilled: "Fulfilled",
       released: "Released",
       approved: "Approved",
+      consumed: "Consumed",
       denied: "Denied",
       expired: "Expired",
       challenge_completed: "Challenge completed"
@@ -267,6 +280,7 @@ const I18N = {
       human_takeover: "Human takeover",
       account_registration: "Account registration",
       payment_approval: "Payment approval",
+      console_restart: "Current session sync",
       two_factor_change: "Two-factor change",
       oauth_approval: "OAuth approval",
       one_time_code: "One-time code",
@@ -348,6 +362,18 @@ const I18N = {
     restartBridgeActivated: "当前 CLI 会话同步已启用。",
     restartBridgeStillWaiting: "已请求重启，但当前 CLI 仍未发布原生桥接心跳。",
     restartBridgeFailed: "重启失败",
+    restartBridgeApprovalRequested: "启用同步需要批准",
+    restartBridgeApprovalRequestedDetail: "已创建高风险请求。请在“请求”里审核并批准，以重启当前 CLI。",
+    consoleRestartReviewRequired: "当前会话同步需要确认",
+    consoleRestartReviewRequiredDetail: "请先检查重启详情再批准。",
+    consoleRestartConfirmText: "我理解这会在当前 tmux pane 中重启活跃 Codex TUI，并保留同一个 thread。",
+    consoleRestartThread: "线程",
+    consoleRestartCommand: "重启命令",
+    consoleRestartCurrentState: "当前状态",
+    consoleRestartCurrentPid: "当前 CLI PID",
+    consoleRestartPane: "tmux pane",
+    consoleRestartNativeSync: "原生同步已启用",
+    consoleRestartAfterApproval: "批准后",
     legacyTerminalTitle: "实时 Linux 控制台",
     requestsCount: (open, total) => `请求：${open} 个待处理 / 共 ${total} 个`,
     requestsTitle: "待处理请求",
@@ -537,6 +563,7 @@ const I18N = {
       fulfilled: "已提交",
       released: "已释放",
       approved: "已批准",
+      consumed: "已执行",
       denied: "已拒绝",
       expired: "已过期",
       challenge_completed: "验证已完成"
@@ -546,6 +573,7 @@ const I18N = {
       human_takeover: "人工接管",
       account_registration: "账号注册",
       payment_approval: "支付授权",
+      console_restart: "当前会话同步",
       two_factor_change: "双重认证变更",
       oauth_approval: "OAuth 授权",
       one_time_code: "一次性验证码",
@@ -1160,7 +1188,7 @@ function formatTimestamp(value) {
 function requestKind(request) {
   if (request.request_type === "credential") return "credential";
   if (request.request_type === "human_takeover" || request.request_type === "account_registration") return "takeover";
-  if (["file_upload", "account_delete", "password_change", "two_factor_change", "message_send"].includes(request.request_type)) return "approval";
+  if (["file_upload", "account_delete", "password_change", "two_factor_change", "message_send", "console_restart"].includes(request.request_type)) return "approval";
   if (request.request_type.endsWith("_approval") || request.request_type.includes("approval")) return "approval";
   return "challenge";
 }
@@ -1456,22 +1484,19 @@ async function restartConsoleBridge() {
     document.querySelector("#runtime-restart-bridge"),
     document.querySelector("#chat-session-restart")
   ].filter(Boolean);
-  const threadId = cachedRuntimeStatus?.chat_runner?.thread_id || "";
-  if (!window.confirm(t("restartBridgeConfirmDetailed", threadId))) return;
   buttons.forEach((button) => {
     button.disabled = true;
   });
   try {
-    const response = await signedFetch("/api/console/restart-bridge", {
+    const response = await signedFetch("/api/console/restart-bridge/request", {
       method: "POST",
       headers: { "content-type": "application/json", ...csrfHeaders() },
-      body: JSON.stringify({ confirm_restart: true })
+      body: "{}"
     });
-    if (!response.ok) throw new Error("restart failed");
-    setStatus(t("restartBridgeStarted"), t("restartBridgeChecking"), "waiting_for_tui_bridge", "", "enableCurrentSessionSync");
-    stopBridgeActivationMonitor();
-    bridgeActivationDeadline = Date.now() + 30000;
-    bridgeActivationMonitor = setTimeout(monitorBridgeActivation, 1200);
+    if (!response.ok) throw new Error("restart request failed");
+    setStatus(t("restartBridgeApprovalRequested"), t("restartBridgeApprovalRequestedDetail"), "waiting_for_tui_bridge", "", "enableCurrentSessionSync");
+    activatePanel("requests-panel");
+    await loadRequests();
   } catch {
     stopBridgeActivationMonitor();
     setStatus(t("restartBridgeFailed"), t("runtimeWaitingForConsoleRestart"), "waiting_for_tui_bridge");
@@ -1923,12 +1948,16 @@ function findCurrentPaymentApproval(requests) {
     || null;
 }
 
-function paymentApprovalConfirmationPayload(request) {
+function explicitApprovalConfirmationPayload(request) {
   return {
     explicit_user_confirmation: true,
     request_id: request.request_id,
     confirmed_at: new Date().toISOString()
   };
+}
+
+function paymentApprovalConfirmationPayload(request) {
+  return explicitApprovalConfirmationPayload(request);
 }
 
 function updatePaymentApprovalButtons() {
@@ -2214,6 +2243,11 @@ async function postAction(request, action, payload = null) {
   const response = await signedFetch(`/api/requests/${request.request_id}/${action}`, options);
   if (!response.ok) {
     setStatus(t("actionFailed"), `${request.request_type} ${action}`);
+  } else if (request.request_type === "console_restart" && action === "approve") {
+    setStatus(t("restartBridgeStarted"), t("restartBridgeChecking"), "waiting_for_tui_bridge", "", "enableCurrentSessionSync");
+    stopBridgeActivationMonitor();
+    bridgeActivationDeadline = Date.now() + 30000;
+    bridgeActivationMonitor = setTimeout(monitorBridgeActivation, 1200);
   }
   await loadRequests();
   return response;
@@ -3394,7 +3428,15 @@ function renderApprovalControls(request, item) {
   const details = request.structured_details || {};
   const detailList = document.createElement("dl");
   detailList.className = "metadata approval-details";
-  [
+  const rows = request.request_type === "console_restart" ? [
+    [t("consoleRestartThread"), details.thread_id],
+    [t("consoleRestartCurrentState"), details.current_state],
+    [t("consoleRestartCurrentPid"), details.active_cli_pid],
+    [t("consoleRestartPane"), details.legacy_pane_id],
+    [t("consoleRestartNativeSync"), details.native_sync_active],
+    [t("consoleRestartCommand"), details.restart_command],
+    [t("consoleRestartAfterApproval"), details.after_approval || request.action_summary]
+  ] : [
     ["Merchant", details.merchant],
     ["Amount", details.amount],
     ["Currency", details.currency],
@@ -3408,7 +3450,8 @@ function renderApprovalControls(request, item) {
     ["Review fingerprint", request.approval_fingerprint],
     ["Agent prepared action", request.action_summary],
     ["After approval", details.after_approval || "Submit only after approval"]
-  ].forEach(([label, value]) => {
+  ];
+  rows.forEach(([label, value]) => {
     const dt = document.createElement("dt");
     dt.textContent = label;
     const dd = document.createElement("dd");
@@ -3418,11 +3461,19 @@ function renderApprovalControls(request, item) {
   item.append(detailList);
   const isActionable = request.status === "pending";
   let confirm = null;
-  if (request.request_type === "payment_approval") {
+  const needsExplicitConfirmation = request.request_type === "payment_approval" || request.request_type === "console_restart";
+  if (needsExplicitConfirmation) {
     const confirmLabel = document.createElement("label");
     confirmLabel.className = "check-row approval-confirm";
-    confirmLabel.innerHTML = '<input type="checkbox" data-payment-confirm> I reviewed merchant, amount, recipient, origin, final button text, and after-approval result.';
-    confirm = confirmLabel.querySelector("[data-payment-confirm]");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.setAttribute(request.request_type === "payment_approval" ? "data-payment-confirm" : "data-approval-confirm", "");
+    confirmLabel.append(checkbox, document.createTextNode(` ${
+      request.request_type === "console_restart"
+        ? t("consoleRestartConfirmText")
+        : "I reviewed merchant, amount, recipient, origin, final button text, and after-approval result."
+    }`));
+    confirm = checkbox;
     confirm.disabled = !isActionable;
     item.append(confirmLabel);
   }
@@ -3434,10 +3485,13 @@ function renderApprovalControls(request, item) {
   if (confirm) confirm.onchange = () => { approve.disabled = !confirm.checked || !isActionable; };
   approve.onclick = () => {
     if (confirm && !confirm.checked) {
-      setStatus(t("paymentReviewRequired"), t("paymentReviewRequiredDetail"));
+      setStatus(
+        t(request.request_type === "console_restart" ? "consoleRestartReviewRequired" : "paymentReviewRequired"),
+        t(request.request_type === "console_restart" ? "consoleRestartReviewRequiredDetail" : "paymentReviewRequiredDetail")
+      );
       return;
     }
-    postAction(request, "approve", confirm ? paymentApprovalConfirmationPayload(request) : null);
+    postAction(request, "approve", confirm ? explicitApprovalConfirmationPayload(request) : null);
   };
   const deny = document.createElement("button");
   deny.textContent = t("deny");

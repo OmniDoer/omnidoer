@@ -36,11 +36,12 @@ REQUEST_TYPES = {
     "file_upload",
     "message_send",
     "account_registration",
+    "console_restart",
 }
 
 EXPIRABLE_STATUSES = {"pending", "user_control", "fulfilled", "approved"}
 TAKEOVER_FRAME_MAX_AGE_SECONDS = 30.0
-COMPLETED_REQUEST_STATUSES = {"fulfilled", "approved", "denied", "released", "challenge_completed"}
+COMPLETED_REQUEST_STATUSES = {"fulfilled", "approved", "consumed", "denied", "released", "challenge_completed"}
 ABORTED_REQUEST_STATUSES = {"denied", "expired", "cancelled", "rejected", "failed"}
 
 

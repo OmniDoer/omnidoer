@@ -569,6 +569,89 @@ class ControlHandler(SimpleHTTPRequestHandler):
             "secret_exposed_to_model": False,
         }
 
+    def _restart_console_bridge(self) -> dict:
+        chat_thread_id = getattr(self.server, "omnidoer_chat_thread_id", None)
+        from omnidoer.omni_control.chat_runner import tui_restart_command
+        from omnidoer.omni_control.tui_legacy_relay import restart_tmux_pane_for_bridge
+
+        result = restart_tmux_pane_for_bridge(
+            chat_thread_id,
+            restart_command=tui_restart_command(chat_thread_id),
+        )
+        AuditLog().append(
+            "control_console_bridge_restart_requested",
+            thread_id=chat_thread_id,
+            pane_id=result.get("pane_id"),
+            status=result.get("status"),
+        )
+        return result
+
+    def _console_restart_request_details(self) -> dict:
+        chat_thread_id = getattr(self.server, "omnidoer_chat_thread_id", None)
+        from omnidoer.omni_control.chat_runner import (
+            active_tui_process_bridge_status,
+            control_chat_sync_diagnostics,
+            live_tui_bridge_active,
+            live_tui_session_active,
+            native_console_bridge_install_status,
+            tui_restart_command,
+        )
+        from omnidoer.omni_control.tui_legacy_relay import legacy_tui_relay_status
+
+        tui_bridge_active = live_tui_bridge_active()
+        tui_session_active = live_tui_session_active(chat_thread_id)
+        legacy_relay = legacy_tui_relay_status(chat_thread_id) if chat_thread_id and not tui_bridge_active else {"active": False}
+        install_status = native_console_bridge_install_status()
+        active_process = active_tui_process_bridge_status(chat_thread_id)
+        diagnostics = control_chat_sync_diagnostics(
+            thread_id=chat_thread_id,
+            tui_bridge_active=tui_bridge_active,
+            tui_session_active=tui_session_active,
+            legacy_relay=legacy_relay,
+            install_status=install_status,
+            active_process_bridge=active_process,
+            detached_thread_resume_allowed=bool(getattr(self.server, "omnidoer_chat_allow_detached_thread_resume", False)),
+        )
+        return {
+            "thread_id": chat_thread_id,
+            "restart_command": tui_restart_command(chat_thread_id),
+            "current_state": diagnostics.get("state"),
+            "native_sync_active": diagnostics.get("native_sync_active"),
+            "current_cli_context_attached": diagnostics.get("current_cli_context_attached"),
+            "requires_restart_for_native_sync": diagnostics.get("requires_restart_for_native_sync"),
+            "active_cli_pid": active_process.get("pid"),
+            "active_cli_binary_reason": active_process.get("reason"),
+            "legacy_transport": legacy_relay.get("transport"),
+            "legacy_pane_id": legacy_relay.get("pane_id"),
+            "after_approval": "Restart the active Codex TUI in its tmux pane, keep the same thread, and load the installed native bridge.",
+        }
+
+    def _create_console_restart_request(self, store: RequestStore, session: ControlSession | None) -> tuple[object, bool]:
+        details = self._console_restart_request_details()
+        chat_thread_id = str(details.get("thread_id") or "")
+        if not chat_thread_id:
+            raise ValueError("chat_thread_not_bound")
+        for existing in store.list():
+            existing_details = existing.structured_details or {}
+            if (
+                existing.request_type == "console_restart"
+                and existing.status == "pending"
+                and existing_details.get("thread_id") == chat_thread_id
+                and self._request_allowed_for_session(existing, session)
+            ):
+                return existing, True
+        request = store.create(
+            "console_restart",
+            origin="omnidoer://control",
+            top_level_url=self.config.public_url,
+            action_summary=f"Enable current session sync for {chat_thread_id}",
+            risk_level="high",
+            ttl_seconds=300,
+            allowed_device_id=session.device_id if session else None,
+            structured_details=details,
+        )
+        return request, False
+
     def _set_session_cookie(self, session_id: str, token: str) -> None:
         secure = "; Secure" if self.config.mode == "cloud_direct" else ""
         self.send_header("set-cookie", f"omnidoer_session={session_id}:{token}; HttpOnly; SameSite=Strict{secure}; Path=/")
@@ -1013,21 +1096,28 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 if body.get("confirm_restart") is not True:
                     self._send_json(HTTPStatus.BAD_REQUEST, {"error": "confirm_restart_required"})
                     return
-                chat_thread_id = getattr(self.server, "omnidoer_chat_thread_id", None)
-                from omnidoer.omni_control.chat_runner import tui_restart_command
-                from omnidoer.omni_control.tui_legacy_relay import restart_tmux_pane_for_bridge
-
-                result = restart_tmux_pane_for_bridge(
-                    chat_thread_id,
-                    restart_command=tui_restart_command(chat_thread_id),
+                self._send_json(HTTPStatus.OK, self._restart_console_bridge())
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
+        if path == "/api/console/restart-bridge/request":
+            try:
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+                return
+            try:
+                request, reused = self._create_console_restart_request(store, session)
+                self._send_json(
+                    HTTPStatus.OK if reused else HTTPStatus.CREATED,
+                    {
+                        "status": "approval_request_reused" if reused else "approval_request_created",
+                        "request": request.to_public_dict(),
+                        "reused": reused,
+                        "secret_exposed_to_model": False,
+                    },
                 )
-                AuditLog().append(
-                    "control_console_bridge_restart_requested",
-                    thread_id=chat_thread_id,
-                    pane_id=result.get("pane_id"),
-                    status=result.get("status"),
-                )
-                self._send_json(HTTPStatus.OK, result)
             except Exception as exc:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
             return
@@ -1347,9 +1437,10 @@ class ControlHandler(SimpleHTTPRequestHandler):
             request_id, action = parts[2], parts[3]
             try:
                 control_request = self._get_request_for_session(store, request_id, session)
+                console_restart_result = None
                 if action == "approve":
                     body = self._read_json()
-                    if control_request.request_type == "payment_approval" and (
+                    if control_request.request_type in {"payment_approval", "console_restart"} and (
                         body.get("explicit_user_confirmation") is not True or body.get("request_id") != request_id
                     ):
                         self._send_json(
@@ -1361,6 +1452,9 @@ class ControlHandler(SimpleHTTPRequestHandler):
                         )
                         return
                     request = store.approve(request_id)
+                    if control_request.request_type == "console_restart":
+                        console_restart_result = self._restart_console_bridge()
+                        request = store.consume_approval(request_id)
                 elif action == "deny":
                     request = store.deny(request_id)
                 elif action == "release":
@@ -1421,7 +1515,10 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 else:
                     self._send_json(HTTPStatus.NOT_FOUND, {"error": "unknown action"})
                     return
-                self._send_json(HTTPStatus.OK, request.to_public_dict())
+                payload = request.to_public_dict()
+                if console_restart_result is not None:
+                    payload["console_restart"] = console_restart_result
+                self._send_json(HTTPStatus.OK, payload)
             except PermissionError:
                 self._send_json(HTTPStatus.FORBIDDEN, {"error": "forbidden"})
             except Exception as exc:

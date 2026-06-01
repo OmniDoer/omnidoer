@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import unittest
 from http.server import ThreadingHTTPServer
@@ -8,6 +9,7 @@ from urllib.error import HTTPError
 from urllib import request as urllib_request
 
 from omnidoer.omni_control.cloud import build_config
+from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.server import ControlHandler
 
 
@@ -166,6 +168,90 @@ class ControlStatusTest(unittest.TestCase):
         finally:
             server.shutdown()
             server.server_close()
+
+    def test_restart_bridge_request_requires_approval_before_respawn(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            config = build_config(host="127.0.0.1", port=8787)
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_config = config  # type: ignore[attr-defined]
+            server.omnidoer_chat_thread_id = "thread_active"  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                with patch("omnidoer.omni_control.chat_runner.live_tui_bridge_active", return_value=False), patch(
+                    "omnidoer.omni_control.chat_runner.native_console_bridge_install_status",
+                    return_value={"ready": True, "reason": "ready"},
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.active_tui_process_bridge_status",
+                    return_value={"active": True, "pid": 1234, "reason": "running_binary_deleted"},
+                ), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.legacy_tui_relay_status",
+                    return_value={"active": True, "transport": "tmux", "pane_id": "%1"},
+                ):
+                    create = urllib_request.Request(
+                        f"http://127.0.0.1:{server.server_address[1]}/api/console/restart-bridge/request",
+                        data=b"{}",
+                        headers={"content-type": "application/json"},
+                        method="POST",
+                    )
+                    with urllib_request.urlopen(create, timeout=5) as response:
+                        created = json.loads(response.read().decode())
+                self.assertEqual(created["status"], "approval_request_created")
+                approval = created["request"]
+                self.assertEqual(approval["request_type"], "console_restart")
+                self.assertEqual(approval["status"], "pending")
+                self.assertEqual(approval["structured_details"]["thread_id"], "thread_active")
+                self.assertEqual(approval["structured_details"]["legacy_pane_id"], "%1")
+
+                approve_url = f"http://127.0.0.1:{server.server_address[1]}/api/requests/{approval['request_id']}/approve"
+                with self.assertRaises(HTTPError) as missing_confirmation:
+                    urllib_request.urlopen(
+                        urllib_request.Request(
+                            approve_url,
+                            data=b"{}",
+                            headers={"content-type": "application/json"},
+                            method="POST",
+                        ),
+                        timeout=5,
+                    )
+                self.assertEqual(missing_confirmation.exception.code, 400)
+                self.assertEqual(RequestStore().get(approval["request_id"]).status, "pending")
+
+                with patch(
+                    "omnidoer.omni_control.tui_legacy_relay.restart_tmux_pane_for_bridge",
+                    return_value={
+                        "status": "restart_started",
+                        "pane_id": "%1",
+                        "thread_id": "thread_active",
+                        "command": "omnidoer console resume thread_active",
+                        "secret_exposed_to_model": False,
+                    },
+                ) as restart:
+                    approve = urllib_request.Request(
+                        approve_url,
+                        data=json.dumps(
+                            {
+                                "explicit_user_confirmation": True,
+                                "request_id": approval["request_id"],
+                            }
+                        ).encode(),
+                        headers={"content-type": "application/json"},
+                        method="POST",
+                    )
+                    with urllib_request.urlopen(approve, timeout=5) as response:
+                        approved = json.loads(response.read().decode())
+                self.assertEqual(approved["status"], "consumed")
+                self.assertEqual(approved["console_restart"]["status"], "restart_started")
+                restart.assert_called_once_with("thread_active", restart_command="omnidoer console resume thread_active")
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
 
 
 if __name__ == "__main__":
