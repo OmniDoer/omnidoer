@@ -24,7 +24,12 @@ def get_browser() -> BrowserController:
     return _browser
 
 
-def publish_browser_state(*, browser: object | None = None, browser_context_id: str = "mcp-browser") -> bool:
+def publish_browser_state(
+    *,
+    browser: object | None = None,
+    browser_context_id: str = "mcp-browser",
+    force_preview_frame: bool = False,
+) -> bool:
     """Publish MCP browser state from the browser owner thread."""
 
     global _browser_relay_last_preview_frame_at
@@ -38,6 +43,7 @@ def publish_browser_state(*, browser: object | None = None, browser_context_id: 
             browser_context_id,
             controller,
             last_preview_frame_at=_browser_relay_last_preview_frame_at,
+            force_preview_frame=force_preview_frame,
         )
         return True
     except Exception:

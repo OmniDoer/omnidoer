@@ -207,7 +207,13 @@ def consume_input_events(browser_context_id: str) -> list[dict[str, Any]]:
     return events
 
 
-def publish_browser_relay_tick(browser_context_id: str, browser_controller: object, *, last_preview_frame_at: float = 0.0) -> float:
+def publish_browser_relay_tick(
+    browser_context_id: str,
+    browser_controller: object,
+    *,
+    last_preview_frame_at: float = 0.0,
+    force_preview_frame: bool = False,
+) -> float:
     """Publish one browser status/frame/input relay tick.
 
     Call this from the thread that owns browser_controller when the browser
@@ -230,7 +236,7 @@ def publish_browser_relay_tick(browser_context_id: str, browser_controller: obje
     if active_requests:
         write_frame(browser_context_id, browser_controller.takeover_frame(frame_profile="balanced"))
         last_preview_frame_at = time.time()
-    elif time.time() - last_preview_frame_at >= PREVIEW_FRAME_INTERVAL_SECONDS:
+    elif force_preview_frame or time.time() - last_preview_frame_at >= PREVIEW_FRAME_INTERVAL_SECONDS:
         write_frame(browser_context_id, browser_controller.takeover_frame(frame_profile="data_saver"))
         last_preview_frame_at = time.time()
     cleanup_input_event_results(browser_context_id)

@@ -406,6 +406,15 @@ def _takeover_wait_requested(arguments: dict) -> bool:
     return any(bool(arguments.get(name)) for name in ("wait", "wait_for_release", "wait_for_user", "block_until_released"))
 
 
+def _publish_browser_state_for_control_client(publish_state=None) -> None:
+    if publish_state is None:
+        return
+    try:
+        publish_state()
+    except Exception:
+        pass
+
+
 def _active_browser_takeover(browser_context_id: str):
     from omnidoer.omni_control.requests import RequestStore
 
@@ -530,7 +539,9 @@ def _auto_takeover_after_browser_action(
         wait_for_load_state = getattr(browser, "wait_for_load_state", None)
         if callable(wait_for_load_state):
             try:
+                _publish_browser_state_for_control_client(publish_state)
                 wait_for_load_state()
+                _publish_browser_state_for_control_client(publish_state)
             except Exception:
                 pass
     challenge_type = None
@@ -548,6 +559,7 @@ def _auto_takeover_after_browser_action(
         return result
 
     reason = f"{challenge_type} requires user takeover" if challenge_type else "anti-bot page requires human takeover"
+    _publish_browser_state_for_control_client(publish_state)
     request, created = _ensure_browser_takeover_request(
         browser,
         reason=reason,
@@ -611,14 +623,25 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
             from omnidoer.omni_mcp.runtime import get_browser, publish_browser_state
 
             browser = get_browser()
+
+            def publish_for_control_client() -> None:
+                publish_browser_state(browser=browser, force_preview_frame=True)
+
             def done(payload):
-                publish_browser_state(browser=browser)
+                publish_for_control_client()
                 return payload
+
+            def run_browser_action(action):
+                publish_for_control_client()
+                try:
+                    return action()
+                finally:
+                    publish_for_control_client()
 
             if name not in {"browser.detect_challenge", "browser.detect_antibot"}:
                 paused = _pause_for_user_takeover_if_needed(
                     arguments,
-                    publish_state=lambda: publish_browser_state(browser=browser),
+                    publish_state=publish_for_control_client,
                 )
                 if paused is not None:
                     return done(paused)
@@ -626,14 +649,14 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
                 url = arguments.get("url")
                 if not url:
                     return done(_error("error", "url required"))
-                result = browser.open(str(url))
+                result = run_browser_action(lambda: browser.open(str(url)))
                 return done(
                     _auto_takeover_after_browser_action(
                         arguments,
                         browser=browser,
                         action="browser.open",
                         result=result,
-                        publish_state=lambda: publish_browser_state(browser=browser),
+                        publish_state=publish_for_control_client,
                     )
                 )
             if name == "browser.observe":
@@ -647,14 +670,14 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
                 approval = _sensitive_click_allowed(arguments, browser=browser, selector=str(selector))
                 if approval is not None:
                     return done(approval)
-                result = browser.click(str(selector))
+                result = run_browser_action(lambda: browser.click(str(selector)))
                 return done(
                     _auto_takeover_after_browser_action(
                         arguments,
                         browser=browser,
                         action="browser.click",
                         result=result,
-                        publish_state=lambda: publish_browser_state(browser=browser),
+                        publish_state=publish_for_control_client,
                     )
                 )
             if name == "browser.type_text":
@@ -666,14 +689,14 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
                     return done(_error("error", "selector required"))
                 if text is None:
                     return done(_error("error", "text required"))
-                result = browser.type_text(str(selector), str(text))
+                result = run_browser_action(lambda: browser.type_text(str(selector), str(text)))
                 return done(
                     _auto_takeover_after_browser_action(
                         arguments,
                         browser=browser,
                         action="browser.type_text",
                         result=result,
-                        publish_state=lambda: publish_browser_state(browser=browser),
+                        publish_state=publish_for_control_client,
                     )
                 )
             if name == "browser.select":
@@ -683,14 +706,14 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
                     return done(_error("error", "selector required"))
                 if value is None:
                     return done(_error("error", "value required"))
-                result = browser.select(str(selector), str(value))
+                result = run_browser_action(lambda: browser.select(str(selector), str(value)))
                 return done(
                     _auto_takeover_after_browser_action(
                         arguments,
                         browser=browser,
                         action="browser.select",
                         result=result,
-                        publish_state=lambda: publish_browser_state(browser=browser),
+                        publish_state=publish_for_control_client,
                     )
                 )
             if name == "browser.upload_file":
@@ -709,19 +732,19 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
                 )
                 if approval is not None:
                     return done(approval)
-                result = browser.upload_file(str(selector), str(file_path))
+                result = run_browser_action(lambda: browser.upload_file(str(selector), str(file_path)))
                 return done(
                     _auto_takeover_after_browser_action(
                         arguments,
                         browser=browser,
                         action="browser.upload_file",
                         result=result,
-                        publish_state=lambda: publish_browser_state(browser=browser),
+                        publish_state=publish_for_control_client,
                     )
                 )
             if name == "browser.download_current_file":
                 selector = str(arguments.get("selector") or arguments.get("selector_or_description") or "a[download]")
-                path = browser.download_current_file(selector=selector, output_dir=arguments.get("output_dir"))
+                path = run_browser_action(lambda: browser.download_current_file(selector=selector, output_dir=arguments.get("output_dir")))
                 return done({"status": "downloaded", "path": str(path), "secret_exposed_to_model": False})
             if name == "browser.current_origin":
                 return done({"status": "ok", "origin": browser.current_origin(), "url": browser.current_url(), "secret_exposed_to_model": False})
@@ -738,7 +761,7 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
                         waited = _wait_for_takeover_release_result(
                             arguments,
                             request=request,
-                            publish_state=lambda: publish_browser_state(browser=browser),
+                            publish_state=publish_for_control_client,
                         )
                         return done({**waited, "challenge_type": challenge_type, "takeover_created": created, "reused": bool(request and not created)})
                 return done({
@@ -766,7 +789,7 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
                         waited = _wait_for_takeover_release_result(
                             arguments,
                             request=request,
-                            publish_state=lambda: publish_browser_state(browser=browser),
+                            publish_state=publish_for_control_client,
                         )
                         return done({**waited, "antibot_detected": detected, "takeover_created": created, "reused": bool(request and not created)})
                 return done({

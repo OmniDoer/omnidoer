@@ -160,6 +160,7 @@ class McpToolsTest(unittest.TestCase):
         class FakeBrowser:
             def __init__(self):
                 self.events = []
+                self.frames = []
 
             def current_origin(self):
                 return "https://example.com"
@@ -168,6 +169,7 @@ class McpToolsTest(unittest.TestCase):
                 return "https://example.com/takeover"
 
             def takeover_frame(self, *, frame_profile=None):
+                self.frames.append(frame_profile)
                 return {
                     "frame_id": f"mcp_{frame_profile}",
                     "captured_at": time.time(),
@@ -215,7 +217,8 @@ class McpToolsTest(unittest.TestCase):
                 frame = read_frame("mcp-browser", max_age_seconds=10)
                 self.assertIsNotNone(frame)
                 assert frame is not None
-                self.assertEqual(frame["frame_id"], "mcp_balanced")
+                self.assertIn("balanced", browser.frames)
+                self.assertIn(frame["frame_id"], {"mcp_balanced", "mcp_data_saver"})
                 self.assertNotIn("not logged", repr(result))
             finally:
                 if old_home is None:
@@ -292,6 +295,66 @@ class McpToolsTest(unittest.TestCase):
                 self.assertFalse(result["reused"])
                 self.assertEqual(result["request"]["request_type"], "human_takeover")
                 self.assertEqual(result["request"]["browser_context_id"], "mcp-browser")
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_browser_open_publishes_preview_before_and_after_action(self) -> None:
+        class FakeBrowser:
+            def __init__(self):
+                self.url = "https://example.com/start"
+                self.frames = []
+
+            def open(self, url):
+                self.url = url
+                return {"status": "opened", "url": url, "secret_exposed_to_model": False}
+
+            def current_origin(self):
+                return "https://example.com"
+
+            def current_url(self):
+                return self.url
+
+            def detect_challenge(self):
+                return None
+
+            def detect_antibot(self):
+                return False
+
+            def takeover_frame(self, *, frame_profile=None):
+                self.frames.append((frame_profile, self.url))
+                return {
+                    "frame_id": f"frame_{len(self.frames)}",
+                    "captured_at": time.time(),
+                    "url": self.current_url(),
+                    "origin": self.current_origin(),
+                    "viewport": {"width": 320, "height": 240},
+                    "content_type": "image/jpeg",
+                    "data_b64": "abcd",
+                    "transport": {"profile": frame_profile},
+                    "for_control_client_only": True,
+                    "not_for_llm": True,
+                }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                from omnidoer.omni_takeover.cross_process import read_frame
+
+                browser = FakeBrowser()
+                with patch("omnidoer.omni_mcp.runtime.get_browser", return_value=browser):
+                    result = call_tool("browser.open", {"url": "https://example.com/after"})
+                self.assertEqual(result["status"], "opened")
+                self.assertEqual(browser.frames[0], ("data_saver", "https://example.com/start"))
+                self.assertEqual(browser.frames[-1], ("data_saver", "https://example.com/after"))
+                frame = read_frame("mcp-browser", max_age_seconds=10)
+                self.assertIsNotNone(frame)
+                assert frame is not None
+                self.assertEqual(frame["url"], "https://example.com/after")
+                self.assertNotIn("abcd", repr(result))
             finally:
                 if old_home is None:
                     os.environ.pop("OMNIDOER_HOME", None)

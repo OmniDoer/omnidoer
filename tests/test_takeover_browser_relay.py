@@ -381,6 +381,63 @@ class TakeoverBrowserRelayTest(unittest.TestCase):
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
 
+    def test_publish_browser_relay_tick_can_force_preview_frames(self) -> None:
+        class FakeBrowser:
+            def __init__(self):
+                self.frames = []
+
+            def current_url(self):
+                return "https://example.com/preview"
+
+            def current_origin(self):
+                return "https://example.com"
+
+            def takeover_frame(self, *, frame_profile=None):
+                self.frames.append(frame_profile)
+                return {
+                    "frame_id": f"preview_{len(self.frames)}",
+                    "captured_at": 2000000000.0,
+                    "url": "https://example.com/preview",
+                    "origin": "https://example.com",
+                    "viewport": {"width": 320, "height": 240},
+                    "content_type": "image/jpeg",
+                    "data_b64": "abcd",
+                    "transport": {"profile": frame_profile},
+                    "for_control_client_only": True,
+                    "not_for_llm": True,
+                }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                from omnidoer.omni_takeover.cross_process import publish_browser_relay_tick
+
+                browser = FakeBrowser()
+                last_preview = publish_browser_relay_tick("preview-browser", browser)
+                last_preview = publish_browser_relay_tick(
+                    "preview-browser",
+                    browser,
+                    last_preview_frame_at=last_preview,
+                )
+                publish_browser_relay_tick(
+                    "preview-browser",
+                    browser,
+                    last_preview_frame_at=last_preview,
+                    force_preview_frame=True,
+                )
+
+                self.assertEqual(browser.frames, ["data_saver", "data_saver"])
+                frame = read_frame("preview-browser", max_age_seconds=10)
+                self.assertIsNotNone(frame)
+                assert frame is not None
+                self.assertEqual(frame["frame_id"], "preview_2")
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     def test_browser_frame_and_input_event_relay(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, DemoServerFixture() as demo:
             old_home = os.environ.get("OMNIDOER_HOME")
