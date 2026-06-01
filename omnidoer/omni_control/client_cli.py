@@ -146,6 +146,50 @@ def handle_control_command(args) -> int:
         )
         print(json.dumps(security_status(config), indent=2, sort_keys=True))
         return 0
+    if command == "sync-status":
+        from omnidoer.omni_control.chat_runner import (
+            active_tui_process_bridge_status,
+            control_chat_sync_diagnostics,
+            live_tui_bridge_active,
+            live_tui_session_active,
+            native_console_bridge_install_status,
+            tui_bridge_heartbeat_age_seconds,
+            tui_restart_command,
+        )
+        from omnidoer.omni_control.tui_legacy_relay import legacy_tui_relay_status
+
+        thread_id = args.thread_id or os.environ.get("OMNIDOER_CHAT_THREAD_ID")
+        tui_bridge_active = live_tui_bridge_active()
+        tui_session_active = live_tui_session_active(thread_id)
+        legacy_relay = legacy_tui_relay_status(thread_id) if thread_id and not tui_bridge_active else {"active": False}
+        install_status = native_console_bridge_install_status(args.codex_bin)
+        active_process_bridge = active_tui_process_bridge_status(thread_id, codex_bin=args.codex_bin)
+        diagnostics = control_chat_sync_diagnostics(
+            thread_id=thread_id,
+            tui_bridge_active=tui_bridge_active,
+            tui_session_active=tui_session_active,
+            install_status=install_status,
+            legacy_relay=legacy_relay,
+            active_process_bridge=active_process_bridge,
+            bridge_heartbeat_age_seconds=tui_bridge_heartbeat_age_seconds(),
+        )
+        print(
+            json.dumps(
+                {
+                    "thread_id": thread_id,
+                    "tui_bridge_active": tui_bridge_active,
+                    "tui_session_active": tui_session_active,
+                    "restart_command": tui_restart_command(thread_id) if diagnostics["requires_restart_for_native_sync"] else None,
+                    "native_console_bridge": install_status,
+                    "active_tui_process_bridge": active_process_bridge,
+                    "legacy_tui_relay": legacy_relay,
+                    "sync_diagnostics": diagnostics,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
     if command == "wait-request":
         print("waiting_for_control_client=true", flush=True)
         request = wait_for_request_completion(

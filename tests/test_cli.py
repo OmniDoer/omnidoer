@@ -327,6 +327,37 @@ class CliTest(unittest.TestCase):
             self.assertEqual(store.list()[1].status, "completed")
             self.assertTrue(any(item.record_type == "tool_call" for item in store.list_records()))
 
+    def test_control_sync_status_reports_native_bridge_activation_action(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fake_codex = Path(tmp) / "codex"
+            fake_codex.write_bytes(
+                b"control_chat_bridge_heartbeat chat-log-user "
+                b"failed to publish OmniDoer user chat message"
+            )
+            fake_codex.chmod(fake_codex.stat().st_mode | stat.S_IXUSR)
+
+            result = self.run_cli(
+                [
+                    "control",
+                    "sync-status",
+                    "--thread-id",
+                    "thread_missing",
+                    "--codex-bin",
+                    str(fake_codex),
+                ],
+                env={"OMNIDOER_HOME": tmp},
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["thread_id"], "thread_missing")
+            diagnostics = payload["sync_diagnostics"]
+            self.assertEqual(diagnostics["state"], "bound_thread_without_live_cli")
+            self.assertEqual(diagnostics["activation_action"], "manual_resume_console")
+            self.assertTrue(diagnostics["manual_resume_available"])
+            self.assertFalse(diagnostics["restart_current_console_available"])
+            self.assertEqual(payload["restart_command"], "omnidoer console resume thread_missing")
+
     def test_cred_request_can_be_saved_to_vault_without_echoing_secret(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             vault_path = Path(tmp) / "vault.json"
