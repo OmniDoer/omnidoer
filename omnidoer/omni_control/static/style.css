@@ -778,6 +778,25 @@ button:disabled {
   flex: 0 0 54px;
   min-width: 54px;
 }
+.takeover-text-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto auto;
+  gap: 8px;
+  align-items: end;
+  margin: 10px 0;
+}
+.takeover-text-row label {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.takeover-text-row input {
+  min-width: 0;
+}
+.takeover-text-row button {
+  min-width: 96px;
+}
 .takeover-metadata {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -818,6 +837,12 @@ button:disabled {
   .app-header img { width: 42px; height: 42px; }
   .language-control select { min-height: 36px; padding: 7px 28px 7px 9px; }
   .status-strip, .panel-heading, .request-header { display: block; }
+  .takeover-text-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .takeover-text-row input {
+    grid-column: 1 / -1;
+  }
   .status-strip {
     padding: 9px 10px;
     font-size: 0.88rem;

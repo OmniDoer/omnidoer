@@ -14,7 +14,7 @@ const I18N = {
     checkingRuntime: "Checking runtime...",
     runtimeModeCloudDirect: (mode) => `Control Service: ${mode}`,
     runtimeModeAttached: "Current CLI synced",
-    runtimeModeLegacyRelay: "Server paired; current CLI is temporary relay",
+    runtimeModeLegacyRelay: "Server paired; current session not natively synced",
     runtimeModeServerOnly: "Server paired; current CLI not attached",
     runtimeModeBackground: "Background runner",
     runtimeModeOffline: "Control Service offline",
@@ -22,7 +22,7 @@ const I18N = {
     runtimeOffline: "Runtime offline",
     runtimeOfflineDetail: "Start omnidoer control serve.",
     runtimeBridgeActive: "Live Linux console bridge is active; messages sync with the current TUI.",
-    runtimeLegacyRelayActive: "Temporary terminal relay is active; messages are pasted into the current console. Pairing alone only authenticates this browser. Restart for native session sync:",
+    runtimeLegacyRelayActive: "Pairing only authenticates this browser to the server. Temporary terminal relay can paste messages into the visible console, but full current-session context sync needs restart:",
     runtimeLegacyRelayPause: "Pause sends Ctrl-C to the current console before delivering your instruction.",
     runtimeNativeBridgeReady: "Full structured bridge is installed; restart will switch this session to native sync.",
     runtimeActiveConsoleNeedsBinaryRestart: "The active console is still running an older Codex binary. Restart keeps this thread but loads the installed native bridge.",
@@ -33,8 +33,8 @@ const I18N = {
     chatSessionCheckingDetail: "Pairing authenticates this browser; session sync also needs a live CLI bridge.",
     chatSessionAttachedTitle: "Current CLI session attached",
     chatSessionAttachedDetail: "Phone messages and streamed output are synced with the active Linux TUI.",
-    chatSessionLegacyTitle: "Temporary terminal relay",
-    chatSessionLegacyDetail: "Messages go through a temporary tmux paste into the current console. Native context memory and structured streaming need a bridge restart.",
+    chatSessionLegacyTitle: "Server paired; current session not synced",
+    chatSessionLegacyDetail: "This browser is authenticated to the server. Until current-session sync is enabled, messages are only temporary tmux paste into the visible console, not a native client for this conversation.",
     chatSessionServerOnlyTitle: "Paired to server only",
     chatSessionServerOnlyDetail: "This browser is authenticated, but the current CLI session is not attached yet. Restart the bridge before using this as the same conversation.",
     chatSessionBackgroundTitle: "Background runner",
@@ -42,18 +42,19 @@ const I18N = {
     chatSessionOfflineTitle: "Control Service offline",
     chatSessionOfflineDetail: "Reconnect to the Control Service before sending messages.",
     chatSyncDiagnosticNative: "Diagnostic: native two-way sync is active.",
-    chatSyncDiagnosticLegacy: "Diagnostic: paired to the server and current console is reachable through temporary terminal relay; native structured sync still requires restart.",
+    chatSyncDiagnosticLegacy: "Diagnostic: server pairing is active, but full context memory and structured streaming are not attached.",
     chatSyncDiagnosticStaleBinary: "Diagnostic: this is the current console, but its running binary lacks the native bridge. Restart is required for structured two-way sync.",
     chatSyncDiagnosticWaiting: "Diagnostic: paired to this server, but the current CLI conversation is not attached yet.",
     chatSyncDiagnosticBackground: "Diagnostic: using background runner, not a live CLI conversation.",
     sendToCurrentCli: "Send to current CLI",
-    sendToCurrentConsole: "Send to console",
+    sendToCurrentConsole: "Paste to CLI",
     sendToBackgroundRunner: "Send to background",
     sendUnavailable: "Restart bridge first",
+    chatPlaceholderLegacy: "Temporary paste only; enable current session sync for shared context",
     chatPlaceholderUnavailable: "Restart the bridge before sending into this conversation",
     chatSendBlocked: "Chat not attached",
-    chatDeliveredToConsole: "Sent to current Linux console",
-    chatDeliveredToConsoleDetail: "Temporary terminal relay delivered this message into the active TUI.",
+    chatDeliveredToConsole: "Pasted to Linux console",
+    chatDeliveredToConsoleDetail: "Temporary terminal relay pasted this message into the active TUI; this is not native session sync.",
     chatQueuedForBridge: "Message queued for console bridge",
     chatQueuedForBridgeDetail: "The Control Service accepted the message; it will deliver when the bridge is ready.",
     copyCommand: "Copy command",
@@ -292,7 +293,7 @@ const I18N = {
     checkingRuntime: "正在检查运行状态...",
     runtimeModeCloudDirect: (mode) => `控制服务：${mode}`,
     runtimeModeAttached: "当前 CLI 已同步",
-    runtimeModeLegacyRelay: "已配对服务器；当前 CLI 仍是临时 relay",
+    runtimeModeLegacyRelay: "已配对服务器；当前会话未原生同步",
     runtimeModeServerOnly: "已配对服务器；当前 CLI 尚未接入",
     runtimeModeBackground: "后台 runner",
     runtimeModeOffline: "控制服务离线",
@@ -300,7 +301,7 @@ const I18N = {
     runtimeOffline: "运行服务离线",
     runtimeOfflineDetail: "请启动 omnidoer control serve。",
     runtimeBridgeActive: "Linux 控制台实时桥接已启用；消息会同步到当前 TUI。",
-    runtimeLegacyRelayActive: "临时终端 relay 已启用；消息会通过 tmux 粘贴到当前 console。配对本身只认证这个浏览器；要原生接入当前会话请重启：",
+    runtimeLegacyRelayActive: "配对只代表此浏览器已认证到服务器。临时终端 relay 可把消息粘贴到可见 console，但完整当前会话上下文同步需要重启：",
     runtimeLegacyRelayPause: "点击暂停会先向当前 console 发送 Ctrl-C，再投递你的指令。",
     runtimeNativeBridgeReady: "完整结构化桥接已经安装；重启后会切换到原生同步。",
     runtimeActiveConsoleNeedsBinaryRestart: "当前 console 仍在运行旧的 Codex 二进制。重启会保留这个 thread，并加载已安装的原生桥接。",
@@ -311,8 +312,8 @@ const I18N = {
     chatSessionCheckingDetail: "配对只代表此浏览器已认证；要同步当前会话还需要实时 CLI 桥接。",
     chatSessionAttachedTitle: "已接入当前 CLI 会话",
     chatSessionAttachedDetail: "手机消息和流式输出会同步到活跃 Linux TUI。",
-    chatSessionLegacyTitle: "临时终端 relay",
-    chatSessionLegacyDetail: "消息会通过临时 tmux 粘贴进入当前 console。原生上下文记忆和结构化流式记录需要重启桥接。",
+    chatSessionLegacyTitle: "已配对服务器；当前会话未同步",
+    chatSessionLegacyDetail: "此浏览器只是认证到了服务器。启用当前会话同步前，消息只能临时通过 tmux 粘贴进可见 console，它还不是这段对话的原生客户端。",
     chatSessionServerOnlyTitle: "仅配对到服务器",
     chatSessionServerOnlyDetail: "此浏览器已认证，但当前 CLI 会话尚未接入。把它当作同一段对话使用前，请先重启桥接。",
     chatSessionBackgroundTitle: "后台 runner",
@@ -320,18 +321,19 @@ const I18N = {
     chatSessionOfflineTitle: "Control Service 离线",
     chatSessionOfflineDetail: "重新连接到 Control Service 后才能发送消息。",
     chatSyncDiagnosticNative: "诊断：原生双向同步已启用。",
-    chatSyncDiagnosticLegacy: "诊断：已配对到服务器，当前 console 可通过临时终端 relay 访问；原生结构化同步仍需重启桥接。",
+    chatSyncDiagnosticLegacy: "诊断：服务器配对已生效，但完整上下文记忆和结构化流式输出尚未接入。",
     chatSyncDiagnosticStaleBinary: "诊断：这是当前 console，但正在运行的二进制缺少原生桥接。结构化双向同步必须重启后才能启用。",
     chatSyncDiagnosticWaiting: "诊断：已配对到这台服务器，但当前 CLI 对话尚未接入。",
     chatSyncDiagnosticBackground: "诊断：正在使用后台 runner，不是实时 CLI 对话。",
     sendToCurrentCli: "发送到当前 CLI",
-    sendToCurrentConsole: "发送到当前 console",
+    sendToCurrentConsole: "临时粘贴到 CLI",
     sendToBackgroundRunner: "发送到后台",
     sendUnavailable: "请先重启桥接",
+    chatPlaceholderLegacy: "仅临时粘贴；启用当前会话同步后才共享上下文",
     chatPlaceholderUnavailable: "请先重启桥接，再发送到这段对话",
     chatSendBlocked: "对话尚未接入",
-    chatDeliveredToConsole: "已发送到当前 Linux console",
-    chatDeliveredToConsoleDetail: "临时终端 relay 已把这条消息投递到活跃 TUI。",
+    chatDeliveredToConsole: "已临时粘贴到 Linux console",
+    chatDeliveredToConsoleDetail: "临时终端 relay 已把这条消息粘贴进活跃 TUI；这还不是原生会话同步。",
     chatQueuedForBridge: "消息已进入 console 桥接队列",
     chatQueuedForBridgeDetail: "Control Service 已接收消息；bridge 就绪后会继续投递。",
     copyCommand: "复制命令",
@@ -713,6 +715,11 @@ function applyLanguage() {
   setButtonText("#release-active-takeover", "releaseControl");
   setButtonText("#refresh-takeover-frame", "refreshFrame");
   setButtonText("#zoom-reset-takeover-frame", "zoomReset");
+  setNodeText("#active-takeover-text-label", "takeoverTextLabel");
+  const activeTakeoverText = document.querySelector("#active-takeover-text");
+  if (activeTakeoverText) activeTakeoverText.placeholder = t("takeoverTextPlaceholder");
+  setButtonText("#send-active-takeover-text", "sendText");
+  setButtonText("#send-active-takeover-enter", "sendEnter");
   const zoomOut = document.querySelector("#zoom-out-takeover-frame");
   if (zoomOut) {
     zoomOut.title = t("zoomOut");
@@ -968,6 +975,26 @@ if (chatSessionRestartButton) {
 const releaseActiveTakeoverButton = document.querySelector("#release-active-takeover");
 if (releaseActiveTakeoverButton) {
   releaseActiveTakeoverButton.onclick = () => releaseActiveTakeover();
+}
+
+const activeTakeoverTextInput = document.querySelector("#active-takeover-text");
+if (activeTakeoverTextInput) {
+  activeTakeoverTextInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      sendActiveTakeoverText();
+    }
+  });
+}
+
+const sendActiveTakeoverTextButton = document.querySelector("#send-active-takeover-text");
+if (sendActiveTakeoverTextButton) {
+  sendActiveTakeoverTextButton.onclick = () => sendActiveTakeoverText();
+}
+
+const sendActiveTakeoverEnterButton = document.querySelector("#send-active-takeover-enter");
+if (sendActiveTakeoverEnterButton) {
+  sendActiveTakeoverEnterButton.onclick = () => sendActiveTakeoverEnter();
 }
 
 const zoomOutTakeoverFrameButton = document.querySelector("#zoom-out-takeover-frame");
@@ -1324,7 +1351,7 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
     titleKey = legacyRelay.active ? "chatSessionLegacyTitle" : "chatSessionServerOnlyTitle";
     detailKey = legacyRelay.active ? "chatSessionLegacyDetail" : "chatSessionServerOnlyDetail";
     sendKey = legacyRelay.active ? "sendToCurrentConsole" : "sendUnavailable";
-    placeholderKey = legacyRelay.active ? "chatPlaceholder" : "chatPlaceholderUnavailable";
+    placeholderKey = legacyRelay.active ? "chatPlaceholderLegacy" : "chatPlaceholderUnavailable";
     canSend = Boolean(legacyRelay.active);
     canRestart = runnerCanRestartCurrentConsole(runner);
     diagnosticKey = staleActiveBinary
@@ -1592,6 +1619,16 @@ function updateTakeoverZoomControls() {
   }
 }
 
+function updateActiveTakeoverTextControls() {
+  const disabled = !takeoverIsActive() || agentControlBusy;
+  const input = document.querySelector("#active-takeover-text");
+  const sendText = document.querySelector("#send-active-takeover-text");
+  const sendEnter = document.querySelector("#send-active-takeover-enter");
+  if (input) input.disabled = disabled;
+  if (sendText) sendText.disabled = disabled;
+  if (sendEnter) sendEnter.disabled = disabled;
+}
+
 function applyTakeoverFrameZoom(stream = document.querySelector("#browser-stream")) {
   const image = stream?.querySelector("#takeover-frame") || document.querySelector("#takeover-frame");
   const zoomPercent = Math.round(takeoverFrameZoom * 100);
@@ -1646,6 +1683,7 @@ function updateTakeoverPanel(request, frame = null, message = null) {
   updateAgentControlButtons();
   if (refresh) refresh.disabled = !isActive;
   if (release) release.disabled = !isActive || agentControlBusy;
+  updateActiveTakeoverTextControls();
   updateTakeoverZoomControls();
 }
 
@@ -2297,6 +2335,7 @@ function updateAgentControlButtons() {
   if (handoffPause) handoffPause.disabled = agentControlBusy || isActive;
   const handoffContinue = document.querySelector("#browser-handoff-continue");
   if (handoffContinue) handoffContinue.disabled = agentControlBusy || !isActive;
+  updateActiveTakeoverTextControls();
 }
 
 function setPauseButtonsDisabled(disabled) {
@@ -2722,6 +2761,21 @@ async function sendTakeoverInput(request, eventPayload) {
     scheduleTakeoverFrameRefresh(request, TAKEOVER_FRAME_AFTER_INPUT_MS);
     return false;
   }
+}
+
+async function sendActiveTakeoverText() {
+  const request = activeTakeoverRequest();
+  const input = document.querySelector("#active-takeover-text");
+  const text = input?.value || "";
+  if (!request || !text) return;
+  const delivered = await sendTakeoverInput(request, { event_type: "type", text });
+  if (delivered && input) input.value = "";
+}
+
+async function sendActiveTakeoverEnter() {
+  const request = activeTakeoverRequest();
+  if (!request) return;
+  await sendTakeoverInput(request, { event_type: "key", key: "Enter" });
 }
 
 function framePoint(event, image) {

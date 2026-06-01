@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icon-192.png">
-  <link rel="stylesheet" href="/style.css?v=20260531-live-console-delivery">
+  <link rel="stylesheet" href="/style.css?v=20260531-session-sync-clarity">
   <title>OmniDoer Control Client</title>
 </head>
 <body>
@@ -137,6 +137,12 @@
         <button id="pan-takeover-frame" type="button" aria-pressed="false" disabled>Pan View</button>
         <button id="release-active-takeover" type="button" disabled>Continue Agent</button>
       </div>
+      <div class="takeover-text-row">
+        <label id="active-takeover-text-label-wrap" for="active-takeover-text"><span id="active-takeover-text-label">Text to controlled browser</span></label>
+        <input id="active-takeover-text" type="password" autocomplete="off" placeholder="Only for the streamed browser" disabled>
+        <button id="send-active-takeover-text" type="button" disabled>Send Text</button>
+        <button id="send-active-takeover-enter" type="button" disabled>Enter</button>
+      </div>
       <div id="browser-stream" role="img" aria-label="Browser stream placeholder"></div>
       <p id="takeover-input-state" class="flow-note">No active browser handoff.</p>
     </section>
@@ -164,6 +170,6 @@
       </div>
     </section>
   </main>
-  <script src="/app.js?v=20260531-live-console-delivery"></script>
+  <script src="/app.js?v=20260531-session-sync-clarity"></script>
 </body>
 </html>
