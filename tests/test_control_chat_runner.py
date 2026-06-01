@@ -11,6 +11,7 @@ from unittest.mock import patch
 from omnidoer.omni_control.chat import ChatStore
 from omnidoer.omni_control.chat_runner import (
     ChatRunner,
+    active_mcp_sidecar_status,
     active_tui_process_bridge_status,
     control_chat_sync_diagnostics,
     live_tui_bridge_active,
@@ -186,6 +187,41 @@ class ControlChatRunnerTest(unittest.TestCase):
             self.assertTrue(status["restart_required"])
             self.assertEqual(status["reason"], "running_binary_missing_bridge_markers")
 
+    def test_active_mcp_sidecar_status_reports_source_updated_after_start(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            proc_root = Path(tmp) / "proc"
+            proc_root.mkdir()
+            proc_root.joinpath("stat").write_text("btime 1000\n")
+            ticks = os.sysconf("SC_CLK_TCK")
+
+            tui = proc_root / "1234"
+            tui.mkdir()
+            tui.joinpath("cmdline").write_bytes(b"/usr/local/lib/omnidoer/codex\0resume\0thread_active\0")
+            tui.joinpath("stat").write_text(f"1234 (codex) S 1 {'0 ' * 17}{int(5 * ticks)} 0\n")
+
+            sidecar = proc_root / "1235"
+            sidecar.mkdir()
+            sidecar.joinpath("cmdline").write_bytes(b"/usr/bin/python3\0/usr/local/bin/omnidoer\0mcp\0serve\0")
+            sidecar.joinpath("stat").write_text(f"1235 (python3) S 1234 {'0 ' * 17}{int(6 * ticks)} 0\n")
+
+            source = Path(tmp) / "runtime.py"
+            source.write_text("updated source")
+            os.utime(source, (1010, 1010))
+
+            status = active_mcp_sidecar_status(
+                "thread_active",
+                proc_root=proc_root,
+                source_files=(source,),
+            )
+
+            self.assertTrue(status["active"])
+            self.assertEqual(status["pid"], 1235)
+            self.assertEqual(status["parent_tui_pid"], 1234)
+            self.assertTrue(status["restart_required"])
+            self.assertFalse(status["browser_takeover_relay_current"])
+            self.assertEqual(status["reason"], "source_updated_after_sidecar_start")
+            self.assertEqual(status["stale_required_sources"], [str(source)])
+
     def test_control_chat_sync_diagnostics_describes_legacy_and_native_states(self) -> None:
         legacy = control_chat_sync_diagnostics(
             thread_id="thread_demo",
@@ -199,6 +235,7 @@ class ControlChatRunnerTest(unittest.TestCase):
                 "running_binary_matches_installed": False,
                 "reason": "running_binary_deleted",
             },
+            mcp_sidecar={"active": True, "restart_required": True, "reason": "source_updated_after_sidecar_start"},
             bridge_heartbeat_age_seconds=None,
         )
         self.assertEqual(legacy["state"], "legacy_terminal_relay")
@@ -208,6 +245,8 @@ class ControlChatRunnerTest(unittest.TestCase):
         self.assertTrue(legacy["restart_ready"])
         self.assertTrue(legacy["restart_current_console_available"])
         self.assertFalse(legacy["manual_resume_available"])
+        self.assertTrue(legacy["mcp_sidecar_active"])
+        self.assertTrue(legacy["requires_restart_for_browser_takeover_relay"])
         self.assertEqual(legacy["activation_action"], "restart_current_console")
         self.assertEqual(legacy["activation_blocker"], "running_binary_deleted")
         self.assertFalse(legacy["native_sync_active"])

@@ -25,6 +25,10 @@ TUI_BRIDGE_INSTALL_MARKERS = (
     b"chat-log-user",
     b"failed to publish OmniDoer user chat message",
 )
+MCP_SIDECAR_REQUIRED_SOURCE_FILES = (
+    ("omni_mcp", "runtime.py"),
+    ("omni_takeover", "browser_worker.py"),
+)
 _bridge_install_cache: dict[tuple[str, int, int], dict[str, Any]] = {}
 
 
@@ -200,6 +204,7 @@ def control_chat_sync_diagnostics(
     install_status: dict[str, Any],
     legacy_relay: dict[str, Any],
     active_process_bridge: dict[str, Any] | None = None,
+    mcp_sidecar: dict[str, Any] | None = None,
     bridge_heartbeat_age_seconds: float | None = None,
     bridge_heartbeat: dict[str, Any] | None = None,
     detached_thread_resume_allowed: bool = False,
@@ -208,6 +213,7 @@ def control_chat_sync_diagnostics(
     legacy_active = bool(legacy_relay.get("active"))
     bound_thread = bool(thread_id)
     active_process_bridge = active_process_bridge or {}
+    mcp_sidecar = mcp_sidecar or {}
     if tui_bridge_active:
         state = "native_bridge_active"
     elif legacy_active:
@@ -278,6 +284,11 @@ def control_chat_sync_diagnostics(
         "active_cli_binary_deleted": bool(active_process_bridge.get("executable_deleted")),
         "active_cli_binary_matches_installed": bool(active_process_bridge.get("running_binary_matches_installed")),
         "active_cli_binary_reason": active_process_bridge.get("reason"),
+        "mcp_sidecar_active": bool(mcp_sidecar.get("active")),
+        "mcp_sidecar_restart_required": bool(mcp_sidecar.get("restart_required")),
+        "mcp_sidecar_reason": mcp_sidecar.get("reason"),
+        "browser_takeover_relay_current": bool(mcp_sidecar.get("browser_takeover_relay_current")),
+        "requires_restart_for_browser_takeover_relay": bool(mcp_sidecar.get("restart_required")),
     }
 
 
@@ -288,6 +299,13 @@ def _cmdline_is_interactive_tui_for_thread(cmdline: list[str], thread_id: str) -
     if "exec" in args:
         return False
     return "resume" in args and thread_id in args
+
+
+def _cmdline_is_mcp_sidecar(cmdline: list[str]) -> bool:
+    if not cmdline:
+        return False
+    joined = "\0".join(cmdline).lower()
+    return "omnidoer" in joined and "mcp" in cmdline and "serve" in cmdline
 
 
 def _iter_live_tui_process_entries(thread_id: str | None, *, proc_root: Path | str = "/proc") -> list[tuple[Path, list[str]]]:
@@ -312,6 +330,131 @@ def _iter_live_tui_process_entries(thread_id: str | None, *, proc_root: Path | s
         if _cmdline_is_interactive_tui_for_thread(cmdline, thread_id):
             matches.append((entry, cmdline))
     return matches
+
+
+def _process_parent_pid(entry: Path) -> int | None:
+    try:
+        raw = (entry / "stat").read_text(encoding="utf-8")
+        tail = raw.rsplit(")", 1)[1].strip().split()
+        return int(tail[1])
+    except (OSError, IndexError, ValueError):
+        return None
+
+
+def _boot_time_seconds(proc_root: Path | str = "/proc") -> float | None:
+    stat_path = Path(proc_root) / "stat"
+    try:
+        for line in stat_path.read_text(encoding="utf-8").splitlines():
+            if line.startswith("btime "):
+                return float(line.split()[1])
+    except (OSError, IndexError, ValueError):
+        return None
+    return None
+
+
+def _process_start_time_seconds(entry: Path, *, proc_root: Path | str = "/proc") -> float | None:
+    boot_time = _boot_time_seconds(proc_root)
+    try:
+        raw = (entry / "stat").read_text(encoding="utf-8")
+        tail = raw.rsplit(")", 1)[1].strip().split()
+        start_ticks = float(tail[19])
+        clock_ticks = float(os.sysconf("SC_CLK_TCK"))
+    except (OSError, IndexError, ValueError):
+        start_ticks = None
+    if boot_time is not None and start_ticks is not None and clock_ticks > 0:
+        return boot_time + (start_ticks / clock_ticks)
+    try:
+        return entry.stat().st_ctime
+    except OSError:
+        return None
+
+
+def _mcp_required_source_status(source_files: tuple[Path, ...] | None = None) -> dict[str, Any]:
+    if source_files is None:
+        package_root = Path(__file__).resolve().parents[1]
+        source_files = tuple(package_root.joinpath(*parts) for parts in MCP_SIDECAR_REQUIRED_SOURCE_FILES)
+    files: list[dict[str, Any]] = []
+    newest_mtime: float | None = None
+    for path in source_files:
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            files.append({"path": str(path), "present": False, "mtime": None})
+            continue
+        newest_mtime = mtime if newest_mtime is None else max(newest_mtime, mtime)
+        files.append({"path": str(path), "present": True, "mtime": mtime})
+    return {"files": files, "newest_mtime": newest_mtime}
+
+
+def active_mcp_sidecar_status(
+    thread_id: str | None,
+    *,
+    proc_root: Path | str = "/proc",
+    source_files: tuple[Path, ...] | None = None,
+) -> dict[str, Any]:
+    tui_matches = _iter_live_tui_process_entries(thread_id, proc_root=proc_root)
+    sources = _mcp_required_source_status(source_files)
+    if not tui_matches:
+        return {
+            "active": False,
+            "reason": "live_tui_process_not_found",
+            "restart_required": False,
+            "required_sources": sources,
+        }
+
+    tui_entry, _tui_cmdline = tui_matches[0]
+    tui_pid = int(tui_entry.name)
+    root = Path(proc_root)
+    sidecar: tuple[Path, list[str]] | None = None
+    try:
+        entries = list(root.iterdir())
+    except OSError:
+        entries = []
+    for entry in entries:
+        if not entry.name.isdigit() or entry.name == tui_entry.name:
+            continue
+        if _process_parent_pid(entry) != tui_pid:
+            continue
+        try:
+            raw = (entry / "cmdline").read_bytes()
+        except OSError:
+            continue
+        cmdline = [part.decode("utf-8", "ignore") for part in raw.split(b"\0") if part]
+        if _cmdline_is_mcp_sidecar(cmdline):
+            sidecar = (entry, cmdline)
+            break
+
+    if sidecar is None:
+        return {
+            "active": False,
+            "reason": "mcp_sidecar_not_found",
+            "restart_required": False,
+            "parent_tui_pid": tui_pid,
+            "required_sources": sources,
+        }
+
+    entry, cmdline = sidecar
+    started_at = _process_start_time_seconds(entry, proc_root=proc_root)
+    newest_source = sources.get("newest_mtime")
+    stale_sources = [
+        item["path"]
+        for item in sources["files"]
+        if item.get("present") and started_at is not None and item.get("mtime") is not None and float(item["mtime"]) > started_at
+    ]
+    restart_required = bool(stale_sources)
+    return {
+        "active": True,
+        "pid": int(entry.name),
+        "parent_tui_pid": tui_pid,
+        "cmdline": cmdline,
+        "process_started_at": started_at,
+        "newest_required_source_mtime": newest_source,
+        "stale_required_sources": stale_sources,
+        "restart_required": restart_required,
+        "browser_takeover_relay_current": not restart_required,
+        "required_sources": sources,
+        "reason": "source_updated_after_sidecar_start" if restart_required else "ready",
+    }
 
 
 def live_tui_session_active(thread_id: str | None, *, proc_root: Path | str = "/proc") -> bool:

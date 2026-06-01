@@ -25,6 +25,7 @@ const I18N = {
     runtimeOffline: "Runtime offline",
     runtimeOfflineDetail: "Start omnidoer control serve.",
     runtimeBridgeActive: "Live Linux console bridge is active; messages sync with the current TUI.",
+    runtimeMcpSidecarNeedsRestart: "Browser takeover relay is still running in the older MCP sidecar; restart the current Agent before relying on live browser control.",
     runtimeLegacyRelayActive: "Pairing only authenticates this browser to the server. Temporary terminal relay can paste messages into the visible console, but full current-session context sync needs restart:",
     runtimeLegacyRelayPause: "Pause sends Ctrl-C to the current console before delivering your instruction.",
     runtimeNativeBridgeReady: "Full structured bridge is installed; restart will switch this session to native sync.",
@@ -47,6 +48,7 @@ const I18N = {
     chatSessionOfflineTitle: "Control Service offline",
     chatSessionOfflineDetail: "Reconnect to the Control Service before sending messages.",
     chatSyncDiagnosticNative: "Diagnostic: native two-way sync is active.",
+    chatSyncDiagnosticMcpStale: "Diagnostic: chat sync is active, but the browser takeover relay belongs to an older MCP sidecar. Restart this Agent before live browser takeover.",
     chatSyncDiagnosticLegacy: "Diagnostic: server pairing is active, but full context memory and structured streaming are not attached.",
     chatSyncDiagnosticStaleBinary: "Diagnostic: this is the current console, but its running binary lacks the native bridge. Restart is required for structured two-way sync.",
     chatSyncDiagnosticWaiting: "Diagnostic: paired to this server, but the current CLI conversation is not attached yet.",
@@ -392,6 +394,7 @@ const I18N = {
     runtimeOffline: "运行服务离线",
     runtimeOfflineDetail: "请启动 omnidoer control serve。",
     runtimeBridgeActive: "Linux 控制台实时桥接已启用；消息会同步到当前 TUI。",
+    runtimeMcpSidecarNeedsRestart: "浏览器接管 relay 仍在旧 MCP sidecar 中运行；依赖实时浏览器控制前请重启当前 Agent。",
     runtimeLegacyRelayActive: "配对只代表此浏览器已认证到服务器。临时终端 relay 可把消息粘贴到可见 console，但完整当前会话上下文同步需要重启：",
     runtimeLegacyRelayPause: "点击暂停会先向当前 console 发送 Ctrl-C，再投递你的指令。",
     runtimeNativeBridgeReady: "完整结构化桥接已经安装；重启后会切换到原生同步。",
@@ -414,6 +417,7 @@ const I18N = {
     chatSessionOfflineTitle: "Control Service 离线",
     chatSessionOfflineDetail: "重新连接到 Control Service 后才能发送消息。",
     chatSyncDiagnosticNative: "诊断：原生双向同步已启用。",
+    chatSyncDiagnosticMcpStale: "诊断：对话同步已启用，但浏览器接管 relay 仍属于旧 MCP sidecar。实时接管浏览器前请重启当前 Agent。",
     chatSyncDiagnosticLegacy: "诊断：服务器配对已生效，但完整上下文记忆和结构化流式输出尚未接入。",
     chatSyncDiagnosticStaleBinary: "诊断：这是当前 console，但正在运行的二进制缺少原生桥接。结构化双向同步必须重启后才能启用。",
     chatSyncDiagnosticWaiting: "诊断：已配对到这台服务器，但当前 CLI 对话尚未接入。",
@@ -2061,13 +2065,14 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
       detailKey = "chatSessionUnpairedDetail";
     }
   } else if (runner?.tui_bridge_active) {
+    const mcpSidecar = runner.mcp_sidecar || {};
     state = "attached";
     titleKey = "chatSessionAttachedTitle";
     detailKey = "chatSessionAttachedDetail";
     sendKey = "sendToCurrentCli";
     placeholderKey = "chatPlaceholder";
     canSend = true;
-    diagnosticKey = "chatSyncDiagnosticNative";
+    diagnosticKey = mcpSidecar.restart_required ? "chatSyncDiagnosticMcpStale" : "chatSyncDiagnosticNative";
   } else if (runner?.waiting_for_tui_bridge) {
     const legacyRelay = runner.legacy_tui_relay || {};
     const diagnostics = runner.sync_diagnostics || {};
@@ -4905,8 +4910,12 @@ async function loadRuntimeStatus() {
       restartLabelKey = pendingConsoleRestartRequest() ? "reviewSyncRequest" : runnerNeedsCurrentSessionSync(runner) ? "enableCurrentSessionSync" : "restartBridge";
       restartActionAvailable = runnerCanRestartCurrentConsole(runner);
     } else if (runner.tui_bridge_active) {
+      const mcpSidecar = runner.mcp_sidecar || {};
       mode = t("runtimeModeAttached");
       detail = t("runtimeBridgeActive");
+      if (mcpSidecar.restart_required) {
+        detail = `${detail} ${t("runtimeMcpSidecarNeedsRestart")}`;
+      }
       runtimeState = "tui_bridge_active";
     } else if (runner.thread_id) {
       mode = t("runtimeModeBackground");
