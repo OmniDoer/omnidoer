@@ -79,6 +79,7 @@ BROWSER_FRAME_STREAM_MAX_SNAPSHOTS = 1200
 TAKEOVER_INPUT_RESULT_WAIT_MAX_SECONDS = 10.0
 TLS_ACCEPT_PEEK_TIMEOUT_SECONDS = 2.0
 CONTROL_SERVER_REQUEST_QUEUE_SIZE = 128
+CLIENT_DISCONNECT_EXCEPTIONS = (BrokenPipeError, ConnectionResetError, ssl.SSLEOFError)
 SENSITIVE_LOG_PATTERNS = [
     re.compile(r"(omnidoer_session=)[^;\s]+"),
     re.compile(r"(code=)[^&\s]+"),
@@ -355,12 +356,15 @@ class ControlHandler(SimpleHTTPRequestHandler):
 
     def _send_json(self, status: HTTPStatus, payload: dict | list) -> None:
         data = json.dumps(payload, sort_keys=True).encode()
-        self.send_response(status)
-        self.send_header("content-type", "application/json; charset=utf-8")
-        self.send_header("cache-control", "no-store")
-        self.send_header("content-length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+        try:
+            self.send_response(status)
+            self.send_header("content-type", "application/json; charset=utf-8")
+            self.send_header("cache-control", "no-store")
+            self.send_header("content-length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+        except CLIENT_DISCONNECT_EXCEPTIONS:
+            self.close_connection = True
 
     def _send_pwa_index(self) -> None:
         data = (static_root() / "index.html").read_bytes()
@@ -1149,7 +1153,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     self._send_sse(self._sse_payload(store, session))
             except PermissionError:
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
-            except (BrokenPipeError, ConnectionResetError):
+            except CLIENT_DISCONNECT_EXCEPTIONS:
                 pass
             except ValueError:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid stream options"})
@@ -1185,7 +1189,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     self._send_sse(self._chat_payload(limit=limit, after_sequence=int(after) if after else None), event="chat")
             except PermissionError:
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
-            except (BrokenPipeError, ConnectionResetError):
+            except CLIENT_DISCONNECT_EXCEPTIONS:
                 pass
             except ValueError:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid chat stream options"})
@@ -1202,7 +1206,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     self._send_sse(self._browser_context_payload(), event="browser_contexts")
             except PermissionError:
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
-            except (BrokenPipeError, ConnectionResetError):
+            except CLIENT_DISCONNECT_EXCEPTIONS:
                 pass
             except ValueError:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid browser context stream options"})
@@ -1230,7 +1234,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 )
             except PermissionError:
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
-            except (BrokenPipeError, ConnectionResetError):
+            except CLIENT_DISCONNECT_EXCEPTIONS:
                 pass
             except ValueError:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid chat websocket options"})
@@ -1251,7 +1255,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 self._send_browser_context_websocket_stream(snapshots=snapshots, interval=interval)
             except PermissionError:
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
-            except (BrokenPipeError, ConnectionResetError):
+            except CLIENT_DISCONNECT_EXCEPTIONS:
                 pass
             except ValueError:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid browser context websocket options"})
@@ -1284,7 +1288,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 )
             except PermissionError:
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
-            except (BrokenPipeError, ConnectionResetError):
+            except CLIENT_DISCONNECT_EXCEPTIONS:
                 pass
             except KeyError:
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "request not found"})
@@ -1317,7 +1321,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 )
             except PermissionError:
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
-            except (BrokenPipeError, ConnectionResetError):
+            except CLIENT_DISCONNECT_EXCEPTIONS:
                 pass
             except ValueError:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid browser frame websocket options"})
@@ -1338,7 +1342,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 self._send_websocket_stream(store, session, snapshots=snapshots, interval=interval)
             except PermissionError:
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
-            except (BrokenPipeError, ConnectionResetError):
+            except CLIENT_DISCONNECT_EXCEPTIONS:
                 pass
             except ValueError:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid websocket options"})
