@@ -2837,6 +2837,8 @@ function renderLiveConsole(terminal) {
   }
   panel.hidden = false;
   panel.append(terminalNode);
+  const pre = terminalNode.querySelector("pre");
+  if (pre) pre.scrollTop = pre.scrollHeight;
 }
 
 function renderChatTimeline(messages, records = [], terminal = null) {
