@@ -310,6 +310,8 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("modeRequiresPairing(status.mode) && !cachedPairingAuthenticated", app)
         self.assertIn("initialPairingCode", app)
         self.assertIn("initialPairingId", app)
+        self.assertIn("autoPairFromInitialLink", app)
+        self.assertIn("if (initialPairingCode)", app)
         self.assertIn("window.history.replaceState", app)
 
     def test_request_stream_uses_signed_fetch_not_eventsource(self) -> None:

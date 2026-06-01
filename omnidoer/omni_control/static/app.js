@@ -1289,6 +1289,7 @@ let activeChatSyncApprovalRequestId = null;
 let pairingSuccessHoldUntil = 0;
 let pairingSuccessMessage = "";
 let cachedPairingAuthenticated = false;
+let autoPairingStarted = false;
 
 applyLanguage();
 
@@ -2406,6 +2407,18 @@ async function pairDevice() {
   await loadRuntimeStatus();
   await loadRequests();
   await loadDevicesAndSessions();
+}
+
+async function autoPairFromInitialLink() {
+  if (!initialPairingCode || autoPairingStarted) return;
+  autoPairingStarted = true;
+  try {
+    await refreshPairingState();
+    if (cachedPairingAuthenticated) return;
+    await pairDevice();
+  } catch {
+    document.querySelector("#pairing-status").textContent = t("pairingFailed");
+  }
 }
 
 function forgetLocalPairing() {
@@ -4220,7 +4233,11 @@ async function startChatWebSocket() {
 }
 
 loadRuntimeStatus();
-refreshPairingState().then(() => loadRuntimeStatus()).catch(() => {});
+if (initialPairingCode) {
+  autoPairFromInitialLink().then(() => loadRuntimeStatus()).catch(() => {});
+} else {
+  refreshPairingState().then(() => loadRuntimeStatus()).catch(() => {});
+}
 loadRequests();
 loadBrowserContexts();
 loadChatMessages();

@@ -44,7 +44,6 @@ class ControlPwaCachedSessionTest(unittest.TestCase):
                         page.goto(f"{base}/pair?code={pairing.code}&pairing_id={pairing.pairing_id}", wait_until="domcontentloaded")
                         self.assertEqual(page.evaluate("window.location.search"), "")
                         self.assertEqual(page.locator("#pairing-code").input_value(), pairing.code)
-                        page.click("#pair-device")
                         expect(page.locator("#pairing-status")).to_contain_text("Paired PWA Control Client", timeout=5000)
                         device_id = page.evaluate("localStorage.getItem('omnidoer_device_id')")
                         session_id = page.evaluate("localStorage.getItem('omnidoer_session_id')")
