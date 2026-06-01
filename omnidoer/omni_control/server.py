@@ -63,6 +63,8 @@ def static_root() -> Path:
 
 PAIR_RATE_LIMIT = RateLimiter(max_attempts=8, window_seconds=60, lockout_seconds=300)
 CONTROL_MUTATION_RATE_LIMIT = RateLimiter(max_attempts=120, window_seconds=60, lockout_seconds=60)
+CONSOLE_RESTART_REQUEST_TTL_SECONDS = 30 * 60
+CONSOLE_RESTART_REQUEST_RENEW_WINDOW_SECONDS = 5 * 60
 SENSITIVE_LOG_PATTERNS = [
     re.compile(r"(omnidoer_session=)[^;\s]+"),
     re.compile(r"(code=)[^&\s]+"),
@@ -631,6 +633,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
         chat_thread_id = str(details.get("thread_id") or "")
         if not chat_thread_id:
             raise ValueError("chat_thread_not_bound")
+        now = time.time()
         for existing in store.list():
             existing_details = existing.structured_details or {}
             if (
@@ -639,6 +642,10 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 and existing_details.get("thread_id") == chat_thread_id
                 and self._request_allowed_for_session(existing, session)
             ):
+                existing.structured_details = details
+                if existing.expires_at - now < CONSOLE_RESTART_REQUEST_RENEW_WINDOW_SECONDS:
+                    existing.expires_at = now + CONSOLE_RESTART_REQUEST_TTL_SECONDS
+                existing = store.update(existing)
                 return existing, True
         request = store.create(
             "console_restart",
@@ -646,7 +653,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
             top_level_url=self.config.public_url,
             action_summary=f"Enable current session sync for {chat_thread_id}",
             risk_level="high",
-            ttl_seconds=300,
+            ttl_seconds=CONSOLE_RESTART_REQUEST_TTL_SECONDS,
             # Current-session sync is a server-level operation. Any paired
             # Control Client may review it, but approval still requires the
             # explicit high-risk confirmation payload.
