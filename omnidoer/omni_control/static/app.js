@@ -16,9 +16,11 @@ const I18N = {
     runtimeModeAttached: "Current CLI synced",
     runtimeModeLegacyRelay: "Server paired; current session not natively synced",
     runtimeModeServerOnly: "Server paired; current CLI not attached",
+    runtimeModeUnpaired: "Control Service reachable",
     runtimeModeBackground: "Background runner",
     runtimeModeOffline: "Control Service offline",
     runtimeDetail: "Control Client does not call OpenAI APIs or models directly.",
+    runtimeUnpairedDetail: "This browser is not paired yet. Open a fresh pairing link on this device and tap Pair Device before using requests or session sync.",
     runtimeOffline: "Runtime offline",
     runtimeOfflineDetail: "Start omnidoer control serve.",
     runtimeBridgeActive: "Live Linux console bridge is active; messages sync with the current TUI.",
@@ -31,6 +33,8 @@ const I18N = {
     runtimeBackgroundRunner: "No live Linux console bridge; queued messages use the background Codex runner.",
     chatSessionCheckingTitle: "Checking current CLI session",
     chatSessionCheckingDetail: "Pairing authenticates this browser; session sync also needs a live CLI bridge.",
+    chatSessionUnpairedTitle: "Pair this browser",
+    chatSessionUnpairedDetail: "This browser has not authenticated to the Control Service yet. Pair it before using chat, requests, or session sync.",
     chatSessionAttachedTitle: "Current CLI session attached",
     chatSessionAttachedDetail: "Phone messages and streamed output are synced with the active Linux TUI.",
     chatSessionLegacyTitle: "Server paired; current session not synced",
@@ -326,9 +330,11 @@ const I18N = {
     runtimeModeAttached: "当前 CLI 已同步",
     runtimeModeLegacyRelay: "已配对服务器；当前会话未原生同步",
     runtimeModeServerOnly: "已配对服务器；当前 CLI 尚未接入",
+    runtimeModeUnpaired: "Control Service 可达",
     runtimeModeBackground: "后台 runner",
     runtimeModeOffline: "控制服务离线",
     runtimeDetail: "控制客户端不会直接调用 OpenAI API 或模型。",
+    runtimeUnpairedDetail: "当前浏览器尚未配对。请在此设备上打开新的配对链接，并点击配对设备后再使用请求或会话同步。",
     runtimeOffline: "运行服务离线",
     runtimeOfflineDetail: "请启动 omnidoer control serve。",
     runtimeBridgeActive: "Linux 控制台实时桥接已启用；消息会同步到当前 TUI。",
@@ -341,6 +347,8 @@ const I18N = {
     runtimeBackgroundRunner: "没有实时 Linux 控制台桥接；排队消息将由后台 Codex runner 处理。",
     chatSessionCheckingTitle: "正在检查当前 CLI 会话",
     chatSessionCheckingDetail: "配对只代表此浏览器已认证；要同步当前会话还需要实时 CLI 桥接。",
+    chatSessionUnpairedTitle: "配对此浏览器",
+    chatSessionUnpairedDetail: "当前浏览器尚未通过 Control Service 认证。请先完成配对，再使用对话、请求或会话同步。",
     chatSessionAttachedTitle: "已接入当前 CLI 会话",
     chatSessionAttachedDetail: "手机消息和流式输出会同步到活跃 Linux TUI。",
     chatSessionLegacyTitle: "已配对服务器；当前会话未同步",
@@ -1280,6 +1288,7 @@ let bridgeActivationDeadline = 0;
 let activeChatSyncApprovalRequestId = null;
 let pairingSuccessHoldUntil = 0;
 let pairingSuccessMessage = "";
+let cachedPairingAuthenticated = false;
 
 applyLanguage();
 
@@ -1304,6 +1313,10 @@ if ((initialPairingCode || initialPairingId) && window.history?.replaceState) {
 function csrfHeaders() {
   const token = localStorage.getItem("omnidoer_csrf_token");
   return token ? { "x-omnidoer-csrf": token } : {};
+}
+
+function modeRequiresPairing(mode) {
+  return mode === "cloud_direct" || mode === "lan";
 }
 
 function bytesToB64url(bytes) {
@@ -1592,6 +1605,10 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
     state = "offline";
     titleKey = "chatSessionOfflineTitle";
     detailKey = "chatSessionOfflineDetail";
+  } else if (modeRequiresPairing(cachedRuntimeStatus?.mode) && !cachedPairingAuthenticated) {
+    state = "unpaired";
+    titleKey = "chatSessionUnpairedTitle";
+    detailKey = "chatSessionUnpairedDetail";
   } else if (runner?.tui_bridge_active) {
     state = "attached";
     titleKey = "chatSessionAttachedTitle";
@@ -2385,6 +2402,8 @@ async function pairDevice() {
     deviceText: `${payload.device.device_id} - session expires ${formatTimestamp(payload.session.expires_at)}`,
     forceStatus: true
   });
+  cachedPairingAuthenticated = true;
+  await loadRuntimeStatus();
   await loadRequests();
   await loadDevicesAndSessions();
 }
@@ -2969,10 +2988,12 @@ async function refreshPairingState() {
   try {
     runtime = await fetch("/api/status", { cache: "no-store" }).then((r) => r.json());
   } catch {
+    cachedPairingAuthenticated = false;
     setPairingUiState({ state: "offline", message: t("controlOffline") });
     return false;
   }
   if (runtime.mode === "local_dev") {
+    cachedPairingAuthenticated = true;
     setPairingUiState({
       state: "paired",
       message: t("localTrustedMode"),
@@ -2983,6 +3004,7 @@ async function refreshPairingState() {
   const identity = storedPairingIdentity();
   if (!identity.deviceId || !identity.sessionId || !identity.hasPrivateKey) {
     const codeLoaded = Boolean(document.querySelector("#pairing-code")?.value.trim());
+    cachedPairingAuthenticated = false;
     setPairingUiState({
       state: "unpaired",
       message: codeLoaded
@@ -3003,6 +3025,7 @@ async function refreshPairingState() {
     });
     const current = sessions.find((session) => session.session_id === identity.sessionId);
     if (!current) {
+      cachedPairingAuthenticated = true;
       setPairingUiState({
         state: "paired",
         message: t("sessionHidden"),
@@ -3011,6 +3034,7 @@ async function refreshPairingState() {
       return true;
     }
     if (current.revoked) {
+      cachedPairingAuthenticated = false;
       setPairingUiState({
         state: "stale",
         message: t("sessionRevoked"),
@@ -3018,6 +3042,7 @@ async function refreshPairingState() {
       });
       return false;
     }
+    cachedPairingAuthenticated = true;
     setPairingUiState({
       state: "paired",
       message: t("pairedCached"),
@@ -3025,6 +3050,7 @@ async function refreshPairingState() {
     });
     return true;
   } catch {
+    cachedPairingAuthenticated = false;
     setPairingUiState({
       state: "stale",
       message: t("cachedPairingRejected"),
@@ -3875,7 +3901,12 @@ async function loadRuntimeStatus() {
     let restartCommand = "";
     let restartLabelKey = "restartBridge";
     let restartActionAvailable = true;
-    if (runner.waiting_for_tui_bridge) {
+    if (modeRequiresPairing(status.mode) && !cachedPairingAuthenticated) {
+      mode = t("runtimeModeUnpaired");
+      detail = t("runtimeUnpairedDetail");
+      runtimeState = "unpaired";
+      restartActionAvailable = false;
+    } else if (runner.waiting_for_tui_bridge) {
       const legacyRelay = runner.legacy_tui_relay || {};
       const activeProcess = runner.active_tui_process_bridge || {};
       const staleActiveBinary = Boolean(activeProcess.active && !activeProcess.native_bridge_ready && activeProcess.installed_bridge_ready);
@@ -4189,7 +4220,7 @@ async function startChatWebSocket() {
 }
 
 loadRuntimeStatus();
-refreshPairingState();
+refreshPairingState().then(() => loadRuntimeStatus()).catch(() => {});
 loadRequests();
 loadBrowserContexts();
 loadChatMessages();
