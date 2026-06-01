@@ -707,7 +707,7 @@ const EXTRA_I18N = {
   es: {
     appSubtitle: "Aprobaciones, credenciales, verificaciones y toma de control seguras.",
     navOverview: "Inicio", navRequests: "Solicitudes", navTasks: "Chat", navDevices: "Dispositivos", navSecurity: "Seguridad", navTakeover: "Control", navPayments: "Pagos",
-    overviewTitle: "Centro de control", overviewNextActionTitle: "Siguiente accion", overviewSyncTitle: "Sesion", overviewRequestsTitle: "Solicitudes", overviewBrowserTitle: "Navegador", overviewChatTitle: "Chat", overviewPairingTitle: "Emparejamiento",
+    overviewTitle: "Centro de control", overviewNextActionTitle: "Siguiente accion", overviewSyncTitle: "Sesión", overviewRequestsTitle: "Solicitudes", overviewBrowserTitle: "Navegador", overviewChatTitle: "Chat", overviewPairingTitle: "Emparejamiento",
     attentionTitle: (count) => `${count} solicitudes requieren atencion`, attentionDetail: (type, status) => `${type} · ${status}`, attentionAction: "Revisar",
     requestsTitle: "Solicitudes pendientes", filterOpen: "Pendientes", filterAll: "Todas", filterCredential: "Secretos", filterChallenge: "Verificaciones", filterApproval: "Aprobaciones", filterTakeover: "Control",
     chatFilesLabel: "Adjuntar", chatSelectedFiles: "Archivos seleccionados", uploadFailed: "Carga fallida",
