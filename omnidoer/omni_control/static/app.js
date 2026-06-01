@@ -1281,6 +1281,7 @@ let takeoverFramePanMode = false;
 let takeoverPendingTap = null;
 let takeoverPendingTapTimer = null;
 let agentControlBusy = false;
+let autoOpenedTakeoverRequestId = "";
 let activePaymentApprovalRequest = null;
 let renderedPaymentApprovalRequestId = null;
 let bridgeActivationMonitor = null;
@@ -1988,6 +1989,7 @@ function syncTakeoverPanel(requests) {
   const request = findActiveTakeoverRequest(requests);
   const context = activeBrowserContext();
   updateBrowserHandoffState(request, context);
+  maybeAutoOpenTakeoverPanel(request);
   if (!stream) return;
   if (!request) {
     stopTakeoverFramePolling();
@@ -2006,6 +2008,13 @@ function syncTakeoverPanel(requests) {
   stopBrowserPreviewPolling();
   updateTakeoverPanel(request);
   startTakeoverFramePolling(request, stream);
+}
+
+function maybeAutoOpenTakeoverPanel(request) {
+  if (!request || request.status !== "user_control") return;
+  if (autoOpenedTakeoverRequestId === request.request_id) return;
+  autoOpenedTakeoverRequestId = request.request_id;
+  activatePanel("takeover-panel", { persist: false });
 }
 
 function stopBrowserPreviewPolling() {
