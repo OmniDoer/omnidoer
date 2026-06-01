@@ -529,6 +529,8 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("Frame is stale; refreshing before input", app)
         self.assertIn('t("takeoverInputRefreshingStale")', app)
         self.assertIn("takeoverInputQueued", app)
+        self.assertIn("takeoverInputStillPending", app)
+        self.assertIn('updateTakeoverPanel(request, null, t("takeoverInputStillPending"))', app)
         self.assertIn('responsePayload.status || ""', app)
         self.assertIn('status === "event_queued"', app)
         self.assertIn("updateTakeoverFrameFreshness", app)

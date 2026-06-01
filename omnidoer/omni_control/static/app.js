@@ -239,6 +239,7 @@ const I18N = {
     takeoverInputQueued: (eventType) => `${eventType} queued for browser relay.`,
     takeoverInputFrameChanged: "Frame changed before input was delivered. Refreshing current browser frame.",
     takeoverInputDeliveryFailed: "Input was not delivered. The browser context may be disconnected.",
+    takeoverInputStillPending: "Input is still waiting for browser acknowledgement. Refresh the frame before sending another action.",
     takeoverPinchZooming: "Pinch zooming local browser frame. Input is not sent to the controlled browser.",
     takeoverPollingPausedHidden: "Frame polling paused while this Control Client is hidden. Last frame is retained and stale input remains blocked.",
     takeoverVisibleRefreshing: "Control Client visible again; refreshing current browser frame.",
@@ -555,6 +556,7 @@ const I18N = {
     takeoverInputQueued: (eventType) => `${eventType} 已进入浏览器 relay 队列。`,
     takeoverInputFrameChanged: "输入发送前画面已变化。正在刷新当前浏览器画面。",
     takeoverInputDeliveryFailed: "输入未送达。浏览器上下文可能已断开。",
+    takeoverInputStillPending: "输入仍在等待浏览器确认。发送下一次操作前请先刷新画面。",
     takeoverPinchZooming: "正在本地双指缩放浏览器画面。此操作不会发送到受控浏览器。",
     takeoverPollingPausedHidden: "Control Client 在后台，画面轮询已暂停。最后一帧会保留，过期输入仍会被阻止。",
     takeoverVisibleRefreshing: "Control Client 已回到前台；正在刷新当前浏览器画面。",
@@ -643,7 +645,7 @@ const EXTRA_I18N = {
     chatConversationTitle: "Conversacion", chatActivityTitle: "Actividad en vivo", chatUserRole: "Tu", chatAssistantRole: "OmniDoer", chatRecordNumber: (sequence) => `registro #${sequence}`,
     copyCommand: "Copiar comando", copiedCommand: "Comando copiado", copyCommandFailed: "Error al copiar",
     syncApprovalTitle: "Sincronizacion pendiente", syncApprovalDetail: "Aprobar reinicia la CLI Linux activa y conecta este dispositivo a la misma conversacion.", syncApprovalThread: "Hilo", syncApprovalPid: "PID CLI", syncApprovalCommand: "Comando", syncApprovalExpires: "Caduca", syncApprovalRenewing: "Actualizando solicitud de sync...", syncApprovalRenewed: "Solicitud de sync actualizada", syncApprovalExpired: "La aprobacion de sync caduco; solicita una nueva.", syncApprovalConfirmText: "Entiendo que esto reinicia la TUI Codex activa y conserva el mismo hilo.", syncApprovalOpenRequest: "Abrir solicitud", syncApprovalApprove: "Aprobar sync",
-    pauseAgent: "Pausar Agent", pauseAgentRequested: "Pausa solicitada", pauseAgentRequestDetail: "La solicitud quedo en cola para la consola Linux activa.", takeoverPausePrompt: "Pausa ahora la automatizacion del navegador y entrega el navegador activo a mi Control Client. Si hay un navegador activo, crea o conserva una solicitud Human Takeover, transmite la pagina y espera hasta que toque Continue Agent antes de reanudar.", releaseControl: "Continuar Agent", openCurrentUrl: "Abrir URL actual", externalHandoffNote: "Abre la URL actual, completa la accion en el sitio y continua el Agent. Secretos y codigos no se envian al modelo.",
+    pauseAgent: "Pausar Agent", pauseAgentRequested: "Pausa solicitada", pauseAgentRequestDetail: "La solicitud quedo en cola para la consola Linux activa.", takeoverInputStillPending: "La entrada sigue esperando confirmacion del navegador. Actualiza el marco antes de enviar otra accion.", takeoverPausePrompt: "Pausa ahora la automatizacion del navegador y entrega el navegador activo a mi Control Client. Si hay un navegador activo, crea o conserva una solicitud Human Takeover, transmite la pagina y espera hasta que toque Continue Agent antes de reanudar.", releaseControl: "Continuar Agent", openCurrentUrl: "Abrir URL actual", externalHandoffNote: "Abre la URL actual, completa la accion en el sitio y continua el Agent. Secretos y codigos no se envian al modelo.",
     submitCredential: "Enviar credencial", submitChallenge: "Enviar codigo", approve: "Aprobar", deny: "Denegar", challengeCode: "Codigo de un solo uso"
   },
   fr: {
@@ -655,7 +657,7 @@ const EXTRA_I18N = {
     chatConversationTitle: "Conversation", chatActivityTitle: "Activite en direct", chatUserRole: "Vous", chatAssistantRole: "OmniDoer", chatRecordNumber: (sequence) => `journal #${sequence}`,
     copyCommand: "Copier la commande", copiedCommand: "Commande copiee", copyCommandFailed: "Copie impossible",
     syncApprovalTitle: "Synchronisation en attente", syncApprovalDetail: "Approuver redemarre la CLI Linux active et connecte cet appareil a la meme conversation.", syncApprovalThread: "Fil", syncApprovalPid: "PID CLI", syncApprovalCommand: "Commande", syncApprovalExpires: "Expire", syncApprovalRenewing: "Actualisation de la demande sync...", syncApprovalRenewed: "Demande sync actualisee", syncApprovalExpired: "L'approbation sync a expire; demandez-en une nouvelle.", syncApprovalConfirmText: "Je comprends que cela redemarre la TUI Codex active et garde le meme fil.", syncApprovalOpenRequest: "Ouvrir la demande", syncApprovalApprove: "Approuver sync",
-    pauseAgent: "Mettre Agent en pause", pauseAgentRequested: "Pause demandee", pauseAgentRequestDetail: "La demande est en file pour la console Linux active.", takeoverPausePrompt: "Mettez maintenant l'automatisation du navigateur en pause et remettez le navigateur actif a mon Control Client. Si un navigateur est actif, creez ou gardez une demande Human Takeover, diffusez la page, puis attendez que je touche Continue Agent avant de reprendre.", releaseControl: "Continuer Agent", openCurrentUrl: "Ouvrir l'URL", externalHandoffNote: "Ouvrez l'URL, terminez l'action sur le site, puis continuez l'Agent. Les secrets et codes ne sont pas envoyes au modele.",
+    pauseAgent: "Mettre Agent en pause", pauseAgentRequested: "Pause demandee", pauseAgentRequestDetail: "La demande est en file pour la console Linux active.", takeoverInputStillPending: "L'entree attend encore l'accuse du navigateur. Actualisez l'image avant une autre action.", takeoverPausePrompt: "Mettez maintenant l'automatisation du navigateur en pause et remettez le navigateur actif a mon Control Client. Si un navigateur est actif, creez ou gardez une demande Human Takeover, diffusez la page, puis attendez que je touche Continue Agent avant de reprendre.", releaseControl: "Continuer Agent", openCurrentUrl: "Ouvrir l'URL", externalHandoffNote: "Ouvrez l'URL, terminez l'action sur le site, puis continuez l'Agent. Les secrets et codes ne sont pas envoyes au modele.",
     submitCredential: "Envoyer l'identifiant", submitChallenge: "Envoyer le code", approve: "Approuver", deny: "Refuser", challengeCode: "Code a usage unique"
   },
   de: {
@@ -667,7 +669,7 @@ const EXTRA_I18N = {
     chatConversationTitle: "Unterhaltung", chatActivityTitle: "Live-Aktivitaet", chatUserRole: "Du", chatAssistantRole: "OmniDoer", chatRecordNumber: (sequence) => `Eintrag #${sequence}`,
     copyCommand: "Befehl kopieren", copiedCommand: "Befehl kopiert", copyCommandFailed: "Kopieren fehlgeschlagen",
     syncApprovalTitle: "Synchronisierung wartet", syncApprovalDetail: "Genehmigen startet die aktive Linux-CLI neu und verbindet dieses Geraet mit derselben Unterhaltung.", syncApprovalThread: "Thread", syncApprovalPid: "CLI PID", syncApprovalCommand: "Befehl", syncApprovalExpires: "Laeuft ab", syncApprovalRenewing: "Sync-Anfrage wird aktualisiert...", syncApprovalRenewed: "Sync-Anfrage aktualisiert", syncApprovalExpired: "Sync-Freigabe ist abgelaufen; bitte neu anfordern.", syncApprovalConfirmText: "Ich verstehe, dass dies die aktive Codex-TUI neu startet und denselben Thread behaelt.", syncApprovalOpenRequest: "Anfrage oeffnen", syncApprovalApprove: "Sync genehmigen",
-    pauseAgent: "Agent pausieren", pauseAgentRequested: "Pause angefordert", pauseAgentRequestDetail: "Die Anfrage wurde fuer die aktive Linux-Konsole eingereiht.", takeoverPausePrompt: "Pausiere jetzt die Browser-Automation und uebergib den aktiven Browser an meinen Control Client. Falls ein Browser aktiv ist, erstelle oder behalte eine Human-Takeover-Anfrage, streame die Seite und warte, bis ich Continue Agent antippe.", releaseControl: "Agent fortsetzen", openCurrentUrl: "Aktuelle URL oeffnen", externalHandoffNote: "Oeffnen Sie die aktuelle URL, erledigen Sie die Aktion selbst und setzen Sie danach den Agent fort. Secrets und Codes werden nicht an das Modell gesendet.",
+    pauseAgent: "Agent pausieren", pauseAgentRequested: "Pause angefordert", pauseAgentRequestDetail: "Die Anfrage wurde fuer die aktive Linux-Konsole eingereiht.", takeoverInputStillPending: "Die Eingabe wartet noch auf die Browser-Bestaetigung. Aktualisiere den Frame vor der naechsten Aktion.", takeoverPausePrompt: "Pausiere jetzt die Browser-Automation und uebergib den aktiven Browser an meinen Control Client. Falls ein Browser aktiv ist, erstelle oder behalte eine Human-Takeover-Anfrage, streame die Seite und warte, bis ich Continue Agent antippe.", releaseControl: "Agent fortsetzen", openCurrentUrl: "Aktuelle URL oeffnen", externalHandoffNote: "Oeffnen Sie die aktuelle URL, erledigen Sie die Aktion selbst und setzen Sie danach den Agent fort. Secrets und Codes werden nicht an das Modell gesendet.",
     submitCredential: "Zugangsdaten senden", submitChallenge: "Code senden", approve: "Genehmigen", deny: "Ablehnen", challengeCode: "Einmalcode"
   },
   ja: {
@@ -679,7 +681,7 @@ const EXTRA_I18N = {
     chatConversationTitle: "会話", chatActivityTitle: "ライブ活動", chatUserRole: "あなた", chatAssistantRole: "OmniDoer", chatRecordNumber: (sequence) => `記録 #${sequence}`,
     copyCommand: "コマンドをコピー", copiedCommand: "コピーしました", copyCommandFailed: "コピー失敗",
     syncApprovalTitle: "同期の承認待ち", syncApprovalDetail: "承認するとアクティブなLinux CLIを再起動し、この端末を同じ会話に接続します。", syncApprovalThread: "スレッド", syncApprovalPid: "CLI PID", syncApprovalCommand: "コマンド", syncApprovalExpires: "期限", syncApprovalRenewing: "同期リクエストを更新中...", syncApprovalRenewed: "同期リクエストを更新しました", syncApprovalExpired: "同期承認の期限が切れました。再度リクエストしてください。", syncApprovalConfirmText: "アクティブなCodex TUIを再起動し同じスレッドを保持することを理解しました。", syncApprovalOpenRequest: "リクエストを開く", syncApprovalApprove: "同期を承認",
-    pauseAgent: "Agentを一時停止", pauseAgentRequested: "一時停止を依頼しました", pauseAgentRequestDetail: "依頼はアクティブなLinuxコンソールにキューされました。", takeoverPausePrompt: "現在のブラウザ自動操作を一時停止し、アクティブなブラウザをControl Clientへ渡してください。ブラウザが動作中ならHuman Takeoverリクエストを作成または維持し、画面をストリーミングして、Continue Agentをタップするまで待機してください。", releaseControl: "Agentを続行", openCurrentUrl: "現在のURLを開く", externalHandoffNote: "現在のURLを開き、サイト上の操作を自分で完了してからAgentを続行してください。パスワードやコードはモデルに送信されません。",
+    pauseAgent: "Agentを一時停止", pauseAgentRequested: "一時停止を依頼しました", pauseAgentRequestDetail: "依頼はアクティブなLinuxコンソールにキューされました。", takeoverInputStillPending: "入力はまだブラウザ確認待ちです。次の操作前にフレームを更新してください。", takeoverPausePrompt: "現在のブラウザ自動操作を一時停止し、アクティブなブラウザをControl Clientへ渡してください。ブラウザが動作中ならHuman Takeoverリクエストを作成または維持し、画面をストリーミングして、Continue Agentをタップするまで待機してください。", releaseControl: "Agentを続行", openCurrentUrl: "現在のURLを開く", externalHandoffNote: "現在のURLを開き、サイト上の操作を自分で完了してからAgentを続行してください。パスワードやコードはモデルに送信されません。",
     submitCredential: "認証情報を送信", submitChallenge: "コードを送信", approve: "承認", deny: "拒否", challengeCode: "ワンタイムコード"
   },
   ko: {
@@ -691,7 +693,7 @@ const EXTRA_I18N = {
     chatConversationTitle: "대화", chatActivityTitle: "실시간 활동", chatUserRole: "나", chatAssistantRole: "OmniDoer", chatRecordNumber: (sequence) => `기록 #${sequence}`,
     copyCommand: "명령 복사", copiedCommand: "명령 복사됨", copyCommandFailed: "복사 실패",
     syncApprovalTitle: "동기화 승인 대기", syncApprovalDetail: "승인하면 활성 Linux CLI를 다시 시작하고 이 기기를 같은 대화에 연결합니다.", syncApprovalThread: "스레드", syncApprovalPid: "CLI PID", syncApprovalCommand: "명령", syncApprovalExpires: "만료", syncApprovalRenewing: "동기화 요청 새로 고침 중...", syncApprovalRenewed: "동기화 요청 새로 고침됨", syncApprovalExpired: "동기화 승인이 만료되었습니다. 새로 요청하세요.", syncApprovalConfirmText: "활성 Codex TUI를 다시 시작하고 같은 스레드를 유지함을 이해합니다.", syncApprovalOpenRequest: "요청 열기", syncApprovalApprove: "동기화 승인",
-    pauseAgent: "Agent 일시 중지", pauseAgentRequested: "일시 중지 요청됨", pauseAgentRequestDetail: "요청이 활성 Linux 콘솔에 대기열로 전달되었습니다.", takeoverPausePrompt: "현재 브라우저 자동화를 즉시 일시 중지하고 활성 브라우저를 내 Control Client로 넘겨주세요. 브라우저가 실행 중이면 Human Takeover 요청을 만들거나 유지하고, 페이지를 스트리밍한 뒤 내가 Continue Agent를 탭할 때까지 기다려주세요.", releaseControl: "Agent 계속", openCurrentUrl: "현재 URL 열기", externalHandoffNote: "현재 URL을 열고 사이트 작업을 직접 완료한 뒤 Agent를 계속하세요. 비밀번호와 코드는 모델로 전송되지 않습니다.",
+    pauseAgent: "Agent 일시 중지", pauseAgentRequested: "일시 중지 요청됨", pauseAgentRequestDetail: "요청이 활성 Linux 콘솔에 대기열로 전달되었습니다.", takeoverInputStillPending: "입력이 아직 브라우저 확인을 기다립니다. 다음 작업 전에 프레임을 새로 고치세요.", takeoverPausePrompt: "현재 브라우저 자동화를 즉시 일시 중지하고 활성 브라우저를 내 Control Client로 넘겨주세요. 브라우저가 실행 중이면 Human Takeover 요청을 만들거나 유지하고, 페이지를 스트리밍한 뒤 내가 Continue Agent를 탭할 때까지 기다려주세요.", releaseControl: "Agent 계속", openCurrentUrl: "현재 URL 열기", externalHandoffNote: "현재 URL을 열고 사이트 작업을 직접 완료한 뒤 Agent를 계속하세요. 비밀번호와 코드는 모델로 전송되지 않습니다.",
     submitCredential: "자격 증명 제출", submitChallenge: "코드 제출", approve: "승인", deny: "거부", challengeCode: "일회용 코드"
   }
 };
@@ -3252,6 +3254,8 @@ async function pollTakeoverInputResult(request, eventId, eventType) {
       return;
     }
   }
+  updateTakeoverPanel(request, null, t("takeoverInputStillPending"));
+  refreshActiveTakeoverFrame();
 }
 
 async function sendActiveTakeoverText() {
