@@ -23,6 +23,7 @@ from omnidoer.omni_takeover.cross_process import (
     wait_for_input_event_result,
     write_context_status,
     write_frame,
+    write_input_event_result,
 )
 from omnidoer.omni_takeover.models import InputEvent
 from omnidoer.omni_takeover.relay import apply_input_event, release_control, request_user_control, start_stream
@@ -139,6 +140,21 @@ class TakeoverBrowserRelayTest(unittest.TestCase):
                 self.assertEqual(queued["status"], "event_queued")
                 events = consume_input_events("cross-browser")
                 self.assertEqual(events[0]["event"]["event_type"], "tap")
+                pending = json.loads(
+                    urlopen(f"{base}/api/browser/contexts/cross-browser/input-results/{queued['event_id']}", timeout=5).read().decode()
+                )
+                self.assertEqual(pending["status"], "pending")
+                write_input_event_result("cross-browser", queued["event_id"], {"status": "event_applied", "request_id": request_id})
+                result = json.loads(
+                    urlopen(f"{base}/api/browser/contexts/cross-browser/input-results/{queued['event_id']}", timeout=5).read().decode()
+                )
+                self.assertEqual(result["status"], "event_applied")
+                self.assertEqual(result["request_id"], request_id)
+                self.assertFalse(result["secret_exposed_to_model"])
+                pending_again = json.loads(
+                    urlopen(f"{base}/api/browser/contexts/cross-browser/input-results/{queued['event_id']}", timeout=5).read().decode()
+                )
+                self.assertEqual(pending_again["status"], "pending")
             finally:
                 control_server.shutdown()
                 control_server.server_close()

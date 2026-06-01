@@ -141,12 +141,12 @@ const I18N = {
     localTrustedMode: "Local trusted mode is active. Pairing is not required on localhost.",
     localTrustedDevice: "local trusted mode",
     pairingCodeLoaded: "Pairing code loaded. Confirm the server details, then pair this device.",
-    pairFreshLink: "Not paired. Use a fresh pairing link only once; after pairing this browser reuses its cached session.",
+    pairFreshLink: "This browser is not paired. Pairing is per browser because the device key stays local; open a fresh pairing link on this device.",
     checkingCachedSession: "Checking cached pairing session...",
     sessionHidden: "This browser is authenticated. The current session is not visible in the latest session list.",
     sessionRevoked: "This browser's cached session was revoked. Pair again to continue.",
     pairedCached: "Paired. Requests load automatically; pair again only if this session expires or is revoked.",
-    cachedPairingRejected: "Cached pairing cannot access this Control Service. Use a fresh pairing link or forget local pairing.",
+    cachedPairingRejected: "This browser has local pairing data, but its session cookie or signature was rejected. Open the same HTTPS origin, enable cookies, or pair again.",
     pairingDevice: "Pairing this device...",
     pairingFailed: "Pairing failed.",
     pairedDevice: (name) => `Paired ${name}. This browser will reuse the cached session until it expires or is revoked.`,
@@ -451,12 +451,12 @@ const I18N = {
     localTrustedMode: "本地可信模式已启用，localhost 不需要配对。",
     localTrustedDevice: "本地可信模式",
     pairingCodeLoaded: "已载入配对码。确认服务端信息后配对此设备。",
-    pairFreshLink: "未配对。配对链接只能使用一次；配对后浏览器会复用本地会话。",
+    pairFreshLink: "当前浏览器未配对。配对按浏览器保存，因为设备密钥只留在本机；请在此设备上打开新的配对链接。",
     checkingCachedSession: "正在检查本地配对会话...",
     sessionHidden: "此浏览器已认证，但当前会话不在最新会话列表中。",
     sessionRevoked: "此浏览器缓存的会话已被撤销，请重新配对。",
     pairedCached: "已配对。请求会自动加载；只有会话过期或被撤销时才需要重新配对。",
-    cachedPairingRejected: "缓存配对无法访问此 Control Service，请使用新的配对链接或清除本地配对。",
+    cachedPairingRejected: "当前浏览器有本地配对数据，但会话 Cookie 或签名被拒绝。请使用相同 HTTPS 地址、允许 Cookie，或重新配对。",
     pairingDevice: "正在配对此设备...",
     pairingFailed: "配对失败。",
     pairedDevice: (name) => `已配对 ${name}。此浏览器会复用本地会话，直到会话过期或被撤销。`,
@@ -3072,6 +3072,9 @@ async function sendTakeoverInput(request, eventPayload) {
       ? t("takeoverInputQueued", eventPayload.event_type)
       : t("takeoverInputDelivered", eventPayload.event_type);
     updateTakeoverPanel(request, null, message);
+    if (status === "event_queued" && responsePayload.event_id && request.browser_context_id) {
+      pollTakeoverInputResult(request, responsePayload.event_id, eventPayload.event_type);
+    }
     scheduleTakeoverFrameRefresh(request, TAKEOVER_FRAME_AFTER_INPUT_MS);
     return true;
   } else {
@@ -3084,6 +3087,33 @@ async function sendTakeoverInput(request, eventPayload) {
     updateTakeoverPanel(request, null, t("takeoverInputDeliveryFailed"));
     scheduleTakeoverFrameRefresh(request, TAKEOVER_FRAME_AFTER_INPUT_MS);
     return false;
+  }
+}
+
+async function pollTakeoverInputResult(request, eventId, eventType) {
+  const contextId = request?.browser_context_id;
+  if (!contextId || !eventId) return;
+  const deadline = Date.now() + 6000;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    if (activeTakeoverRequest()?.request_id !== request.request_id) return;
+    try {
+      const response = await signedFetch(
+        `/api/browser/contexts/${encodeURIComponent(contextId)}/input-results/${encodeURIComponent(eventId)}`,
+        { cache: "no-store" }
+      );
+      if (response.status === 202) continue;
+      const result = await response.json();
+      if (!response.ok || result.status === "event_failed") {
+        updateTakeoverPanel(request, null, t("takeoverInputDeliveryFailed"));
+      } else {
+        updateTakeoverPanel(request, null, t("takeoverInputDelivered", eventType));
+      }
+      scheduleTakeoverFrameRefresh(request, TAKEOVER_FRAME_AFTER_INPUT_MS);
+      return;
+    } catch {
+      return;
+    }
   }
 }
 

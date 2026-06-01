@@ -149,6 +149,34 @@ def write_input_event_result(browser_context_id: str, event_id: str, result: dic
     _write_json_atomic(path, payload)
 
 
+def read_input_event_result(
+    browser_context_id: str,
+    event_id: str,
+    *,
+    max_age_seconds: float = INPUT_RESULT_MAX_AGE_SECONDS,
+    consume: bool = False,
+) -> dict[str, Any] | None:
+    if not event_id:
+        return None
+    path = _context_dir(browser_context_id) / "input_results" / f"{_safe_id(event_id)}.json"
+    payload = _read_json(path)
+    if not payload:
+        return None
+    applied_at = float(payload.get("applied_at") or 0.0)
+    if time.time() - applied_at > max_age_seconds:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        return None
+    if consume:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+    return {**payload, "secret_exposed_to_model": False}
+
+
 def wait_for_input_event_result(
     browser_context_id: str,
     event_id: str,
@@ -158,16 +186,11 @@ def wait_for_input_event_result(
 ) -> dict[str, Any] | None:
     if not event_id:
         return None
-    path = _context_dir(browser_context_id) / "input_results" / f"{_safe_id(event_id)}.json"
     deadline = time.time() + max(0.0, timeout_seconds)
     while time.time() <= deadline:
-        payload = _read_json(path)
+        payload = read_input_event_result(browser_context_id, event_id, consume=True)
         if payload:
-            try:
-                path.unlink()
-            except OSError:
-                pass
-            return {**payload, "secret_exposed_to_model": False}
+            return payload
         time.sleep(max(0.01, poll_interval_seconds))
     return None
 

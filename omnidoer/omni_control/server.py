@@ -1274,6 +1274,37 @@ class ControlHandler(SimpleHTTPRequestHandler):
             except Exception as exc:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
             return
+        if len(parts) == 6 and parts[:3] == ["api", "browser", "contexts"] and parts[4] == "input-results":
+            try:
+                session = self._require_access()
+            except PermissionError:
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                return
+            try:
+                from omnidoer.omni_takeover.cross_process import read_input_event_result
+
+                context_id = unquote(parts[3])
+                event_id = unquote(parts[5])
+                preview = read_input_event_result(context_id, event_id, consume=False)
+                if preview is None:
+                    self._send_json(HTTPStatus.ACCEPTED, {"status": "pending", "secret_exposed_to_model": False})
+                    return
+                request = self._get_request_for_session(store, str(preview.get("request_id") or ""), session)
+                if request.browser_context_id != context_id:
+                    self._send_json(HTTPStatus.FORBIDDEN, {"error": "forbidden"})
+                    return
+                result = read_input_event_result(context_id, event_id, consume=True)
+                if result is None:
+                    self._send_json(HTTPStatus.ACCEPTED, {"status": "pending", "secret_exposed_to_model": False})
+                    return
+                self._send_json(HTTPStatus.OK, result)
+            except KeyError:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "request not found"})
+            except PermissionError:
+                self._send_json(HTTPStatus.FORBIDDEN, {"error": "forbidden"})
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
         if path == "/api/tasks":
             try:
                 self._require_access()
