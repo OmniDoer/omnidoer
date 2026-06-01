@@ -123,6 +123,21 @@ fn outbound_events_for_notification(notification: &ServerNotification) -> Vec<Ou
         ServerNotification::PlanDelta(notification) => {
             vec![OutboundEvent::AssistantDelta(notification.delta.clone())]
         }
+        ServerNotification::ReasoningSummaryTextDelta(notification) => {
+            vec![OutboundEvent::Record {
+                record_type: "reasoning",
+                text: notification.delta.clone(),
+                role: Some("assistant"),
+            }]
+        }
+        ServerNotification::ReasoningTextDelta(_) => Vec::new(),
+        ServerNotification::TerminalInteraction(notification) => {
+            vec![OutboundEvent::Record {
+                record_type: "terminal_input",
+                text: format!("{} stdin:\n{}", notification.process_id, notification.stdin),
+                role: Some("assistant"),
+            }]
+        }
         ServerNotification::ItemStarted(notification) => {
             if let Some(text) = item_started_record_text(&notification.item) {
                 vec![OutboundEvent::Record {
@@ -717,6 +732,63 @@ mod tests {
             vec![OutboundEvent::Record {
                 record_type: "tool_output",
                 text: "line from command\n".to_string(),
+                role: Some("assistant"),
+            }]
+        );
+    }
+
+    #[test]
+    fn outbound_events_include_reasoning_summary_for_phone_activity() {
+        let events =
+            outbound_events_for_notification(&ServerNotification::ReasoningSummaryTextDelta(
+                codex_app_server_protocol::ReasoningSummaryTextDeltaNotification {
+                    thread_id: "thread-1".to_string(),
+                    turn_id: "turn-1".to_string(),
+                    item_id: "reasoning-1".to_string(),
+                    delta: "checking repository state".to_string(),
+                    summary_index: 0,
+                },
+            ));
+        assert_eq!(
+            events,
+            vec![OutboundEvent::Record {
+                record_type: "reasoning",
+                text: "checking repository state".to_string(),
+                role: Some("assistant"),
+            }]
+        );
+    }
+
+    #[test]
+    fn outbound_events_do_not_forward_raw_reasoning_to_phone_activity() {
+        let events = outbound_events_for_notification(&ServerNotification::ReasoningTextDelta(
+            codex_app_server_protocol::ReasoningTextDeltaNotification {
+                thread_id: "thread-1".to_string(),
+                turn_id: "turn-1".to_string(),
+                item_id: "reasoning-1".to_string(),
+                delta: "private raw reasoning".to_string(),
+                content_index: 0,
+            },
+        ));
+        assert_eq!(events, Vec::new());
+    }
+
+    #[test]
+    fn outbound_events_include_terminal_input_for_phone_activity() {
+        let events = outbound_events_for_notification(&ServerNotification::TerminalInteraction(
+            codex_app_server_protocol::TerminalInteractionNotification {
+                thread_id: "thread-1".to_string(),
+                turn_id: "turn-1".to_string(),
+                item_id: "cmd-1".to_string(),
+                process_id: "proc-1".to_string(),
+                stdin: "y\n".to_string(),
+            },
+        ));
+        assert_eq!(
+            events,
+            vec![OutboundEvent::Record {
+                record_type: "terminal_input",
+                text: "proc-1 stdin:\ny\n".to_string(),
                 role: Some("assistant"),
             }]
         );
