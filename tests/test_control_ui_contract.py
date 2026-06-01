@@ -370,6 +370,8 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("maybeAutoOpenTakeoverPanel", app)
         self.assertIn('activatePanel("takeover-panel", { persist: false })', app)
         self.assertIn("autoOpenedTakeoverRequestId", app)
+        self.assertIn("autoOpenedPreviewContextId", app)
+        self.assertIn("context.browser_context_id", app)
         self.assertIn("browserHandoffPauseButton.onclick = () => requestTakeoverPause()", app)
         self.assertIn("browserHandoffContinueButton.onclick = () => releaseActiveTakeover()", app)
         self.assertIn('a[href="#takeover-panel"]', app)
