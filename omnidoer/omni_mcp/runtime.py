@@ -4,18 +4,20 @@ from __future__ import annotations
 
 import atexit
 
-from omnidoer.omni_browser.controller import BrowserController
+from typing import Any
+
+from omnidoer.omni_takeover.browser_worker import BrowserContextWorker
 from omnidoer.omni_takeover.sessions import register_browser_context, unregister_browser_context
 
 
-_browser: BrowserController | None = None
+_browser: BrowserContextWorker | None = None
 _browser_relay_last_preview_frame_at = 0.0
 
 
-def get_browser() -> BrowserController:
+def get_browser() -> BrowserContextWorker:
     global _browser
     if _browser is None:
-        browser = BrowserController()
+        browser = BrowserContextWorker()
         browser.__enter__()
         _browser = browser
         register_browser_context("mcp-browser", browser)
@@ -24,13 +26,13 @@ def get_browser() -> BrowserController:
     return _browser
 
 
-def current_browser() -> BrowserController | None:
+def current_browser() -> BrowserContextWorker | None:
     return _browser
 
 
 def publish_browser_state(
     *,
-    browser: object | None = None,
+    browser: Any | None = None,
     browser_context_id: str = "mcp-browser",
     force_preview_frame: bool = False,
 ) -> bool:

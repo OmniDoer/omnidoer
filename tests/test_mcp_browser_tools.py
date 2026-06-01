@@ -1,6 +1,7 @@
 import os
 import tempfile
 import importlib.util
+import time
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -11,6 +12,7 @@ from omnidoer.omni_mcp.runtime import get_browser, reset_runtime_for_tests
 from omnidoer.omni_mcp.tools import call_tool
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.secure_channel import encrypt_for_broker, load_or_create_keypair
+from omnidoer.omni_takeover.cross_process import enqueue_input_event, read_frame, wait_for_input_event_result
 from omnidoer.omni_vault.vault import Vault
 from tests.util_demo import DemoServerFixture
 
@@ -95,6 +97,34 @@ class McpBrowserToolsTest(unittest.TestCase):
             self.assertTrue(opened["takeover_created"])
             self.assertEqual(opened["request"]["browser_context_id"], "mcp-browser")
             RequestStore().release_takeover(opened["request"]["request_id"])
+
+    def test_mcp_browser_auto_takeover_relay_consumes_phone_input_without_next_tool_call(self) -> None:
+        with DemoServerFixture() as demo:
+            opened = call_tool("browser.open", {"url": f"{demo.origin}/captcha"})
+            if opened.get("status") == "unavailable":
+                self.skipTest("playwright chromium unavailable")
+            self.assertEqual(opened["status"], "paused_for_human_takeover")
+            request_id = opened["request"]["request_id"]
+
+            frame = None
+            for _ in range(30):
+                frame = read_frame("mcp-browser")
+                if frame:
+                    break
+                time.sleep(0.1)
+            self.assertIsNotNone(frame)
+
+            queued = enqueue_input_event(
+                "mcp-browser",
+                request_id,
+                {"event_type": "key", "key": "Tab", "frame_id": frame["frame_id"]},
+            )
+            result = wait_for_input_event_result("mcp-browser", queued["event_id"], timeout_seconds=5)
+            self.assertIsNotNone(result)
+            self.assertEqual(result["status"], "event_applied")
+            self.assertEqual(result["request_id"], request_id)
+            self.assertFalse(result["secret_exposed_to_model"])
+            RequestStore().release_takeover(request_id)
 
     def test_mcp_browser_click_auto_pauses_after_navigation_to_antibot(self) -> None:
         class ClickNavigationHandler(BaseHTTPRequestHandler):
@@ -183,6 +213,7 @@ class McpBrowserToolsTest(unittest.TestCase):
                 self.assertEqual(approved["status"], "uploaded")
                 self.assertNotIn("sensitive upload body", repr(approved))
             finally:
+                reset_runtime_for_tests()
                 if old_home is None:
                     os.environ.pop("OMNIDOER_HOME", None)
                 else:
@@ -234,6 +265,7 @@ class McpBrowserToolsTest(unittest.TestCase):
                 self.assertIn("not approved", replay["reason"])
                 self.assertEqual(get_browser().page.evaluate("window.clickedCount"), 1)
             finally:
+                reset_runtime_for_tests()
                 if old_home is None:
                     os.environ.pop("OMNIDOER_HOME", None)
                 else:
@@ -305,6 +337,7 @@ class McpBrowserToolsTest(unittest.TestCase):
                 observation = call_tool("browser.observe", {})
                 self.assertNotIn("one-time-mcp-password", repr(observation))
             finally:
+                reset_runtime_for_tests()
                 if old_home is None:
                     os.environ.pop("OMNIDOER_HOME", None)
                 else:

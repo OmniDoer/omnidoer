@@ -211,6 +211,9 @@ class BrowserController:
         self.page.wait_for_load_state("domcontentloaded")
         return {"status": "loaded", "url": self.current_url(), "secret_exposed_to_model": False}
 
+    def evaluate(self, expression: str) -> Any:
+        return self.page.evaluate(expression)
+
     def _selector_targets_sensitive_field(self, selector: str) -> bool:
         try:
             metadata = self.page.locator(selector).first.evaluate(

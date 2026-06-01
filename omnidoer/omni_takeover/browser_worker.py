@@ -5,6 +5,7 @@ from __future__ import annotations
 import queue
 import threading
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from omnidoer.omni_browser.controller import BrowserController
@@ -22,7 +23,14 @@ class _Call:
 class BrowserContextWorker:
     """Owns a Playwright browser on one thread and exposes safe sync calls."""
 
-    def __init__(self, start_url: str, *, headless: bool = True):
+    class _PageProxy:
+        def __init__(self, worker: "BrowserContextWorker"):
+            self._worker = worker
+
+        def evaluate(self, expression: str) -> Any:
+            return self._worker.evaluate(expression)
+
+    def __init__(self, start_url: str = "about:blank", *, headless: bool = True):
         self.start_url = start_url
         self.headless = headless
         self._calls: queue.Queue[_Call | None] = queue.Queue()
@@ -31,6 +39,7 @@ class BrowserContextWorker:
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._relay_context_id: str | None = None
         self._relay_lock = threading.Lock()
+        self._page_proxy = self._PageProxy(self)
 
     def start(self) -> "BrowserContextWorker":
         self._thread.start()
@@ -111,11 +120,36 @@ class BrowserContextWorker:
     def takeover_frame(self, *, frame_profile: str | None = None) -> dict:
         return self._call("takeover_frame", frame_profile=frame_profile)
 
+    @property
+    def page(self) -> _PageProxy:
+        return self._page_proxy
+
+    def evaluate(self, expression: str) -> Any:
+        return self._call("evaluate", expression)
+
     def apply_user_input_event(self, event: InputEvent) -> dict:
         return self._call("apply_user_input_event", event)
 
+    def observe_dom(self) -> dict:
+        return self._call("observe_dom")
+
+    def observe_accessibility(self) -> dict:
+        return self._call("observe_accessibility")
+
+    def click_target_metadata(self, selector: str) -> dict[str, Any]:
+        return self._call("click_target_metadata", selector)
+
     def click(self, selector: str) -> dict:
         return self._call("click", selector)
+
+    def type_text(self, selector: str, text: str) -> dict:
+        return self._call("type_text", selector, text)
+
+    def select(self, selector: str, value: str) -> dict:
+        return self._call("select", selector, value)
+
+    def upload_file(self, selector: str, file_path: str | Path) -> dict:
+        return self._call("upload_file", selector, file_path)
 
     def fill_field(self, selector: str, value: str, *, secret: bool = False) -> dict:
         return self._call("fill_field", selector, value, secret=secret)
@@ -135,5 +169,20 @@ class BrowserContextWorker:
     def current_url(self) -> str:
         return self._call("current_url")
 
+    def current_origin(self) -> str | None:
+        return self._call("current_origin")
+
+    def inspect_forms(self) -> list[dict[str, Any]]:
+        return self._call("inspect_forms")
+
+    def inspect_frame_tree(self) -> dict:
+        return self._call("inspect_frame_tree")
+
+    def inspect_form_action(self) -> str | None:
+        return self._call("inspect_form_action")
+
     def press_key(self, key: str) -> dict:
         return self._call("apply_user_input_event", InputEvent("key", key=key))
+
+    def download_current_file(self, selector: str = "a[download]", output_dir: str | None = None) -> Path:
+        return self._call("download_current_file", selector, output_dir)
