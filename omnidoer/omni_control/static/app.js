@@ -1221,7 +1221,14 @@ function restoreRequestDrafts(list, captured) {
   }
 }
 
-function setStatus(message, detail = "", runtimeState = "", command = "", restartLabelKey = "restartBridge") {
+function setStatus(
+  message,
+  detail = "",
+  runtimeState = "",
+  command = "",
+  restartLabelKey = "restartBridge",
+  restartActionAvailable = true
+) {
   document.querySelector("#runtime-mode").textContent = message;
   document.querySelector("#runtime-detail").textContent = detail;
   const runtimeCommandRow = document.querySelector("#runtime-command-row");
@@ -1239,15 +1246,29 @@ function setStatus(message, detail = "", runtimeState = "", command = "", restar
     runtimeCopyCommand.textContent = t("copyCommand");
   }
   if (runtimeRestartBridge) {
-    runtimeRestartBridge.hidden = !command;
+    runtimeRestartBridge.hidden = !command || !restartActionAvailable;
     runtimeRestartBridge.textContent = t(restartLabelKey);
     runtimeRestartBridge.classList.toggle("primary-action", restartLabelKey === "enableCurrentSessionSync");
   }
   document.body.dataset.runtimeState = runtimeState;
 }
 
+function runnerCanRestartCurrentConsole(runner = {}) {
+  runner = runner || {};
+  const diagnostics = runner.sync_diagnostics || {};
+  if ("restart_current_console_available" in diagnostics) {
+    return Boolean(diagnostics.restart_current_console_available);
+  }
+  const legacyRelay = runner.legacy_tui_relay || {};
+  return Boolean(runner.restart_command && legacyRelay.active);
+}
+
 function runnerNeedsCurrentSessionSync(runner = {}) {
   runner = runner || {};
+  const diagnostics = runner.sync_diagnostics || {};
+  if (diagnostics.activation_action) {
+    return diagnostics.activation_action === "restart_current_console";
+  }
   const activeProcess = runner.active_tui_process_bridge || {};
   return Boolean(
     runner.waiting_for_tui_bridge &&
@@ -1297,7 +1318,7 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
     sendKey = legacyRelay.active ? "sendToCurrentConsole" : "sendUnavailable";
     placeholderKey = legacyRelay.active ? "chatPlaceholder" : "chatPlaceholderUnavailable";
     canSend = Boolean(legacyRelay.active);
-    canRestart = Boolean(runner.restart_command);
+    canRestart = runnerCanRestartCurrentConsole(runner);
     diagnosticKey = staleActiveBinary
       ? "chatSyncDiagnosticStaleBinary"
       : diagnostics.temporary_terminal_relay ? "chatSyncDiagnosticLegacy" : "chatSyncDiagnosticWaiting";
@@ -1376,7 +1397,8 @@ async function monitorBridgeActivation() {
         t("restartBridgeStillWaiting"),
         "legacy_tui_relay",
         runner.restart_command || "",
-        "enableCurrentSessionSync"
+        "enableCurrentSessionSync",
+        runnerCanRestartCurrentConsole(runner)
       );
       return;
     }
@@ -1385,7 +1407,8 @@ async function monitorBridgeActivation() {
       t("restartBridgeChecking"),
       "waiting_for_tui_bridge",
       runner.restart_command || "",
-      "enableCurrentSessionSync"
+      "enableCurrentSessionSync",
+      runnerCanRestartCurrentConsole(runner)
     );
   } catch {
     setStatus(t("restartBridgeStarted"), t("restartBridgeChecking"), "waiting_for_tui_bridge", "", "enableCurrentSessionSync");
@@ -3401,6 +3424,7 @@ async function loadRuntimeStatus() {
     let runtimeState = "";
     let restartCommand = "";
     let restartLabelKey = "restartBridge";
+    let restartActionAvailable = true;
     if (runner.waiting_for_tui_bridge) {
       const legacyRelay = runner.legacy_tui_relay || {};
       const activeProcess = runner.active_tui_process_bridge || {};
@@ -3419,6 +3443,7 @@ async function loadRuntimeStatus() {
       runtimeState = legacyRelay.active ? "legacy_tui_relay" : "waiting_for_tui_bridge";
       restartCommand = runner.restart_command || "";
       restartLabelKey = runnerNeedsCurrentSessionSync(runner) ? "enableCurrentSessionSync" : "restartBridge";
+      restartActionAvailable = runnerCanRestartCurrentConsole(runner);
     } else if (runner.tui_bridge_active) {
       mode = t("runtimeModeAttached");
       detail = t("runtimeBridgeActive");
@@ -3429,7 +3454,7 @@ async function loadRuntimeStatus() {
       runtimeState = "background_runner";
     }
     updateChatSessionStatus(runner);
-    setStatus(mode, detail, runtimeState, restartCommand, restartLabelKey);
+    setStatus(mode, detail, runtimeState, restartCommand, restartLabelKey, restartActionAvailable);
   } catch {
     cachedRuntimeStatus = null;
     updateChatSessionStatus(null, { offline: true });

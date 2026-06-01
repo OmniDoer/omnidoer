@@ -158,10 +158,40 @@ def control_chat_sync_diagnostics(
     else:
         state = "background_runner"
     requires_restart = state in {"legacy_terminal_relay", "current_cli_waiting_for_bridge", "bound_thread_without_live_cli"}
+    restart_current_console_available = bool(
+        requires_restart
+        and native_ready
+        and bound_thread
+        and (legacy_active or tui_session_active)
+    )
+    manual_resume_available = bool(
+        state == "bound_thread_without_live_cli"
+        and native_ready
+        and bound_thread
+    )
+    if tui_bridge_active:
+        activation_action = "none"
+        activation_blocker = None
+    elif not bound_thread:
+        activation_action = "start_console_with_thread"
+        activation_blocker = "thread_not_bound"
+    elif not native_ready:
+        activation_action = "update_native_bridge"
+        activation_blocker = install_status.get("reason") or "native_bridge_not_installed"
+    elif restart_current_console_available:
+        activation_action = "restart_current_console"
+        activation_blocker = active_process_bridge.get("reason") or state
+    elif manual_resume_available:
+        activation_action = "manual_resume_console"
+        activation_blocker = "live_tui_process_not_found"
+    else:
+        activation_action = "wait_for_current_console"
+        activation_blocker = active_process_bridge.get("reason") or state
     return {
         "state": state,
         "thread_bound": bound_thread,
         "native_bridge_installed": native_ready,
+        "native_sync_active": bool(tui_bridge_active),
         "current_cli_process_active": bool(tui_session_active),
         "current_cli_context_attached": bool(tui_bridge_active),
         "current_cli_reachable": bool(tui_bridge_active or legacy_active),
@@ -170,7 +200,12 @@ def control_chat_sync_diagnostics(
         "structured_streaming": bool(tui_bridge_active),
         "temporary_terminal_relay": legacy_active,
         "requires_restart_for_native_sync": requires_restart,
-        "restart_ready": bool(requires_restart and native_ready and bound_thread),
+        "restart_ready": restart_current_console_available,
+        "restart_current_console_available": restart_current_console_available,
+        "manual_resume_available": manual_resume_available,
+        "activation_action": activation_action,
+        "activation_blocker": activation_blocker,
+        "verification_signal": "control_chat_bridge_heartbeat" if tui_bridge_active else None,
         "detached_thread_resume_allowed": bool(detached_thread_resume_allowed),
         "bridge_heartbeat_age_seconds": bridge_heartbeat_age_seconds,
         "active_cli_binary_has_native_bridge": bool(active_process_bridge.get("native_bridge_ready")),

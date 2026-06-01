@@ -165,10 +165,29 @@ class ControlChatRunnerTest(unittest.TestCase):
         self.assertFalse(legacy["current_cli_context_attached"])
         self.assertEqual(legacy["phone_to_current_cli_delivery"], "terminal_relay")
         self.assertTrue(legacy["restart_ready"])
+        self.assertTrue(legacy["restart_current_console_available"])
+        self.assertFalse(legacy["manual_resume_available"])
+        self.assertEqual(legacy["activation_action"], "restart_current_console")
+        self.assertEqual(legacy["activation_blocker"], "running_binary_deleted")
+        self.assertFalse(legacy["native_sync_active"])
         self.assertFalse(legacy["detached_thread_resume_allowed"])
         self.assertFalse(legacy["active_cli_binary_has_native_bridge"])
         self.assertTrue(legacy["active_cli_binary_deleted"])
         self.assertEqual(legacy["active_cli_binary_reason"], "running_binary_deleted")
+
+        manual_resume = control_chat_sync_diagnostics(
+            thread_id="thread_demo",
+            tui_bridge_active=False,
+            tui_session_active=False,
+            install_status={"ready": True},
+            legacy_relay={"active": False},
+            active_process_bridge={"active": False, "reason": "live_tui_process_not_found"},
+        )
+        self.assertEqual(manual_resume["state"], "bound_thread_without_live_cli")
+        self.assertFalse(manual_resume["restart_ready"])
+        self.assertFalse(manual_resume["restart_current_console_available"])
+        self.assertTrue(manual_resume["manual_resume_available"])
+        self.assertEqual(manual_resume["activation_action"], "manual_resume_console")
 
         native = control_chat_sync_diagnostics(
             thread_id="thread_demo",
@@ -179,9 +198,12 @@ class ControlChatRunnerTest(unittest.TestCase):
             bridge_heartbeat_age_seconds=0.2,
         )
         self.assertEqual(native["state"], "native_bridge_active")
+        self.assertTrue(native["native_sync_active"])
         self.assertTrue(native["current_cli_context_attached"])
         self.assertEqual(native["current_cli_to_phone_stream"], "structured_records")
         self.assertFalse(native["requires_restart_for_native_sync"])
+        self.assertEqual(native["activation_action"], "none")
+        self.assertEqual(native["verification_signal"], "control_chat_bridge_heartbeat")
         self.assertFalse(native["detached_thread_resume_allowed"])
 
     def test_codex_json_events_stream_into_chat_records(self) -> None:
