@@ -344,6 +344,10 @@ button:disabled {
   border-color: #7dd3fc;
   box-shadow: inset 4px 0 0 var(--accent);
 }
+.request-focus {
+  outline: 3px solid rgba(8, 145, 178, 0.28);
+  scroll-margin: 18px;
+}
 .request-closed {
   background: #f8fafc;
   opacity: 0.78;

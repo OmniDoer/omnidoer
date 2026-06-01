@@ -71,6 +71,8 @@ const I18N = {
     restartBridgeFailed: "Restart failed",
     restartBridgeApprovalRequested: "Sync enablement needs approval",
     restartBridgeApprovalRequestedDetail: "A high-risk request was created. Review and approve it in Requests to restart the current CLI.",
+    reviewSyncRequest: "Review sync request",
+    chatSyncApprovalPending: "A current-session sync approval request is pending.",
     consoleRestartReviewRequired: "Current session sync needs confirmation",
     consoleRestartReviewRequiredDetail: "Check the restart details before approving.",
     consoleRestartConfirmText: "I understand this restarts the active Codex TUI in its tmux pane and keeps the same thread.",
@@ -364,6 +366,8 @@ const I18N = {
     restartBridgeFailed: "重启失败",
     restartBridgeApprovalRequested: "启用同步需要批准",
     restartBridgeApprovalRequestedDetail: "已创建高风险请求。请在“请求”里审核并批准，以重启当前 CLI。",
+    reviewSyncRequest: "查看同步请求",
+    chatSyncApprovalPending: "当前会话同步批准请求正在等待处理。",
     consoleRestartReviewRequired: "当前会话同步需要确认",
     consoleRestartReviewRequiredDetail: "请先检查重启详情再批准。",
     consoleRestartConfirmText: "我理解这会在当前 tmux pane 中重启活跃 Codex TUI，并保留同一个 thread。",
@@ -1080,8 +1084,7 @@ if (languageSelect) {
 
 document.querySelectorAll("[data-filter]").forEach((button) => {
   button.onclick = () => {
-    document.querySelectorAll("[data-filter]").forEach((item) => item.classList.remove("active"));
-    button.classList.add("active");
+    setRequestFilter(button.dataset.filter);
     renderRequestList(cachedRequests, button.dataset.filter);
   };
 });
@@ -1215,6 +1218,35 @@ function requestMatchesFilter(request, filter) {
   return isOpenRequest(request) && requestKind(request) === filter;
 }
 
+function pendingConsoleRestartRequest() {
+  return cachedRequests.find((request) => request.request_type === "console_restart" && request.status === "pending") || null;
+}
+
+function setRequestFilter(filter) {
+  document.querySelectorAll("[data-filter]").forEach((item) => {
+    item.classList.toggle("active", item.dataset.filter === filter);
+  });
+}
+
+function focusRequestCard(requestId) {
+  if (!requestId) return;
+  const card = document.querySelector(`.request[data-request-id="${CSS.escape(requestId)}"]`);
+  if (!card) return;
+  card.classList.add("request-focus");
+  card.scrollIntoView({ behavior: "smooth", block: "center" });
+  setTimeout(() => card.classList.remove("request-focus"), 2400);
+}
+
+function openPendingSyncRequest() {
+  const request = pendingConsoleRestartRequest();
+  if (!request) return false;
+  setRequestFilter("open");
+  activatePanel("requests-panel");
+  renderRequestList(cachedRequests, "open");
+  setTimeout(() => focusRequestCard(request.request_id), 50);
+  return true;
+}
+
 function requestDraftField(input) {
   if (input.dataset.secretField) return `secret:${input.dataset.secretField}`;
   if (input.dataset.challengeField) return `challenge:${input.dataset.challengeField}`;
@@ -1311,7 +1343,7 @@ function setStatus(
   if (runtimeRestartBridge) {
     runtimeRestartBridge.hidden = !command || !restartActionAvailable;
     runtimeRestartBridge.textContent = t(restartLabelKey);
-    runtimeRestartBridge.classList.toggle("primary-action", restartLabelKey === "enableCurrentSessionSync");
+    runtimeRestartBridge.classList.toggle("primary-action", ["enableCurrentSessionSync", "reviewSyncRequest"].includes(restartLabelKey));
   }
   document.body.dataset.runtimeState = runtimeState;
 }
@@ -1350,6 +1382,7 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
   const send = document.querySelector("#send-chat-message");
   const files = document.querySelector("#chat-files");
   const fileLabel = document.querySelector("#chat-files-label");
+  const syncRequest = pendingConsoleRestartRequest();
   let state = "checking";
   let titleKey = "chatSessionCheckingTitle";
   let detailKey = "chatSessionCheckingDetail";
@@ -1385,6 +1418,7 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
     diagnosticKey = staleActiveBinary
       ? "chatSyncDiagnosticStaleBinary"
       : diagnostics.temporary_terminal_relay ? "chatSyncDiagnosticLegacy" : "chatSyncDiagnosticWaiting";
+    if (syncRequest) diagnosticKey = "chatSyncApprovalPending";
   } else if (runner?.thread_id) {
     state = "background_runner";
     titleKey = "chatSessionBackgroundTitle";
@@ -1401,8 +1435,9 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
   if (detail) detail.textContent = `${t(detailKey)}${diagnosticKey ? ` ${t(diagnosticKey)}` : ""}`;
   if (restart) {
     restart.hidden = !canRestart;
-    restart.textContent = t(runnerNeedsCurrentSessionSync(runner) ? "enableCurrentSessionSync" : "restartBridge");
+    restart.textContent = syncRequest ? t("reviewSyncRequest") : t(runnerNeedsCurrentSessionSync(runner) ? "enableCurrentSessionSync" : "restartBridge");
     restart.classList.toggle("primary-action", canRestart && runnerNeedsCurrentSessionSync(runner));
+    restart.classList.toggle("pending-sync-request", Boolean(syncRequest));
   }
   if (input) {
     input.disabled = !canSend;
@@ -1480,6 +1515,7 @@ async function monitorBridgeActivation() {
 }
 
 async function restartConsoleBridge() {
+  if (openPendingSyncRequest()) return;
   const buttons = [
     document.querySelector("#runtime-restart-bridge"),
     document.querySelector("#chat-session-restart")
@@ -3570,7 +3606,7 @@ async function loadRuntimeStatus() {
       }
       runtimeState = legacyRelay.active ? "legacy_tui_relay" : "waiting_for_tui_bridge";
       restartCommand = runner.restart_command || "";
-      restartLabelKey = runnerNeedsCurrentSessionSync(runner) ? "enableCurrentSessionSync" : "restartBridge";
+      restartLabelKey = pendingConsoleRestartRequest() ? "reviewSyncRequest" : runnerNeedsCurrentSessionSync(runner) ? "enableCurrentSessionSync" : "restartBridge";
       restartActionAvailable = runnerCanRestartCurrentConsole(runner);
     } else if (runner.tui_bridge_active) {
       mode = t("runtimeModeAttached");
