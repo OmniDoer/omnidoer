@@ -12,7 +12,12 @@ from unittest.mock import patch
 
 from omnidoer.omni_control.chat import MAX_CHAT_MESSAGES, MAX_CHAT_RECORDS, ChatStore
 from omnidoer.omni_control.chat_uploads import ChatUploadStore
-from omnidoer.omni_control.server import CHAT_STREAM_DEFAULT_SNAPSHOTS, CHAT_STREAM_MAX_SNAPSHOTS, ControlHandler
+from omnidoer.omni_control.server import (
+    CHAT_STREAM_DEFAULT_SNAPSHOTS,
+    CHAT_STREAM_HEARTBEAT_SECONDS,
+    CHAT_STREAM_MAX_SNAPSHOTS,
+    ControlHandler,
+)
 from omnidoer.omni_control.tui_legacy_relay import TmuxPane
 
 
@@ -108,6 +113,7 @@ class ControlChatApiTest(unittest.TestCase):
     def test_chat_stream_defaults_keep_mobile_realtime_connection_longer(self) -> None:
         self.assertEqual(CHAT_STREAM_DEFAULT_SNAPSHOTS, 1200)
         self.assertEqual(CHAT_STREAM_MAX_SNAPSHOTS, 1200)
+        self.assertEqual(CHAT_STREAM_HEARTBEAT_SECONDS, 30.0)
 
     def test_chat_message_post_attempts_immediate_legacy_console_delivery(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -268,6 +274,13 @@ class ControlChatApiTest(unittest.TestCase):
                 with urllib_request.urlopen(f"{base}/api/chat/events?stream=1&snapshots=2&interval=0.01", timeout=5) as response:
                     unchanged_stream = response.read().decode()
                 self.assertEqual(unchanged_stream.count("event: chat"), 1)
+
+                with patch("omnidoer.omni_control.server.CHAT_STREAM_HEARTBEAT_SECONDS", 0.0):
+                    with urllib_request.urlopen(f"{base}/api/chat/events?stream=1&snapshots=2&interval=0", timeout=5) as response:
+                        heartbeat_stream = response.read().decode()
+                self.assertEqual(heartbeat_stream.count("event: chat"), 1)
+                self.assertIn("event: heartbeat", heartbeat_stream)
+                self.assertIn('"secret_exposed_to_model":false', heartbeat_stream)
             finally:
                 server.shutdown()
                 server.server_close()

@@ -67,6 +67,7 @@ CONSOLE_RESTART_REQUEST_TTL_SECONDS = 30 * 60
 CONSOLE_RESTART_REQUEST_RENEW_WINDOW_SECONDS = 5 * 60
 CHAT_STREAM_DEFAULT_SNAPSHOTS = 1200
 CHAT_STREAM_MAX_SNAPSHOTS = 1200
+CHAT_STREAM_HEARTBEAT_SECONDS = 30.0
 SENSITIVE_LOG_PATTERNS = [
     re.compile(r"(omnidoer_session=)[^;\s]+"),
     re.compile(r"(code=)[^&\s]+"),
@@ -464,6 +465,13 @@ class ControlHandler(SimpleHTTPRequestHandler):
         ]
         return json.dumps(fingerprint, ensure_ascii=False, sort_keys=True)
 
+    def _chat_heartbeat_payload(self) -> dict:
+        return {
+            "status": "ok",
+            "secret_exposed_to_model": False,
+            "control_client_calls_model": False,
+        }
+
     def _browser_context_payload(self) -> dict:
         from omnidoer.omni_takeover.cross_process import list_contexts
 
@@ -547,31 +555,45 @@ class ControlHandler(SimpleHTTPRequestHandler):
         self.send_header("connection", "close")
         self.end_headers()
         last_fingerprint = ""
+        last_write_at = 0.0
         for index in range(max(1, min(snapshots, CHAT_STREAM_MAX_SNAPSHOTS))):
             if index:
                 time.sleep(max(0.0, min(interval, 10.0)))
             payload = self._chat_payload(limit=limit, after_sequence=after_sequence)
             fingerprint = self._chat_payload_fingerprint(payload)
             if index and fingerprint == last_fingerprint:
+                now = time.monotonic()
+                if now - last_write_at >= CHAT_STREAM_HEARTBEAT_SECONDS:
+                    self.wfile.write(sse_event("heartbeat", self._chat_heartbeat_payload()))
+                    self.wfile.flush()
+                    last_write_at = now
                 continue
             last_fingerprint = fingerprint
             self.wfile.write(sse_event("chat", payload))
             self.wfile.flush()
+            last_write_at = time.monotonic()
         self.close_connection = True
 
     def _send_chat_websocket_stream(self, *, snapshots: int, interval: float, limit: int, after_sequence: int | None) -> None:
         websocket_text_frame = self._open_websocket()
         last_fingerprint = ""
+        last_write_at = 0.0
         for index in range(max(1, min(snapshots, CHAT_STREAM_MAX_SNAPSHOTS))):
             if index:
                 time.sleep(max(0.0, min(interval, 10.0)))
             payload = self._chat_payload(limit=limit, after_sequence=after_sequence)
             fingerprint = self._chat_payload_fingerprint(payload)
             if index and fingerprint == last_fingerprint:
+                now = time.monotonic()
+                if now - last_write_at >= CHAT_STREAM_HEARTBEAT_SECONDS:
+                    self.wfile.write(websocket_text_frame({"event": "heartbeat", "data": self._chat_heartbeat_payload()}))
+                    self.wfile.flush()
+                    last_write_at = now
                 continue
             last_fingerprint = fingerprint
             self.wfile.write(websocket_text_frame({"event": "chat", "data": payload}))
             self.wfile.flush()
+            last_write_at = time.monotonic()
         self.close_connection = True
 
     def _send_takeover_frame_websocket_stream(
