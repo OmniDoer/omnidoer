@@ -2054,7 +2054,9 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
   document.body.dataset.chatSessionState = state;
   document.body.dataset.chatSendMode = canSend ? state : "blocked";
   if (title) title.textContent = t(titleKey);
-  if (detail) detail.textContent = `${t(detailKey)}${diagnosticKey ? ` ${t(diagnosticKey)}` : ""}`;
+  const detailText = `${t(detailKey)}${diagnosticKey ? ` ${t(diagnosticKey)}` : ""}`;
+  if (detail) detail.textContent = detailText;
+  panel.title = detailText;
   if (restart) {
     restart.hidden = !canRestart;
     restart.textContent = syncRequest ? t("reviewSyncRequest") : t(runnerNeedsCurrentSessionSync(runner) ? "enableCurrentSessionSync" : "restartBridge");
@@ -2068,6 +2070,7 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
   if (send) {
     send.disabled = !canSend;
     send.textContent = t(sendKey);
+    send.title = t(sendKey);
   }
   if (files) {
     files.disabled = !canSend;

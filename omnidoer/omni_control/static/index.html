@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icon-192.png">
-  <link rel="stylesheet" href="/style.css?v=20260601-readable-chat">
+  <link rel="stylesheet" href="/style.css?v=20260601-compact-chat">
   <title>OmniDoer Control Client</title>
 </head>
 <body>
@@ -185,12 +185,14 @@
       <div id="chat-messages" class="chat-feed">Loading messages...</div>
       <div class="chat-composer">
         <label id="chat-input-label" for="chat-input"><span id="chat-input-label-text">Message</span></label>
-        <textarea id="chat-input" rows="3" placeholder="Write to OmniDoer"></textarea>
-        <div id="chat-selected-files" class="chat-selected-files"></div>
-        <div class="chat-composer-actions">
-          <label id="chat-files-label" class="file-button" for="chat-files">Attach</label>
-          <input id="chat-files" type="file" multiple>
-          <button id="send-chat-message">Send Message</button>
+        <div class="chat-input-shell">
+          <textarea id="chat-input" rows="2" placeholder="Write to OmniDoer"></textarea>
+          <div id="chat-selected-files" class="chat-selected-files"></div>
+          <div class="chat-composer-actions">
+            <label id="chat-files-label" class="file-button" for="chat-files">Attach</label>
+            <input id="chat-files" type="file" multiple>
+            <button id="send-chat-message">Send Message</button>
+          </div>
         </div>
       </div>
     </section>
@@ -249,6 +251,6 @@
       </div>
     </section>
   </main>
-  <script src="/app.js?v=20260601-readable-chat"></script>
+  <script src="/app.js?v=20260601-compact-chat"></script>
 </body>
 </html>
