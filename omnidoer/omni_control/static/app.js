@@ -79,6 +79,8 @@ const I18N = {
     overviewActionPairDetail: "Pair this device before using requests or current-session sync.",
     overviewActionSyncTitle: "Approve current-session sync",
     overviewActionSyncDetail: "Restart the active Linux CLI to attach this phone to the same thread.",
+    overviewActionTakeoverRelayRestartTitle: "Restart Agent for browser takeover",
+    overviewActionTakeoverRelayRestartDetail: "Restart the active Agent to load the live browser takeover relay for this same thread.",
     overviewActionRequestTitle: (type) => `Review ${type}`,
     overviewActionRequestDetail: (summary) => summary || "A request needs your attention.",
     overviewActionBrowserTitle: "Take over browser",
@@ -116,6 +118,8 @@ const I18N = {
     chatSyncApprovalPending: "A current-session sync approval request is pending.",
     syncApprovalTitle: "Current session sync pending",
     syncApprovalDetail: "Approve to restart the active Linux CLI in its tmux pane and attach this device to the same conversation.",
+    takeoverRelayApprovalTitle: "Browser takeover relay needs restart",
+    takeoverRelayApprovalDetail: "Approve to restart the active Agent, keep the same thread, and load the updated live browser takeover relay.",
     syncApprovalThread: "Thread",
     syncApprovalPid: "CLI PID",
     syncApprovalCommand: "Command",
@@ -124,8 +128,10 @@ const I18N = {
     syncApprovalRenewed: "Sync request refreshed",
     syncApprovalExpired: "Sync approval expired; request a fresh sync.",
     syncApprovalConfirmText: "I understand this restarts the active Codex TUI and keeps the same thread.",
+    takeoverRelayConfirmText: "I understand this restarts the active Agent, keeps the same thread, and refreshes browser takeover control.",
     syncApprovalOpenRequest: "Open full request",
     syncApprovalApprove: "Approve sync",
+    takeoverRelayApprove: "Restart Agent",
     consoleRestartReviewRequired: "Current session sync needs confirmation",
     consoleRestartReviewRequiredDetail: "Check the restart details before approving.",
     consoleRestartConfirmText: "I understand this restarts the active Codex TUI in its tmux pane and keeps the same thread.",
@@ -358,6 +364,7 @@ const I18N = {
       account_registration: "Account registration",
       payment_approval: "Payment approval",
       console_restart: "Current session sync",
+      browser_takeover_relay_restart: "Browser takeover relay restart",
       two_factor_change: "Two-factor change",
       oauth_approval: "OAuth approval",
       one_time_code: "One-time code",
@@ -449,6 +456,8 @@ const I18N = {
     overviewActionPairDetail: "配对此设备后才能使用请求和当前会话同步。",
     overviewActionSyncTitle: "批准当前会话同步",
     overviewActionSyncDetail: "重启活跃 Linux CLI，把手机接入同一个 thread。",
+    overviewActionTakeoverRelayRestartTitle: "重启 Agent 以启用浏览器接管",
+    overviewActionTakeoverRelayRestartDetail: "重启活跃 Agent，保留同一 thread，并加载实时浏览器接管 relay。",
     overviewActionRequestTitle: (type) => `处理${type}`,
     overviewActionRequestDetail: (summary) => summary || "有一个请求需要你处理。",
     overviewActionBrowserTitle: "接管浏览器",
@@ -486,6 +495,8 @@ const I18N = {
     chatSyncApprovalPending: "当前会话同步批准请求正在等待处理。",
     syncApprovalTitle: "当前会话同步待批准",
     syncApprovalDetail: "批准后会在 tmux pane 中重启活跃 Linux CLI，并把此设备接入同一段对话。",
+    takeoverRelayApprovalTitle: "浏览器接管 relay 需要重启",
+    takeoverRelayApprovalDetail: "批准后会重启活跃 Agent，保留同一 thread，并加载更新后的实时浏览器接管 relay。",
     syncApprovalThread: "线程",
     syncApprovalPid: "CLI PID",
     syncApprovalCommand: "命令",
@@ -494,8 +505,10 @@ const I18N = {
     syncApprovalRenewed: "同步请求已刷新",
     syncApprovalExpired: "同步批准请求已过期，请重新发起。",
     syncApprovalConfirmText: "我理解这会重启活跃 Codex TUI，并保留同一个 thread。",
+    takeoverRelayConfirmText: "我理解这会重启活跃 Agent，保留同一 thread，并刷新浏览器接管控制。",
     syncApprovalOpenRequest: "打开完整请求",
     syncApprovalApprove: "批准同步",
+    takeoverRelayApprove: "重启 Agent",
     consoleRestartReviewRequired: "当前会话同步需要确认",
     consoleRestartReviewRequiredDetail: "请先检查重启详情再批准。",
     consoleRestartConfirmText: "我理解这会在当前 tmux pane 中重启活跃 Codex TUI，并保留同一个 thread。",
@@ -728,6 +741,7 @@ const I18N = {
       account_registration: "账号注册",
       payment_approval: "支付授权",
       console_restart: "当前会话同步",
+      browser_takeover_relay_restart: "浏览器接管 relay 重启",
       two_factor_change: "双重认证变更",
       oauth_approval: "OAuth 授权",
       one_time_code: "一次性验证码",
@@ -1212,9 +1226,11 @@ function updateOverviewSyncApprovalCard(request = pendingConsoleRestartRequest()
   }
   activeOverviewSyncApprovalRequestId = request.request_id;
   const details = request.structured_details || {};
+  const copyKeys = consoleRestartCopyKeys(request);
   setFieldText("#overview-sync-thread", details.thread_id, request.request_id);
   setFieldText("#overview-sync-pid", details.active_cli_pid, t("notVisible"));
   setFieldText("#overview-sync-expires", request.expires_at ? formatTimestamp(request.expires_at) : "", t("notVisible"));
+  setNodeText("#overview-sync-confirm-text", copyKeys.confirm);
   updateOverviewSyncApprovalButtons();
 }
 
@@ -1267,10 +1283,11 @@ function updateOverview() {
     return;
   }
   if (syncRequest) {
+    const copyKeys = consoleRestartCopyKeys(syncRequest);
     setOverviewAction({
-      title: t("overviewActionSyncTitle"),
-      detail: t("overviewActionSyncDetail"),
-      primaryLabel: t("syncApprovalApprove"),
+      title: t(copyKeys.overviewTitle),
+      detail: t(copyKeys.overviewDetail),
+      primaryLabel: t(copyKeys.approve),
       primaryAction: "sync-approve",
       secondaryLabel: t("syncApprovalOpenRequest"),
       secondaryAction: "requests"
@@ -1763,6 +1780,26 @@ function syncRequestNeedsRefresh(request) {
   return requestExpiresInMs(request) < SYNC_REQUEST_RENEW_WINDOW_MS;
 }
 
+function consoleRestartIsTakeoverRelay(request) {
+  const details = request?.structured_details || {};
+  return request?.request_type === "console_restart" && (
+    details.restart_purpose === "browser_takeover_relay" ||
+    (details.requires_restart_for_browser_takeover_relay && !details.requires_restart_for_native_sync)
+  );
+}
+
+function consoleRestartCopyKeys(request) {
+  const takeoverRelay = consoleRestartIsTakeoverRelay(request);
+  return {
+    title: takeoverRelay ? "takeoverRelayApprovalTitle" : "syncApprovalTitle",
+    detail: takeoverRelay ? "takeoverRelayApprovalDetail" : "syncApprovalDetail",
+    confirm: takeoverRelay ? "takeoverRelayConfirmText" : "syncApprovalConfirmText",
+    approve: takeoverRelay ? "takeoverRelayApprove" : "syncApprovalApprove",
+    overviewTitle: takeoverRelay ? "overviewActionTakeoverRelayRestartTitle" : "overviewActionSyncTitle",
+    overviewDetail: takeoverRelay ? "overviewActionTakeoverRelayRestartDetail" : "overviewActionSyncDetail"
+  };
+}
+
 function requestKind(request) {
   if (request.request_type === "credential") return "credential";
   if (request.request_type === "human_takeover" || request.request_type === "account_registration") return "takeover";
@@ -1772,6 +1809,9 @@ function requestKind(request) {
 }
 
 function displayRequestType(request) {
+  if (consoleRestartIsTakeoverRelay(request)) {
+    return t("requestTypeLabels")?.browser_takeover_relay_restart || t("takeoverRelayApprovalTitle");
+  }
   return t("requestTypeLabels")?.[request.request_type] || request.request_type.replaceAll("_", " ");
 }
 
@@ -1834,16 +1874,17 @@ function updateChatSyncApprovalCard(request = pendingConsoleRestartRequest()) {
     confirm.checked = false;
   }
   activeChatSyncApprovalRequestId = request.request_id;
+  const copyKeys = consoleRestartCopyKeys(request);
   setFieldText("#chat-sync-approval-thread", details.thread_id, request.request_id);
   setFieldText("#chat-sync-approval-pid", details.active_cli_pid, t("notVisible"));
   setFieldText("#chat-sync-approval-command", details.restart_command, t("notVisible"));
   setFieldText("#chat-sync-approval-expires", request.expires_at ? formatTimestamp(request.expires_at) : "", t("notVisible"));
-  setNodeText("#chat-sync-approval-title", "syncApprovalTitle");
-  setNodeText("#chat-sync-approval-detail", "syncApprovalDetail");
+  setNodeText("#chat-sync-approval-title", copyKeys.title);
+  setNodeText("#chat-sync-approval-detail", copyKeys.detail);
   setNodeText("#chat-sync-approval-expires-label", "syncApprovalExpires");
   setButtonText("#chat-sync-approval-view", "syncApprovalOpenRequest");
   setButtonText("#chat-sync-approval-deny", "deny");
-  setButtonText("#chat-sync-approval-approve", "syncApprovalApprove");
+  setButtonText("#chat-sync-approval-approve", copyKeys.approve);
   updateChatSyncApprovalButtons();
   maybeAutoOpenSyncApprovalCard(request);
 }
@@ -4797,7 +4838,7 @@ function renderApprovalControls(request, item) {
     checkbox.setAttribute(request.request_type === "payment_approval" ? "data-payment-confirm" : "data-approval-confirm", "");
     confirmLabel.append(checkbox, document.createTextNode(` ${
       request.request_type === "console_restart"
-        ? t("consoleRestartConfirmText")
+        ? t(consoleRestartCopyKeys(request).confirm)
         : "I reviewed merchant, amount, recipient, origin, final button text, and after-approval result."
     }`));
     confirm = checkbox;

@@ -180,8 +180,13 @@ def console_restart_request_details(
         bridge_heartbeat=bridge_heartbeat,
         detached_thread_resume_allowed=detached_thread_resume_allowed,
     )
+    browser_relay_restart = bool(
+        diagnostics.get("requires_restart_for_browser_takeover_relay")
+        and not diagnostics.get("requires_restart_for_native_sync")
+    )
     return {
         "thread_id": chat_thread_id,
+        "restart_purpose": "browser_takeover_relay" if browser_relay_restart else "current_session_sync",
         "restart_command": tui_restart_command(chat_thread_id),
         "current_state": diagnostics.get("state"),
         "native_sync_active": diagnostics.get("native_sync_active"),
@@ -197,7 +202,11 @@ def console_restart_request_details(
         "bridge_heartbeat": bridge_heartbeat,
         "legacy_transport": legacy_relay.get("transport"),
         "legacy_pane_id": legacy_relay.get("pane_id"),
-        "after_approval": "Restart the active Codex TUI in its tmux pane, keep the same thread, and load the installed native bridge.",
+        "after_approval": (
+            "Restart the active Codex TUI in its tmux pane, keep the same thread, and load a fresh MCP sidecar for browser takeover relay."
+            if browser_relay_restart
+            else "Restart the active Codex TUI in its tmux pane, keep the same thread, and load the installed native bridge."
+        ),
     }
 
 
@@ -229,6 +238,15 @@ def create_or_renew_console_restart_request(
     chat_thread_id = str(details.get("thread_id") or "")
     if not chat_thread_id:
         raise ValueError("chat_thread_not_bound")
+    restart_purpose = str(details.get("restart_purpose") or "")
+    browser_relay_restart = restart_purpose == "browser_takeover_relay" or bool(
+        details.get("requires_restart_for_browser_takeover_relay") and not details.get("requires_restart_for_native_sync")
+    )
+    action_summary = (
+        f"Restart current Agent for browser takeover relay on {chat_thread_id}"
+        if browser_relay_restart
+        else f"Enable current session sync for {chat_thread_id}"
+    )
     now = time.time()
     for existing in store.list():
         existing_details = existing.structured_details or {}
@@ -245,6 +263,9 @@ def create_or_renew_console_restart_request(
             if existing.structured_details != details:
                 existing.structured_details = details
                 should_update = True
+            if existing.action_summary != action_summary:
+                existing.action_summary = action_summary
+                should_update = True
             if existing.expires_at - now < CONSOLE_RESTART_REQUEST_RENEW_WINDOW_SECONDS:
                 existing.expires_at = now + CONSOLE_RESTART_REQUEST_TTL_SECONDS
                 should_update = True
@@ -255,7 +276,7 @@ def create_or_renew_console_restart_request(
         "console_restart",
         origin="omnidoer://control",
         top_level_url=public_url,
-        action_summary=f"Enable current session sync for {chat_thread_id}",
+        action_summary=action_summary,
         risk_level="high",
         ttl_seconds=CONSOLE_RESTART_REQUEST_TTL_SECONDS,
         # Current-session sync is a server-level operation. Any paired

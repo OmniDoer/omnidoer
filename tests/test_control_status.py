@@ -587,10 +587,13 @@ class ControlStatusTest(unittest.TestCase):
                     visible = handler._visible_requests(RequestStore(), None)
                 restart_requests = [request for request in visible if request.request_type == "console_restart"]
                 self.assertEqual(len(restart_requests), 1)
+                self.assertIn("browser takeover relay", restart_requests[0].action_summary)
                 details = restart_requests[0].structured_details
+                self.assertEqual(details["restart_purpose"], "browser_takeover_relay")
                 self.assertFalse(details["requires_restart_for_native_sync"])
                 self.assertTrue(details["requires_restart_for_browser_takeover_relay"])
                 self.assertTrue(details["restart_browser_takeover_relay_available"])
+                self.assertIn("fresh MCP sidecar", details["after_approval"])
             finally:
                 server.server_close()
                 if old_home is None:
