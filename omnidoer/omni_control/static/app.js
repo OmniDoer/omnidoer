@@ -262,6 +262,9 @@ const I18N = {
     takeoverTitle: "Human Takeover",
     takeoverNoActive: "No active takeover",
     noActiveBrowserHandoff: "No active browser handoff.",
+    takeoverRelayNeedsRestartIdle: "Browser takeover relay needs Agent restart before live frames and input can work.",
+    takeoverRelayNeedsSyncIdle: "Current-session sync is required before browser takeover can work.",
+    takeoverRelayReadyIdle: "Browser takeover relay is ready. No active browser is streaming yet.",
     activeBrowserReady: "Active browser detected. Pause Agent to take over this browser.",
     activeBrowserPreview: "Live browser preview. Pause Agent to take control.",
     activeBrowserPreviewWaiting: "Waiting for live browser preview.",
@@ -646,6 +649,9 @@ const I18N = {
     takeoverTitle: "人工接管",
     takeoverNoActive: "没有活跃接管",
     noActiveBrowserHandoff: "没有活跃浏览器接管。",
+    takeoverRelayNeedsRestartIdle: "浏览器接管 relay 需要先重启 Agent，实时画面和输入才能工作。",
+    takeoverRelayNeedsSyncIdle: "需要先启用当前会话同步，浏览器接管才能工作。",
+    takeoverRelayReadyIdle: "浏览器接管 relay 已就绪，当前还没有浏览器在流式传输。",
     activeBrowserReady: "检测到活跃浏览器。点击暂停 Agent 即可接管此浏览器。",
     activeBrowserPreview: "浏览器实时预览。点击暂停 Agent 即可接管。",
     activeBrowserPreviewWaiting: "正在等待浏览器实时预览。",
@@ -1134,6 +1140,35 @@ function updateTakeoverTabBadge(request = null, context = null) {
 
 function browserHandoffUrl(request = null, context = null) {
   return request?.top_level_url || request?.origin || context?.current_url || context?.origin || context?.browser_context_id || "";
+}
+
+function browserTakeoverReadiness() {
+  return cachedRuntimeStatus?.chat_runner?.browser_takeover || {};
+}
+
+function browserTakeoverRequiresAgentRestart() {
+  const readiness = browserTakeoverReadiness();
+  return Boolean(readiness.requires_agent_restart || readiness.state === "needs_agent_restart");
+}
+
+function browserTakeoverRequiresCurrentSessionSync() {
+  const readiness = browserTakeoverReadiness();
+  return Boolean(readiness.requires_current_session_sync || readiness.state === "needs_current_session_sync");
+}
+
+function browserTakeoverRequiresSetup() {
+  return browserTakeoverRequiresAgentRestart() || browserTakeoverRequiresCurrentSessionSync();
+}
+
+function takeoverReadinessText(readiness = browserTakeoverReadiness()) {
+  if (readiness.requires_agent_restart || readiness.state === "needs_agent_restart") {
+    return t("takeoverRelayNeedsRestartIdle");
+  }
+  if (readiness.requires_current_session_sync || readiness.state === "needs_current_session_sync") {
+    return t("takeoverRelayNeedsSyncIdle");
+  }
+  if (readiness.ready) return t("takeoverRelayReadyIdle");
+  return t("noActiveBrowserHandoff");
 }
 
 function browserRelayHealthText(context = null) {
@@ -2561,6 +2596,7 @@ function resetTakeoverFrameView() {
 
 function updateTakeoverPanel(request, frame = null, message = null) {
   const status = request ? (request.status === "user_control" ? t("takeoverAgentPausedStatus") : displayStatus(request.status)) : t("takeoverNoActive");
+  const idleMessage = takeoverReadinessText();
   setFieldText("#takeover-status-label", status);
   setFieldText("#takeover-active-request", request?.request_id, displayStatus("pending"));
   setFieldText("#takeover-current-url", request?.top_level_url || request?.origin, displayStatus("pending"));
@@ -2571,7 +2607,7 @@ function updateTakeoverPanel(request, frame = null, message = null) {
     setFieldText("#takeover-frame-meta", request ? t("takeoverFrameNextWaiting") : t("takeoverFrameWaiting"));
     setFieldText("#takeover-frame-profile", request ? takeoverFrameProfileLabel() : t("takeoverFrameAdaptive"), t("takeoverFrameAdaptive"));
   }
-  setFieldText("#takeover-input-state", message || (request ? t("takeoverInputStateActive") : t("noActiveBrowserHandoff")), "");
+  setFieldText("#takeover-input-state", message || (request ? t("takeoverInputStateActive") : idleMessage), "");
   updateTakeoverFrameFreshness();
   const isActive = Boolean(request && request.status === "user_control");
   const refresh = document.querySelector("#refresh-takeover-frame");
@@ -2600,7 +2636,7 @@ function syncTakeoverPanel(requests) {
       startBrowserPreviewPolling(context, stream);
     } else {
       stopBrowserPreviewPolling();
-      stream.textContent = t("noActiveBrowserHandoff");
+      stream.textContent = takeoverReadinessText();
     }
     return;
   }
@@ -3330,6 +3366,7 @@ async function sendChatMessage() {
 
 function updateAgentControlButtons() {
   const isActive = takeoverIsActive();
+  const takeoverSetupRequired = browserTakeoverRequiresSetup();
   const quick = document.querySelector("#runtime-pause-agent");
   if (quick) {
     quick.textContent = isActive ? t("releaseControl") : t("pauseAgent");
@@ -3338,7 +3375,12 @@ function updateAgentControlButtons() {
     quick.disabled = agentControlBusy;
   }
   const pause = document.querySelector("#request-takeover-pause");
-  if (pause) pause.disabled = agentControlBusy || isActive;
+  if (pause) {
+    pause.disabled = agentControlBusy || isActive;
+    pause.textContent = takeoverSetupRequired && !activeBrowserContext()
+      ? t(browserTakeoverRequiresAgentRestart() ? "takeoverRelayApprove" : "enableCurrentSessionSync")
+      : t("pauseAgent");
+  }
   const handoffPause = document.querySelector("#browser-handoff-pause");
   if (handoffPause) handoffPause.disabled = agentControlBusy || isActive;
   const handoffContinue = document.querySelector("#browser-handoff-continue");
@@ -3401,8 +3443,26 @@ async function maybeAutoStartPendingTakeover() {
 
 async function requestTakeoverPause() {
   setPauseButtonsDisabled(true);
+  await loadRuntimeStatus();
   await loadBrowserContexts();
   const context = activeBrowserContext();
+  if (!context && browserTakeoverRequiresSetup()) {
+    try {
+      await loadRequests();
+      if (!pendingConsoleRestartRequest()) {
+        await requestConsoleRestartApproval();
+      } else {
+        const setupKeys = browserTakeoverRequiresAgentRestart()
+          ? ["takeoverRelayApprovalTitle", "takeoverRelayApprovalDetail"]
+          : ["syncApprovalTitle", "syncApprovalDetail"];
+        setStatus(t(setupKeys[0]), t(setupKeys[1]));
+        openPendingSyncRequest();
+      }
+    } finally {
+      setPauseButtonsDisabled(false);
+    }
+    return;
+  }
   let browserTakeoverStarted = false;
   let agentPauseQueuedByTakeover = false;
   const clientMessageId = `control_pause_${Date.now()}_${Math.random().toString(16).slice(2)}`;
