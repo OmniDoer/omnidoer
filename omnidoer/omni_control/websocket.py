@@ -60,12 +60,18 @@ def websocket_text_frame(payload: dict[str, Any]) -> bytes:
     return header + data
 
 
-def encode_device_auth_subprotocol(*, device_id: str, timestamp: str, nonce: str, signature: str) -> str:
-    payload = json.dumps(
-        {"device_id": device_id, "timestamp": timestamp, "nonce": nonce, "signature": signature},
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
+def encode_device_auth_subprotocol(
+    *,
+    device_id: str,
+    timestamp: str,
+    nonce: str,
+    signature: str,
+    session_id: str = "",
+) -> str:
+    payload_data = {"device_id": device_id, "timestamp": timestamp, "nonce": nonce, "signature": signature}
+    if session_id:
+        payload_data["session_id"] = session_id
+    payload = json.dumps(payload_data, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return f"{DEVICE_AUTH_SUBPROTOCOL_PREFIX}{_b64url(payload)}"
 
 
@@ -77,11 +83,14 @@ def decode_device_auth_subprotocol(header: str | None) -> dict[str, str] | None:
             continue
         raw = _unb64url(candidate.removeprefix(DEVICE_AUTH_SUBPROTOCOL_PREFIX))
         payload = json.loads(raw.decode("utf-8"))
-        return {
+        decoded = {
             "device_id": str(payload.get("device_id") or ""),
             "timestamp": str(payload.get("timestamp") or ""),
             "nonce": str(payload.get("nonce") or ""),
             "signature": str(payload.get("signature") or ""),
             "subprotocol": candidate,
         }
+        if payload.get("session_id"):
+            decoded["session_id"] = str(payload.get("session_id") or "")
+        return decoded
     return None

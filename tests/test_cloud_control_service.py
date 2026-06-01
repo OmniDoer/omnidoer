@@ -16,7 +16,13 @@ from cryptography.hazmat.primitives.asymmetric import ec
 
 from omnidoer.omni_control.cloud import build_config, security_status
 from omnidoer.omni_control.csrf import CSRF_HEADER
-from omnidoer.omni_control.device_signing import DEVICE_ID_HEADER, DEVICE_NONCE_HEADER, DEVICE_SIG_HEADER, DEVICE_TS_HEADER
+from omnidoer.omni_control.device_signing import (
+    DEVICE_ID_HEADER,
+    DEVICE_NONCE_HEADER,
+    DEVICE_SESSION_ID_HEADER,
+    DEVICE_SIG_HEADER,
+    DEVICE_TS_HEADER,
+)
 from omnidoer.omni_control.pairing import PairingStore
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.server import (
@@ -512,6 +518,21 @@ class CloudControlServiceTest(unittest.TestCase):
                     self.assertEqual(response.status, 200)
                 with self.assertRaises(Exception):
                     urllib_request.urlopen(authed, timeout=5)
+
+                signed = sign_request(device_key, device_id=device_id, session_id=session_id, method="GET", path="/api/requests", nonce="nonce-cookieless")
+                recovered_without_cookie = urllib_request.Request(
+                    f"{base}/api/requests",
+                    headers={
+                        **PROXY_HEADERS,
+                        DEVICE_ID_HEADER: device_id,
+                        DEVICE_SESSION_ID_HEADER: session_id,
+                        DEVICE_TS_HEADER: signed["timestamp"],
+                        DEVICE_NONCE_HEADER: signed["nonce"],
+                        DEVICE_SIG_HEADER: signed["signature"],
+                    },
+                )
+                with urllib_request.urlopen(recovered_without_cookie, timeout=5) as response:
+                    self.assertEqual(response.status, 200)
 
                 signed = sign_request(device_key, device_id=device_id, session_id=session_id, method="GET", path="/api/broker-key", nonce="nonce-broker-key")
                 broker_key = urllib_request.Request(

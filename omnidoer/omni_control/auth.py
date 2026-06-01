@@ -76,14 +76,23 @@ def authenticate_signed_session_request(
     device_store: DeviceStore | None = None,
     session_store: SessionStore | None = None,
     nonce_store: DeviceNonceStore | None = None,
+    allow_missing_session_token: bool = False,
 ) -> ControlSession:
     device_store = device_store or DeviceStore()
-    session = authenticate_session(
-        session_id=session_id,
-        session_token=session_token,
-        device_store=device_store,
-        session_store=session_store,
-    )
+    session_store = session_store or SessionStore()
+    if session_token:
+        session = authenticate_session(
+            session_id=session_id,
+            session_token=session_token,
+            device_store=device_store,
+            session_store=session_store,
+        )
+    elif allow_missing_session_token:
+        session = session_store.get(session_id)
+        if session.revoked or session.is_expired():
+            raise PermissionError("session expired or revoked")
+    else:
+        raise PermissionError("session required")
     if session.device_id != device_id:
         raise PermissionError("device does not own session")
     device = device_store.get(device_id)
@@ -98,4 +107,7 @@ def authenticate_signed_session_request(
     verify_ecdsa_signature(public_key=device.public_key, signature_b64=signature, message=message)
     nonce_store = nonce_store or DeviceNonceStore()
     nonce_store.consume(device_id=device_id, nonce=nonce, timestamp=timestamp)
+    if not session_token:
+        session = session_store.touch(session_id)
+        device_store.touch(session.device_id)
     return session

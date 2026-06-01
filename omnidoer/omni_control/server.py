@@ -40,6 +40,7 @@ from omnidoer.omni_control.devices import DeviceStore
 from omnidoer.omni_control.device_signing import (
     DEVICE_ID_HEADER,
     DEVICE_NONCE_HEADER,
+    DEVICE_SESSION_ID_HEADER,
     DEVICE_SIG_HEADER,
     DEVICE_TS_HEADER,
 )
@@ -803,24 +804,27 @@ class ControlHandler(SimpleHTTPRequestHandler):
 
     def _authenticated_session(self):
         session_id, token = self._session_cookie()
-        if not session_id or not token:
-            raise PermissionError("session required")
         if self.config.mode == "cloud_direct":
             from omnidoer.omni_control.websocket import decode_device_auth_subprotocol
 
             protocol = decode_device_auth_subprotocol(self.headers.get("sec-websocket-protocol"))
             device_id = self.headers.get(DEVICE_ID_HEADER, "")
+            signed_session_id = self.headers.get(DEVICE_SESSION_ID_HEADER, "")
             timestamp = self.headers.get(DEVICE_TS_HEADER, "")
             nonce = self.headers.get(DEVICE_NONCE_HEADER, "")
             signature = self.headers.get(DEVICE_SIG_HEADER, "")
             if protocol:
                 device_id = protocol["device_id"]
+                signed_session_id = protocol.get("session_id", signed_session_id)
                 timestamp = protocol["timestamp"]
                 nonce = protocol["nonce"]
                 signature = protocol["signature"]
+            session_id = session_id or signed_session_id
+            if not session_id:
+                raise PermissionError("session required")
             return authenticate_signed_session_request(
                 session_id=session_id,
-                session_token=token,
+                session_token=token or "",
                 device_id=device_id,
                 method=self.command,
                 path=urlparse(self.path).path,
@@ -829,7 +833,10 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 signature=signature,
                 device_store=DeviceStore(),
                 session_store=SessionStore(),
+                allow_missing_session_token=True,
             )
+        if not session_id or not token:
+            raise PermissionError("session required")
         return authenticate_session(session_id=session_id, session_token=token, device_store=DeviceStore(), session_store=SessionStore())
 
     def _require_access(self, *, mutating: bool = False):

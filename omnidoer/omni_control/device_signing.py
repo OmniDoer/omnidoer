@@ -18,6 +18,7 @@ from omnidoer.paths import state_file
 
 
 DEVICE_ID_HEADER = "x-omnidoer-device-id"
+DEVICE_SESSION_ID_HEADER = "x-omnidoer-session-id"
 DEVICE_TS_HEADER = "x-omnidoer-device-ts"
 DEVICE_NONCE_HEADER = "x-omnidoer-device-nonce"
 DEVICE_SIG_HEADER = "x-omnidoer-device-sig"

@@ -2853,6 +2853,7 @@ async function deviceSignatureHeaders(method, path) {
   );
   return {
     "x-omnidoer-device-id": deviceId,
+    "x-omnidoer-session-id": sessionId,
     "x-omnidoer-device-ts": timestamp,
     "x-omnidoer-device-nonce": nonce,
     "x-omnidoer-device-sig": bytesToB64url(signature)
@@ -2872,6 +2873,7 @@ async function deviceAuthSubprotocol(method, path) {
   if (!headers["x-omnidoer-device-id"]) return "";
   const payload = {
     device_id: headers["x-omnidoer-device-id"],
+    session_id: headers["x-omnidoer-session-id"],
     timestamp: headers["x-omnidoer-device-ts"],
     nonce: headers["x-omnidoer-device-nonce"],
     signature: headers["x-omnidoer-device-sig"]

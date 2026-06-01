@@ -46,6 +46,15 @@ class ControlCsrfOriginTest(unittest.TestCase):
                 "subprotocol": protocol,
             },
         )
+        protocol = encode_device_auth_subprotocol(
+            device_id="dev_1",
+            session_id="sess_1",
+            timestamp="1780100001",
+            nonce="nonce-2",
+            signature="sig-2",
+        )
+        parsed = decode_device_auth_subprotocol(protocol)
+        self.assertEqual(parsed["session_id"], "sess_1")
 
 
 if __name__ == "__main__":

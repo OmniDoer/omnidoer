@@ -80,6 +80,30 @@ class SessionStore:
     def list(self) -> list[ControlSession]:
         return sorted(self._load().values(), key=lambda item: item.created_at)
 
+    def get(self, session_id: str) -> ControlSession:
+        sessions = self._load()
+        try:
+            return sessions[session_id]
+        except KeyError as exc:
+            raise PermissionError("session not found") from exc
+
+    def touch(self, session_id: str) -> ControlSession:
+        with locked_state_file(self.path):
+            sessions = self._load()
+            try:
+                session = sessions[session_id]
+            except KeyError as exc:
+                raise PermissionError("session not found") from exc
+            if session.revoked or session.is_expired():
+                raise PermissionError("session expired or revoked")
+            now = time.time()
+            session.last_seen_at = now
+            if session.expires_at < now + CONTROL_SESSION_REFRESH_WINDOW_SECONDS:
+                session.expires_at = now + CONTROL_SESSION_TTL_SECONDS
+            sessions[session.session_id] = session
+            self._save(sessions)
+            return session
+
     def revoke(self, session_id: str) -> ControlSession:
         with locked_state_file(self.path):
             sessions = self._load()

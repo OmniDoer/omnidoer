@@ -55,6 +55,7 @@ class ControlAuthTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             devices = DeviceStore(Path(tmp) / "devices.json")
             sessions = SessionStore(Path(tmp) / "sessions.json")
+            nonces = DeviceNonceStore(Path(tmp) / "nonces.json")
             key = ec.generate_private_key(ec.SECP256R1())
             device = devices.register(name="Phone", public_key=public_jwk(key))
             session, token = sessions.create(device_id=device.device_id)
@@ -70,6 +71,7 @@ class ControlAuthTest(unittest.TestCase):
                 signature=signed["signature"],
                 device_store=devices,
                 session_store=sessions,
+                nonce_store=nonces,
             )
             self.assertEqual(authenticated.device_id, device.device_id)
             with self.assertRaises(PermissionError):
@@ -84,7 +86,34 @@ class ControlAuthTest(unittest.TestCase):
                     signature=signed["signature"],
                     device_store=devices,
                     session_store=sessions,
+                    nonce_store=nonces,
                 )
+
+    def test_signed_session_request_can_recover_without_session_cookie_token(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            devices = DeviceStore(Path(tmp) / "devices.json")
+            sessions = SessionStore(Path(tmp) / "sessions.json")
+            nonces = DeviceNonceStore(Path(tmp) / "nonces.json")
+            key = ec.generate_private_key(ec.SECP256R1())
+            device = devices.register(name="Phone", public_key=public_jwk(key))
+            session, _token = sessions.create(device_id=device.device_id)
+            signed = sign_request(key, device_id=device.device_id, session_id=session.session_id)
+            authenticated = authenticate_signed_session_request(
+                session_id=session.session_id,
+                session_token="",
+                device_id=device.device_id,
+                method="GET",
+                path="/api/requests",
+                timestamp=signed["timestamp"],
+                nonce=signed["nonce"],
+                signature=signed["signature"],
+                device_store=devices,
+                session_store=sessions,
+                nonce_store=nonces,
+                allow_missing_session_token=True,
+            )
+            self.assertEqual(authenticated.device_id, device.device_id)
+            self.assertIsNotNone(sessions.get(session.session_id).last_seen_at)
 
     def test_signed_session_request_rejects_wrong_key(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

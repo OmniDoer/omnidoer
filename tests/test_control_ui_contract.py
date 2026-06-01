@@ -396,6 +396,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("omnidoer_device_id", app)
         self.assertIn("omnidoer_session_id", app)
         self.assertIn("x-omnidoer-csrf", app)
+        self.assertIn("x-omnidoer-session-id", app)
         self.assertIn("x-omnidoer-device-sig", app)
         self.assertIn("omnidoer-device-v1", app)
         self.assertIn("signedFetch", app)
