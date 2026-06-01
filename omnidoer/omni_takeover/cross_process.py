@@ -183,12 +183,13 @@ def wait_for_input_event_result(
     *,
     timeout_seconds: float = 1.5,
     poll_interval_seconds: float = 0.05,
+    consume: bool = True,
 ) -> dict[str, Any] | None:
     if not event_id:
         return None
     deadline = time.time() + max(0.0, timeout_seconds)
     while time.time() <= deadline:
-        payload = read_input_event_result(browser_context_id, event_id, consume=True)
+        payload = read_input_event_result(browser_context_id, event_id, consume=consume)
         if payload:
             return payload
         time.sleep(max(0.01, poll_interval_seconds))

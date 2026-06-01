@@ -3232,30 +3232,28 @@ async function sendTakeoverInput(request, eventPayload) {
 async function pollTakeoverInputResult(request, eventId, eventType) {
   const contextId = request?.browser_context_id;
   if (!contextId || !eventId) return;
-  const deadline = Date.now() + 6000;
-  while (Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 350));
+  if (activeTakeoverRequest()?.request_id !== request.request_id) return;
+  try {
+    const response = await signedFetch(
+      `/api/browser/contexts/${encodeURIComponent(contextId)}/input-results/${encodeURIComponent(eventId)}?wait=6`,
+      { cache: "no-store" }
+    );
     if (activeTakeoverRequest()?.request_id !== request.request_id) return;
-    try {
-      const response = await signedFetch(
-        `/api/browser/contexts/${encodeURIComponent(contextId)}/input-results/${encodeURIComponent(eventId)}`,
-        { cache: "no-store" }
-      );
-      if (response.status === 202) continue;
-      const result = await response.json();
-      if (!response.ok || result.status === "event_failed") {
-        updateTakeoverPanel(request, null, t("takeoverInputDeliveryFailed"));
-      } else {
-        updateTakeoverPanel(request, null, t("takeoverInputDelivered", eventType));
-      }
-      scheduleTakeoverFrameRefresh(request, TAKEOVER_FRAME_AFTER_INPUT_MS);
-      return;
-    } catch {
+    if (response.status === 202) {
+      updateTakeoverPanel(request, null, t("takeoverInputStillPending"));
+      refreshActiveTakeoverFrame();
       return;
     }
+    const result = await response.json();
+    if (!response.ok || result.status === "event_failed") {
+      updateTakeoverPanel(request, null, t("takeoverInputDeliveryFailed"));
+    } else {
+      updateTakeoverPanel(request, null, t("takeoverInputDelivered", eventType));
+    }
+    scheduleTakeoverFrameRefresh(request, TAKEOVER_FRAME_AFTER_INPUT_MS);
+  } catch {
+    return;
   }
-  updateTakeoverPanel(request, null, t("takeoverInputStillPending"));
-  refreshActiveTakeoverFrame();
 }
 
 async function sendActiveTakeoverText() {

@@ -155,6 +155,28 @@ class TakeoverBrowserRelayTest(unittest.TestCase):
                     urlopen(f"{base}/api/browser/contexts/cross-browser/input-results/{queued['event_id']}", timeout=5).read().decode()
                 )
                 self.assertEqual(pending_again["status"], "pending")
+
+                delayed = enqueue_input_event("cross-browser", request_id, {"event_type": "tap", "frame_id": "frame_cross", "x": 11, "y": 11})
+
+                def ack_later() -> None:
+                    time.sleep(0.05)
+                    write_input_event_result("cross-browser", delayed["event_id"], {"status": "event_applied", "request_id": request_id})
+
+                Thread(target=ack_later, daemon=True).start()
+                long_poll_result = json.loads(
+                    urlopen(
+                        f"{base}/api/browser/contexts/cross-browser/input-results/{delayed['event_id']}?wait=1",
+                        timeout=5,
+                    )
+                    .read()
+                    .decode()
+                )
+                self.assertEqual(long_poll_result["status"], "event_applied")
+                self.assertEqual(long_poll_result["request_id"], request_id)
+                long_poll_consumed = json.loads(
+                    urlopen(f"{base}/api/browser/contexts/cross-browser/input-results/{delayed['event_id']}", timeout=5).read().decode()
+                )
+                self.assertEqual(long_poll_consumed["status"], "pending")
             finally:
                 control_server.shutdown()
                 control_server.server_close()

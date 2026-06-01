@@ -531,6 +531,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("takeoverInputQueued", app)
         self.assertIn("takeoverInputStillPending", app)
         self.assertIn('updateTakeoverPanel(request, null, t("takeoverInputStillPending"))', app)
+        self.assertIn("input-results/${encodeURIComponent(eventId)}?wait=6", app)
         self.assertIn('responsePayload.status || ""', app)
         self.assertIn('status === "event_queued"', app)
         self.assertIn("updateTakeoverFrameFreshness", app)

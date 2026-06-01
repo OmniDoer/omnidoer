@@ -76,6 +76,7 @@ BROWSER_CONTEXT_STREAM_MAX_SNAPSHOTS = 1200
 BROWSER_CONTEXT_STREAM_HEARTBEAT_SECONDS = 30.0
 BROWSER_FRAME_STREAM_DEFAULT_SNAPSHOTS = 1200
 BROWSER_FRAME_STREAM_MAX_SNAPSHOTS = 1200
+TAKEOVER_INPUT_RESULT_WAIT_MAX_SECONDS = 10.0
 SENSITIVE_LOG_PATTERNS = [
     re.compile(r"(omnidoer_session=)[^;\s]+"),
     re.compile(r"(code=)[^&\s]+"),
@@ -1356,11 +1357,23 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
                 return
             try:
-                from omnidoer.omni_takeover.cross_process import read_input_event_result
+                from omnidoer.omni_takeover.cross_process import read_input_event_result, wait_for_input_event_result
 
                 context_id = unquote(parts[3])
                 event_id = unquote(parts[5])
+                query = parse_qs(parsed_url.query)
+                wait_seconds = min(
+                    TAKEOVER_INPUT_RESULT_WAIT_MAX_SECONDS,
+                    max(0.0, float(query.get("wait", ["0"])[0] or 0.0)),
+                )
                 preview = read_input_event_result(context_id, event_id, consume=False)
+                if preview is None and wait_seconds > 0:
+                    preview = wait_for_input_event_result(
+                        context_id,
+                        event_id,
+                        timeout_seconds=wait_seconds,
+                        consume=False,
+                    )
                 if preview is None:
                     self._send_json(HTTPStatus.ACCEPTED, {"status": "pending", "secret_exposed_to_model": False})
                     return
