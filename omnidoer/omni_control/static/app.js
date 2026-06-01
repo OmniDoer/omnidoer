@@ -2257,6 +2257,7 @@ async function releaseActiveTakeover() {
     }
     await loadChatMessages();
     setStatus(t("takeoverReleased"), t("takeoverReleasedDetail"));
+    activatePanel("task-panel", { persist: false });
   } catch {
     setStatus(t("actionFailed"), t("releaseControl"));
   } finally {

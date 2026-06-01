@@ -403,6 +403,8 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("updateBrowserHandoffState(request, context)", app)
         self.assertIn("takeoverReleasePrompt", app)
         self.assertIn("takeoverReleased", app)
+        self.assertIn('setStatus(t("takeoverReleased"), t("takeoverReleasedDetail"))', app)
+        self.assertIn('activatePanel("task-panel", { persist: false })', app)
         self.assertIn("control_continue_", app)
         self.assertIn("agent_continue", app)
         self.assertIn('release.onclick = () => releaseActiveTakeover()', app)
