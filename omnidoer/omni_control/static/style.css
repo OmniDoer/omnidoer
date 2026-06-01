@@ -1042,7 +1042,8 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
   background: #f8fafc;
 }
 .chat-record-tool_call,
-.chat-record-tool_output {
+.chat-record-tool_output,
+.chat-record-tool_group {
   border-color: #e2e8f0;
   background: #f8fafc;
 }
@@ -1166,6 +1167,9 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
   padding: 2px 8px;
   border-style: solid;
 }
+.chat-record-tool_group {
+  border-left: 3px solid #94a3b8;
+}
 .chat-tool-summary {
   display: flex;
   align-items: center;
@@ -1204,6 +1208,10 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
   padding: 6px 8px;
   font: 0.78rem/1.35 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   white-space: pre-wrap;
+}
+.chat-tool-output-full {
+  border: 1px solid #263448;
+  opacity: 0.94;
 }
 .chat-record-delta .chat-message-header,
 .chat-record-status .chat-message-header {

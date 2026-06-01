@@ -224,6 +224,9 @@ const I18N = {
     chatRecordToolOutput: "Tool output",
     chatToolCalling: (name) => `Calling ${name}`,
     chatToolReturned: (name) => `${name} returned`,
+    chatToolActivity: (name) => `${name}`,
+    chatToolRunning: "running",
+    chatToolOutputCount: (count) => `${count} outputs`,
     chatToolShell: "shell",
     chatToolWebSearch: "web search",
     chatToolUnknown: "tool",
@@ -588,6 +591,9 @@ const I18N = {
     chatRecordToolOutput: "工具输出",
     chatToolCalling: (name) => `正在调用 ${name}`,
     chatToolReturned: (name) => `${name} 返回`,
+    chatToolActivity: (name) => `${name}`,
+    chatToolRunning: "运行中",
+    chatToolOutputCount: (count) => `${count} 次返回`,
     chatToolShell: "shell",
     chatToolWebSearch: "网页搜索",
     chatToolUnknown: "工具",
@@ -3559,9 +3565,36 @@ function appendToolSummary(parent, label, summary = "") {
   if (summary) appendText(parent, "span", summary);
 }
 
+function toolGroupOutputSummary(outputs = []) {
+  if (!outputs.length) return t("chatToolRunning");
+  const lastOutput = outputs[outputs.length - 1];
+  const parts = [toolOutputSummary(lastOutput)];
+  if (outputs.length > 1) parts.push(t("chatToolOutputCount", outputs.length));
+  return parts.filter(Boolean).join(" · ");
+}
+
+function appendToolFullText(parent, record, className = "chat-tool-full") {
+  const fullText = String(record?.text || "").trim();
+  if (fullText) appendText(parent, "pre", fullText, className);
+}
+
 function renderToolRecord(record) {
   const item = document.createElement("article");
   item.className = `chat-record chat-record-${record.record_type} chat-tool-record`;
+  if (record.record_type === "tool_group") {
+    const callRecord = record.data?.tool_call || record;
+    const outputs = Array.isArray(record.data?.tool_outputs) ? record.data.tool_outputs : [];
+    const details = document.createElement("details");
+    details.className = "chat-tool-details";
+    const summary = document.createElement("summary");
+    summary.className = "chat-tool-summary";
+    appendToolSummary(summary, t("chatToolActivity", toolNameFromRecord(callRecord)), toolGroupOutputSummary(outputs));
+    details.append(summary);
+    appendToolFullText(details, callRecord);
+    outputs.slice(-2).forEach((output) => appendToolFullText(details, output, "chat-tool-full chat-tool-output-full"));
+    item.append(details);
+    return item;
+  }
   const name = toolNameFromRecord(record);
   if (record.record_type === "tool_call") {
     const details = document.createElement("details");
@@ -3570,8 +3603,7 @@ function renderToolRecord(record) {
     summary.className = "chat-tool-summary";
     appendToolSummary(summary, t("chatToolCalling", name), record.data?.status || "");
     details.append(summary);
-    const fullText = String(record.text || "").trim();
-    if (fullText) appendText(details, "pre", fullText, "chat-tool-full");
+    appendToolFullText(details, record);
     item.append(details);
     return item;
   }
@@ -3600,7 +3632,7 @@ function renderChatMessage(message) {
 }
 
 function renderChatRecord(record) {
-  if (["tool_call", "tool_output"].includes(record.record_type)) {
+  if (["tool_call", "tool_output", "tool_group"].includes(record.record_type)) {
     return renderToolRecord(record);
   }
   const item = document.createElement("article");
@@ -3663,7 +3695,41 @@ function compactChatActivityRecords(records = []) {
     aggregate.data.sequence_end = record.sequence;
     aggregate.data.delta_count += 1;
   });
-  return compacted.filter((record) => record.record_type !== "delta" || (record.text || "").trim());
+  return compactToolActivityRecords(compacted.filter((record) => record.record_type !== "delta" || (record.text || "").trim()));
+}
+
+function compactToolActivityRecords(records = []) {
+  const compacted = [];
+  let activeToolGroup = null;
+  records.forEach((record) => {
+    if (record.record_type === "tool_call") {
+      activeToolGroup = {
+        ...record,
+        record_type: "tool_group",
+        data: {
+          ...(record.data || {}),
+          tool_call: record,
+          tool_outputs: [],
+          sequence_start: record.sequence,
+          sequence_end: record.sequence,
+          output_count: 0
+        }
+      };
+      compacted.push(activeToolGroup);
+      return;
+    }
+    if (record.record_type === "tool_output" && activeToolGroup) {
+      activeToolGroup.data.tool_outputs.push(record);
+      activeToolGroup.data.output_count += 1;
+      activeToolGroup.data.sequence_end = record.sequence;
+      activeToolGroup.sequence = record.sequence;
+      activeToolGroup.created_at = record.created_at;
+      return;
+    }
+    activeToolGroup = null;
+    compacted.push(record);
+  });
+  return compacted;
 }
 
 function renderLegacyTerminal(terminal) {
