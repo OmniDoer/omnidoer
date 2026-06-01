@@ -1639,12 +1639,16 @@ let cachedBrowserContexts = [];
 let cachedRuntimeStatus = null;
 let lastChatPayloadFingerprint = "";
 let realtimeRefreshTimer = null;
+let foregroundRealtimeRecovery = false;
 let requestStreamActive = false;
 let requestStreamRestart = null;
+let requestStreamSocket = null;
 let chatStreamActive = false;
 let chatStreamRestart = null;
+let chatStreamSocket = null;
 let browserContextStreamActive = false;
 let browserContextStreamRestart = null;
+let browserContextStreamSocket = null;
 let activeTakeoverFrameRequest = null;
 let takeoverFrameTimer = null;
 let takeoverFreshnessTimer = null;
@@ -4976,6 +4980,36 @@ function websocketUrl(path) {
   return url.toString();
 }
 
+function closeRealtimeSocket(socket) {
+  if (!socket) return;
+  socket.onclose = null;
+  socket.onerror = null;
+  socket.onmessage = null;
+  try {
+    socket.close();
+  } catch {
+    // Ignore stale mobile WebSocket handles; the reconnect path owns recovery.
+  }
+}
+
+function resetAuthenticatedRealtimeStreams() {
+  if (requestStreamRestart) clearTimeout(requestStreamRestart);
+  if (browserContextStreamRestart) clearTimeout(browserContextStreamRestart);
+  if (chatStreamRestart) clearTimeout(chatStreamRestart);
+  requestStreamRestart = null;
+  browserContextStreamRestart = null;
+  chatStreamRestart = null;
+  closeRealtimeSocket(requestStreamSocket);
+  closeRealtimeSocket(browserContextStreamSocket);
+  closeRealtimeSocket(chatStreamSocket);
+  requestStreamSocket = null;
+  browserContextStreamSocket = null;
+  chatStreamSocket = null;
+  requestStreamActive = false;
+  browserContextStreamActive = false;
+  chatStreamActive = false;
+}
+
 async function startRequestWebSocket() {
   if (!window.WebSocket) {
     startRequestStream();
@@ -4990,6 +5024,7 @@ async function startRequestWebSocket() {
     const socket = protocol
       ? new WebSocket(websocketUrl(`${path}?snapshots=1200&interval=2`), [protocol])
       : new WebSocket(websocketUrl(`${path}?snapshots=1200&interval=2`));
+    requestStreamSocket = socket;
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data);
       if (message.event === "requests") applyRequestEvent(message.data);
@@ -4998,10 +5033,14 @@ async function startRequestWebSocket() {
       socket.close();
     };
     socket.onclose = () => {
-      requestStreamActive = false;
-      requestStreamRestart = setTimeout(startRequestWebSocket, 3000);
+      if (requestStreamSocket === socket) {
+        requestStreamSocket = null;
+        requestStreamActive = false;
+        if (!document.hidden) requestStreamRestart = setTimeout(startRequestWebSocket, 3000);
+      }
     };
   } catch {
+    requestStreamSocket = null;
     requestStreamActive = false;
     startRequestStream();
   }
@@ -5046,6 +5085,7 @@ async function startBrowserContextWebSocket() {
     const socket = protocol
       ? new WebSocket(websocketUrl(`${path}?snapshots=1200&interval=1`), [protocol])
       : new WebSocket(websocketUrl(`${path}?snapshots=1200&interval=1`));
+    browserContextStreamSocket = socket;
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data);
       if (message.event === "browser_contexts") applyBrowserContextsEvent(message.data);
@@ -5054,10 +5094,14 @@ async function startBrowserContextWebSocket() {
       socket.close();
     };
     socket.onclose = () => {
-      browserContextStreamActive = false;
-      browserContextStreamRestart = setTimeout(startBrowserContextWebSocket, 3000);
+      if (browserContextStreamSocket === socket) {
+        browserContextStreamSocket = null;
+        browserContextStreamActive = false;
+        if (!document.hidden) browserContextStreamRestart = setTimeout(startBrowserContextWebSocket, 3000);
+      }
     };
   } catch {
+    browserContextStreamSocket = null;
     browserContextStreamActive = false;
     startBrowserContextStream();
   }
@@ -5104,6 +5148,7 @@ async function startChatWebSocket() {
     const socket = protocol
       ? new WebSocket(websocketUrl(`${path}?snapshots=1200&interval=0.25`), [protocol])
       : new WebSocket(websocketUrl(`${path}?snapshots=1200&interval=0.25`));
+    chatStreamSocket = socket;
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data);
       if (message.event === "chat") applyChatEvent(message.data);
@@ -5112,10 +5157,14 @@ async function startChatWebSocket() {
       socket.close();
     };
     socket.onclose = () => {
-      chatStreamActive = false;
-      chatStreamRestart = setTimeout(startChatWebSocket, 3000);
+      if (chatStreamSocket === socket) {
+        chatStreamSocket = null;
+        chatStreamActive = false;
+        if (!document.hidden) chatStreamRestart = setTimeout(startChatWebSocket, 3000);
+      }
     };
   } catch {
+    chatStreamSocket = null;
     chatStreamActive = false;
     startChatStream();
   }
@@ -5137,12 +5186,33 @@ async function refreshAuthenticatedData() {
   ]);
 }
 
-function startAuthenticatedRealtime() {
-  if (!authenticatedApiAvailable() || authenticatedRealtimeStarted) return;
+function startAuthenticatedRealtime({ force = false } = {}) {
+  if (!authenticatedApiAvailable() || (authenticatedRealtimeStarted && !force)) return;
   authenticatedRealtimeStarted = true;
   startRequestWebSocket();
   startBrowserContextWebSocket();
   startChatWebSocket();
+}
+
+async function recoverAuthenticatedRealtimeAfterForeground() {
+  if (document.hidden || foregroundRealtimeRecovery) return;
+  foregroundRealtimeRecovery = true;
+  try {
+    await loadRuntimeStatus();
+    await refreshPairingState();
+    resetAuthenticatedRealtimeStreams();
+    await refreshAuthenticatedData();
+    startAuthenticatedRealtime({ force: true });
+  } finally {
+    foregroundRealtimeRecovery = false;
+  }
+}
+
+function handleControlClientVisibilityChange() {
+  handleTakeoverVisibilityChange();
+  if (!document.hidden) {
+    recoverAuthenticatedRealtimeAfterForeground();
+  }
 }
 
 async function bootstrapControlClient() {
@@ -5158,7 +5228,7 @@ async function bootstrapControlClient() {
 }
 
 bootstrapControlClient().catch(() => {});
-document.addEventListener("visibilitychange", handleTakeoverVisibilityChange);
+document.addEventListener("visibilitychange", handleControlClientVisibilityChange);
 setInterval(loadRuntimeStatus, 10000);
 setInterval(refreshPairingState, 30000);
 setInterval(() => {
