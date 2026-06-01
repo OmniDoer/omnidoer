@@ -391,6 +391,94 @@ class ControlStatusTest(unittest.TestCase):
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
 
+    def test_visible_requests_auto_creates_console_restart_request_when_sync_needed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            config = build_config(host="127.0.0.1", port=8787)
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_config = config  # type: ignore[attr-defined]
+            server.omnidoer_chat_thread_id = "thread_active"  # type: ignore[attr-defined]
+            handler = object.__new__(ControlHandler)
+            handler.server = server
+            try:
+                with patch("omnidoer.omni_control.chat_runner.live_tui_bridge_active", return_value=False), patch(
+                    "omnidoer.omni_control.chat_runner.live_tui_session_active",
+                    return_value=True,
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.native_console_bridge_install_status",
+                    return_value={"ready": True, "reason": "ready"},
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.active_tui_process_bridge_status",
+                    return_value={"active": True, "pid": 1234, "reason": "running_binary_deleted"},
+                ), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.legacy_tui_relay_status",
+                    return_value={"active": True, "transport": "tmux", "pane_id": "%1"},
+                ):
+                    visible = handler._visible_requests(RequestStore(), None)
+
+                console_requests = [request for request in visible if request.request_type == "console_restart"]
+                self.assertEqual(len(console_requests), 1)
+                self.assertEqual(console_requests[0].status, "pending")
+                self.assertEqual(console_requests[0].structured_details["activation_action"], "restart_current_console")
+                self.assertTrue(console_requests[0].structured_details["restart_current_console_available"])
+
+                with patch("omnidoer.omni_control.chat_runner.live_tui_bridge_active", return_value=False), patch(
+                    "omnidoer.omni_control.chat_runner.live_tui_session_active",
+                    return_value=True,
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.native_console_bridge_install_status",
+                    return_value={"ready": True, "reason": "ready"},
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.active_tui_process_bridge_status",
+                    return_value={"active": True, "pid": 1234, "reason": "running_binary_deleted"},
+                ), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.legacy_tui_relay_status",
+                    return_value={"active": True, "transport": "tmux", "pane_id": "%1"},
+                ):
+                    visible_again = handler._visible_requests(RequestStore(), None)
+                self.assertEqual(
+                    [request.request_id for request in visible_again if request.request_type == "console_restart"],
+                    [console_requests[0].request_id],
+                )
+            finally:
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_visible_requests_does_not_create_console_restart_when_native_sync_active(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            config = build_config(host="127.0.0.1", port=8787)
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_config = config  # type: ignore[attr-defined]
+            server.omnidoer_chat_thread_id = "thread_active"  # type: ignore[attr-defined]
+            handler = object.__new__(ControlHandler)
+            handler.server = server
+            try:
+                with patch("omnidoer.omni_control.chat_runner.live_tui_bridge_active", return_value=True), patch(
+                    "omnidoer.omni_control.chat_runner.live_tui_session_active",
+                    return_value=True,
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.native_console_bridge_install_status",
+                    return_value={"ready": True, "reason": "ready"},
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.active_tui_process_bridge_status",
+                    return_value={"active": True, "pid": 1234, "reason": "native_bridge_active"},
+                ):
+                    visible = handler._visible_requests(RequestStore(), None)
+                self.assertEqual([request for request in visible if request.request_type == "console_restart"], [])
+                self.assertEqual([request for request in RequestStore().list() if request.request_type == "console_restart"], [])
+            finally:
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
 
 if __name__ == "__main__":
     unittest.main()

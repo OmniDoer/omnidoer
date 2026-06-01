@@ -522,7 +522,25 @@ class ControlHandler(SimpleHTTPRequestHandler):
             return True
         return not request.allowed_device_id or (session is not None and request.allowed_device_id == session.device_id)
 
+    def _console_restart_request_available(self, details: dict) -> bool:
+        return bool(
+            details.get("thread_id")
+            and details.get("requires_restart_for_native_sync")
+            and details.get("restart_current_console_available")
+            and details.get("activation_action") == "restart_current_console"
+        )
+
+    def _ensure_current_session_sync_request(self, store: RequestStore, session: ControlSession | None):
+        if self._requires_pairing() and session is None:
+            return None
+        details = self._console_restart_request_details()
+        if not self._console_restart_request_available(details):
+            return None
+        request, _ = self._create_console_restart_request(store, session, details=details)
+        return request
+
     def _visible_requests(self, store: RequestStore, session: ControlSession | None):
+        self._ensure_current_session_sync_request(store, session)
         return [request for request in store.list() if self._request_allowed_for_session(request, session)]
 
     def _get_request_for_session(self, store: RequestStore, request_id: str, session: ControlSession | None):
@@ -621,6 +639,8 @@ class ControlHandler(SimpleHTTPRequestHandler):
             "native_sync_active": diagnostics.get("native_sync_active"),
             "current_cli_context_attached": diagnostics.get("current_cli_context_attached"),
             "requires_restart_for_native_sync": diagnostics.get("requires_restart_for_native_sync"),
+            "restart_current_console_available": diagnostics.get("restart_current_console_available"),
+            "activation_action": diagnostics.get("activation_action"),
             "active_cli_pid": active_process.get("pid"),
             "active_cli_binary_reason": active_process.get("reason"),
             "legacy_transport": legacy_relay.get("transport"),
@@ -628,8 +648,8 @@ class ControlHandler(SimpleHTTPRequestHandler):
             "after_approval": "Restart the active Codex TUI in its tmux pane, keep the same thread, and load the installed native bridge.",
         }
 
-    def _create_console_restart_request(self, store: RequestStore, session: ControlSession | None) -> tuple[object, bool]:
-        details = self._console_restart_request_details()
+    def _create_console_restart_request(self, store: RequestStore, session: ControlSession | None, *, details: dict | None = None) -> tuple[object, bool]:
+        details = dict(details or self._console_restart_request_details())
         chat_thread_id = str(details.get("thread_id") or "")
         if not chat_thread_id:
             raise ValueError("chat_thread_not_bound")
@@ -642,10 +662,15 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 and existing_details.get("thread_id") == chat_thread_id
                 and self._request_allowed_for_session(existing, session)
             ):
-                existing.structured_details = details
+                should_update = False
+                if existing.structured_details != details:
+                    existing.structured_details = details
+                    should_update = True
                 if existing.expires_at - now < CONSOLE_RESTART_REQUEST_RENEW_WINDOW_SECONDS:
                     existing.expires_at = now + CONSOLE_RESTART_REQUEST_TTL_SECONDS
-                existing = store.update(existing)
+                    should_update = True
+                if should_update:
+                    existing = store.update(existing)
                 return existing, True
         request = store.create(
             "console_restart",
