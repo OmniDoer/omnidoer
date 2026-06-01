@@ -227,6 +227,7 @@ const I18N = {
     chatRecordTerminalInput: "Terminal input",
     chatRecordTerminalSnapshot: "Snapshot",
     chatRecordTerminalDelta: "Delta",
+    chatRecordChunks: (count) => `${count} chunks`,
     chatConversationTitle: "Conversation",
     chatActivityTitle: "Live activity",
     chatUserRole: "You",
@@ -583,6 +584,7 @@ const I18N = {
     chatRecordTerminalInput: "终端输入",
     chatRecordTerminalSnapshot: "快照",
     chatRecordTerminalDelta: "增量",
+    chatRecordChunks: (count) => `${count} 段`,
     chatConversationTitle: "对话",
     chatActivityTitle: "实时活动",
     chatUserRole: "你",
@@ -3292,6 +3294,13 @@ function chatRecordTypeLabel(type) {
   }[type] || type;
 }
 
+function shortChatId(value) {
+  if (!value) return "";
+  const text = String(value);
+  if (text.length <= 16) return text;
+  return `${text.slice(0, 8)}...${text.slice(-6)}`;
+}
+
 function renderChatMessage(message) {
   const item = document.createElement("article");
   item.className = `chat-message chat-role-${message.role} chat-status-${message.status}`;
@@ -3326,10 +3335,47 @@ function renderChatRecord(record) {
   appendText(item, "p", record.text || " ", "chat-message-text");
   const meta = document.createElement("div");
   meta.className = "chat-message-meta";
-  appendText(meta, "span", t("chatRecordNumber", record.sequence));
-  if (record.message_id) appendText(meta, "span", record.message_id);
+  const sequenceText = record.data?.sequence_start && record.data?.sequence_end
+    ? `${t("chatRecordNumber", record.data.sequence_start)}-${record.data.sequence_end}`
+    : t("chatRecordNumber", record.sequence);
+  appendText(meta, "span", sequenceText);
+  if (record.data?.delta_count) appendText(meta, "span", t("chatRecordChunks", record.data.delta_count));
+  if (record.message_id) appendText(meta, "span", shortChatId(record.message_id));
   item.append(meta);
   return item;
+}
+
+function compactChatActivityRecords(records = []) {
+  const compacted = [];
+  const deltaByKey = new Map();
+  records.forEach((record) => {
+    if (record.record_type !== "delta") {
+      compacted.push(record);
+      return;
+    }
+    const key = [record.message_id || "", record.role || "", record.source || ""].join("|");
+    let aggregate = deltaByKey.get(key);
+    if (!aggregate) {
+      aggregate = {
+        ...record,
+        text: "",
+        data: {
+          ...(record.data || {}),
+          sequence_start: record.sequence,
+          sequence_end: record.sequence,
+          delta_count: 0
+        }
+      };
+      deltaByKey.set(key, aggregate);
+      compacted.push(aggregate);
+    }
+    aggregate.text += record.text || "";
+    aggregate.sequence = record.sequence;
+    aggregate.created_at = record.created_at;
+    aggregate.data.sequence_end = record.sequence;
+    aggregate.data.delta_count += 1;
+  });
+  return compacted.filter((record) => record.record_type !== "delta" || (record.text || "").trim());
 }
 
 function renderLegacyTerminal(terminal) {
@@ -3380,7 +3426,7 @@ function renderChatTimeline(messages, records = [], terminal = null) {
     const activity = document.createElement("div");
     activity.className = "chat-activity";
     appendText(activity, "div", t("chatActivityTitle"), "chat-lane-title");
-    records.forEach((record) => activity.append(renderChatRecord(record)));
+    compactChatActivityRecords(records).forEach((record) => activity.append(renderChatRecord(record)));
     list.append(activity);
   }
   list.scrollTop = list.scrollHeight;
