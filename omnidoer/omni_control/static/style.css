@@ -1043,8 +1043,8 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
 }
 .chat-record-tool_call,
 .chat-record-tool_output {
-  border-color: #fde68a;
-  background: #fffbeb;
+  border-color: #e2e8f0;
+  background: #f8fafc;
 }
 .chat-record-terminal {
   border-color: #cbd5e1;
@@ -1160,6 +1160,50 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
 }
 .chat-record .chat-message-meta {
   font-size: 0.64rem;
+}
+.chat-tool-record {
+  min-height: 24px;
+  padding: 2px 8px;
+  border-style: solid;
+}
+.chat-tool-summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  margin: 0;
+  color: #475569;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.chat-tool-summary strong {
+  flex: 0 0 auto;
+  color: #334155;
+  font-weight: 750;
+}
+.chat-tool-summary span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-tool-details {
+  min-width: 0;
+}
+.chat-tool-details summary {
+  cursor: pointer;
+  list-style-position: outside;
+}
+.chat-tool-full {
+  max-height: 36svh;
+  margin: 6px 0 2px;
+  overflow: auto;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 6px 8px;
+  font: 0.78rem/1.35 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  white-space: pre-wrap;
 }
 .chat-record-delta .chat-message-header,
 .chat-record-status .chat-message-header {
@@ -1552,6 +1596,13 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
   .chat-record-status {
     min-height: 24px;
     padding: 2px 7px;
+  }
+  .chat-tool-record {
+    min-height: 22px;
+    padding: 2px 7px;
+  }
+  .chat-tool-summary {
+    font-size: 0.74rem;
   }
   #language-toggle { width: auto; }
   .button-row button, .filter-row button { width: auto; flex: 1 1 130px; }

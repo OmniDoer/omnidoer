@@ -222,6 +222,13 @@ const I18N = {
     chatRecordStatus: "Status",
     chatRecordToolCall: "Tool call",
     chatRecordToolOutput: "Tool output",
+    chatToolCalling: (name) => `Calling ${name}`,
+    chatToolReturned: (name) => `${name} returned`,
+    chatToolShell: "shell",
+    chatToolWebSearch: "web search",
+    chatToolUnknown: "tool",
+    chatToolOutputNoContent: "no visible output",
+    chatToolOutputLines: (count) => `${count} lines`,
     chatRecordReasoning: "Reasoning",
     chatRecordTerminal: "Terminal",
     chatRecordTerminalInput: "Terminal input",
@@ -579,6 +586,13 @@ const I18N = {
     chatRecordStatus: "状态",
     chatRecordToolCall: "工具调用",
     chatRecordToolOutput: "工具输出",
+    chatToolCalling: (name) => `正在调用 ${name}`,
+    chatToolReturned: (name) => `${name} 返回`,
+    chatToolShell: "shell",
+    chatToolWebSearch: "网页搜索",
+    chatToolUnknown: "工具",
+    chatToolOutputNoContent: "无可见输出",
+    chatToolOutputLines: (count) => `${count} 行`,
     chatRecordReasoning: "思考摘要",
     chatRecordTerminal: "终端",
     chatRecordTerminalInput: "终端输入",
@@ -3485,6 +3499,69 @@ function appendMarkdown(parent, text, className) {
   return node;
 }
 
+function cleanToolName(value) {
+  const name = String(value || "").trim();
+  if (!name) return t("chatToolUnknown");
+  if (name === "$") return t("chatToolShell");
+  if (name.toLowerCase() === "web") return t("chatToolWebSearch");
+  return name.replace(/^mcp__/, "");
+}
+
+function toolNameFromRecord(record) {
+  const text = String(record.text || "").trim();
+  if (text.startsWith("$ ")) return t("chatToolShell");
+  if (/^web search:/i.test(text)) return t("chatToolWebSearch");
+  if (record.data?.exit_code !== undefined && record.record_type === "tool_output") return t("chatToolShell");
+  const mcpOutput = text.match(/^([A-Za-z0-9_.:-]+)\s+(completed|failed|in_progress|running|pending|cancelled):/i);
+  if (mcpOutput) return cleanToolName(mcpOutput[1]);
+  const firstToken = text.match(/^([A-Za-z0-9_.:/@-]+)/);
+  return cleanToolName(firstToken?.[1] || "");
+}
+
+function toolOutputSummary(record) {
+  const text = String(record.text || "").trim();
+  const parts = [];
+  const status = record.data?.status || text.match(/\bstatus=([^\s]+)/)?.[1] || "";
+  const exitCode = record.data?.exit_code ?? text.match(/\bexit_code=([^\s]+)/)?.[1];
+  if (status) parts.push(status);
+  if (exitCode !== undefined && exitCode !== null && exitCode !== "") parts.push(`exit ${exitCode}`);
+  if (text) {
+    const lines = text.split(/\r?\n/).filter((line) => line.trim()).length;
+    parts.push(lines > 1 ? t("chatToolOutputLines", lines) : formatFileSize(new Blob([text]).size));
+  } else {
+    parts.push(t("chatToolOutputNoContent"));
+  }
+  return parts.join(" · ");
+}
+
+function appendToolSummary(parent, label, summary = "") {
+  appendText(parent, "strong", label);
+  if (summary) appendText(parent, "span", summary);
+}
+
+function renderToolRecord(record) {
+  const item = document.createElement("article");
+  item.className = `chat-record chat-record-${record.record_type} chat-tool-record`;
+  const name = toolNameFromRecord(record);
+  if (record.record_type === "tool_call") {
+    const details = document.createElement("details");
+    details.className = "chat-tool-details";
+    const summary = document.createElement("summary");
+    summary.className = "chat-tool-summary";
+    appendToolSummary(summary, t("chatToolCalling", name), record.data?.status || "");
+    details.append(summary);
+    const fullText = String(record.text || "").trim();
+    if (fullText) appendText(details, "pre", fullText, "chat-tool-full");
+    item.append(details);
+    return item;
+  }
+  const line = document.createElement("p");
+  line.className = "chat-tool-summary";
+  appendToolSummary(line, t("chatToolReturned", name), toolOutputSummary(record));
+  item.append(line);
+  return item;
+}
+
 function renderChatMessage(message) {
   const item = document.createElement("article");
   item.className = `chat-message chat-role-${message.role} chat-status-${message.status}`;
@@ -3503,6 +3580,9 @@ function renderChatMessage(message) {
 }
 
 function renderChatRecord(record) {
+  if (["tool_call", "tool_output"].includes(record.record_type)) {
+    return renderToolRecord(record);
+  }
   const item = document.createElement("article");
   item.className = `chat-record chat-record-${record.record_type}`;
   const header = document.createElement("div");
