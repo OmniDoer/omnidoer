@@ -2310,8 +2310,18 @@ function activeTakeoverRequest() {
   return cachedRequests.find((request) => request.request_id === activeTakeoverFrameRequest) || findActiveTakeoverRequest(cachedRequests);
 }
 
+function browserContextRecency(context) {
+  const updatedAt = Number(context?.updated_at || 0);
+  if (updatedAt) return updatedAt;
+  const age = Number(context?.age_seconds);
+  if (Number.isFinite(age)) return Date.now() / 1000 - age;
+  return 0;
+}
+
 function activeBrowserContext() {
-  return cachedBrowserContexts.find((context) => context.active && context.current_url) || null;
+  return cachedBrowserContexts
+    .filter((context) => context.active && context.current_url)
+    .sort((a, b) => browserContextRecency(b) - browserContextRecency(a))[0] || null;
 }
 
 function takeoverFrameAgeMs(stream = document.querySelector("#browser-stream")) {

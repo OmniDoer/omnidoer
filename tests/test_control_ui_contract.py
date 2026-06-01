@@ -126,6 +126,8 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("pendingConsoleRestartRequest()", self.app)
         self.assertIn("findActiveTakeoverRequest(cachedRequests)", self.app)
         self.assertIn("activeBrowserContext()", self.app)
+        self.assertIn("browserContextRecency", self.app)
+        self.assertIn(".filter((context) => context.active && context.current_url)", self.app)
         style = (static_root() / "style.css").read_text()
         self.assertIn(".overview-panel", style)
         self.assertIn(".overview-hero", style)

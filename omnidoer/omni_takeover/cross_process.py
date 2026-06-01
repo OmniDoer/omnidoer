@@ -122,7 +122,13 @@ def list_contexts(*, max_age_seconds: float = CONTEXT_MAX_AGE_SECONDS) -> list[d
         payload["age_seconds"] = max(0.0, now - updated_at)
         if payload["active"]:
             contexts.append(payload)
-    return sorted(contexts, key=lambda item: str(item.get("browser_context_id") or ""))
+    return sorted(
+        contexts,
+        key=lambda item: (
+            -float(item.get("updated_at") or 0.0),
+            str(item.get("browser_context_id") or ""),
+        ),
+    )
 
 
 def get_context(browser_context_id: str) -> dict[str, Any] | None:

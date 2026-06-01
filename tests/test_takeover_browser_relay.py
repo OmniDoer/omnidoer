@@ -256,6 +256,35 @@ class TakeoverBrowserRelayTest(unittest.TestCase):
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
 
+    def test_browser_contexts_are_ordered_by_recent_activity_for_mobile_preview(self) -> None:
+        class FakeBrowser:
+            def __init__(self, url):
+                self.url = url
+
+            def current_url(self):
+                return self.url
+
+            def current_origin(self):
+                return "https://example.com"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                write_context_status("aaa-older-browser", FakeBrowser("https://example.com/older"))
+                time.sleep(0.01)
+                write_context_status("zzz-current-browser", FakeBrowser("https://example.com/current"))
+
+                contexts = list_contexts()
+                self.assertGreaterEqual(len(contexts), 2)
+                self.assertEqual(contexts[0]["browser_context_id"], "zzz-current-browser")
+                self.assertEqual(contexts[0]["current_url"], "https://example.com/current")
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     def test_browser_preview_frame_survives_mobile_reconnect_window(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             old_home = os.environ.get("OMNIDOER_HOME")
