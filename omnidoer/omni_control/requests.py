@@ -205,7 +205,7 @@ class RequestStore:
             request.updated_at = time.time()
             requests[request.request_id] = request
             self._save(requests)
-        became_terminal = previous_status != request.status and request.status in COMPLETED_REQUEST_STATUSES | {"expired"}
+        became_terminal = previous_status != request.status and request.status in COMPLETED_REQUEST_STATUSES | ABORTED_REQUEST_STATUSES
         received_ciphertext = not had_ciphertext and request.response_ciphertext is not None
         if became_terminal or received_ciphertext:
             self._audit_transition("control_request_completed", request, previous_status=previous_status)
@@ -246,6 +246,17 @@ class RequestStore:
         request.status = "denied"
         request.used = request.one_time_use
         request.completed_by_user = True
+        return self.update(request)
+
+    def cancel(self, request_id: str, *, reason: str | None = None) -> ControlRequest:
+        request = self.get(request_id)
+        if request.status in COMPLETED_REQUEST_STATUSES | ABORTED_REQUEST_STATUSES:
+            return request
+        request.status = "cancelled"
+        request.used = request.one_time_use
+        request.completed_by_user = False
+        if reason:
+            request.structured_details = {**request.structured_details, "cancel_reason": reason}
         return self.update(request)
 
     def mark_challenge_completed(self, request_id: str) -> ControlRequest:

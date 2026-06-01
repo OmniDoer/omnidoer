@@ -555,6 +555,54 @@ class ControlStatusTest(unittest.TestCase):
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
 
+    def test_visible_requests_cancels_obsolete_console_restart_when_restart_no_longer_needed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            config = build_config(host="127.0.0.1", port=8787)
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_config = config  # type: ignore[attr-defined]
+            server.omnidoer_chat_thread_id = "thread_active"  # type: ignore[attr-defined]
+            handler = object.__new__(ControlHandler)
+            handler.server = server
+            try:
+                obsolete = RequestStore().create(
+                    "console_restart",
+                    origin="omnidoer://control",
+                    top_level_url="https://agent.example.com",
+                    action_summary="Restart current Agent for browser takeover relay on thread_active",
+                    risk_level="high",
+                    structured_details={
+                        "thread_id": "thread_active",
+                        "restart_purpose": "browser_takeover_relay",
+                        "requires_restart_for_browser_takeover_relay": True,
+                    },
+                )
+                with patch("omnidoer.omni_control.chat_runner.live_tui_bridge_active", return_value=True), patch(
+                    "omnidoer.omni_control.chat_runner.live_tui_session_active",
+                    return_value=True,
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.native_console_bridge_install_status",
+                    return_value={"ready": True, "reason": "ready"},
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.active_tui_process_bridge_status",
+                    return_value={"active": True, "pid": 1234, "reason": "native_bridge_active"},
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.active_mcp_sidecar_status",
+                    return_value={"active": True, "restart_required": False, "browser_takeover_relay_current": True, "reason": "ready"},
+                ):
+                    visible = handler._visible_requests(RequestStore(), None)
+                self.assertEqual([request for request in visible if request.request_type == "console_restart" and request.status == "pending"], [])
+                updated = RequestStore().get(obsolete.request_id)
+                self.assertEqual(updated.status, "cancelled")
+                self.assertEqual(updated.structured_details["cancel_reason"], "restart_no_longer_required")
+            finally:
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     def test_visible_requests_creates_console_restart_when_mcp_sidecar_is_stale(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             old_home = os.environ.get("OMNIDOER_HOME")

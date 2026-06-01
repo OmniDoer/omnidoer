@@ -288,6 +288,31 @@ def create_or_renew_console_restart_request(
     return request, False
 
 
+def cancel_obsolete_console_restart_requests(
+    store: RequestStore,
+    *,
+    chat_thread_id: str | None,
+    session: ControlSession | None = None,
+    requires_pairing: bool = False,
+) -> list[object]:
+    if not chat_thread_id:
+        return []
+    cancelled = []
+    for existing in store.list():
+        existing_details = existing.structured_details or {}
+        session_allowed = not requires_pairing or not existing.allowed_device_id or (
+            session is not None and existing.allowed_device_id == session.device_id
+        )
+        if (
+            existing.request_type == "console_restart"
+            and existing.status == "pending"
+            and existing_details.get("thread_id") == chat_thread_id
+            and session_allowed
+        ):
+            cancelled.append(store.cancel(existing.request_id, reason="restart_no_longer_required"))
+    return cancelled
+
+
 def ensure_current_session_sync_request(
     store: RequestStore,
     *,
@@ -305,6 +330,12 @@ def ensure_current_session_sync_request(
         detached_thread_resume_allowed=detached_thread_resume_allowed,
     )
     if not console_restart_request_available(details):
+        cancel_obsolete_console_restart_requests(
+            store,
+            chat_thread_id=chat_thread_id,
+            session=session,
+            requires_pairing=requires_pairing,
+        )
         return None
     request, _ = create_or_renew_console_restart_request(
         store,
