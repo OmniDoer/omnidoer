@@ -541,6 +541,34 @@ class ControlHandler(SimpleHTTPRequestHandler):
         if float(envelope.get("expires_at", "nan")) != float(request.expires_at):
             raise PermissionError("envelope expiry mismatch")
 
+    def _try_deliver_chat_to_live_console(self, message_id: str) -> dict:
+        chat_thread_id = getattr(self.server, "omnidoer_chat_thread_id", None)
+        if not chat_thread_id:
+            return {"attempted": False, "reason": "chat_thread_not_bound"}
+        from omnidoer.omni_control.chat_runner import live_tui_bridge_active
+
+        if live_tui_bridge_active():
+            return {"attempted": False, "reason": "native_bridge_active"}
+        from omnidoer.omni_control.tui_legacy_relay import LegacyTuiRelay, legacy_tui_relay_status
+
+        status = legacy_tui_relay_status(chat_thread_id)
+        if not status.get("active"):
+            return {
+                "attempted": False,
+                "reason": str(status.get("reason") or "legacy_relay_unavailable"),
+                "legacy_tui_relay": status,
+            }
+        delivered = LegacyTuiRelay(thread_id=chat_thread_id).run_once()
+        return {
+            "attempted": True,
+            "delivered": bool(delivered),
+            "message_id": message_id,
+            "thread_id": chat_thread_id,
+            "transport": status.get("transport") or "tmux",
+            "pane_id": status.get("pane_id"),
+            "secret_exposed_to_model": False,
+        }
+
     def _set_session_cookie(self, session_id: str, token: str) -> None:
         secure = "; Secure" if self.config.mode == "cloud_direct" else ""
         self.send_header("set-cookie", f"omnidoer_session={session_id}:{token}; HttpOnly; SameSite=Strict{secure}; Path=/")
@@ -1027,7 +1055,8 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 body = self._read_json()
                 upload_store = ChatUploadStore()
                 upload_store.cleanup_expired(ttl_seconds=self._chat_upload_ttl_seconds())
-                message = ChatStore().append(
+                chat_store = ChatStore()
+                message = chat_store.append(
                     role="user",
                     text=str(body.get("text") or ""),
                     source="control_client",
@@ -1036,7 +1065,13 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     reply_to_message_id=str(body.get("reply_to_message_id") or "") or None,
                     attachments=validate_uploaded_attachments(body.get("attachments"), upload_store.directory),
                 )
-                self._send_json(HTTPStatus.CREATED, message.to_public_dict())
+                delivery = self._try_deliver_chat_to_live_console(message.message_id)
+                try:
+                    payload = chat_store.get(message.message_id).to_public_dict()
+                except KeyError:
+                    payload = message.to_public_dict()
+                payload["live_console_delivery"] = delivery
+                self._send_json(HTTPStatus.CREATED, payload)
             except Exception as exc:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
             return

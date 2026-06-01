@@ -8,10 +8,12 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
 from urllib import request as urllib_request
+from unittest.mock import patch
 
 from omnidoer.omni_control.chat import MAX_CHAT_MESSAGES, MAX_CHAT_RECORDS, ChatStore
 from omnidoer.omni_control.chat_uploads import ChatUploadStore
 from omnidoer.omni_control.server import ControlHandler
+from omnidoer.omni_control.tui_legacy_relay import TmuxPane
 
 
 class ControlChatStoreTest(unittest.TestCase):
@@ -103,6 +105,54 @@ class ControlChatUploadStoreTest(unittest.TestCase):
 
 
 class ControlChatApiTest(unittest.TestCase):
+    def test_chat_message_post_attempts_immediate_legacy_console_delivery(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_chat_thread_id = "thread_active"  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            pane = TmuxPane(pane_id="%1", tty="/dev/pts/2", current_command="codex", process_pid=99)
+            injected: list[tuple[str, str]] = []
+            try:
+                create = urllib_request.Request(
+                    f"{base}/api/chat/messages",
+                    data=json.dumps({"text": "hello current console"}).encode(),
+                    headers={"content-type": "application/json"},
+                    method="POST",
+                )
+                with patch("omnidoer.omni_control.chat_runner.live_tui_bridge_active", return_value=False), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.live_tui_bridge_active",
+                    return_value=False,
+                ), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.find_tmux_pane_for_thread",
+                    return_value=pane,
+                ), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.inject_text_into_tmux_pane",
+                    side_effect=lambda pane_id, text: injected.append((pane_id, text)),
+                ):
+                    with urllib_request.urlopen(create, timeout=5) as response:
+                        self.assertEqual(response.status, 201)
+                        message = json.loads(response.read().decode())
+
+                self.assertEqual(injected, [("%1", "hello current console")])
+                self.assertEqual(message["status"], "completed")
+                self.assertTrue(message["delivered_to_agent"])
+                self.assertEqual(message["live_console_delivery"]["attempted"], True)
+                self.assertEqual(message["live_console_delivery"]["delivered"], True)
+                self.assertEqual(message["live_console_delivery"]["pane_id"], "%1")
+                records = ChatStore().list_records(limit=100)
+                self.assertTrue(any(record.source == "legacy_tui_relay" for record in records))
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     def test_control_server_chat_api_and_sse_stream(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             old_home = os.environ.get("OMNIDOER_HOME")

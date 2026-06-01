@@ -52,6 +52,10 @@ const I18N = {
     sendUnavailable: "Restart bridge first",
     chatPlaceholderUnavailable: "Restart the bridge before sending into this conversation",
     chatSendBlocked: "Chat not attached",
+    chatDeliveredToConsole: "Sent to current Linux console",
+    chatDeliveredToConsoleDetail: "Temporary terminal relay delivered this message into the active TUI.",
+    chatQueuedForBridge: "Message queued for console bridge",
+    chatQueuedForBridgeDetail: "The Control Service accepted the message; it will deliver when the bridge is ready.",
     copyCommand: "Copy command",
     copiedCommand: "Command copied",
     copyCommandFailed: "Copy failed",
@@ -326,6 +330,10 @@ const I18N = {
     sendUnavailable: "请先重启桥接",
     chatPlaceholderUnavailable: "请先重启桥接，再发送到这段对话",
     chatSendBlocked: "对话尚未接入",
+    chatDeliveredToConsole: "已发送到当前 Linux console",
+    chatDeliveredToConsoleDetail: "临时终端 relay 已把这条消息投递到活跃 TUI。",
+    chatQueuedForBridge: "消息已进入 console 桥接队列",
+    chatQueuedForBridgeDetail: "Control Service 已接收消息；bridge 就绪后会继续投递。",
     copyCommand: "复制命令",
     copiedCommand: "命令已复制",
     copyCommandFailed: "复制失败",
@@ -2255,6 +2263,18 @@ async function sendChatMessage() {
   if (!response.ok) {
     setStatus(t("actionFailed"), t("pairToViewChat"));
     return;
+  }
+  let payload = {};
+  try {
+    payload = await response.json();
+  } catch {
+    payload = {};
+  }
+  const delivery = payload.live_console_delivery || {};
+  if (delivery.delivered) {
+    setStatus(t("chatDeliveredToConsole"), t("chatDeliveredToConsoleDetail"));
+  } else if (delivery.attempted || delivery.reason) {
+    setStatus(t("chatQueuedForBridge"), t("chatQueuedForBridgeDetail"));
   }
   input.value = "";
   if (fileInput) fileInput.value = "";
