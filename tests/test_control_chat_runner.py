@@ -222,6 +222,80 @@ class ControlChatRunnerTest(unittest.TestCase):
             self.assertEqual(status["reason"], "source_updated_after_sidecar_start")
             self.assertEqual(status["stale_required_sources"], [str(source)])
 
+    def test_active_mcp_sidecar_status_reports_current_relay_feature(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            proc_root = Path(tmp) / "proc"
+            proc_root.mkdir()
+            proc_root.joinpath("stat").write_text("btime 1000\n")
+            ticks = os.sysconf("SC_CLK_TCK")
+
+            tui = proc_root / "1234"
+            tui.mkdir()
+            tui.joinpath("cmdline").write_bytes(b"/usr/local/lib/omnidoer/codex\0resume\0thread_active\0")
+            tui.joinpath("stat").write_text(f"1234 (codex) S 1 {'0 ' * 17}{int(20 * ticks)} 0\n")
+
+            sidecar = proc_root / "1235"
+            sidecar.mkdir()
+            sidecar.joinpath("cmdline").write_bytes(b"/usr/bin/python3\0/usr/local/bin/omnidoer\0mcp\0serve\0")
+            sidecar.joinpath("stat").write_text(f"1235 (python3) S 1234 {'0 ' * 17}{int(21 * ticks)} 0\n")
+
+            source = Path(tmp) / "runtime.py"
+            source.write_text("BrowserContextWorker start_control_relay publish_browser_relay_tick apply_user_input_event")
+            os.utime(source, (1010, 1010))
+
+            status = active_mcp_sidecar_status(
+                "thread_active",
+                proc_root=proc_root,
+                source_files=(source,),
+                feature_markers={source: (b"BrowserContextWorker", b"start_control_relay")},
+            )
+
+            self.assertTrue(status["active"])
+            self.assertFalse(status["restart_required"])
+            self.assertTrue(status["browser_takeover_relay_feature_installed"])
+            self.assertTrue(status["browser_takeover_relay_current"])
+            self.assertEqual(status["reason"], "ready")
+            self.assertEqual(status["required_sources"]["feature_marker_count"], 2)
+            self.assertEqual(status["required_sources"]["missing_feature_markers"], [])
+
+    def test_active_mcp_sidecar_status_reports_missing_relay_feature_marker(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            proc_root = Path(tmp) / "proc"
+            proc_root.mkdir()
+            proc_root.joinpath("stat").write_text("btime 1000\n")
+            ticks = os.sysconf("SC_CLK_TCK")
+
+            tui = proc_root / "1234"
+            tui.mkdir()
+            tui.joinpath("cmdline").write_bytes(b"/usr/local/lib/omnidoer/codex\0resume\0thread_active\0")
+            tui.joinpath("stat").write_text(f"1234 (codex) S 1 {'0 ' * 17}{int(20 * ticks)} 0\n")
+
+            sidecar = proc_root / "1235"
+            sidecar.mkdir()
+            sidecar.joinpath("cmdline").write_bytes(b"/usr/bin/python3\0/usr/local/bin/omnidoer\0mcp\0serve\0")
+            sidecar.joinpath("stat").write_text(f"1235 (python3) S 1234 {'0 ' * 17}{int(21 * ticks)} 0\n")
+
+            source = Path(tmp) / "runtime.py"
+            source.write_text("old runtime")
+            os.utime(source, (1010, 1010))
+
+            status = active_mcp_sidecar_status(
+                "thread_active",
+                proc_root=proc_root,
+                source_files=(source,),
+                feature_markers={source: (b"BrowserContextWorker",)},
+            )
+
+            self.assertTrue(status["active"])
+            self.assertFalse(status["restart_required"])
+            self.assertFalse(status["browser_takeover_relay_feature_installed"])
+            self.assertFalse(status["browser_takeover_relay_current"])
+            self.assertEqual(status["reason"], "browser_takeover_relay_feature_missing")
+            self.assertEqual(
+                status["required_sources"]["missing_feature_markers"],
+                [{"path": str(source), "marker": "BrowserContextWorker"}],
+            )
+
     def test_control_chat_sync_diagnostics_describes_legacy_and_native_states(self) -> None:
         legacy = control_chat_sync_diagnostics(
             thread_id="thread_demo",
@@ -262,6 +336,8 @@ class ControlChatRunnerTest(unittest.TestCase):
         self.assertTrue(native_with_stale_sidecar["native_sync_active"])
         self.assertTrue(native_with_stale_sidecar["requires_restart_for_browser_takeover_relay"])
         self.assertTrue(native_with_stale_sidecar["restart_browser_takeover_relay_available"])
+        self.assertFalse(native_with_stale_sidecar["browser_takeover_relay_feature_installed"])
+        self.assertIsNone(native_with_stale_sidecar["browser_takeover_relay_verification_signal"])
         self.assertFalse(native_with_stale_sidecar["requires_restart_for_native_sync"])
         self.assertEqual(legacy["activation_action"], "restart_current_console")
         self.assertEqual(legacy["activation_blocker"], "running_binary_deleted")
@@ -301,6 +377,28 @@ class ControlChatRunnerTest(unittest.TestCase):
         self.assertEqual(native["activation_action"], "none")
         self.assertEqual(native["verification_signal"], "control_chat_bridge_heartbeat")
         self.assertFalse(native["detached_thread_resume_allowed"])
+
+        native_with_current_relay = control_chat_sync_diagnostics(
+            thread_id="thread_demo",
+            tui_bridge_active=True,
+            tui_session_active=True,
+            install_status={"ready": True},
+            legacy_relay={"active": False},
+            mcp_sidecar={
+                "active": True,
+                "restart_required": False,
+                "browser_takeover_relay_feature_installed": True,
+                "browser_takeover_relay_current": True,
+                "reason": "ready",
+            },
+            bridge_heartbeat_age_seconds=0.2,
+        )
+        self.assertTrue(native_with_current_relay["browser_takeover_relay_feature_installed"])
+        self.assertTrue(native_with_current_relay["browser_takeover_relay_current"])
+        self.assertEqual(
+            native_with_current_relay["browser_takeover_relay_verification_signal"],
+            "mcp_sidecar_feature_markers_and_start_time",
+        )
 
     def test_codex_json_events_stream_into_chat_records(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

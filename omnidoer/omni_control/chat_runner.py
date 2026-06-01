@@ -29,6 +29,17 @@ MCP_SIDECAR_REQUIRED_SOURCE_FILES = (
     ("omni_mcp", "runtime.py"),
     ("omni_takeover", "browser_worker.py"),
 )
+MCP_SIDECAR_REQUIRED_FEATURE_MARKERS = (
+    (("omni_mcp", "runtime.py"), (b"BrowserContextWorker",)),
+    (
+        ("omni_takeover", "browser_worker.py"),
+        (
+            b"start_control_relay",
+            b"publish_browser_relay_tick",
+            b"apply_user_input_event",
+        ),
+    ),
+)
 _bridge_install_cache: dict[tuple[str, int, int], dict[str, Any]] = {}
 
 
@@ -293,7 +304,15 @@ def control_chat_sync_diagnostics(
         "mcp_sidecar_active": bool(mcp_sidecar.get("active")),
         "mcp_sidecar_restart_required": bool(mcp_sidecar.get("restart_required")),
         "mcp_sidecar_reason": mcp_sidecar.get("reason"),
+        "browser_takeover_relay_feature_installed": bool(
+            mcp_sidecar.get("browser_takeover_relay_feature_installed")
+        ),
         "browser_takeover_relay_current": bool(mcp_sidecar.get("browser_takeover_relay_current")),
+        "browser_takeover_relay_verification_signal": (
+            "mcp_sidecar_feature_markers_and_start_time"
+            if mcp_sidecar.get("browser_takeover_relay_current")
+            else None
+        ),
         "requires_restart_for_browser_takeover_relay": bool(mcp_sidecar.get("restart_required")),
     }
 
@@ -375,21 +394,94 @@ def _process_start_time_seconds(entry: Path, *, proc_root: Path | str = "/proc")
         return None
 
 
-def _mcp_required_source_status(source_files: tuple[Path, ...] | None = None) -> dict[str, Any]:
+def _default_mcp_source_files() -> tuple[Path, ...]:
+    package_root = Path(__file__).resolve().parents[1]
+    return tuple(package_root.joinpath(*parts) for parts in MCP_SIDECAR_REQUIRED_SOURCE_FILES)
+
+
+def _default_mcp_feature_markers() -> dict[Path, tuple[bytes, ...]]:
+    package_root = Path(__file__).resolve().parents[1]
+    return {package_root.joinpath(*parts): markers for parts, markers in MCP_SIDECAR_REQUIRED_FEATURE_MARKERS}
+
+
+def _missing_file_markers(path: Path, markers: tuple[bytes, ...]) -> list[str]:
+    if not markers:
+        return []
+    remaining = set(markers)
+    overlap = max(len(marker) for marker in markers) - 1
+    tail = b""
+    with path.open("rb") as handle:
+        while remaining:
+            chunk = handle.read(1024 * 1024)
+            if not chunk:
+                break
+            window = tail + chunk
+            for marker in list(remaining):
+                if marker in window:
+                    remaining.remove(marker)
+            tail = window[-overlap:] if overlap else b""
+    return [marker.decode("utf-8", "replace") for marker in markers if marker in remaining]
+
+
+def _mcp_required_source_status(
+    source_files: tuple[Path, ...] | None = None,
+    feature_markers: dict[Path, tuple[bytes, ...]] | None = None,
+) -> dict[str, Any]:
     if source_files is None:
-        package_root = Path(__file__).resolve().parents[1]
-        source_files = tuple(package_root.joinpath(*parts) for parts in MCP_SIDECAR_REQUIRED_SOURCE_FILES)
+        source_files = _default_mcp_source_files()
+    if feature_markers is None:
+        feature_markers = _default_mcp_feature_markers()
     files: list[dict[str, Any]] = []
     newest_mtime: float | None = None
+    feature_marker_count = 0
+    missing_feature_markers: list[dict[str, str]] = []
     for path in source_files:
+        markers = feature_markers.get(path, ())
+        feature_marker_count += len(markers)
         try:
             mtime = path.stat().st_mtime
         except OSError:
-            files.append({"path": str(path), "present": False, "mtime": None})
+            files.append(
+                {
+                    "path": str(path),
+                    "present": False,
+                    "mtime": None,
+                    "feature_marker_count": len(markers),
+                    "missing_feature_markers": [
+                        marker.decode("utf-8", "replace") for marker in markers
+                    ],
+                    "feature_markers_present": not markers,
+                }
+            )
+            for marker in markers:
+                missing_feature_markers.append(
+                    {"path": str(path), "marker": marker.decode("utf-8", "replace")}
+                )
             continue
         newest_mtime = mtime if newest_mtime is None else max(newest_mtime, mtime)
-        files.append({"path": str(path), "present": True, "mtime": mtime})
-    return {"files": files, "newest_mtime": newest_mtime}
+        try:
+            missing = _missing_file_markers(path, markers)
+        except OSError:
+            missing = [marker.decode("utf-8", "replace") for marker in markers]
+        files.append(
+            {
+                "path": str(path),
+                "present": True,
+                "mtime": mtime,
+                "feature_marker_count": len(markers),
+                "missing_feature_markers": missing,
+                "feature_markers_present": not missing,
+            }
+        )
+        missing_feature_markers.extend({"path": str(path), "marker": marker} for marker in missing)
+    feature_installed = not missing_feature_markers
+    return {
+        "files": files,
+        "newest_mtime": newest_mtime,
+        "feature_marker_count": feature_marker_count,
+        "missing_feature_markers": missing_feature_markers,
+        "feature_installed": feature_installed,
+    }
 
 
 def active_mcp_sidecar_status(
@@ -397,14 +489,18 @@ def active_mcp_sidecar_status(
     *,
     proc_root: Path | str = "/proc",
     source_files: tuple[Path, ...] | None = None,
+    feature_markers: dict[Path, tuple[bytes, ...]] | None = None,
 ) -> dict[str, Any]:
     tui_matches = _iter_live_tui_process_entries(thread_id, proc_root=proc_root)
-    sources = _mcp_required_source_status(source_files)
+    sources = _mcp_required_source_status(source_files, feature_markers)
+    feature_installed = bool(sources.get("feature_installed"))
     if not tui_matches:
         return {
             "active": False,
             "reason": "live_tui_process_not_found",
             "restart_required": False,
+            "browser_takeover_relay_feature_installed": feature_installed,
+            "browser_takeover_relay_current": False,
             "required_sources": sources,
         }
 
@@ -436,6 +532,8 @@ def active_mcp_sidecar_status(
             "reason": "mcp_sidecar_not_found",
             "restart_required": False,
             "parent_tui_pid": tui_pid,
+            "browser_takeover_relay_feature_installed": feature_installed,
+            "browser_takeover_relay_current": False,
             "required_sources": sources,
         }
 
@@ -448,6 +546,13 @@ def active_mcp_sidecar_status(
         if item.get("present") and started_at is not None and item.get("mtime") is not None and float(item["mtime"]) > started_at
     ]
     restart_required = bool(stale_sources)
+    relay_current = bool(feature_installed and not restart_required)
+    if restart_required:
+        reason = "source_updated_after_sidecar_start"
+    elif not feature_installed:
+        reason = "browser_takeover_relay_feature_missing"
+    else:
+        reason = "ready"
     return {
         "active": True,
         "pid": int(entry.name),
@@ -457,9 +562,10 @@ def active_mcp_sidecar_status(
         "newest_required_source_mtime": newest_source,
         "stale_required_sources": stale_sources,
         "restart_required": restart_required,
-        "browser_takeover_relay_current": not restart_required,
+        "browser_takeover_relay_feature_installed": feature_installed,
+        "browser_takeover_relay_current": relay_current,
         "required_sources": sources,
-        "reason": "source_updated_after_sidecar_start" if restart_required else "ready",
+        "reason": reason,
     }
 
 
