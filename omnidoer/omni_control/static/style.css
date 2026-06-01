@@ -1236,7 +1236,73 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
   gap: 12px;
   margin-top: 14px;
 }
+#takeover-panel {
+  display: grid;
+  grid-template-rows: auto minmax(320px, 1fr) auto auto auto;
+  min-height: min(780px, calc(100svh - 190px));
+  padding: 0;
+  overflow: hidden;
+  background: #ffffff;
+}
+#takeover-panel > h2,
+#takeover-panel > p:first-of-type {
+  display: none;
+}
+#takeover-panel .takeover-metadata {
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  margin: 0;
+  padding: 5px 8px;
+  overflow-x: auto;
+  border: 0;
+  border-bottom: 1px solid #dbeafe;
+  border-radius: 0;
+  background: #f8fafc;
+  scrollbar-width: none;
+}
+#takeover-panel .takeover-metadata::-webkit-scrollbar {
+  display: none;
+}
+#takeover-panel .takeover-metadata dt {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+#takeover-panel .takeover-metadata dd {
+  flex: 0 0 auto;
+  max-width: min(46vw, 280px);
+  margin: 0;
+  padding: 2px 7px;
+  overflow: hidden;
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 0.78rem;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#takeover-panel #takeover-status-label {
+  border-color: #bbf7d0;
+  color: #166534;
+  font-weight: 750;
+}
+#takeover-panel #takeover-current-url {
+  max-width: min(62vw, 460px);
+}
 #browser-stream {
+  grid-row: 2;
+  height: 100%;
   min-height: 280px;
   border: 1px solid #64748b;
   background: #0f172a;
@@ -1250,6 +1316,11 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
   color: #e2e8f0;
   outline: none;
   cursor: crosshair;
+}
+#takeover-panel #browser-stream {
+  min-height: 320px;
+  border-width: 0 0 1px;
+  border-radius: 0;
 }
 #browser-stream:focus {
   box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.28);
@@ -1277,43 +1348,88 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
   touch-action: pan-x pan-y;
 }
 .takeover-toolbar {
+  grid-row: 3;
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 6px;
   flex-wrap: wrap;
-  margin: 10px 0;
+  margin: 0;
+  padding: 6px 8px;
+  border-top: 1px solid #e2e8f0;
+  background: #ffffff;
 }
 .takeover-toolbar button {
-  flex: 1 1 140px;
+  flex: 0 0 auto;
+  min-height: 34px;
+  min-width: 0;
+  padding: 5px 9px;
+  border-radius: 7px;
+  font-size: 0.82rem;
+  line-height: 1;
+}
+.takeover-toolbar #request-takeover-pause,
+.takeover-toolbar #release-active-takeover {
+  flex: 1 1 132px;
+  min-width: 120px;
+}
+.takeover-toolbar #refresh-takeover-frame,
+.takeover-toolbar #pan-takeover-frame {
+  flex: 0 1 auto;
 }
 .takeover-toolbar #zoom-in-takeover-frame,
 .takeover-toolbar #zoom-out-takeover-frame {
-  flex: 0 0 54px;
-  min-width: 54px;
+  flex: 0 0 36px;
+  min-width: 36px;
+  padding-inline: 0;
 }
 .takeover-text-row {
+  grid-row: 4;
   display: grid;
   grid-template-columns: minmax(180px, 1fr) auto auto;
-  gap: 8px;
-  align-items: end;
-  margin: 10px 0;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  padding: 6px 8px 8px;
+  border-top: 1px solid #e2e8f0;
+  background: #ffffff;
 }
 .takeover-text-row label {
-  grid-column: 1 / -1;
-  color: var(--muted);
-  font-size: 0.9rem;
-  font-weight: 700;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 .takeover-text-row input {
   min-width: 0;
+  min-height: 34px;
+  padding: 5px 8px;
+  font-size: 0.9rem;
 }
 .takeover-text-row button {
-  min-width: 96px;
+  min-height: 34px;
+  min-width: 72px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  font-size: 0.82rem;
+  line-height: 1;
 }
-.takeover-metadata {
+#takeover-input-state {
+  grid-row: 5;
+  margin: 0;
+  padding: 4px 8px;
+  overflow: hidden;
+  border-top: 1px solid #eef2f7;
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 10px;
+  color: #64748b;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .frame-fresh { color: var(--ok); font-weight: 700; }
 .frame-stale { color: var(--danger); font-weight: 700; }
@@ -1389,22 +1505,85 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
     margin-left: 5px;
     font-size: 0.66rem;
   }
-  body[data-active-panel="task-panel"] .app-header {
+  body[data-active-panel="task-panel"] .app-header,
+  body[data-active-panel="takeover-panel"] .app-header {
     grid-template-columns: minmax(0, 1fr) auto;
   }
-  body[data-active-panel="task-panel"] .app-header img {
+  body[data-active-panel="task-panel"] .app-header img,
+  body[data-active-panel="takeover-panel"] .app-header img {
     display: none;
   }
-  body[data-active-panel="task-panel"] .app-header h1 {
+  body[data-active-panel="task-panel"] .app-header h1,
+  body[data-active-panel="takeover-panel"] .app-header h1 {
     font-size: 0.86rem;
     color: #334155;
   }
   .panel-heading, .request-header { display: block; }
-  .takeover-text-row {
-    grid-template-columns: 1fr 1fr;
+  #takeover-panel .takeover-metadata {
+    min-height: 28px;
+    padding: 3px 5px;
+    gap: 4px;
   }
-  .takeover-text-row input {
-    grid-column: 1 / -1;
+  #takeover-panel .takeover-metadata dd {
+    max-width: 42vw;
+    padding: 1px 5px;
+    font-size: 0.68rem;
+  }
+  #takeover-panel #takeover-active-request,
+  #takeover-panel #takeover-frame-meta,
+  #takeover-panel #takeover-frame-profile {
+    display: none;
+  }
+  #takeover-panel #takeover-current-url {
+    max-width: 54vw;
+  }
+  #takeover-panel .takeover-toolbar {
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 5px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  #takeover-panel .takeover-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+  #takeover-panel .takeover-toolbar button {
+    width: auto;
+    min-height: 32px;
+    padding: 4px 7px;
+    white-space: nowrap;
+  }
+  #takeover-panel .takeover-toolbar #request-takeover-pause,
+  #takeover-panel .takeover-toolbar #release-active-takeover {
+    flex: 0 0 auto;
+    min-width: 96px;
+  }
+  #takeover-panel .takeover-toolbar #zoom-in-takeover-frame,
+  #takeover-panel .takeover-toolbar #zoom-out-takeover-frame {
+    flex-basis: 32px;
+    min-width: 32px;
+  }
+  #takeover-panel .takeover-text-row {
+    grid-template-columns: minmax(0, 1fr) 68px 52px;
+    gap: 4px;
+    padding: 4px 5px 5px;
+  }
+  #takeover-panel .takeover-text-row input {
+    grid-column: auto;
+    min-height: 32px;
+    font-size: 0.84rem;
+  }
+  #takeover-panel .takeover-text-row button {
+    width: auto;
+    min-height: 32px;
+    min-width: 0;
+    padding: 4px 5px;
+    font-size: 0.76rem;
+    white-space: nowrap;
+  }
+  #takeover-input-state {
+    padding: 3px 5px;
+    font-size: 0.68rem;
   }
   .status-strip {
     display: flex;
@@ -1496,6 +1675,15 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
     margin-left: -6px;
     margin-right: -6px;
   }
+  #takeover-panel {
+    height: calc(100svh - 142px);
+    min-height: 420px;
+    margin-left: -6px;
+    margin-right: -6px;
+  }
+  #takeover-panel #browser-stream {
+    min-height: 0;
+  }
   body[data-runtime-state="waiting_for_tui_bridge"] section.control-panel,
   body[data-runtime-state="legacy_tui_relay"] section.control-panel,
   body[data-runtime-state="offline"] section.control-panel {
@@ -1520,6 +1708,9 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
   body[data-has-attention="true"] #task-panel {
     height: calc(100svh - 200px);
   }
+  body[data-has-attention="true"] #takeover-panel {
+    height: calc(100svh - 200px);
+  }
   body[data-has-attention="true"][data-runtime-state="waiting_for_tui_bridge"] section.control-panel,
   body[data-has-attention="true"][data-runtime-state="legacy_tui_relay"] section.control-panel,
   body[data-has-attention="true"][data-runtime-state="offline"] section.control-panel,
@@ -1528,7 +1719,10 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
   body[data-has-attention="true"][data-runtime-state="offline"] .overview-panel,
   body[data-has-attention="true"][data-runtime-state="waiting_for_tui_bridge"] #task-panel,
   body[data-has-attention="true"][data-runtime-state="legacy_tui_relay"] #task-panel,
-  body[data-has-attention="true"][data-runtime-state="offline"] #task-panel {
+  body[data-has-attention="true"][data-runtime-state="offline"] #task-panel,
+  body[data-has-attention="true"][data-runtime-state="waiting_for_tui_bridge"] #takeover-panel,
+  body[data-has-attention="true"][data-runtime-state="legacy_tui_relay"] #takeover-panel,
+  body[data-has-attention="true"][data-runtime-state="offline"] #takeover-panel {
     height: calc(100svh - 200px);
   }
   .chat-panel-header { display: none; }
