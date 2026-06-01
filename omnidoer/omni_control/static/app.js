@@ -2653,6 +2653,9 @@ async function releaseActiveTakeover() {
     const actionResponse = await postAction(request, "release");
     if (!actionResponse?.ok) throw new Error("release failed");
     const payload = await actionResponse.json().catch(() => ({}));
+    upsertCachedRequest(payload);
+    renderRequestList(cachedRequests);
+    syncTakeoverPanel(cachedRequests);
     stopTakeoverFramePolling(request.request_id);
     await loadBrowserContexts();
     if (!payload.agent_continue || payload.agent_continue.error) {

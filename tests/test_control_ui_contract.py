@@ -495,6 +495,8 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("takeoverReleased", app)
         self.assertIn('setStatus(t("takeoverReleased"), t("takeoverReleasedDetail"))', app)
         self.assertIn('activatePanel("task-panel", { persist: false })', app)
+        self.assertIn("upsertCachedRequest(payload);", app)
+        self.assertIn("syncTakeoverPanel(cachedRequests);", app)
         self.assertIn("control_continue_", app)
         self.assertIn("agent_continue", app)
         self.assertIn('release.onclick = () => releaseActiveTakeover()', app)
