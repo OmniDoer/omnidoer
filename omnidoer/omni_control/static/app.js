@@ -97,6 +97,9 @@ const I18N = {
     consoleRestartAfterApproval: "After approval",
     legacyTerminalTitle: "Live Linux Console",
     requestsCount: (open, total) => `Requests: ${open} open / ${total} total`,
+    attentionTitle: (count) => `${count} request${count === 1 ? " needs" : "s need"} attention`,
+    attentionDetail: (type, status) => `${type} · ${status}`,
+    attentionAction: "Review",
     requestsTitle: "Open Requests",
     requestsIntro: "Handle the items that need your attention. Secrets stay encrypted to the local broker.",
     requestFiltersLabel: "Request filters",
@@ -404,6 +407,9 @@ const I18N = {
     consoleRestartAfterApproval: "批准后",
     legacyTerminalTitle: "实时 Linux 控制台",
     requestsCount: (open, total) => `请求：${open} 个待处理 / 共 ${total} 个`,
+    attentionTitle: (count) => `${count} 个请求需要处理`,
+    attentionDetail: (type, status) => `${type} · ${status}`,
+    attentionAction: "查看处理",
     requestsTitle: "待处理请求",
     requestsIntro: "优先处理需要你操作的项目。敏感凭证只会加密提交到本地 broker。",
     requestFiltersLabel: "请求筛选",
@@ -619,6 +625,7 @@ const EXTRA_I18N = {
   es: {
     appSubtitle: "Aprobaciones, credenciales, verificaciones y toma de control seguras.",
     navRequests: "Solicitudes", navTasks: "Tareas", navDevices: "Dispositivos", navSecurity: "Seguridad", navTakeover: "Control", navPayments: "Pagos",
+    attentionTitle: (count) => `${count} solicitudes requieren atencion`, attentionDetail: (type, status) => `${type} · ${status}`, attentionAction: "Revisar",
     requestsTitle: "Solicitudes pendientes", filterOpen: "Pendientes", filterAll: "Todas", filterCredential: "Secretos", filterChallenge: "Verificaciones", filterApproval: "Aprobaciones", filterTakeover: "Control",
     chatFilesLabel: "Adjuntar", chatSelectedFiles: "Archivos seleccionados", uploadFailed: "Carga fallida",
     chatConversationTitle: "Conversacion", chatActivityTitle: "Actividad en vivo", chatUserRole: "Tu", chatAssistantRole: "OmniDoer", chatRecordNumber: (sequence) => `registro #${sequence}`,
@@ -630,6 +637,7 @@ const EXTRA_I18N = {
   fr: {
     appSubtitle: "Approbations, identifiants, validations et prise de controle securises.",
     navRequests: "Demandes", navTasks: "Taches", navDevices: "Appareils", navSecurity: "Securite", navTakeover: "Controle", navPayments: "Paiements",
+    attentionTitle: (count) => `${count} demandes a traiter`, attentionDetail: (type, status) => `${type} · ${status}`, attentionAction: "Examiner",
     requestsTitle: "Demandes en attente", filterOpen: "En attente", filterAll: "Toutes", filterCredential: "Secrets", filterChallenge: "Verifications", filterApproval: "Approbations", filterTakeover: "Controle",
     chatFilesLabel: "Joindre", chatSelectedFiles: "Fichiers selectionnes", uploadFailed: "Echec d'envoi",
     chatConversationTitle: "Conversation", chatActivityTitle: "Activite en direct", chatUserRole: "Vous", chatAssistantRole: "OmniDoer", chatRecordNumber: (sequence) => `journal #${sequence}`,
@@ -641,6 +649,7 @@ const EXTRA_I18N = {
   de: {
     appSubtitle: "Sichere Freigaben, Zugangsdaten, Pruefungen und manuelle Uebernahme.",
     navRequests: "Anfragen", navTasks: "Aufgaben", navDevices: "Geraete", navSecurity: "Sicherheit", navTakeover: "Uebernahme", navPayments: "Zahlungen",
+    attentionTitle: (count) => `${count} offene Anfragen`, attentionDetail: (type, status) => `${type} · ${status}`, attentionAction: "Pruefen",
     requestsTitle: "Offene Anfragen", filterOpen: "Offen", filterAll: "Alle", filterCredential: "Secrets", filterChallenge: "Pruefungen", filterApproval: "Freigaben", filterTakeover: "Uebernahme",
     chatFilesLabel: "Anhaengen", chatSelectedFiles: "Ausgewaehlte Dateien", uploadFailed: "Upload fehlgeschlagen",
     chatConversationTitle: "Unterhaltung", chatActivityTitle: "Live-Aktivitaet", chatUserRole: "Du", chatAssistantRole: "OmniDoer", chatRecordNumber: (sequence) => `Eintrag #${sequence}`,
@@ -652,6 +661,7 @@ const EXTRA_I18N = {
   ja: {
     appSubtitle: "承認、認証情報、検証、人間による操作を安全に扱います。",
     navRequests: "リクエスト", navTasks: "タスク", navDevices: "デバイス", navSecurity: "セキュリティ", navTakeover: "操作", navPayments: "支払い",
+    attentionTitle: (count) => `${count}件の対応が必要`, attentionDetail: (type, status) => `${type} · ${status}`, attentionAction: "確認",
     requestsTitle: "未処理リクエスト", filterOpen: "未処理", filterAll: "すべて", filterCredential: "シークレット", filterChallenge: "検証", filterApproval: "承認", filterTakeover: "操作",
     chatFilesLabel: "添付", chatSelectedFiles: "選択したファイル", uploadFailed: "アップロード失敗",
     chatConversationTitle: "会話", chatActivityTitle: "ライブ活動", chatUserRole: "あなた", chatAssistantRole: "OmniDoer", chatRecordNumber: (sequence) => `記録 #${sequence}`,
@@ -663,6 +673,7 @@ const EXTRA_I18N = {
   ko: {
     appSubtitle: "승인, 자격 증명, 인증, 사용자 제어를 안전하게 처리합니다.",
     navRequests: "요청", navTasks: "작업", navDevices: "기기", navSecurity: "보안", navTakeover: "제어", navPayments: "결제",
+    attentionTitle: (count) => `${count}개 요청 처리 필요`, attentionDetail: (type, status) => `${type} · ${status}`, attentionAction: "검토",
     requestsTitle: "대기 중인 요청", filterOpen: "대기", filterAll: "전체", filterCredential: "비밀", filterChallenge: "인증", filterApproval: "승인", filterTakeover: "제어",
     chatFilesLabel: "첨부", chatSelectedFiles: "선택한 파일", uploadFailed: "업로드 실패",
     chatConversationTitle: "대화", chatActivityTitle: "실시간 활동", chatUserRole: "나", chatAssistantRole: "OmniDoer", chatRecordNumber: (sequence) => `기록 #${sequence}`,
@@ -730,6 +741,8 @@ function applyLanguage() {
   document.documentElement.lang = languageTag(currentLanguage);
   setNodeText(".app-header h1", "appTitle");
   setNodeText(".app-header p", "appSubtitle");
+  setNodeText("#attention-title", "attentionTitle", cachedRequests.filter(isOpenRequest).length);
+  setButtonText("#attention-review", "attentionAction");
   const languageSelect = document.querySelector("#language-select");
   if (languageSelect) languageSelect.value = currentLanguage;
   setNodeText('a[href="#requests-panel"]', "navRequests");
@@ -865,6 +878,43 @@ function updateRequestsTabBadge(openCount, totalCount) {
   link.classList.toggle("has-open-requests", openCount > 0);
 }
 
+function requestAttentionRank(request) {
+  if (request.request_type === "console_restart") return 0;
+  if (request.request_type === "credential") return 1;
+  if (request.request_type === "human_takeover" || request.request_type === "account_registration") return 2;
+  if (requestKind(request) === "approval") return 3;
+  return 4;
+}
+
+function primaryOpenRequest(openRequests) {
+  return [...openRequests].sort((left, right) => {
+    const rank = requestAttentionRank(left) - requestAttentionRank(right);
+    if (rank) return rank;
+    return (left.expires_at || 0) - (right.expires_at || 0);
+  })[0] || null;
+}
+
+function updateAttentionStrip(openRequests) {
+  const strip = document.querySelector("#attention-strip");
+  if (!strip) return;
+  const primary = primaryOpenRequest(openRequests);
+  strip.hidden = !primary;
+  document.body.dataset.hasAttention = primary ? "true" : "false";
+  strip.dataset.requestId = primary?.request_id || "";
+  if (!primary) return;
+  const title = document.querySelector("#attention-title");
+  const detail = document.querySelector("#attention-detail");
+  const action = document.querySelector("#attention-review");
+  if (title) title.textContent = t("attentionTitle", openRequests.length);
+  if (detail) {
+    const type = displayRequestType(primary);
+    const status = displayStatus(primary.status);
+    const summary = primary.action_summary || primary.origin || primary.request_id;
+    detail.textContent = `${t("attentionDetail", type, status)} · ${summary}`;
+  }
+  if (action) action.textContent = t("attentionAction");
+}
+
 function updateTakeoverTabBadge(request = null, context = null) {
   const link = document.querySelector('a[href="#takeover-panel"]');
   if (!link) return;
@@ -935,6 +985,19 @@ runtimeStatus.innerHTML = `
 `;
 main.insertBefore(runtimeStatus, document.querySelector("#pairing-panel"));
 
+const attentionStrip = document.createElement("section");
+attentionStrip.id = "attention-strip";
+attentionStrip.className = "attention-strip";
+attentionStrip.hidden = true;
+attentionStrip.innerHTML = `
+  <div>
+    <strong id="attention-title">${t("attentionTitle", 0)}</strong>
+    <span id="attention-detail"></span>
+  </div>
+  <button id="attention-review" type="button">${t("attentionAction")}</button>
+`;
+main.insertBefore(attentionStrip, document.querySelector("#pairing-panel"));
+
 const requestsRoot = document.createElement("section");
 requestsRoot.id = "requests-panel";
 requestsRoot.className = "priority-panel";
@@ -957,6 +1020,17 @@ requestsRoot.innerHTML = `
 `;
 main.insertBefore(requestsRoot, document.querySelector("#pairing-panel"));
 setupPanelNavigation();
+
+const attentionReviewButton = document.querySelector("#attention-review");
+if (attentionReviewButton) {
+  attentionReviewButton.onclick = () => {
+    const requestId = document.querySelector("#attention-strip")?.dataset.requestId || "";
+    setRequestFilter("open");
+    activatePanel("requests-panel");
+    renderRequestList(cachedRequests, "open");
+    setTimeout(() => focusRequestCard(requestId), 50);
+  };
+}
 
 const sendChatMessageButton = document.querySelector("#send-chat-message");
 if (sendChatMessageButton) {
@@ -3744,6 +3818,7 @@ function renderRequestList(requests, filter = activeFilter()) {
   syncTakeoverPanel(requests);
   updatePaymentApprovalPanel(requests);
   updateChatSyncApprovalCard(pendingConsoleRestartRequest());
+  updateAttentionStrip(openRequests);
   if (activeTakeoverFrameRequest && !requests.some((request) => request.request_id === activeTakeoverFrameRequest && request.status === "user_control")) {
     stopTakeoverFramePolling();
   }
@@ -3845,6 +3920,8 @@ async function loadRequests() {
     cachedRequests = requests;
     renderRequestList(requests);
   } catch {
+    updateAttentionStrip([]);
+    updateRequestsTabBadge(0, 0);
     document.querySelector("#requests-list").textContent = t("pairToViewRequests");
   }
 }

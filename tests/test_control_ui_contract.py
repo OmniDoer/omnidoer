@@ -82,8 +82,17 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn('data-filter="open" class="active"', self.app)
         self.assertIn("function isOpenRequest", self.app)
         self.assertIn('return ["pending", "user_control"].includes(request.status);', self.app)
+        self.assertIn("attentionTitle", self.app)
+        self.assertIn("attention-strip", self.app)
+        self.assertIn("updateAttentionStrip", self.app)
+        self.assertIn("primaryOpenRequest", self.app)
+        self.assertIn("requestAttentionRank", self.app)
+        self.assertIn("document.body.dataset.hasAttention", self.app)
         self.assertIn("No open requests match this filter.", self.app)
-        self.assertIn("request-closed", (static_root() / "style.css").read_text())
+        style = (static_root() / "style.css").read_text()
+        self.assertIn("request-closed", style)
+        self.assertIn(".attention-strip", style)
+        self.assertIn('body[data-has-attention="true"] #task-panel', style)
 
     def test_request_urls_are_clickable(self) -> None:
         self.assertIn('value.startsWith("https://")', self.app)

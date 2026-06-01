@@ -251,6 +251,38 @@ button:disabled {
   background: rgba(255, 255, 255, 0.14);
   color: #cbd5e1;
 }
+.attention-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-color: #fbbf24;
+  background: #fffbeb;
+  box-shadow: 0 14px 34px rgba(161, 98, 7, 0.12);
+}
+.attention-strip[hidden] {
+  display: none;
+}
+.attention-strip strong {
+  display: block;
+  font-size: 1rem;
+}
+.attention-strip span {
+  display: block;
+  margin-top: 3px;
+  color: #713f12;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.attention-strip button {
+  flex: 0 0 auto;
+  min-width: 112px;
+  border-color: #713f12;
+  background: #713f12;
+}
+.attention-strip button:hover {
+  background: #854d0e;
+}
 .runtime-command-row {
   display: flex;
   align-items: stretch;
@@ -883,6 +915,15 @@ button:disabled {
     padding: 9px 10px;
     font-size: 0.88rem;
   }
+  .attention-strip {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 10px;
+  }
+  .attention-strip button {
+    width: auto;
+    min-width: 96px;
+  }
   .runtime-actions {
     margin-top: 8px;
     justify-content: space-between;
@@ -933,6 +974,20 @@ button:disabled {
   body[data-runtime-state="legacy_tui_relay"] #task-panel,
   body[data-runtime-state="offline"] #task-panel {
     height: calc(100svh - 255px);
+  }
+  body[data-has-attention="true"] section.control-panel {
+    height: calc(100svh - 248px);
+  }
+  body[data-has-attention="true"] #task-panel {
+    height: calc(100svh - 248px);
+  }
+  body[data-has-attention="true"][data-runtime-state="waiting_for_tui_bridge"] section.control-panel,
+  body[data-has-attention="true"][data-runtime-state="legacy_tui_relay"] section.control-panel,
+  body[data-has-attention="true"][data-runtime-state="offline"] section.control-panel,
+  body[data-has-attention="true"][data-runtime-state="waiting_for_tui_bridge"] #task-panel,
+  body[data-has-attention="true"][data-runtime-state="legacy_tui_relay"] #task-panel,
+  body[data-has-attention="true"][data-runtime-state="offline"] #task-panel {
+    height: calc(100svh - 313px);
   }
   .chat-panel-header { padding: 13px 14px 8px; }
   .chat-session-status {
