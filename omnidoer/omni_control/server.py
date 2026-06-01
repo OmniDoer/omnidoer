@@ -145,11 +145,13 @@ def console_restart_request_details(
         live_tui_bridge_active,
         live_tui_session_active,
         native_console_bridge_install_status,
+        tui_bridge_heartbeat_status,
         tui_restart_command,
     )
     from omnidoer.omni_control.tui_legacy_relay import legacy_tui_relay_status
 
-    tui_bridge_active = live_tui_bridge_active()
+    bridge_heartbeat = tui_bridge_heartbeat_status(chat_thread_id)
+    tui_bridge_active = live_tui_bridge_active(chat_thread_id)
     tui_session_active = live_tui_session_active(chat_thread_id)
     legacy_relay = legacy_tui_relay_status(chat_thread_id) if chat_thread_id and not tui_bridge_active else {"active": False}
     install_status = native_console_bridge_install_status()
@@ -161,6 +163,8 @@ def console_restart_request_details(
         legacy_relay=legacy_relay,
         install_status=install_status,
         active_process_bridge=active_process,
+        bridge_heartbeat_age_seconds=bridge_heartbeat.get("age_seconds"),
+        bridge_heartbeat=bridge_heartbeat,
         detached_thread_resume_allowed=detached_thread_resume_allowed,
     )
     return {
@@ -174,6 +178,7 @@ def console_restart_request_details(
         "activation_action": diagnostics.get("activation_action"),
         "active_cli_pid": active_process.get("pid"),
         "active_cli_binary_reason": active_process.get("reason"),
+        "bridge_heartbeat": bridge_heartbeat,
         "legacy_transport": legacy_relay.get("transport"),
         "legacy_pane_id": legacy_relay.get("pane_id"),
         "after_approval": "Restart the active Codex TUI in its tmux pane, keep the same thread, and load the installed native bridge.",
@@ -860,7 +865,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
             return {"attempted": False, "reason": "chat_thread_not_bound", "secret_exposed_to_model": False}
         from omnidoer.omni_control.chat_runner import live_tui_bridge_active
 
-        if live_tui_bridge_active():
+        if live_tui_bridge_active(chat_thread_id):
             return {"attempted": False, "reason": "native_bridge_active", "secret_exposed_to_model": False}
         from omnidoer.omni_control.tui_legacy_relay import (
             LegacyTuiRelay,
@@ -1011,18 +1016,19 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 live_tui_bridge_active,
                 live_tui_session_active,
                 native_console_bridge_install_status,
-                tui_bridge_heartbeat_age_seconds,
+                tui_bridge_heartbeat_status,
                 tui_restart_command,
             )
             from omnidoer.omni_control.tui_legacy_relay import legacy_tui_relay_status
 
-            tui_bridge_active = live_tui_bridge_active()
+            bridge_heartbeat = tui_bridge_heartbeat_status(chat_thread_id)
+            tui_bridge_active = live_tui_bridge_active(chat_thread_id)
             tui_session_active = live_tui_session_active(chat_thread_id)
             waiting_for_tui_bridge = bool(chat_thread_id and not tui_bridge_active)
             legacy_relay = legacy_tui_relay_status(chat_thread_id) if waiting_for_tui_bridge else {"active": False}
             install_status = native_console_bridge_install_status()
             active_process_bridge = active_tui_process_bridge_status(chat_thread_id)
-            heartbeat_age = tui_bridge_heartbeat_age_seconds()
+            heartbeat_age = bridge_heartbeat.get("age_seconds")
             self._send_json(
                 HTTPStatus.OK,
                 {
@@ -1039,6 +1045,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                         "restart_command": tui_restart_command(chat_thread_id) if waiting_for_tui_bridge else None,
                         "native_console_bridge": install_status,
                         "active_tui_process_bridge": active_process_bridge,
+                        "bridge_heartbeat": bridge_heartbeat,
                         "bridge_heartbeat_age_seconds": heartbeat_age,
                         "legacy_tui_relay": legacy_relay,
                         "detached_thread_resume_allowed": detached_runner_allowed,
@@ -1050,6 +1057,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                             legacy_relay=legacy_relay,
                             active_process_bridge=active_process_bridge,
                             bridge_heartbeat_age_seconds=heartbeat_age,
+                            bridge_heartbeat=bridge_heartbeat,
                             detached_thread_resume_allowed=detached_runner_allowed,
                         ),
                     },

@@ -125,7 +125,7 @@ def find_tmux_pane_for_thread(thread_id: str | None) -> TmuxPane | None:
 
 
 def legacy_tui_relay_status(thread_id: str | None) -> dict[str, object]:
-    if live_tui_bridge_active():
+    if live_tui_bridge_active(thread_id):
         return {"active": False, "reason": "rust_bridge_active"}
     pane = find_tmux_pane_for_thread(thread_id)
     if pane is None:
@@ -270,7 +270,7 @@ class LegacyTuiRelay:
         self._last_terminal_lines: list[str] = []
 
     def run_once(self) -> bool:
-        if live_tui_bridge_active():
+        if live_tui_bridge_active(self.thread_id):
             return False
         message = self.store.next_user_message(claim=False)
         if message is None:
@@ -278,7 +278,7 @@ class LegacyTuiRelay:
         return self.run_message(message.message_id)
 
     def run_message(self, message_id: str) -> bool:
-        if live_tui_bridge_active():
+        if live_tui_bridge_active(self.thread_id):
             return False
         pane = find_tmux_pane_for_thread(self.thread_id)
         if pane is None:
@@ -320,7 +320,7 @@ class LegacyTuiRelay:
         return True
 
     def publish_terminal_delta(self) -> bool:
-        if live_tui_bridge_active():
+        if live_tui_bridge_active(self.thread_id):
             self._last_terminal_lines = []
             return False
         pane = find_tmux_pane_for_thread(self.thread_id)

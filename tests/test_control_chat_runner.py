@@ -3,6 +3,7 @@ import os
 import stat
 import tempfile
 import textwrap
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -15,6 +16,8 @@ from omnidoer.omni_control.chat_runner import (
     live_tui_bridge_active,
     live_tui_session_active,
     native_console_bridge_install_status,
+    tui_bridge_heartbeat_age_seconds,
+    tui_bridge_heartbeat_status,
 )
 
 
@@ -30,8 +33,46 @@ class ControlChatRunnerTest(unittest.TestCase):
                 user = store.append(role="user", text="Use the active TUI")
 
                 self.assertTrue(live_tui_bridge_active())
+                self.assertTrue(live_tui_bridge_active("thread_active"))
                 self.assertIsNone(ChatRunner(codex_bin="/does/not/exist", cwd=tmp).run_once())
                 self.assertEqual(store.get(user.message_id).status, "queued")
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_structured_tui_bridge_heartbeat_is_thread_bound(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                heartbeat = Path(tmp) / "control_chat_bridge_heartbeat"
+                heartbeat.write_text(
+                    json.dumps(
+                        {
+                            "version": 1,
+                            "pid": 1234,
+                            "thread_id": "thread_active",
+                            "updated_at_ms": 123456,
+                        }
+                    )
+                )
+                now = time.time()
+                os.utime(heartbeat, (now, now))
+
+                self.assertTrue(live_tui_bridge_active("thread_active", now=now + 1))
+                self.assertFalse(live_tui_bridge_active("other_thread", now=now + 1))
+                self.assertTrue(live_tui_bridge_active(now=now + 1))
+
+                status = tui_bridge_heartbeat_status("other_thread", now=now + 1)
+                self.assertFalse(status["active"])
+                self.assertEqual(status["reason"], "thread_mismatch")
+                self.assertEqual(status["thread_id"], "thread_active")
+                self.assertFalse(status["thread_matches"])
+                self.assertEqual(status["pid"], 1234)
+                self.assertEqual(status["format"], "json")
+                self.assertIsNotNone(tui_bridge_heartbeat_age_seconds("other_thread", now=now + 1))
             finally:
                 if old_home is None:
                     os.environ.pop("OMNIDOER_HOME", None)

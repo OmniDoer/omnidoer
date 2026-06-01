@@ -83,6 +83,16 @@ class CliTest(unittest.TestCase):
         self.assertEqual(env["OMNIDOER_PYTHON"], sys.executable)
         self.assertTrue(env["OMNIDOER_INSTALL_DIR"].endswith("omnidoer"))
 
+    def test_console_env_infers_resumed_chat_thread(self) -> None:
+        old_thread = os.environ.pop("OMNIDOER_CHAT_THREAD_ID", None)
+        try:
+            env = build_console_env(["resume", "thread_active"])
+            self.assertEqual(env["OMNIDOER_CHAT_THREAD_ID"], "thread_active")
+            self.assertNotIn("OMNIDOER_CHAT_THREAD_ID", build_console_env(["--version"]))
+        finally:
+            if old_thread is not None:
+                os.environ["OMNIDOER_CHAT_THREAD_ID"] = old_thread
+
     def test_update_prompt_runs_upgrade_when_user_accepts(self) -> None:
         update = UpdateInfo(
             install_dir=Path("/tmp/omnidoer-install"),
@@ -440,7 +450,7 @@ class CliTest(unittest.TestCase):
         )
         bridge_states = [False, True]
 
-        def bridge_active() -> bool:
+        def bridge_active(*_args, **_kwargs) -> bool:
             return bridge_states.pop(0) if bridge_states else True
 
         with patch("omnidoer.omni_control.chat_runner.live_tui_bridge_active", side_effect=bridge_active), patch(

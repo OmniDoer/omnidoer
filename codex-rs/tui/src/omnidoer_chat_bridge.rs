@@ -550,8 +550,17 @@ fn refresh_heartbeat() {
         tracing::warn!(%err, path = %parent.display(), "failed to create OmniDoer state directory");
         return;
     }
-    let now = chrono::Utc::now().timestamp_millis().to_string();
-    if let Err(err) = std::fs::write(&path, now) {
+    let thread_id = env::var("OMNIDOER_CHAT_THREAD_ID")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+    let heartbeat = serde_json::json!({
+        "version": 1,
+        "pid": std::process::id(),
+        "thread_id": thread_id,
+        "updated_at_ms": chrono::Utc::now().timestamp_millis(),
+    });
+    let body = serde_json::to_vec(&heartbeat).unwrap_or_else(|_| b"{}".to_vec());
+    if let Err(err) = std::fs::write(&path, body) {
         tracing::warn!(
             %err,
             path = %path.display(),

@@ -61,23 +61,83 @@ def _status(value: str | None) -> str:
     return value or "unknown"
 
 
-def live_tui_bridge_active(*, now: float | None = None) -> bool:
-    path = state_file(TUI_BRIDGE_HEARTBEAT_NAME)
-    try:
-        age = (now or time.time()) - path.stat().st_mtime
-    except FileNotFoundError:
-        return False
-    except OSError:
-        return False
-    return age <= TUI_BRIDGE_STALE_SECONDS
-
-
-def tui_bridge_heartbeat_age_seconds(*, now: float | None = None) -> float | None:
-    path = state_file(TUI_BRIDGE_HEARTBEAT_NAME)
-    try:
-        return max(0.0, (now or time.time()) - path.stat().st_mtime)
-    except (FileNotFoundError, OSError):
+def _heartbeat_thread_matches(requested_thread_id: str | None, heartbeat_thread_id: str | None) -> bool | None:
+    if not requested_thread_id:
         return None
+    if not heartbeat_thread_id:
+        return None
+    return requested_thread_id == heartbeat_thread_id
+
+
+def tui_bridge_heartbeat_status(thread_id: str | None = None, *, now: float | None = None) -> dict[str, Any]:
+    path = state_file(TUI_BRIDGE_HEARTBEAT_NAME)
+    try:
+        stat = path.stat()
+    except FileNotFoundError:
+        return {"present": False, "active": False, "reason": "not_found"}
+    except OSError:
+        return {"present": False, "active": False, "reason": "unreadable"}
+
+    age = max(0.0, (now or time.time()) - stat.st_mtime)
+    heartbeat: dict[str, Any] = {
+        "present": True,
+        "active": False,
+        "reason": None,
+        "age_seconds": age,
+        "stale_seconds": TUI_BRIDGE_STALE_SECONDS,
+        "format": "legacy",
+        "thread_id": None,
+        "thread_matches": None,
+        "pid": None,
+        "version": None,
+    }
+    try:
+        raw = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        heartbeat["reason"] = "unreadable"
+        return heartbeat
+
+    if raw.startswith("{"):
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            heartbeat["format"] = "invalid_json"
+            heartbeat["reason"] = "invalid_json"
+        else:
+            heartbeat["format"] = "json" if isinstance(payload, dict) else "invalid_json"
+            if isinstance(payload, dict):
+                payload_thread_id = payload.get("thread_id")
+                if isinstance(payload_thread_id, str) and payload_thread_id.strip():
+                    heartbeat["thread_id"] = payload_thread_id
+                payload_pid = payload.get("pid")
+                if isinstance(payload_pid, int):
+                    heartbeat["pid"] = payload_pid
+                payload_version = payload.get("version")
+                if isinstance(payload_version, int):
+                    heartbeat["version"] = payload_version
+
+    heartbeat["thread_matches"] = _heartbeat_thread_matches(thread_id, heartbeat["thread_id"])
+    if age > TUI_BRIDGE_STALE_SECONDS:
+        heartbeat["reason"] = "stale"
+        return heartbeat
+    if heartbeat["thread_matches"] is False:
+        heartbeat["reason"] = "thread_mismatch"
+        return heartbeat
+    if heartbeat["format"] == "invalid_json":
+        return heartbeat
+    heartbeat["active"] = True
+    heartbeat["reason"] = "active"
+    return heartbeat
+
+
+def live_tui_bridge_active(thread_id: str | None = None, *, now: float | None = None) -> bool:
+    return bool(tui_bridge_heartbeat_status(thread_id, now=now).get("active"))
+
+
+def tui_bridge_heartbeat_age_seconds(thread_id: str | None = None, *, now: float | None = None) -> float | None:
+    status = tui_bridge_heartbeat_status(thread_id, now=now)
+    age = status.get("age_seconds")
+    return float(age) if isinstance(age, (int, float)) else None
 
 
 def tui_restart_command(thread_id: str | None) -> str | None:
@@ -141,6 +201,7 @@ def control_chat_sync_diagnostics(
     legacy_relay: dict[str, Any],
     active_process_bridge: dict[str, Any] | None = None,
     bridge_heartbeat_age_seconds: float | None = None,
+    bridge_heartbeat: dict[str, Any] | None = None,
     detached_thread_resume_allowed: bool = False,
 ) -> dict[str, Any]:
     native_ready = bool(install_status.get("ready"))
@@ -208,6 +269,11 @@ def control_chat_sync_diagnostics(
         "verification_signal": "control_chat_bridge_heartbeat" if tui_bridge_active else None,
         "detached_thread_resume_allowed": bool(detached_thread_resume_allowed),
         "bridge_heartbeat_age_seconds": bridge_heartbeat_age_seconds,
+        "bridge_heartbeat_format": (bridge_heartbeat or {}).get("format"),
+        "bridge_heartbeat_thread_id": (bridge_heartbeat or {}).get("thread_id"),
+        "bridge_heartbeat_thread_matches": (bridge_heartbeat or {}).get("thread_matches"),
+        "bridge_heartbeat_pid": (bridge_heartbeat or {}).get("pid"),
+        "bridge_heartbeat_reason": (bridge_heartbeat or {}).get("reason"),
         "active_cli_binary_has_native_bridge": bool(active_process_bridge.get("native_bridge_ready")),
         "active_cli_binary_deleted": bool(active_process_bridge.get("executable_deleted")),
         "active_cli_binary_matches_installed": bool(active_process_bridge.get("running_binary_matches_installed")),
@@ -463,7 +529,7 @@ class ChatRunner:
         self.allow_detached_thread_resume = allow_detached_thread_resume
 
     def run_once(self) -> ChatMessage | None:
-        if live_tui_bridge_active():
+        if live_tui_bridge_active(self.thread_id):
             return None
         if live_tui_session_active(self.thread_id):
             return None
@@ -570,6 +636,8 @@ class ChatRunner:
         env.setdefault("OMNIDOER_CONSOLE", "1")
         env.setdefault("OMNIDOER_CODEX_BRAND", "omnidoer")
         env.setdefault("CODEX_CLI_BRAND", "omnidoer")
+        if self.thread_id:
+            env["OMNIDOER_CHAT_THREAD_ID"] = self.thread_id
         return env
 
 

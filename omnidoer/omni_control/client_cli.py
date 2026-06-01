@@ -95,13 +95,14 @@ def _collect_sync_status(thread_id: str | None = None, codex_bin: str | None = N
         live_tui_bridge_active,
         live_tui_session_active,
         native_console_bridge_install_status,
-        tui_bridge_heartbeat_age_seconds,
+        tui_bridge_heartbeat_status,
         tui_restart_command,
     )
     from omnidoer.omni_control.tui_legacy_relay import legacy_tui_relay_status
 
     resolved_thread_id = thread_id or os.environ.get("OMNIDOER_CHAT_THREAD_ID")
-    tui_bridge_active = live_tui_bridge_active()
+    bridge_heartbeat = tui_bridge_heartbeat_status(resolved_thread_id)
+    tui_bridge_active = live_tui_bridge_active(resolved_thread_id)
     tui_session_active = live_tui_session_active(resolved_thread_id)
     legacy_relay = legacy_tui_relay_status(resolved_thread_id) if resolved_thread_id and not tui_bridge_active else {"active": False}
     install_status = native_console_bridge_install_status(codex_bin)
@@ -113,7 +114,8 @@ def _collect_sync_status(thread_id: str | None = None, codex_bin: str | None = N
         install_status=install_status,
         legacy_relay=legacy_relay,
         active_process_bridge=active_process_bridge,
-        bridge_heartbeat_age_seconds=tui_bridge_heartbeat_age_seconds(),
+        bridge_heartbeat_age_seconds=bridge_heartbeat.get("age_seconds"),
+        bridge_heartbeat=bridge_heartbeat,
     )
     return {
         "thread_id": resolved_thread_id,
@@ -122,6 +124,7 @@ def _collect_sync_status(thread_id: str | None = None, codex_bin: str | None = N
         "restart_command": tui_restart_command(resolved_thread_id) if diagnostics["requires_restart_for_native_sync"] else None,
         "native_console_bridge": install_status,
         "active_tui_process_bridge": active_process_bridge,
+        "bridge_heartbeat": bridge_heartbeat,
         "legacy_tui_relay": legacy_relay,
         "sync_diagnostics": diagnostics,
     }

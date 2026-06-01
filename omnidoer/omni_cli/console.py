@@ -17,6 +17,21 @@ BRAND_ENV = {
 }
 
 
+def infer_chat_thread_id(args: list[str]) -> str | None:
+    """Infer the resumed Codex thread from interactive console arguments."""
+    try:
+        resume_index = args.index("resume")
+    except ValueError:
+        return None
+    for value in args[resume_index + 1 :]:
+        if value == "--":
+            continue
+        if value.startswith("-"):
+            continue
+        return value
+    return None
+
+
 def _path_candidates() -> list[str]:
     candidates: list[str] = []
     for env_name in ("OMNIDOER_CODEX_BIN", "OMNIDOER_REAL_CODEX"):
@@ -51,7 +66,7 @@ def find_codex_binary() -> str | None:
     return None
 
 
-def build_console_env() -> dict[str, str]:
+def build_console_env(args: list[str] | None = None) -> dict[str, str]:
     from omnidoer.version import __version__
 
     env = os.environ.copy()
@@ -64,6 +79,9 @@ def build_console_env() -> dict[str, str]:
     found_cli = shutil.which("omnidoer")
     if found_cli:
         env.setdefault("OMNIDOER_CLI", found_cli)
+    thread_id = infer_chat_thread_id(args or [])
+    if thread_id:
+        env["OMNIDOER_CHAT_THREAD_ID"] = thread_id
     return env
 
 
@@ -102,7 +120,7 @@ def launch_codex_console(args: list[str], *, dry_run: bool = False) -> int:
         print("cannot launch OmniDoer console: Codex CLI binary was not found", file=sys.stderr)
         return 127
 
-    env = build_console_env()
+    env = build_console_env(args)
     argv = [codex, *args]
     if dry_run or os.environ.get("OMNIDOER_CONSOLE_DRY_RUN") == "1":
         print("OmniDoer console plan:")
