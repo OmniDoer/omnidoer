@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icon-192.png">
-  <link rel="stylesheet" href="/style.css?v=20260601-sync-request-focus">
+  <link rel="stylesheet" href="/style.css?v=20260601-inline-sync-approval">
   <title>OmniDoer Control Client</title>
 </head>
 <body>
@@ -91,6 +91,26 @@
         </div>
         <button id="chat-session-restart" class="ghost-button chat-session-restart" type="button" hidden>Restart bridge</button>
       </div>
+      <div id="chat-sync-approval" class="chat-sync-approval-card" hidden>
+        <div>
+          <strong id="chat-sync-approval-title">Current session sync pending</strong>
+          <p id="chat-sync-approval-detail">Approve to restart the active Linux CLI in its tmux pane and attach this phone to the same conversation.</p>
+          <dl class="metadata chat-sync-approval-metadata">
+            <dt id="chat-sync-approval-thread-label">Thread</dt><dd id="chat-sync-approval-thread">pending</dd>
+            <dt id="chat-sync-approval-pid-label">CLI PID</dt><dd id="chat-sync-approval-pid">pending</dd>
+            <dt id="chat-sync-approval-command-label">Command</dt><dd id="chat-sync-approval-command">pending</dd>
+          </dl>
+        </div>
+        <label class="check-row approval-confirm">
+          <input id="chat-sync-approval-confirm" type="checkbox">
+          <span id="chat-sync-approval-confirm-text">I understand this restarts the active Codex TUI and keeps the same thread.</span>
+        </label>
+        <div class="button-row chat-sync-approval-actions">
+          <button id="chat-sync-approval-view" class="ghost-button" type="button">Open full request</button>
+          <button id="chat-sync-approval-deny" class="ghost-button" type="button">Deny</button>
+          <button id="chat-sync-approval-approve" type="button" disabled>Approve sync</button>
+        </div>
+      </div>
       <div id="browser-handoff-strip" class="browser-handoff-strip" data-handoff-state="idle" hidden>
         <div>
           <strong id="browser-handoff-title">Browser ready</strong>
@@ -170,6 +190,6 @@
       </div>
     </section>
   </main>
-  <script src="/app.js?v=20260601-sync-request-focus"></script>
+  <script src="/app.js?v=20260601-inline-sync-approval"></script>
 </body>
 </html>

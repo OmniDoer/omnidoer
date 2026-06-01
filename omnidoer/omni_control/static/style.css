@@ -411,7 +411,7 @@ button:disabled {
 .task p, .mini-record p { margin: 6px 0; overflow-wrap: anywhere; }
 #task-panel {
   display: grid;
-  grid-template-rows: auto auto auto minmax(320px, 1fr) auto;
+  grid-template-rows: auto auto auto auto minmax(320px, 1fr) auto;
   min-height: min(780px, calc(100svh - 190px));
   padding: 0;
   overflow: hidden;
@@ -482,8 +482,40 @@ button:disabled {
 .chat-session-restart[hidden] {
   display: none;
 }
-.browser-handoff-strip {
+.chat-sync-approval-card {
   grid-row: 3;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  padding: 12px 18px;
+  border-bottom: 1px solid #fcd34d;
+  background: #fffbeb;
+}
+.chat-sync-approval-card[hidden] {
+  display: none;
+}
+.chat-sync-approval-card strong {
+  display: block;
+  font-size: 0.98rem;
+}
+.chat-sync-approval-card p {
+  margin: 3px 0 0;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+.chat-sync-approval-metadata {
+  grid-template-columns: 88px minmax(0, 1fr);
+  margin: 9px 0 0;
+  font-size: 0.86rem;
+}
+.chat-sync-approval-actions {
+  justify-content: flex-end;
+}
+.chat-sync-approval-actions button {
+  min-width: 112px;
+}
+.browser-handoff-strip {
+  grid-row: 4;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -526,7 +558,7 @@ button:disabled {
   display: none;
 }
 .chat-feed {
-  grid-row: 4;
+  grid-row: 5;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -562,7 +594,7 @@ button:disabled {
   color: var(--muted);
 }
 .chat-composer {
-  grid-row: 5;
+  grid-row: 6;
   position: sticky;
   bottom: 0;
   display: grid;
@@ -911,6 +943,16 @@ button:disabled {
   .chat-session-restart {
     width: auto;
     justify-self: start;
+  }
+  .chat-sync-approval-card {
+    padding: 10px 14px;
+  }
+  .chat-sync-approval-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .chat-sync-approval-actions button {
+    width: 100%;
   }
   .browser-handoff-strip {
     display: grid;

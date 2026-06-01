@@ -73,6 +73,14 @@ const I18N = {
     restartBridgeApprovalRequestedDetail: "A high-risk request was created. Review and approve it in Requests to restart the current CLI.",
     reviewSyncRequest: "Review sync request",
     chatSyncApprovalPending: "A current-session sync approval request is pending.",
+    syncApprovalTitle: "Current session sync pending",
+    syncApprovalDetail: "Approve to restart the active Linux CLI in its tmux pane and attach this device to the same conversation.",
+    syncApprovalThread: "Thread",
+    syncApprovalPid: "CLI PID",
+    syncApprovalCommand: "Command",
+    syncApprovalConfirmText: "I understand this restarts the active Codex TUI and keeps the same thread.",
+    syncApprovalOpenRequest: "Open full request",
+    syncApprovalApprove: "Approve sync",
     consoleRestartReviewRequired: "Current session sync needs confirmation",
     consoleRestartReviewRequiredDetail: "Check the restart details before approving.",
     consoleRestartConfirmText: "I understand this restarts the active Codex TUI in its tmux pane and keeps the same thread.",
@@ -368,6 +376,14 @@ const I18N = {
     restartBridgeApprovalRequestedDetail: "已创建高风险请求。请在“请求”里审核并批准，以重启当前 CLI。",
     reviewSyncRequest: "查看同步请求",
     chatSyncApprovalPending: "当前会话同步批准请求正在等待处理。",
+    syncApprovalTitle: "当前会话同步待批准",
+    syncApprovalDetail: "批准后会在 tmux pane 中重启活跃 Linux CLI，并把此设备接入同一段对话。",
+    syncApprovalThread: "线程",
+    syncApprovalPid: "CLI PID",
+    syncApprovalCommand: "命令",
+    syncApprovalConfirmText: "我理解这会重启活跃 Codex TUI，并保留同一个 thread。",
+    syncApprovalOpenRequest: "打开完整请求",
+    syncApprovalApprove: "批准同步",
     consoleRestartReviewRequired: "当前会话同步需要确认",
     consoleRestartReviewRequiredDetail: "请先检查重启详情再批准。",
     consoleRestartConfirmText: "我理解这会在当前 tmux pane 中重启活跃 Codex TUI，并保留同一个 thread。",
@@ -599,6 +615,7 @@ const EXTRA_I18N = {
     chatFilesLabel: "Adjuntar", chatSelectedFiles: "Archivos seleccionados", uploadFailed: "Carga fallida",
     chatConversationTitle: "Conversacion", chatActivityTitle: "Actividad en vivo", chatUserRole: "Tu", chatAssistantRole: "OmniDoer", chatRecordNumber: (sequence) => `registro #${sequence}`,
     copyCommand: "Copiar comando", copiedCommand: "Comando copiado", copyCommandFailed: "Error al copiar",
+    syncApprovalTitle: "Sincronizacion pendiente", syncApprovalDetail: "Aprobar reinicia la CLI Linux activa y conecta este dispositivo a la misma conversacion.", syncApprovalThread: "Hilo", syncApprovalPid: "PID CLI", syncApprovalCommand: "Comando", syncApprovalConfirmText: "Entiendo que esto reinicia la TUI Codex activa y conserva el mismo hilo.", syncApprovalOpenRequest: "Abrir solicitud", syncApprovalApprove: "Aprobar sync",
     pauseAgent: "Pausar Agent", pauseAgentRequested: "Pausa solicitada", pauseAgentRequestDetail: "La solicitud quedo en cola para la consola Linux activa.", takeoverPausePrompt: "Pausa ahora la automatizacion del navegador y entrega el navegador activo a mi Control Client. Si hay un navegador activo, crea o conserva una solicitud Human Takeover, transmite la pagina y espera hasta que toque Continue Agent antes de reanudar.", releaseControl: "Continuar Agent", openCurrentUrl: "Abrir URL actual", externalHandoffNote: "Abre la URL actual, completa la accion en el sitio y continua el Agent. Secretos y codigos no se envian al modelo.",
     submitCredential: "Enviar credencial", submitChallenge: "Enviar codigo", approve: "Aprobar", deny: "Denegar", challengeCode: "Codigo de un solo uso"
   },
@@ -609,6 +626,7 @@ const EXTRA_I18N = {
     chatFilesLabel: "Joindre", chatSelectedFiles: "Fichiers selectionnes", uploadFailed: "Echec d'envoi",
     chatConversationTitle: "Conversation", chatActivityTitle: "Activite en direct", chatUserRole: "Vous", chatAssistantRole: "OmniDoer", chatRecordNumber: (sequence) => `journal #${sequence}`,
     copyCommand: "Copier la commande", copiedCommand: "Commande copiee", copyCommandFailed: "Copie impossible",
+    syncApprovalTitle: "Synchronisation en attente", syncApprovalDetail: "Approuver redemarre la CLI Linux active et connecte cet appareil a la meme conversation.", syncApprovalThread: "Fil", syncApprovalPid: "PID CLI", syncApprovalCommand: "Commande", syncApprovalConfirmText: "Je comprends que cela redemarre la TUI Codex active et garde le meme fil.", syncApprovalOpenRequest: "Ouvrir la demande", syncApprovalApprove: "Approuver sync",
     pauseAgent: "Mettre Agent en pause", pauseAgentRequested: "Pause demandee", pauseAgentRequestDetail: "La demande est en file pour la console Linux active.", takeoverPausePrompt: "Mettez maintenant l'automatisation du navigateur en pause et remettez le navigateur actif a mon Control Client. Si un navigateur est actif, creez ou gardez une demande Human Takeover, diffusez la page, puis attendez que je touche Continue Agent avant de reprendre.", releaseControl: "Continuer Agent", openCurrentUrl: "Ouvrir l'URL", externalHandoffNote: "Ouvrez l'URL, terminez l'action sur le site, puis continuez l'Agent. Les secrets et codes ne sont pas envoyes au modele.",
     submitCredential: "Envoyer l'identifiant", submitChallenge: "Envoyer le code", approve: "Approuver", deny: "Refuser", challengeCode: "Code a usage unique"
   },
@@ -619,6 +637,7 @@ const EXTRA_I18N = {
     chatFilesLabel: "Anhaengen", chatSelectedFiles: "Ausgewaehlte Dateien", uploadFailed: "Upload fehlgeschlagen",
     chatConversationTitle: "Unterhaltung", chatActivityTitle: "Live-Aktivitaet", chatUserRole: "Du", chatAssistantRole: "OmniDoer", chatRecordNumber: (sequence) => `Eintrag #${sequence}`,
     copyCommand: "Befehl kopieren", copiedCommand: "Befehl kopiert", copyCommandFailed: "Kopieren fehlgeschlagen",
+    syncApprovalTitle: "Synchronisierung wartet", syncApprovalDetail: "Genehmigen startet die aktive Linux-CLI neu und verbindet dieses Geraet mit derselben Unterhaltung.", syncApprovalThread: "Thread", syncApprovalPid: "CLI PID", syncApprovalCommand: "Befehl", syncApprovalConfirmText: "Ich verstehe, dass dies die aktive Codex-TUI neu startet und denselben Thread behaelt.", syncApprovalOpenRequest: "Anfrage oeffnen", syncApprovalApprove: "Sync genehmigen",
     pauseAgent: "Agent pausieren", pauseAgentRequested: "Pause angefordert", pauseAgentRequestDetail: "Die Anfrage wurde fuer die aktive Linux-Konsole eingereiht.", takeoverPausePrompt: "Pausiere jetzt die Browser-Automation und uebergib den aktiven Browser an meinen Control Client. Falls ein Browser aktiv ist, erstelle oder behalte eine Human-Takeover-Anfrage, streame die Seite und warte, bis ich Continue Agent antippe.", releaseControl: "Agent fortsetzen", openCurrentUrl: "Aktuelle URL oeffnen", externalHandoffNote: "Oeffnen Sie die aktuelle URL, erledigen Sie die Aktion selbst und setzen Sie danach den Agent fort. Secrets und Codes werden nicht an das Modell gesendet.",
     submitCredential: "Zugangsdaten senden", submitChallenge: "Code senden", approve: "Genehmigen", deny: "Ablehnen", challengeCode: "Einmalcode"
   },
@@ -629,6 +648,7 @@ const EXTRA_I18N = {
     chatFilesLabel: "添付", chatSelectedFiles: "選択したファイル", uploadFailed: "アップロード失敗",
     chatConversationTitle: "会話", chatActivityTitle: "ライブ活動", chatUserRole: "あなた", chatAssistantRole: "OmniDoer", chatRecordNumber: (sequence) => `記録 #${sequence}`,
     copyCommand: "コマンドをコピー", copiedCommand: "コピーしました", copyCommandFailed: "コピー失敗",
+    syncApprovalTitle: "同期の承認待ち", syncApprovalDetail: "承認するとアクティブなLinux CLIを再起動し、この端末を同じ会話に接続します。", syncApprovalThread: "スレッド", syncApprovalPid: "CLI PID", syncApprovalCommand: "コマンド", syncApprovalConfirmText: "アクティブなCodex TUIを再起動し同じスレッドを保持することを理解しました。", syncApprovalOpenRequest: "リクエストを開く", syncApprovalApprove: "同期を承認",
     pauseAgent: "Agentを一時停止", pauseAgentRequested: "一時停止を依頼しました", pauseAgentRequestDetail: "依頼はアクティブなLinuxコンソールにキューされました。", takeoverPausePrompt: "現在のブラウザ自動操作を一時停止し、アクティブなブラウザをControl Clientへ渡してください。ブラウザが動作中ならHuman Takeoverリクエストを作成または維持し、画面をストリーミングして、Continue Agentをタップするまで待機してください。", releaseControl: "Agentを続行", openCurrentUrl: "現在のURLを開く", externalHandoffNote: "現在のURLを開き、サイト上の操作を自分で完了してからAgentを続行してください。パスワードやコードはモデルに送信されません。",
     submitCredential: "認証情報を送信", submitChallenge: "コードを送信", approve: "承認", deny: "拒否", challengeCode: "ワンタイムコード"
   },
@@ -639,6 +659,7 @@ const EXTRA_I18N = {
     chatFilesLabel: "첨부", chatSelectedFiles: "선택한 파일", uploadFailed: "업로드 실패",
     chatConversationTitle: "대화", chatActivityTitle: "실시간 활동", chatUserRole: "나", chatAssistantRole: "OmniDoer", chatRecordNumber: (sequence) => `기록 #${sequence}`,
     copyCommand: "명령 복사", copiedCommand: "명령 복사됨", copyCommandFailed: "복사 실패",
+    syncApprovalTitle: "동기화 승인 대기", syncApprovalDetail: "승인하면 활성 Linux CLI를 다시 시작하고 이 기기를 같은 대화에 연결합니다.", syncApprovalThread: "스레드", syncApprovalPid: "CLI PID", syncApprovalCommand: "명령", syncApprovalConfirmText: "활성 Codex TUI를 다시 시작하고 같은 스레드를 유지함을 이해합니다.", syncApprovalOpenRequest: "요청 열기", syncApprovalApprove: "동기화 승인",
     pauseAgent: "Agent 일시 중지", pauseAgentRequested: "일시 중지 요청됨", pauseAgentRequestDetail: "요청이 활성 Linux 콘솔에 대기열로 전달되었습니다.", takeoverPausePrompt: "현재 브라우저 자동화를 즉시 일시 중지하고 활성 브라우저를 내 Control Client로 넘겨주세요. 브라우저가 실행 중이면 Human Takeover 요청을 만들거나 유지하고, 페이지를 스트리밍한 뒤 내가 Continue Agent를 탭할 때까지 기다려주세요.", releaseControl: "Agent 계속", openCurrentUrl: "현재 URL 열기", externalHandoffNote: "현재 URL을 열고 사이트 작업을 직접 완료한 뒤 Agent를 계속하세요. 비밀번호와 코드는 모델로 전송되지 않습니다.",
     submitCredential: "자격 증명 제출", submitChallenge: "코드 제출", approve: "승인", deny: "거부", challengeCode: "일회용 코드"
   }
@@ -733,6 +754,15 @@ function applyLanguage() {
   setNodeText("#chat-session-title", "chatSessionCheckingTitle");
   setNodeText("#chat-session-detail", "chatSessionCheckingDetail");
   setButtonText("#chat-session-restart", "restartBridge");
+  setNodeText("#chat-sync-approval-title", "syncApprovalTitle");
+  setNodeText("#chat-sync-approval-detail", "syncApprovalDetail");
+  setNodeText("#chat-sync-approval-thread-label", "syncApprovalThread");
+  setNodeText("#chat-sync-approval-pid-label", "syncApprovalPid");
+  setNodeText("#chat-sync-approval-command-label", "syncApprovalCommand");
+  setNodeText("#chat-sync-approval-confirm-text", "syncApprovalConfirmText");
+  setButtonText("#chat-sync-approval-view", "syncApprovalOpenRequest");
+  setButtonText("#chat-sync-approval-deny", "deny");
+  setButtonText("#chat-sync-approval-approve", "syncApprovalApprove");
   setNodeText("#chat-input-label-text", "chatComposerLabel");
   const chatInput = document.querySelector("#chat-input");
   if (chatInput) chatInput.placeholder = t("chatPlaceholder");
@@ -1004,6 +1034,26 @@ if (chatSessionRestartButton) {
   chatSessionRestartButton.onclick = () => restartConsoleBridge();
 }
 
+const chatSyncApprovalConfirm = document.querySelector("#chat-sync-approval-confirm");
+if (chatSyncApprovalConfirm) {
+  chatSyncApprovalConfirm.onchange = () => updateChatSyncApprovalButtons();
+}
+
+const chatSyncApprovalViewButton = document.querySelector("#chat-sync-approval-view");
+if (chatSyncApprovalViewButton) {
+  chatSyncApprovalViewButton.onclick = () => openPendingSyncRequest();
+}
+
+const chatSyncApprovalDenyButton = document.querySelector("#chat-sync-approval-deny");
+if (chatSyncApprovalDenyButton) {
+  chatSyncApprovalDenyButton.onclick = () => denyPendingSyncRequestFromChat();
+}
+
+const chatSyncApprovalApproveButton = document.querySelector("#chat-sync-approval-approve");
+if (chatSyncApprovalApproveButton) {
+  chatSyncApprovalApproveButton.onclick = () => approvePendingSyncRequestFromChat();
+}
+
 const releaseActiveTakeoverButton = document.querySelector("#release-active-takeover");
 if (releaseActiveTakeoverButton) {
   releaseActiveTakeoverButton.onclick = () => releaseActiveTakeover();
@@ -1141,6 +1191,7 @@ let activePaymentApprovalRequest = null;
 let renderedPaymentApprovalRequestId = null;
 let bridgeActivationMonitor = null;
 let bridgeActivationDeadline = 0;
+let activeChatSyncApprovalRequestId = null;
 let pairingSuccessHoldUntil = 0;
 let pairingSuccessMessage = "";
 
@@ -1220,6 +1271,44 @@ function requestMatchesFilter(request, filter) {
 
 function pendingConsoleRestartRequest() {
   return cachedRequests.find((request) => request.request_type === "console_restart" && request.status === "pending") || null;
+}
+
+function updateChatSyncApprovalButtons() {
+  const request = pendingConsoleRestartRequest();
+  const confirm = document.querySelector("#chat-sync-approval-confirm");
+  const approve = document.querySelector("#chat-sync-approval-approve");
+  const deny = document.querySelector("#chat-sync-approval-deny");
+  const actionable = Boolean(request);
+  if (approve) approve.disabled = !actionable || !confirm?.checked;
+  if (deny) deny.disabled = !actionable;
+}
+
+function updateChatSyncApprovalCard(request = pendingConsoleRestartRequest()) {
+  const card = document.querySelector("#chat-sync-approval");
+  if (!card) return;
+  const visible = Boolean(request);
+  card.hidden = !visible;
+  const confirm = document.querySelector("#chat-sync-approval-confirm");
+  if (!visible) {
+    activeChatSyncApprovalRequestId = null;
+    if (confirm) confirm.checked = false;
+    updateChatSyncApprovalButtons();
+    return;
+  }
+  const details = request.structured_details || {};
+  if (activeChatSyncApprovalRequestId !== request.request_id && confirm) {
+    confirm.checked = false;
+  }
+  activeChatSyncApprovalRequestId = request.request_id;
+  setFieldText("#chat-sync-approval-thread", details.thread_id, request.request_id);
+  setFieldText("#chat-sync-approval-pid", details.active_cli_pid, t("notVisible"));
+  setFieldText("#chat-sync-approval-command", details.restart_command, t("notVisible"));
+  setNodeText("#chat-sync-approval-title", "syncApprovalTitle");
+  setNodeText("#chat-sync-approval-detail", "syncApprovalDetail");
+  setButtonText("#chat-sync-approval-view", "syncApprovalOpenRequest");
+  setButtonText("#chat-sync-approval-deny", "deny");
+  setButtonText("#chat-sync-approval-approve", "syncApprovalApprove");
+  updateChatSyncApprovalButtons();
 }
 
 function setRequestFilter(filter) {
@@ -1454,6 +1543,7 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
     fileLabel.classList.toggle("disabled", !canSend);
     fileLabel.setAttribute("aria-disabled", canSend ? "false" : "true");
   }
+  updateChatSyncApprovalCard(syncRequest);
 }
 
 async function copyRuntimeCommand() {
@@ -2287,6 +2377,24 @@ async function postAction(request, action, payload = null) {
   }
   await loadRequests();
   return response;
+}
+
+async function approvePendingSyncRequestFromChat() {
+  const request = pendingConsoleRestartRequest();
+  const confirm = document.querySelector("#chat-sync-approval-confirm");
+  if (!request) return;
+  if (!confirm?.checked) {
+    setStatus(t("consoleRestartReviewRequired"), t("consoleRestartReviewRequiredDetail"));
+    updateChatSyncApprovalButtons();
+    return;
+  }
+  await postAction(request, "approve", explicitApprovalConfirmationPayload(request));
+}
+
+async function denyPendingSyncRequestFromChat() {
+  const request = pendingConsoleRestartRequest();
+  if (!request) return;
+  await postAction(request, "deny");
 }
 
 async function submitTask() {
@@ -3563,6 +3671,7 @@ function renderRequestList(requests, filter = activeFilter()) {
   const visible = requests.filter((request) => requestMatchesFilter(request, filter));
   syncTakeoverPanel(requests);
   updatePaymentApprovalPanel(requests);
+  updateChatSyncApprovalCard(pendingConsoleRestartRequest());
   if (activeTakeoverFrameRequest && !requests.some((request) => request.request_id === activeTakeoverFrameRequest && request.status === "user_control")) {
     stopTakeoverFramePolling();
   }

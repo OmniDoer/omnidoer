@@ -647,7 +647,10 @@ class ControlHandler(SimpleHTTPRequestHandler):
             action_summary=f"Enable current session sync for {chat_thread_id}",
             risk_level="high",
             ttl_seconds=300,
-            allowed_device_id=session.device_id if session else None,
+            # Current-session sync is a server-level operation. Any paired
+            # Control Client may review it, but approval still requires the
+            # explicit high-risk confirmation payload.
+            allowed_device_id=None,
             structured_details=details,
         )
         return request, False

@@ -11,6 +11,7 @@ from urllib import request as urllib_request
 from omnidoer.omni_control.cloud import build_config
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.server import ControlHandler
+from omnidoer.omni_control.sessions import ControlSession
 
 
 class ControlStatusTest(unittest.TestCase):
@@ -202,6 +203,7 @@ class ControlStatusTest(unittest.TestCase):
                 approval = created["request"]
                 self.assertEqual(approval["request_type"], "console_restart")
                 self.assertEqual(approval["status"], "pending")
+                self.assertIsNone(approval["allowed_device_id"])
                 self.assertEqual(approval["structured_details"]["thread_id"], "thread_active")
                 self.assertEqual(approval["structured_details"]["legacy_pane_id"], "%1")
 
@@ -247,6 +249,66 @@ class ControlStatusTest(unittest.TestCase):
                 restart.assert_called_once_with("thread_active", restart_command="omnidoer console resume thread_active")
             finally:
                 server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_console_restart_request_is_visible_to_any_paired_device(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            config = build_config(
+                host="0.0.0.0",
+                port=8787,
+                public_url="https://example.test:8787",
+                cloud_direct=True,
+                insecure_dev_public=True,
+            )
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_config = config  # type: ignore[attr-defined]
+            server.omnidoer_chat_thread_id = "thread_active"  # type: ignore[attr-defined]
+            handler = object.__new__(ControlHandler)
+            handler.server = server
+            session = ControlSession(
+                session_id="sess_a",
+                device_id="device_a",
+                token_hash="hash",
+                csrf_token="csrf",
+                expires_at=9999999999,
+            )
+            try:
+                with patch("omnidoer.omni_control.chat_runner.live_tui_bridge_active", return_value=False), patch(
+                    "omnidoer.omni_control.chat_runner.live_tui_session_active",
+                    return_value=True,
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.native_console_bridge_install_status",
+                    return_value={"ready": True, "reason": "ready"},
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.active_tui_process_bridge_status",
+                    return_value={"active": True, "pid": 1234, "reason": "running_binary_deleted"},
+                ), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.legacy_tui_relay_status",
+                    return_value={"active": True, "transport": "tmux", "pane_id": "%1"},
+                ):
+                    request, reused = handler._create_console_restart_request(RequestStore(), session)
+                self.assertFalse(reused)
+                self.assertIsNone(request.allowed_device_id)
+                self.assertTrue(handler._request_allowed_for_session(request, None))
+                self.assertTrue(
+                    handler._request_allowed_for_session(
+                        request,
+                        ControlSession(
+                            session_id="sess_b",
+                            device_id="device_b",
+                            token_hash="hash",
+                            csrf_token="csrf",
+                            expires_at=9999999999,
+                        ),
+                    )
+                )
+            finally:
                 server.server_close()
                 if old_home is None:
                     os.environ.pop("OMNIDOER_HOME", None)
