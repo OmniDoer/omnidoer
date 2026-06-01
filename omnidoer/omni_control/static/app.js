@@ -60,6 +60,9 @@ const I18N = {
     restartBridgeConfirm: "Restart the active Linux console in its tmux pane to enable full phone sync?",
     restartBridgeConfirmDetailed: (threadId) => `Enable full phone sync for thread ${threadId || "current"}? This restarts the active Codex TUI in its tmux pane, keeps the same thread, and loads the installed native bridge.`,
     restartBridgeStarted: "Console bridge restart started",
+    restartBridgeChecking: "Waiting for native bridge heartbeat...",
+    restartBridgeActivated: "Current CLI session sync is active.",
+    restartBridgeStillWaiting: "Restart was requested, but the current CLI is still not publishing native bridge heartbeats.",
     restartBridgeFailed: "Restart failed",
     legacyTerminalTitle: "Live Linux Console",
     requestsCount: (open, total) => `Requests: ${open} open / ${total} total`,
@@ -331,6 +334,9 @@ const I18N = {
     restartBridgeConfirm: "要在当前 tmux pane 中重启 Linux console 以启用完整手机同步吗？",
     restartBridgeConfirmDetailed: (threadId) => `要为线程 ${threadId || "当前线程"} 启用完整手机同步吗？这会在当前 tmux pane 中重启活跃 Codex TUI，保留同一个 thread，并加载已安装的原生桥接。`,
     restartBridgeStarted: "控制台桥接重启已开始",
+    restartBridgeChecking: "正在等待原生桥接心跳...",
+    restartBridgeActivated: "当前 CLI 会话同步已启用。",
+    restartBridgeStillWaiting: "已请求重启，但当前 CLI 仍未发布原生桥接心跳。",
     restartBridgeFailed: "重启失败",
     legacyTerminalTitle: "实时 Linux 控制台",
     requestsCount: (open, total) => `请求：${open} 个待处理 / 共 ${total} 个`,
@@ -1067,6 +1073,10 @@ let takeoverPendingTapTimer = null;
 let agentControlBusy = false;
 let activePaymentApprovalRequest = null;
 let renderedPaymentApprovalRequestId = null;
+let bridgeActivationMonitor = null;
+let bridgeActivationDeadline = 0;
+let pairingSuccessHoldUntil = 0;
+let pairingSuccessMessage = "";
 
 applyLanguage();
 
@@ -1342,6 +1352,47 @@ async function copyRuntimeCommand() {
   }
 }
 
+function stopBridgeActivationMonitor() {
+  if (bridgeActivationMonitor) clearTimeout(bridgeActivationMonitor);
+  bridgeActivationMonitor = null;
+  bridgeActivationDeadline = 0;
+}
+
+async function monitorBridgeActivation() {
+  if (!bridgeActivationDeadline) bridgeActivationDeadline = Date.now() + 30000;
+  if (bridgeActivationMonitor) clearTimeout(bridgeActivationMonitor);
+  try {
+    await loadRuntimeStatus();
+    const runner = cachedRuntimeStatus?.chat_runner || {};
+    if (runner.tui_bridge_active) {
+      stopBridgeActivationMonitor();
+      setStatus(t("runtimeModeAttached"), t("restartBridgeActivated"), "tui_bridge_active");
+      return;
+    }
+    if (Date.now() >= bridgeActivationDeadline) {
+      stopBridgeActivationMonitor();
+      setStatus(
+        t("runtimeModeLegacyRelay"),
+        t("restartBridgeStillWaiting"),
+        "legacy_tui_relay",
+        runner.restart_command || "",
+        "enableCurrentSessionSync"
+      );
+      return;
+    }
+    setStatus(
+      t("restartBridgeStarted"),
+      t("restartBridgeChecking"),
+      "waiting_for_tui_bridge",
+      runner.restart_command || "",
+      "enableCurrentSessionSync"
+    );
+  } catch {
+    setStatus(t("restartBridgeStarted"), t("restartBridgeChecking"), "waiting_for_tui_bridge", "", "enableCurrentSessionSync");
+  }
+  bridgeActivationMonitor = setTimeout(monitorBridgeActivation, 1200);
+}
+
 async function restartConsoleBridge() {
   const buttons = [
     document.querySelector("#runtime-restart-bridge"),
@@ -1359,15 +1410,12 @@ async function restartConsoleBridge() {
       body: JSON.stringify({ confirm_restart: true })
     });
     if (!response.ok) throw new Error("restart failed");
-    setStatus(
-      t("restartBridgeStarted"),
-      t("runtimeWaitingForConsoleRestart"),
-      "waiting_for_tui_bridge",
-      "",
-      "enableCurrentSessionSync"
-    );
-    setTimeout(() => loadRuntimeStatus(), 2500);
+    setStatus(t("restartBridgeStarted"), t("restartBridgeChecking"), "waiting_for_tui_bridge", "", "enableCurrentSessionSync");
+    stopBridgeActivationMonitor();
+    bridgeActivationDeadline = Date.now() + 30000;
+    bridgeActivationMonitor = setTimeout(monitorBridgeActivation, 1200);
   } catch {
+    stopBridgeActivationMonitor();
     setStatus(t("restartBridgeFailed"), t("runtimeWaitingForConsoleRestart"), "waiting_for_tui_bridge");
   } finally {
     buttons.forEach((button) => {
@@ -1396,13 +1444,14 @@ function storedPairingIdentity() {
   };
 }
 
-function setPairingUiState({ state, message, deviceText = "" }) {
+function setPairingUiState({ state, message, deviceText = "", forceStatus = false }) {
   const panel = document.querySelector("#pairing-panel");
   const status = document.querySelector("#pairing-status");
   const currentDevice = document.querySelector("#pairing-current-device");
   const forgetButton = document.querySelector("#forget-local-pairing");
   if (panel) panel.dataset.pairingState = state;
-  if (status) status.textContent = message;
+  const holdSuccessStatus = pairingSuccessHoldUntil > Date.now() && pairingSuccessMessage && !forceStatus;
+  if (status) status.textContent = holdSuccessStatus ? pairingSuccessMessage : message;
   if (currentDevice) currentDevice.textContent = deviceText || t("notPaired");
   if (forgetButton) {
     const identity = storedPairingIdentity();
@@ -1966,22 +2015,29 @@ async function pairDevice() {
   });
   const payload = await response.json();
   if (!response.ok) {
+    pairingSuccessHoldUntil = 0;
+    pairingSuccessMessage = "";
     document.querySelector("#pairing-status").textContent = t("pairingFailed");
     return;
   }
   localStorage.setItem("omnidoer_device_id", payload.device.device_id);
   localStorage.setItem("omnidoer_session_id", payload.session.session_id);
   localStorage.setItem("omnidoer_csrf_token", payload.csrf_token);
+  pairingSuccessMessage = t("pairedDevice", payload.device.name);
+  pairingSuccessHoldUntil = Date.now() + 6000;
   setPairingUiState({
     state: "paired",
-    message: t("pairedDevice", payload.device.name),
-    deviceText: `${payload.device.device_id} - session expires ${formatTimestamp(payload.session.expires_at)}`
+    message: pairingSuccessMessage,
+    deviceText: `${payload.device.device_id} - session expires ${formatTimestamp(payload.session.expires_at)}`,
+    forceStatus: true
   });
   await loadRequests();
   await loadDevicesAndSessions();
 }
 
 function forgetLocalPairing() {
+  pairingSuccessHoldUntil = 0;
+  pairingSuccessMessage = "";
   [
     "omnidoer_device_id",
     "omnidoer_session_id",
