@@ -908,10 +908,37 @@ function primaryOpenRequest(openRequests) {
   })[0] || null;
 }
 
+function updateMobileAttentionSignals(openCount = cachedRequests.filter(isOpenRequest).length) {
+  const handoffState = document.body.dataset.browserHandoffState || "idle";
+  if (openCount > 0) {
+    document.title = `(${openCount}) ${BASE_DOCUMENT_TITLE}`;
+  } else if (handoffState === "active_takeover") {
+    document.title = `Live - ${BASE_DOCUMENT_TITLE}`;
+  } else if (handoffState === "preview") {
+    document.title = `View - ${BASE_DOCUMENT_TITLE}`;
+  } else {
+    document.title = BASE_DOCUMENT_TITLE;
+  }
+  const firstUpdate = lastAttentionOpenCount === null;
+  const attentionIncreased = !firstUpdate && openCount > lastAttentionOpenCount;
+  const handoffActivated = !firstUpdate && handoffState === "active_takeover" && lastAttentionHandoffState !== "active_takeover";
+  if ((attentionIncreased || handoffActivated) && navigator.vibrate && Date.now() - lastAttentionSignalAt > 3000) {
+    try {
+      navigator.vibrate([80]);
+      lastAttentionSignalAt = Date.now();
+    } catch {
+      lastAttentionSignalAt = Date.now();
+    }
+  }
+  lastAttentionOpenCount = openCount;
+  lastAttentionHandoffState = handoffState;
+}
+
 function updateAttentionStrip(openRequests) {
   const strip = document.querySelector("#attention-strip");
   if (!strip) return;
   const primary = primaryOpenRequest(openRequests);
+  updateMobileAttentionSignals(openRequests.length);
   strip.hidden = !primary;
   document.body.dataset.hasAttention = primary ? "true" : "false";
   strip.dataset.requestId = primary?.request_id || "";
@@ -939,6 +966,7 @@ function updateTakeoverTabBadge(request = null, context = null) {
   link.dataset.badge = hasActiveTakeover ? t("takeoverTabLive") : hasBrowserPreview ? t("takeoverTabPreview") : "";
   link.dataset.browserContextId = hasActiveTakeover ? request.browser_context_id || "" : hasBrowserPreview ? context.browser_context_id || "" : "";
   document.body.dataset.browserHandoffState = hasActiveTakeover ? "active_takeover" : hasBrowserPreview ? "preview" : "idle";
+  updateMobileAttentionSignals();
 }
 
 function browserHandoffUrl(request = null, context = null) {
@@ -1239,6 +1267,7 @@ document.querySelectorAll("[data-filter]").forEach((button) => {
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+const BASE_DOCUMENT_TITLE = document.title || "OmniDoer Control Client";
 const TAKEOVER_FRAME_MAX_AGE_MS = 30000;
 const TAKEOVER_FRAME_POLL_MS = 1500;
 const BROWSER_PREVIEW_POLL_MS = 2000;
@@ -1294,6 +1323,9 @@ let pendingTakeoverPauseRequestedAt = 0;
 let pendingTakeoverAutoStartBusy = false;
 let autoOpenedTakeoverRequestId = "";
 let autoOpenedPreviewContextId = "";
+let lastAttentionOpenCount = null;
+let lastAttentionHandoffState = "idle";
+let lastAttentionSignalAt = 0;
 let activePaymentApprovalRequest = null;
 let renderedPaymentApprovalRequestId = null;
 let bridgeActivationMonitor = null;
