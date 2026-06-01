@@ -417,6 +417,22 @@ def _publish_browser_state_for_control_client(publish_state=None) -> None:
         pass
 
 
+def _current_browser_publish_state_callback():
+    try:
+        from omnidoer.omni_mcp.runtime import current_browser, publish_browser_state
+
+        browser = current_browser()
+        if browser is None:
+            return None
+
+        def publish_for_control_client() -> None:
+            publish_browser_state(browser=browser, force_preview_frame=True)
+
+        return publish_for_control_client
+    except Exception:
+        return None
+
+
 def _active_browser_takeover(browser_context_id: str):
     from omnidoer.omni_control.requests import RequestStore
 
@@ -946,10 +962,11 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
     if name == "registration.request_user_handoff":
         from omnidoer.omni_takeover.relay import request_registration_handoff
 
+        publish_state = _current_browser_publish_state_callback()
         existing = _active_browser_takeover("mcp-browser")
         if existing is not None:
             if _takeover_wait_requested(arguments):
-                waited = _wait_for_takeover_release_result(arguments, request=existing)
+                waited = _wait_for_takeover_release_result(arguments, request=existing, publish_state=publish_state)
                 return {**waited, "handoff_created": False, "reused": True}
             return {
                 "status": "registration_handoff_active",
@@ -964,6 +981,7 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
         origin, top_level_url = _origin_and_url(arguments)
         if not origin or not top_level_url:
             return _error("error", "origin or active browser required")
+        publish_state = publish_state or _current_browser_publish_state_callback()
         request = request_registration_handoff(
             origin=origin,
             top_level_url=top_level_url,
@@ -972,8 +990,9 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
             risk_level=str(arguments.get("risk_level") or "medium"),
             allowed_device_id=arguments.get("allowed_device_id"),
         )
+        _publish_browser_state_for_control_client(publish_state)
         if _takeover_wait_requested(arguments):
-            waited = _wait_for_takeover_release_result(arguments, request=request)
+            waited = _wait_for_takeover_release_result(arguments, request=request, publish_state=publish_state)
             return {**waited, "handoff_created": True, "reused": False}
         return {
             "status": "registration_handoff_created",
@@ -986,10 +1005,11 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
             "secret_exposed_to_model": False,
         }
     if name == "takeover.request_user_control":
+        publish_state = _current_browser_publish_state_callback()
         existing = _active_browser_takeover("mcp-browser")
         if existing is not None:
             if _takeover_wait_requested(arguments):
-                waited = _wait_for_takeover_release_result(arguments, request=existing)
+                waited = _wait_for_takeover_release_result(arguments, request=existing, publish_state=publish_state)
                 return {**waited, "takeover_created": False, "reused": True}
             return {
                 "status": "takeover_request_active",
@@ -1003,6 +1023,7 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
         origin, top_level_url = _origin_and_url(arguments)
         if not origin or not top_level_url:
             return _error("error", "origin or active browser required")
+        publish_state = publish_state or _current_browser_publish_state_callback()
         from omnidoer.omni_takeover.relay import request_user_control
 
         request = request_user_control(
@@ -1012,8 +1033,9 @@ def call_tool(name: str, arguments: dict | None = None) -> dict:
             browser_context_id="mcp-browser",
             risk_level=str(arguments.get("risk_level") or "high"),
         )
+        _publish_browser_state_for_control_client(publish_state)
         if _takeover_wait_requested(arguments):
-            waited = _wait_for_takeover_release_result(arguments, request=request)
+            waited = _wait_for_takeover_release_result(arguments, request=request, publish_state=publish_state)
             return {**waited, "takeover_created": True, "reused": False}
         return {
             "status": "takeover_request_created",

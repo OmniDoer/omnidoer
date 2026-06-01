@@ -24,6 +24,10 @@ def get_browser() -> BrowserController:
     return _browser
 
 
+def current_browser() -> BrowserController | None:
+    return _browser
+
+
 def publish_browser_state(
     *,
     browser: object | None = None,
