@@ -421,7 +421,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
             return browser.takeover_frame(frame_profile=frame_profile)
         from omnidoer.omni_takeover.cross_process import read_frame
 
-        return read_frame(context_id, max_age_seconds=10.0)
+        return read_frame(context_id)
 
     def _send_browser_context_frame_websocket_stream(
         self,
@@ -990,7 +990,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 if browser is not None:
                     frame = browser.takeover_frame(frame_profile=frame_profile)
                 else:
-                    frame = read_frame(context_id, max_age_seconds=10.0)
+                    frame = read_frame(context_id)
                 if frame is None:
                     self._send_json(HTTPStatus.CONFLICT, {"error": "browser_frame_unavailable", "secret_exposed_to_model": False})
                     return

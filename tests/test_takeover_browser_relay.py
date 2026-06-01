@@ -13,8 +13,11 @@ from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.server import ControlHandler
 from omnidoer.omni_takeover.browser_worker import BrowserContextWorker
 from omnidoer.omni_takeover.cross_process import (
+    CONTEXT_MAX_AGE_SECONDS,
+    FRAME_MAX_AGE_SECONDS,
     consume_input_events,
     enqueue_input_event,
+    list_contexts,
     read_frame,
     start_browser_relay,
     wait_for_input_event_result,
@@ -139,6 +142,77 @@ class TakeoverBrowserRelayTest(unittest.TestCase):
             finally:
                 control_server.shutdown()
                 control_server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_browser_relay_keeps_mobile_pause_entry_visible_beyond_short_poll_gap(self) -> None:
+        class FakeBrowser:
+            def current_url(self):
+                return "https://example.com/working"
+
+            def current_origin(self):
+                return "https://example.com"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                write_context_status("mobile-preview", FakeBrowser())
+                status_path = Path(tmp) / "browser_relay" / "mobile-preview" / "status.json"
+                stale_but_visible = time.time() - 60
+                payload = json.loads(status_path.read_text())
+                payload["updated_at"] = stale_but_visible
+                status_path.write_text(json.dumps(payload))
+
+                contexts = list_contexts()
+                self.assertTrue(any(context["browser_context_id"] == "mobile-preview" for context in contexts))
+                self.assertLess(60, CONTEXT_MAX_AGE_SECONDS)
+
+                expired = time.time() - CONTEXT_MAX_AGE_SECONDS - 1
+                payload["updated_at"] = expired
+                status_path.write_text(json.dumps(payload))
+                contexts = list_contexts()
+                self.assertFalse(any(context["browser_context_id"] == "mobile-preview" for context in contexts))
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_browser_preview_frame_survives_mobile_reconnect_window(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                frame = {
+                    "frame_id": "frame_mobile_preview",
+                    "captured_at": time.time() - 20,
+                    "url": "https://example.com/working",
+                    "origin": "https://example.com",
+                    "viewport": {"width": 320, "height": 240},
+                    "content_type": "image/jpeg",
+                    "data_b64": "abcd",
+                    "transport": {"profile": "data_saver"},
+                    "for_control_client_only": True,
+                    "not_for_llm": True,
+                }
+                write_frame("mobile-preview-frame", frame)
+                frame_path = Path(tmp) / "browser_relay" / "mobile-preview-frame" / "frame.json"
+                stale_but_visible = time.time() - 20
+                payload = json.loads(frame_path.read_text())
+                payload["relay_updated_at"] = stale_but_visible
+                frame_path.write_text(json.dumps(payload))
+
+                self.assertEqual(read_frame("mobile-preview-frame")["frame_id"], "frame_mobile_preview")
+                self.assertGreater(FRAME_MAX_AGE_SECONDS, 20)
+
+                expired = time.time() - FRAME_MAX_AGE_SECONDS - 1
+                payload["relay_updated_at"] = expired
+                frame_path.write_text(json.dumps(payload))
+                self.assertIsNone(read_frame("mobile-preview-frame"))
+            finally:
                 if old_home is None:
                     os.environ.pop("OMNIDOER_HOME", None)
                 else:
