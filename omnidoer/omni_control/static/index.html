@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icon-192.png">
-  <link rel="stylesheet" href="/style.css?v=20260601-compact-chat">
+  <link rel="stylesheet" href="/style.css?v=20260601-icon-chat-actions">
   <title>OmniDoer Control Client</title>
 </head>
 <body>
@@ -189,9 +189,18 @@
           <textarea id="chat-input" rows="2" placeholder="Write to OmniDoer"></textarea>
           <div id="chat-selected-files" class="chat-selected-files"></div>
           <div class="chat-composer-actions">
-            <label id="chat-files-label" class="file-button" for="chat-files">Attach</label>
+            <label id="chat-files-label" class="file-button icon-button" for="chat-files" aria-label="Attach" title="Attach">
+              <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="m21.4 11.6-8.8 8.8a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 1 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.8-8.8"></path>
+              </svg>
+            </label>
             <input id="chat-files" type="file" multiple>
-            <button id="send-chat-message">Send Message</button>
+            <button id="send-chat-message" class="icon-button" type="button" aria-label="Send Message" title="Send Message">
+              <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="m5 12 7-7 7 7"></path>
+                <path d="M12 19V5"></path>
+              </svg>
+            </button>
           </div>
         </div>
       </div>
@@ -251,6 +260,6 @@
       </div>
     </section>
   </main>
-  <script src="/app.js?v=20260601-compact-chat"></script>
+  <script src="/app.js?v=20260601-icon-chat-actions"></script>
 </body>
 </html>

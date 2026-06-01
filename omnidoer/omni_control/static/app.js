@@ -834,6 +834,14 @@ function setButtonText(selector, key) {
   if (node) node.textContent = t(key);
 }
 
+function setIconControlLabel(selector, key) {
+  const node = document.querySelector(selector);
+  if (!node) return;
+  const label = t(key);
+  node.setAttribute("aria-label", label);
+  node.setAttribute("title", label);
+}
+
 function languageTag(lang) {
   return { zh: "zh-CN", ja: "ja", ko: "ko", es: "es", fr: "fr", de: "de" }[lang] || "en";
 }
@@ -903,8 +911,8 @@ function applyLanguage() {
   setNodeText("#chat-input-label-text", "chatComposerLabel");
   const chatInput = document.querySelector("#chat-input");
   if (chatInput) chatInput.placeholder = t("chatPlaceholder");
-  setNodeText("#chat-files-label", "chatFilesLabel");
-  setButtonText("#send-chat-message", "sendMessage");
+  setIconControlLabel("#chat-files-label", "chatFilesLabel");
+  setIconControlLabel("#send-chat-message", "sendMessage");
   setButtonText("#submit-task", "submitTask");
   setNodeText("#takeover-panel h2", "takeoverTitle");
   setNodeText("#payment-approval h2", "paymentTitle");
@@ -2069,7 +2077,7 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
   }
   if (send) {
     send.disabled = !canSend;
-    send.textContent = t(sendKey);
+    send.setAttribute("aria-label", t(sendKey));
     send.title = t(sendKey);
   }
   if (files) {

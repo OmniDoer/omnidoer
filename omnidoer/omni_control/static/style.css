@@ -874,8 +874,10 @@ button:disabled {
 .file-button,
 #send-chat-message {
   min-height: 38px;
+  width: 38px;
+  min-width: 38px;
   border-radius: 999px;
-  padding: 0 13px;
+  padding: 0;
   touch-action: manipulation;
   white-space: nowrap;
 }
@@ -887,6 +889,25 @@ button:disabled {
   color: var(--ink);
   background: #ffffff;
   cursor: pointer;
+}
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.control-icon {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+#send-chat-message .control-icon {
+  width: 19px;
+  height: 19px;
 }
 .file-button.disabled {
   cursor: not-allowed;
@@ -1266,7 +1287,12 @@ button:disabled {
   }
   .chat-composer-actions { align-items: center; flex-direction: row; }
   .file-button { width: auto; min-height: 38px; flex: 0 0 auto; }
-  #send-chat-message { width: auto; max-width: 42vw; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+  .file-button,
+  #send-chat-message {
+    width: 38px;
+    min-width: 38px;
+    flex: 0 0 38px;
+  }
   #language-toggle { width: auto; }
   .button-row button, .filter-row button { width: auto; flex: 1 1 130px; }
   .takeover-toolbar button { flex-basis: 140px; }
