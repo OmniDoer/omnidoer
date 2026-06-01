@@ -2826,11 +2826,24 @@ function renderLegacyTerminal(terminal) {
   return item;
 }
 
+function renderLiveConsole(terminal) {
+  const panel = document.querySelector("#chat-live-console");
+  if (!panel) return;
+  panel.innerHTML = "";
+  const terminalNode = renderLegacyTerminal(terminal);
+  if (!terminalNode) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+  panel.append(terminalNode);
+}
+
 function renderChatTimeline(messages, records = [], terminal = null) {
   const list = document.querySelector("#chat-messages");
   if (!list) return;
+  renderLiveConsole(terminal);
   list.innerHTML = "";
-  const terminalNode = renderLegacyTerminal(terminal);
 
   const conversation = document.createElement("div");
   conversation.className = "chat-conversation";
@@ -2842,11 +2855,10 @@ function renderChatTimeline(messages, records = [], terminal = null) {
   }
   list.append(conversation);
 
-  if (terminalNode || records.length) {
+  if (records.length) {
     const activity = document.createElement("div");
     activity.className = "chat-activity";
     appendText(activity, "div", t("chatActivityTitle"), "chat-lane-title");
-    if (terminalNode) activity.append(terminalNode);
     records.forEach((record) => activity.append(renderChatRecord(record)));
     list.append(activity);
   }
