@@ -11,6 +11,7 @@ from urllib import request as urllib_request
 from cryptography.hazmat.primitives.asymmetric import ec
 
 from omnidoer.omni_control.cloud import build_config
+from omnidoer.omni_control.chat import ChatStore
 from omnidoer.omni_control.csrf import CSRF_HEADER
 from omnidoer.omni_control.device_signing import DEVICE_ID_HEADER, DEVICE_NONCE_HEADER, DEVICE_SIG_HEADER, DEVICE_TS_HEADER
 from omnidoer.omni_control.pairing import PairingStore
@@ -486,6 +487,10 @@ class CloudTakeoverStreamTest(unittest.TestCase):
                 self.assertEqual(takeover["status"], "user_control")
                 self.assertEqual(takeover["allowed_device_id"], body_a["device"]["device_id"])
                 self.assertFalse(takeover["reused"])
+                self.assertEqual(takeover["agent_pause"]["message"]["role"], "user")
+                self.assertEqual(takeover["agent_pause"]["message"]["client_message_id"][:14], "control_pause_")
+                self.assertFalse(takeover["agent_pause"]["live_console_delivery"]["secret_exposed_to_model"])
+                self.assertEqual(len(ChatStore().list()), 1)
 
                 with self.assertRaises(Exception) as denied:
                     urllib_request.urlopen(takeover_request(key_b, cookie_b, body_b, "nonce-context-b"), timeout=5)
@@ -495,6 +500,7 @@ class CloudTakeoverStreamTest(unittest.TestCase):
                     reused = json.loads(response.read().decode())
                 self.assertEqual(reused["request_id"], takeover["request_id"])
                 self.assertTrue(reused["reused"])
+                self.assertNotIn("agent_pause", reused)
             finally:
                 server.shutdown()
                 server.server_close()

@@ -117,6 +117,44 @@ class TuiLegacyRelayTest(unittest.TestCase):
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
 
+    def test_relay_can_deliver_priority_pause_before_older_queue(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                store = ChatStore()
+                older = store.append(role="user", text="older queued message")
+                pause = store.append(
+                    role="user",
+                    text="Pause Agent now",
+                    client_message_id="control_pause_456",
+                )
+                pane = TmuxPane(pane_id="%1", tty="/dev/pts/2", current_command="codex", process_pid=99)
+                injected: list[tuple[str, str]] = []
+                interrupted: list[str] = []
+
+                with patch("omnidoer.omni_control.tui_legacy_relay.live_tui_bridge_active", return_value=False), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.find_tmux_pane_for_thread",
+                    return_value=pane,
+                ), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.interrupt_tmux_pane",
+                    side_effect=lambda pane_id: interrupted.append(pane_id),
+                ), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.inject_text_into_tmux_pane",
+                    side_effect=lambda pane_id, text: injected.append((pane_id, text)),
+                ):
+                    self.assertTrue(LegacyTuiRelay(store=store, thread_id="thread_active").run_message(pause.message_id))
+
+                self.assertEqual(interrupted, ["%1"])
+                self.assertEqual(injected, [("%1", "Pause Agent now")])
+                self.assertEqual(store.get(pause.message_id).status, "completed")
+                self.assertEqual(store.get(older.message_id).status, "queued")
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     def test_restart_tmux_pane_for_bridge_respawns_pane(self) -> None:
         pane = TmuxPane(pane_id="%1", tty="/dev/pts/2", current_command="codex", process_pid=99)
         commands: list[list[str]] = []

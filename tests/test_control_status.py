@@ -9,6 +9,7 @@ from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib import request as urllib_request
 
+from omnidoer.omni_control.chat import ChatStore
 from omnidoer.omni_control.cloud import build_config
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.server import (
@@ -473,6 +474,44 @@ class ControlStatusTest(unittest.TestCase):
                 self.assertEqual([request for request in visible if request.request_type == "console_restart"], [])
                 self.assertEqual([request for request in RequestStore().list() if request.request_type == "console_restart"], [])
             finally:
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_takeover_release_queues_continue_instruction(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            config = build_config(host="127.0.0.1", port=8787)
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_config = config  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                takeover = RequestStore().create(
+                    "human_takeover",
+                    origin="https://example.com",
+                    top_level_url="https://example.com/work",
+                    action_summary="user controls browser",
+                    browser_context_id="browser-context",
+                )
+                release = urllib_request.Request(
+                    f"http://127.0.0.1:{server.server_address[1]}/api/requests/{takeover.request_id}/release",
+                    data=b"{}",
+                    headers={"content-type": "application/json"},
+                    method="POST",
+                )
+                with urllib_request.urlopen(release, timeout=5) as response:
+                    payload = json.loads(response.read().decode())
+                self.assertEqual(payload["status"], "released")
+                self.assertEqual(payload["agent_continue"]["message"]["role"], "user")
+                self.assertTrue(payload["agent_continue"]["message"]["client_message_id"].startswith("control_continue_"))
+                self.assertEqual(ChatStore().list()[0].client_message_id, payload["agent_continue"]["message"]["client_message_id"])
+                self.assertFalse(payload["agent_continue"]["live_console_delivery"]["secret_exposed_to_model"])
+            finally:
+                server.shutdown()
                 server.server_close()
                 if old_home is None:
                     os.environ.pop("OMNIDOER_HOME", None)

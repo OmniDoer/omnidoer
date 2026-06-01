@@ -564,12 +564,16 @@ class ControlHandler(SimpleHTTPRequestHandler):
     def _try_deliver_chat_to_live_console(self, message_id: str) -> dict:
         chat_thread_id = getattr(self.server, "omnidoer_chat_thread_id", None)
         if not chat_thread_id:
-            return {"attempted": False, "reason": "chat_thread_not_bound"}
+            return {"attempted": False, "reason": "chat_thread_not_bound", "secret_exposed_to_model": False}
         from omnidoer.omni_control.chat_runner import live_tui_bridge_active
 
         if live_tui_bridge_active():
-            return {"attempted": False, "reason": "native_bridge_active"}
-        from omnidoer.omni_control.tui_legacy_relay import LegacyTuiRelay, legacy_tui_relay_status
+            return {"attempted": False, "reason": "native_bridge_active", "secret_exposed_to_model": False}
+        from omnidoer.omni_control.tui_legacy_relay import (
+            LegacyTuiRelay,
+            legacy_tui_relay_status,
+            message_requests_priority_delivery,
+        )
 
         status = legacy_tui_relay_status(chat_thread_id)
         if not status.get("active"):
@@ -578,7 +582,16 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 "reason": str(status.get("reason") or "legacy_relay_unavailable"),
                 "legacy_tui_relay": status,
             }
-        delivered = LegacyTuiRelay(thread_id=chat_thread_id).run_once()
+        relay = LegacyTuiRelay(thread_id=chat_thread_id)
+        try:
+            message = ChatStore().get(message_id)
+        except KeyError:
+            message = None
+        delivered = (
+            relay.run_message(message_id)
+            if message is not None and message_requests_priority_delivery(message)
+            else relay.run_once()
+        )
         return {
             "attempted": True,
             "delivered": bool(delivered),
@@ -588,6 +601,52 @@ class ControlHandler(SimpleHTTPRequestHandler):
             "pane_id": status.get("pane_id"),
             "secret_exposed_to_model": False,
         }
+
+    def _queue_agent_instruction(
+        self,
+        *,
+        text: str,
+        client_message_id: str,
+        session: ControlSession | None,
+    ) -> dict:
+        chat_store = ChatStore()
+        message = chat_store.append(
+            role="user",
+            text=text,
+            source="control_client",
+            author_device_id=session.device_id if session else None,
+            client_message_id=client_message_id,
+        )
+        delivery = self._try_deliver_chat_to_live_console(message.message_id)
+        try:
+            payload = chat_store.get(message.message_id).to_public_dict()
+        except KeyError:
+            payload = message.to_public_dict()
+        return {
+            "message": payload,
+            "live_console_delivery": delivery,
+            "secret_exposed_to_model": False,
+        }
+
+    def _safe_queue_agent_instruction(
+        self,
+        *,
+        text: str,
+        client_message_id: str,
+        session: ControlSession | None,
+    ) -> dict:
+        try:
+            return self._queue_agent_instruction(
+                text=text,
+                client_message_id=client_message_id,
+                session=session,
+            )
+        except Exception as exc:
+            return {
+                "error": type(exc).__name__,
+                "client_message_id": client_message_id,
+                "secret_exposed_to_model": False,
+            }
 
     def _restart_console_bridge(self) -> dict:
         chat_thread_id = getattr(self.server, "omnidoer_chat_thread_id", None)
@@ -1249,6 +1308,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     self._send_json(HTTPStatus.NOT_FOUND, {"error": "browser_context_not_found"})
                     return
                 body = self._read_json()
+                reason = str(body.get("reason") or "User requested browser takeover from Control Client")
                 for existing in store.list():
                     if (
                         existing.browser_context_id == context_id
@@ -1263,12 +1323,19 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 request = request_user_control(
                     origin=str(context.get("origin") or ""),
                     top_level_url=str(context.get("current_url") or context.get("origin") or ""),
-                    reason=str(body.get("reason") or "User requested browser takeover from Control Client"),
+                    reason=reason,
                     browser_context_id=context_id,
                     risk_level=str(body.get("risk_level") or "high"),
                     allowed_device_id=session.device_id if session else None,
                 )
-                self._send_json(HTTPStatus.CREATED, {**request.to_public_dict(), "reused": False})
+                payload = {**request.to_public_dict(), "reused": False}
+                if body.get("notify_agent", True) is not False:
+                    payload["agent_pause"] = self._safe_queue_agent_instruction(
+                        text=reason,
+                        client_message_id=str(body.get("client_message_id") or f"control_pause_{int(time.time() * 1000)}"),
+                        session=session,
+                    )
+                self._send_json(HTTPStatus.CREATED, payload)
             except Exception as exc:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
             return
@@ -1473,6 +1540,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
             try:
                 control_request = self._get_request_for_session(store, request_id, session)
                 console_restart_result = None
+                agent_continue_result = None
                 if action == "approve":
                     body = self._read_json()
                     if control_request.request_type in {"payment_approval", "console_restart"} and (
@@ -1494,6 +1562,12 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     request = store.deny(request_id)
                 elif action == "release":
                     request = store.release_takeover(request_id)
+                    if control_request.request_type in {"human_takeover", "account_registration"}:
+                        agent_continue_result = self._safe_queue_agent_instruction(
+                            text="I have finished controlling the browser. Continue from the current page state and resume the task.",
+                            client_message_id=f"control_continue_{int(time.time() * 1000)}",
+                            session=session,
+                        )
                 elif action == "complete-challenge":
                     request = store.mark_challenge_completed(request_id)
                 elif action == "submit":
@@ -1553,6 +1627,8 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 payload = request.to_public_dict()
                 if console_restart_result is not None:
                     payload["console_restart"] = console_restart_result
+                if agent_continue_result is not None:
+                    payload["agent_continue"] = agent_continue_result
                 self._send_json(HTTPStatus.OK, payload)
             except PermissionError:
                 self._send_json(HTTPStatus.FORBIDDEN, {"error": "forbidden"})

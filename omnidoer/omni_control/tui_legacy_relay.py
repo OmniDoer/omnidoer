@@ -208,6 +208,10 @@ def message_requests_interrupt(message) -> bool:
     return str(message.client_message_id or "").startswith(("control_pause_", "omnidoer_pause_"))
 
 
+def message_requests_priority_delivery(message) -> bool:
+    return str(message.client_message_id or "").startswith(("control_pause_", "omnidoer_pause_", "control_continue_"))
+
+
 def terminal_delta(previous: list[str], current: list[str]) -> list[str]:
     if not previous:
         return []
@@ -268,11 +272,22 @@ class LegacyTuiRelay:
     def run_once(self) -> bool:
         if live_tui_bridge_active():
             return False
+        message = self.store.next_user_message(claim=False)
+        if message is None:
+            return False
+        return self.run_message(message.message_id)
+
+    def run_message(self, message_id: str) -> bool:
+        if live_tui_bridge_active():
+            return False
         pane = find_tmux_pane_for_thread(self.thread_id)
         if pane is None:
             return False
-        message = self.store.next_user_message(claim=False)
-        if message is None:
+        try:
+            message = self.store.get(message_id)
+        except KeyError:
+            return False
+        if message.role != "user" or message.status != "queued":
             return False
         try:
             if message_requests_interrupt(message):
@@ -288,8 +303,7 @@ class LegacyTuiRelay:
                 data={"pane_id": pane.pane_id, "thread_id": self.thread_id},
             )
             return False
-        claimed = self.store.next_user_message(claim=True)
-        delivered = claimed or message
+        delivered = self.store.complete(message.message_id)
         self.store.append_record(
             record_type="status",
             text=f"Delivered Control Client message to live TUI terminal pane {pane.pane_id}.",
@@ -303,8 +317,6 @@ class LegacyTuiRelay:
                 "interrupted_turn": message_requests_interrupt(delivered),
             },
         )
-        if claimed is not None:
-            self.store.complete(claimed.message_id)
         return True
 
     def publish_terminal_delta(self) -> bool:

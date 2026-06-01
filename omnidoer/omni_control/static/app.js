@@ -2069,11 +2069,14 @@ async function releaseActiveTakeover() {
   try {
     const actionResponse = await postAction(request, "release");
     if (!actionResponse?.ok) throw new Error("release failed");
+    const payload = await actionResponse.json().catch(() => ({}));
     stopTakeoverFramePolling(request.request_id);
     await loadBrowserContexts();
-    const clientMessageId = `control_continue_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-    const response = await postChatMessage(t("takeoverReleasePrompt"), { clientMessageId });
-    if (!response.ok) throw new Error("continue message failed");
+    if (!payload.agent_continue || payload.agent_continue.error) {
+      const clientMessageId = `control_continue_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      const response = await postChatMessage(t("takeoverReleasePrompt"), { clientMessageId });
+      if (!response.ok) throw new Error("continue message failed");
+    }
     await loadChatMessages();
     setStatus(t("takeoverReleased"), t("takeoverReleasedDetail"));
   } catch {
@@ -2582,27 +2585,38 @@ async function requestTakeoverPause() {
   await loadBrowserContexts();
   const context = activeBrowserContext();
   let browserTakeoverStarted = false;
+  let agentPauseQueuedByTakeover = false;
+  const clientMessageId = `control_pause_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   if (context) {
     try {
       const response = await signedFetch(`/api/browser/contexts/${encodeURIComponent(context.browser_context_id)}/takeover`, {
         method: "POST",
         headers: { "content-type": "application/json", ...csrfHeaders() },
-        body: JSON.stringify({ reason: t("takeoverPausePrompt") })
+        body: JSON.stringify({
+          reason: t("takeoverPausePrompt"),
+          notify_agent: true,
+          client_message_id: clientMessageId
+        })
       });
       if (!response.ok) throw new Error("browser takeover failed");
+      const payload = await response.json().catch(() => ({}));
       browserTakeoverStarted = true;
+      agentPauseQueuedByTakeover = Boolean(payload.reused || (payload.agent_pause && !payload.agent_pause.error));
     } catch {
       setStatus(t("actionFailed"), t("activeBrowserReady"));
     }
   }
-  const clientMessageId = `control_pause_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  try {
-    const response = await postChatMessage(t("takeoverPausePrompt"), { clientMessageId });
-    if (!response.ok) throw new Error("pause request failed");
-  } catch {
-    setStatus(t("actionFailed"), t("pairToViewChat"));
-    setPauseButtonsDisabled(false);
-    return;
+  if (!agentPauseQueuedByTakeover) {
+    try {
+      const response = await postChatMessage(t("takeoverPausePrompt"), { clientMessageId });
+      if (!response.ok) throw new Error("pause request failed");
+    } catch {
+      if (!browserTakeoverStarted) {
+        setStatus(t("actionFailed"), t("pairToViewChat"));
+        setPauseButtonsDisabled(false);
+        return;
+      }
+    }
   }
   if (browserTakeoverStarted) {
     setStatus(t("browserTakeoverCreated"), t("browserTakeoverCreatedDetail"));
