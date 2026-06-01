@@ -2675,7 +2675,7 @@ async function releaseActiveTakeover() {
     const payload = await actionResponse.json().catch(() => ({}));
     upsertCachedRequest(payload);
     renderRequestList(cachedRequests);
-    syncTakeoverPanel(cachedRequests);
+    refreshRequestDependentUi();
     stopTakeoverFramePolling(request.request_id);
     await loadBrowserContexts();
     if (!payload.agent_continue || payload.agent_continue.error) {
@@ -4961,6 +4961,7 @@ async function loadRequests() {
     });
     cachedRequests = requests;
     renderRequestList(requests);
+    refreshRequestDependentUi();
   } catch {
     updateAttentionStrip([]);
     updateRequestsTabBadge(0, 0);
@@ -4990,6 +4991,13 @@ function applyBrowserContextsEvent(payload) {
 function applyRequestEvent(payload) {
   cachedRequests = payload.requests || [];
   renderRequestList(cachedRequests);
+  refreshRequestDependentUi();
+}
+
+function refreshRequestDependentUi() {
+  syncTakeoverPanel(cachedRequests);
+  updateOverview();
+  updateAgentControlButtons();
 }
 
 function applyChatEvent(payload) {
