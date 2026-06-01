@@ -526,6 +526,13 @@ def _auto_takeover_after_browser_action(
 ) -> dict:
     if arguments.get("auto_takeover") is False:
         return result
+    if action in {"browser.click", "browser.select", "browser.upload_file"}:
+        wait_for_load_state = getattr(browser, "wait_for_load_state", None)
+        if callable(wait_for_load_state):
+            try:
+                wait_for_load_state()
+            except Exception:
+                pass
     challenge_type = None
     antibot_detected = False
     try:

@@ -2,7 +2,9 @@ import os
 import tempfile
 import importlib.util
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from threading import Thread
 from urllib.parse import quote
 
 from omnidoer.omni_mcp.runtime import get_browser, reset_runtime_for_tests
@@ -93,6 +95,41 @@ class McpBrowserToolsTest(unittest.TestCase):
             self.assertTrue(opened["takeover_created"])
             self.assertEqual(opened["request"]["browser_context_id"], "mcp-browser")
             RequestStore().release_takeover(opened["request"]["request_id"])
+
+    def test_mcp_browser_click_auto_pauses_after_navigation_to_antibot(self) -> None:
+        class ClickNavigationHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.send_header("content-type", "text/html; charset=utf-8")
+                self.end_headers()
+                if self.path == "/start":
+                    self.wfile.write(b"<a id='go' href='/antibot'>Go</a>")
+                else:
+                    self.wfile.write(b"<h1>antibot</h1>")
+
+            def log_message(self, *_args):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), ClickNavigationHandler)
+        Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            opened = call_tool("browser.open", {"url": f"{base}/start"})
+            if opened.get("status") == "unavailable":
+                self.skipTest("playwright chromium unavailable")
+            clicked = call_tool("browser.click", {"selector": "#go"})
+            self.assertEqual(clicked["status"], "paused_for_human_takeover")
+            self.assertEqual(clicked["browser_action"], "browser.click")
+            self.assertEqual(clicked["browser_action_result"]["status"], "clicked")
+            self.assertTrue(clicked["antibot_detected"])
+            self.assertTrue(clicked["requires_human_takeover"])
+            self.assertTrue(clicked["agent_paused"])
+            self.assertTrue(clicked["takeover_created"])
+            self.assertEqual(clicked["request"]["browser_context_id"], "mcp-browser")
+            RequestStore().release_takeover(clicked["request"]["request_id"])
+        finally:
+            server.shutdown()
+            server.server_close()
 
     def test_mcp_browser_selects_plain_form_values(self) -> None:
         html = quote("<select id='mode'><option value='slow'>Slow</option><option value='fast'>Fast</option></select>")
