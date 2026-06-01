@@ -307,6 +307,9 @@ const I18N = {
     browserHandoffPreviewDetail: "Pause Agent to control the active browser, or open Takeover to inspect the live preview first.",
     browserHandoffActiveTitle: "You control the browser",
     browserHandoffActiveDetail: "Touch, scroll, and text input are routed to the controlled browser until you continue the Agent.",
+    browserHandoffRelayLive: (seconds) => `Live frame ${seconds}s old`,
+    browserHandoffRelayWaiting: "Waiting for a live frame",
+    browserHandoffRelayPendingInput: (count) => `${count} browser input event${count === 1 ? "" : "s"} pending`,
     browserHandoffView: "View",
     browserHandoffPause: "Pause Agent",
     browserHandoffContinue: "Continue Agent",
@@ -684,6 +687,9 @@ const I18N = {
     browserHandoffPreviewDetail: "可以先打开接管页查看实时预览，也可以暂停 Agent 后接管活跃浏览器。",
     browserHandoffActiveTitle: "你正在控制浏览器",
     browserHandoffActiveDetail: "触摸、滚动和文本输入会发送到受控浏览器，直到你点击继续交给 Agent。",
+    browserHandoffRelayLive: (seconds) => `实时画面 ${seconds}s 前更新`,
+    browserHandoffRelayWaiting: "正在等待实时画面",
+    browserHandoffRelayPendingInput: (count) => `${count} 个浏览器输入仍在等待确认`,
     browserHandoffView: "查看",
     browserHandoffPause: "暂停 Agent",
     browserHandoffContinue: "继续交给 Agent",
@@ -1122,6 +1128,18 @@ function browserHandoffUrl(request = null, context = null) {
   return request?.top_level_url || request?.origin || context?.current_url || context?.origin || context?.browser_context_id || "";
 }
 
+function browserRelayHealthText(context = null) {
+  const health = context?.relay_health || {};
+  const pendingInputs = Number(health.pending_input_count ?? context?.pending_input_count ?? 0);
+  if (pendingInputs > 0) return t("browserHandoffRelayPendingInput", pendingInputs);
+  const frameAge = Number(health.frame_age_seconds ?? context?.frame_age_seconds);
+  if ((health.frame_available || context?.frame_available) && Number.isFinite(frameAge)) {
+    return t("browserHandoffRelayLive", Math.round(frameAge));
+  }
+  if (context?.active) return t("browserHandoffRelayWaiting");
+  return "";
+}
+
 function updateBrowserHandoffState(request = null, context = null) {
   updateTakeoverTabBadge(request, context);
   const strip = document.querySelector("#browser-handoff-strip");
@@ -1139,7 +1157,11 @@ function updateBrowserHandoffState(request = null, context = null) {
   const pause = document.querySelector("#browser-handoff-pause");
   const resume = document.querySelector("#browser-handoff-continue");
   if (title) title.textContent = t(hasActiveTakeover ? "browserHandoffActiveTitle" : "browserHandoffPreviewTitle");
-  if (detail) detail.textContent = t(hasActiveTakeover ? "browserHandoffActiveDetail" : "browserHandoffPreviewDetail");
+  if (detail) {
+    const baseDetail = t(hasActiveTakeover ? "browserHandoffActiveDetail" : "browserHandoffPreviewDetail");
+    const healthDetail = browserRelayHealthText(context);
+    detail.textContent = healthDetail ? `${baseDetail} ${healthDetail}` : baseDetail;
+  }
   if (meta) meta.textContent = browserHandoffUrl(request, context) || t("browserHandoffNoUrl");
   if (view) view.textContent = t("browserHandoffView");
   if (pause) {

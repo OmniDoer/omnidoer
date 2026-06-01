@@ -15,6 +15,7 @@ from omnidoer.omni_takeover.browser_worker import BrowserContextWorker
 from omnidoer.omni_takeover.cross_process import (
     CONTEXT_MAX_AGE_SECONDS,
     FRAME_MAX_AGE_SECONDS,
+    browser_relay_health,
     consume_input_events,
     enqueue_input_event,
     list_contexts,
@@ -81,6 +82,63 @@ class TakeoverBrowserRelayTest(unittest.TestCase):
                     self.assertEqual(read_frame("cleanup-browser")["frame_id"], "frame_closed")
                 self.assertFalse(any(context["browser_context_id"] == "cleanup-browser" for context in list_contexts()))
                 self.assertIsNone(read_frame("cleanup-browser"))
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_browser_context_list_reports_relay_health_for_mobile_takeover(self) -> None:
+        class FakeBrowser:
+            def current_url(self):
+                return "https://example.com/live"
+
+            def current_origin(self):
+                return "https://example.com"
+
+        frame = {
+            "frame_id": "frame_health",
+            "captured_at": time.time(),
+            "url": "https://example.com/live",
+            "origin": "https://example.com",
+            "viewport": {"width": 320, "height": 240},
+            "content_type": "image/jpeg",
+            "data_b64": "abcd",
+            "transport": {"profile": "balanced"},
+            "for_control_client_only": True,
+            "not_for_llm": True,
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                write_context_status("health-browser", FakeBrowser())
+                write_frame("health-browser", frame)
+                queued = enqueue_input_event(
+                    "health-browser",
+                    "req_demo",
+                    {"event_type": "tap", "frame_id": "frame_health", "x": 1, "y": 1},
+                )
+                write_input_event_result(
+                    "health-browser",
+                    queued["event_id"],
+                    {"status": "event_applied", "request_id": "req_demo"},
+                )
+
+                contexts = list_contexts()
+                context = next(item for item in contexts if item["browser_context_id"] == "health-browser")
+                self.assertTrue(context["frame_available"])
+                self.assertEqual(context["relay_health"]["frame_id"], "frame_health")
+                self.assertEqual(context["relay_health"]["frame_profile"], "balanced")
+                self.assertEqual(context["pending_input_count"], 1)
+                self.assertEqual(context["relay_health"]["pending_input_count"], 1)
+                self.assertIsNotNone(context["relay_health"]["pending_input_oldest_age_seconds"])
+                self.assertEqual(context["relay_health"]["input_result_count"], 1)
+                self.assertFalse(context["relay_health"]["secret_exposed_to_model"])
+
+                health = browser_relay_health("health-browser")
+                self.assertTrue(health["frame_available"])
+                self.assertEqual(health["pending_input_count"], 1)
             finally:
                 if old_home is None:
                     os.environ.pop("OMNIDOER_HOME", None)

@@ -103,6 +103,50 @@ def read_frame(browser_context_id: str, *, max_age_seconds: float = FRAME_MAX_AG
     return payload
 
 
+def _json_file_count(path: Path) -> int:
+    try:
+        return sum(1 for item in path.glob("*.json") if item.is_file())
+    except OSError:
+        return 0
+
+
+def _oldest_input_age_seconds(path: Path, *, now: float) -> float | None:
+    try:
+        paths = list(path.glob("*.json"))
+    except OSError:
+        return None
+    created_at_values: list[float] = []
+    for item in paths:
+        payload = _read_json(item) or {}
+        created_at = payload.get("created_at")
+        if isinstance(created_at, (int, float)):
+            created_at_values.append(float(created_at))
+    if not created_at_values:
+        return None
+    return max(0.0, now - min(created_at_values))
+
+
+def browser_relay_health(browser_context_id: str, *, max_frame_age_seconds: float = FRAME_MAX_AGE_SECONDS) -> dict[str, Any]:
+    """Return non-sensitive relay health for mobile takeover diagnostics."""
+
+    now = time.time()
+    directory = _context_dir(browser_context_id)
+    frame = _read_json(directory / "frame.json") or {}
+    frame_updated_at = float(frame.get("relay_updated_at") or frame.get("captured_at") or 0.0)
+    frame_age = max(0.0, now - frame_updated_at) if frame_updated_at else None
+    frame_available = frame_age is not None and frame_age <= max_frame_age_seconds
+    return {
+        "frame_available": frame_available,
+        "frame_age_seconds": frame_age,
+        "frame_id": str(frame.get("frame_id") or "") if frame_available else "",
+        "frame_profile": str((frame.get("transport") or {}).get("profile") or "") if frame_available else "",
+        "pending_input_count": _json_file_count(directory / "inputs"),
+        "pending_input_oldest_age_seconds": _oldest_input_age_seconds(directory / "inputs", now=now),
+        "input_result_count": _json_file_count(directory / "input_results"),
+        "secret_exposed_to_model": False,
+    }
+
+
 def list_contexts(*, max_age_seconds: float = CONTEXT_MAX_AGE_SECONDS) -> list[dict[str, Any]]:
     root = state_file(BROWSER_RELAY_DIR)
     try:
@@ -121,6 +165,11 @@ def list_contexts(*, max_age_seconds: float = CONTEXT_MAX_AGE_SECONDS) -> list[d
         payload["active"] = now - updated_at <= max_age_seconds
         payload["age_seconds"] = max(0.0, now - updated_at)
         if payload["active"]:
+            health = browser_relay_health(str(payload.get("browser_context_id") or entry.name))
+            payload["relay_health"] = health
+            payload["frame_available"] = health["frame_available"]
+            payload["frame_age_seconds"] = health["frame_age_seconds"]
+            payload["pending_input_count"] = health["pending_input_count"]
             contexts.append(payload)
     return sorted(
         contexts,
