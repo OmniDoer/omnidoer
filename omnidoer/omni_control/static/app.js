@@ -12,6 +12,12 @@ const I18N = {
     navPayments: "Payments",
     navPair: "Pair",
     checkingRuntime: "Checking runtime...",
+    runtimeModeCloudDirect: (mode) => `Control Service: ${mode}`,
+    runtimeModeAttached: "Current CLI synced",
+    runtimeModeLegacyRelay: "Server paired; current CLI is temporary relay",
+    runtimeModeServerOnly: "Server paired; current CLI not attached",
+    runtimeModeBackground: "Background runner",
+    runtimeModeOffline: "Control Service offline",
     runtimeDetail: "Control Client does not call OpenAI APIs or models directly.",
     runtimeOffline: "Runtime offline",
     runtimeOfflineDetail: "Start omnidoer control serve.",
@@ -50,7 +56,9 @@ const I18N = {
     copiedCommand: "Command copied",
     copyCommandFailed: "Copy failed",
     restartBridge: "Restart bridge",
+    enableCurrentSessionSync: "Enable current session sync",
     restartBridgeConfirm: "Restart the active Linux console in its tmux pane to enable full phone sync?",
+    restartBridgeConfirmDetailed: (threadId) => `Enable full phone sync for thread ${threadId || "current"}? This restarts the active Codex TUI in its tmux pane, keeps the same thread, and loads the installed native bridge.`,
     restartBridgeStarted: "Console bridge restart started",
     restartBridgeFailed: "Restart failed",
     legacyTerminalTitle: "Live Linux Console",
@@ -275,6 +283,12 @@ const I18N = {
     navPayments: "支付",
     navPair: "配对",
     checkingRuntime: "正在检查运行状态...",
+    runtimeModeCloudDirect: (mode) => `控制服务：${mode}`,
+    runtimeModeAttached: "当前 CLI 已同步",
+    runtimeModeLegacyRelay: "已配对服务器；当前 CLI 仍是临时 relay",
+    runtimeModeServerOnly: "已配对服务器；当前 CLI 尚未接入",
+    runtimeModeBackground: "后台 runner",
+    runtimeModeOffline: "控制服务离线",
     runtimeDetail: "控制客户端不会直接调用 OpenAI API 或模型。",
     runtimeOffline: "运行服务离线",
     runtimeOfflineDetail: "请启动 omnidoer control serve。",
@@ -313,7 +327,9 @@ const I18N = {
     copiedCommand: "命令已复制",
     copyCommandFailed: "复制失败",
     restartBridge: "重启桥接",
+    enableCurrentSessionSync: "启用当前会话同步",
     restartBridgeConfirm: "要在当前 tmux pane 中重启 Linux console 以启用完整手机同步吗？",
+    restartBridgeConfirmDetailed: (threadId) => `要为线程 ${threadId || "当前线程"} 启用完整手机同步吗？这会在当前 tmux pane 中重启活跃 Codex TUI，保留同一个 thread，并加载已安装的原生桥接。`,
     restartBridgeStarted: "控制台桥接重启已开始",
     restartBridgeFailed: "重启失败",
     legacyTerminalTitle: "实时 Linux 控制台",
@@ -1195,7 +1211,7 @@ function restoreRequestDrafts(list, captured) {
   }
 }
 
-function setStatus(message, detail = "", runtimeState = "", command = "") {
+function setStatus(message, detail = "", runtimeState = "", command = "", restartLabelKey = "restartBridge") {
   document.querySelector("#runtime-mode").textContent = message;
   document.querySelector("#runtime-detail").textContent = detail;
   const runtimeCommandRow = document.querySelector("#runtime-command-row");
@@ -1214,9 +1230,20 @@ function setStatus(message, detail = "", runtimeState = "", command = "") {
   }
   if (runtimeRestartBridge) {
     runtimeRestartBridge.hidden = !command;
-    runtimeRestartBridge.textContent = t("restartBridge");
+    runtimeRestartBridge.textContent = t(restartLabelKey);
+    runtimeRestartBridge.classList.toggle("primary-action", restartLabelKey === "enableCurrentSessionSync");
   }
   document.body.dataset.runtimeState = runtimeState;
+}
+
+function runnerNeedsCurrentSessionSync(runner = {}) {
+  runner = runner || {};
+  const activeProcess = runner.active_tui_process_bridge || {};
+  return Boolean(
+    runner.waiting_for_tui_bridge &&
+      runner.restart_command &&
+      (activeProcess.installed_bridge_ready || runner.native_console_bridge?.ready)
+  );
 }
 
 function updateChatSessionStatus(runner, { offline = false } = {}) {
@@ -1280,7 +1307,8 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
   if (detail) detail.textContent = `${t(detailKey)}${diagnosticKey ? ` ${t(diagnosticKey)}` : ""}`;
   if (restart) {
     restart.hidden = !canRestart;
-    restart.textContent = t("restartBridge");
+    restart.textContent = t(runnerNeedsCurrentSessionSync(runner) ? "enableCurrentSessionSync" : "restartBridge");
+    restart.classList.toggle("primary-action", canRestart && runnerNeedsCurrentSessionSync(runner));
   }
   if (input) {
     input.disabled = !canSend;
@@ -1319,7 +1347,8 @@ async function restartConsoleBridge() {
     document.querySelector("#runtime-restart-bridge"),
     document.querySelector("#chat-session-restart")
   ].filter(Boolean);
-  if (!window.confirm(t("restartBridgeConfirm"))) return;
+  const threadId = cachedRuntimeStatus?.chat_runner?.thread_id || "";
+  if (!window.confirm(t("restartBridgeConfirmDetailed", threadId))) return;
   buttons.forEach((button) => {
     button.disabled = true;
   });
@@ -1330,7 +1359,13 @@ async function restartConsoleBridge() {
       body: JSON.stringify({ confirm_restart: true })
     });
     if (!response.ok) throw new Error("restart failed");
-    setStatus(t("restartBridgeStarted"), t("runtimeWaitingForConsoleRestart"), "waiting_for_tui_bridge");
+    setStatus(
+      t("restartBridgeStarted"),
+      t("runtimeWaitingForConsoleRestart"),
+      "waiting_for_tui_bridge",
+      "",
+      "enableCurrentSessionSync"
+    );
     setTimeout(() => loadRuntimeStatus(), 2500);
   } catch {
     setStatus(t("restartBridgeFailed"), t("runtimeWaitingForConsoleRestart"), "waiting_for_tui_bridge");
@@ -3305,13 +3340,16 @@ async function loadRuntimeStatus() {
     const status = await fetch("/api/status", { cache: "no-store" }).then((r) => r.json());
     cachedRuntimeStatus = status;
     const runner = status.chat_runner || {};
+    let mode = t("runtimeModeCloudDirect", status.mode);
     let detail = t("runtimeDetail");
     let runtimeState = "";
     let restartCommand = "";
+    let restartLabelKey = "restartBridge";
     if (runner.waiting_for_tui_bridge) {
       const legacyRelay = runner.legacy_tui_relay || {};
       const activeProcess = runner.active_tui_process_bridge || {};
       const staleActiveBinary = Boolean(activeProcess.active && !activeProcess.native_bridge_ready && activeProcess.installed_bridge_ready);
+      mode = legacyRelay.active ? t("runtimeModeLegacyRelay") : t("runtimeModeServerOnly");
       detail = legacyRelay.active ? t("runtimeLegacyRelayActive") : t("runtimeWaitingForConsoleRestart");
       if (legacyRelay.capabilities?.interrupt_on_pause) {
         detail = `${detail} ${t("runtimeLegacyRelayPause")}`;
@@ -3324,19 +3362,22 @@ async function loadRuntimeStatus() {
       }
       runtimeState = legacyRelay.active ? "legacy_tui_relay" : "waiting_for_tui_bridge";
       restartCommand = runner.restart_command || "";
+      restartLabelKey = runnerNeedsCurrentSessionSync(runner) ? "enableCurrentSessionSync" : "restartBridge";
     } else if (runner.tui_bridge_active) {
+      mode = t("runtimeModeAttached");
       detail = t("runtimeBridgeActive");
       runtimeState = "tui_bridge_active";
     } else if (runner.thread_id) {
+      mode = t("runtimeModeBackground");
       detail = t("runtimeBackgroundRunner");
       runtimeState = "background_runner";
     }
     updateChatSessionStatus(runner);
-    setStatus(`Mode: ${status.mode}`, detail, runtimeState, restartCommand);
+    setStatus(mode, detail, runtimeState, restartCommand, restartLabelKey);
   } catch {
     cachedRuntimeStatus = null;
     updateChatSessionStatus(null, { offline: true });
-    setStatus(t("runtimeOffline"), t("runtimeOfflineDetail"), "offline");
+    setStatus(t("runtimeModeOffline"), t("runtimeOfflineDetail"), "offline");
   }
 }
 

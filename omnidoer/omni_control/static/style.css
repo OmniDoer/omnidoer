@@ -285,6 +285,14 @@ button:disabled {
 .runtime-restart-button:hover {
   background: rgba(255, 255, 255, 0.2);
 }
+.runtime-restart-button.primary-action {
+  border-color: #67e8f9;
+  background: #cffafe;
+  color: #164e63;
+}
+.runtime-restart-button.primary-action:hover {
+  background: #a5f3fc;
+}
 .runtime-copy-button[hidden],
 .runtime-restart-button[hidden] {
   display: none;
@@ -458,6 +466,14 @@ button:disabled {
 .chat-session-restart {
   min-width: 122px;
   flex: 0 0 auto;
+}
+.chat-session-restart.primary-action {
+  border-color: #0f172a;
+  background: #111827;
+  color: #fff;
+}
+.chat-session-restart.primary-action:hover {
+  background: #0f172a;
 }
 .chat-session-restart[hidden] {
   display: none;
