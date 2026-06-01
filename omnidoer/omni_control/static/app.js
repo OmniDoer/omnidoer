@@ -3317,6 +3317,174 @@ function shortChatId(value) {
   return `${text.slice(0, 8)}...${text.slice(-6)}`;
 }
 
+function appendTextWithBreaks(parent, text) {
+  String(text).split("\n").forEach((part, index) => {
+    if (index > 0) parent.append(document.createElement("br"));
+    if (part) parent.append(document.createTextNode(part));
+  });
+}
+
+function safeMarkdownHref(value) {
+  const href = String(value || "").trim();
+  return /^(https?:|mailto:)/i.test(href) ? href : "";
+}
+
+function appendInlineMarkdown(parent, text) {
+  const source = String(text || "");
+  let index = 0;
+  while (index < source.length) {
+    const candidates = ["`", "**", "__", "["]
+      .map((token) => ({ token, at: source.indexOf(token, index) }))
+      .filter((candidate) => candidate.at >= 0)
+      .sort((left, right) => left.at - right.at);
+    if (!candidates.length) {
+      appendTextWithBreaks(parent, source.slice(index));
+      return;
+    }
+    const { token, at } = candidates[0];
+    if (at > index) appendTextWithBreaks(parent, source.slice(index, at));
+    if (token === "`") {
+      const end = source.indexOf("`", at + 1);
+      if (end < 0) {
+        appendTextWithBreaks(parent, source.slice(at));
+        return;
+      }
+      const code = document.createElement("code");
+      code.textContent = source.slice(at + 1, end);
+      parent.append(code);
+      index = end + 1;
+    } else if (token === "**" || token === "__") {
+      const end = source.indexOf(token, at + 2);
+      if (end < 0) {
+        appendTextWithBreaks(parent, source.slice(at));
+        return;
+      }
+      const strong = document.createElement("strong");
+      appendInlineMarkdown(strong, source.slice(at + 2, end));
+      parent.append(strong);
+      index = end + 2;
+    } else {
+      const labelEnd = source.indexOf("]", at + 1);
+      const hrefStart = labelEnd >= 0 ? source.indexOf("(", labelEnd) : -1;
+      const hrefEnd = hrefStart === labelEnd + 1 ? source.indexOf(")", hrefStart + 1) : -1;
+      if (labelEnd < 0 || hrefStart !== labelEnd + 1 || hrefEnd < 0) {
+        appendTextWithBreaks(parent, source.slice(at, at + 1));
+        index = at + 1;
+        continue;
+      }
+      const href = safeMarkdownHref(source.slice(hrefStart + 1, hrefEnd));
+      if (!href) {
+        appendTextWithBreaks(parent, source.slice(at, hrefEnd + 1));
+        index = hrefEnd + 1;
+        continue;
+      }
+      const link = document.createElement("a");
+      link.href = href;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      appendInlineMarkdown(link, source.slice(at + 1, labelEnd));
+      parent.append(link);
+      index = hrefEnd + 1;
+    }
+  }
+}
+
+function isMarkdownBlockBoundary(line) {
+  return (
+    !line.trim() ||
+    /^```/.test(line) ||
+    /^#{1,4}\s+/.test(line) ||
+    /^\s*[-*+]\s+/.test(line) ||
+    /^\s*\d+[.)]\s+/.test(line) ||
+    /^>\s?/.test(line)
+  );
+}
+
+function appendMarkdownParagraph(parent, lines) {
+  const paragraph = document.createElement("p");
+  appendInlineMarkdown(paragraph, lines.join("\n"));
+  parent.append(paragraph);
+}
+
+function appendMarkdownCodeBlock(parent, lines, language = "") {
+  const pre = document.createElement("pre");
+  const code = document.createElement("code");
+  if (language) code.dataset.language = language;
+  code.textContent = lines.join("\n");
+  pre.append(code);
+  parent.append(pre);
+}
+
+function appendMarkdown(parent, text, className) {
+  const node = document.createElement("div");
+  node.className = className ? `${className} markdown-text` : "markdown-text";
+  const lines = String(text || " ").replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  let index = 0;
+  while (index < lines.length) {
+    const line = lines[index];
+    if (!line.trim()) {
+      index += 1;
+      continue;
+    }
+    const fence = line.match(/^```\s*([A-Za-z0-9_-]+)?\s*$/);
+    if (fence) {
+      const codeLines = [];
+      index += 1;
+      while (index < lines.length && !/^```\s*$/.test(lines[index])) {
+        codeLines.push(lines[index]);
+        index += 1;
+      }
+      if (index < lines.length) index += 1;
+      appendMarkdownCodeBlock(node, codeLines, fence[1] || "");
+      continue;
+    }
+    const heading = line.match(/^(#{1,4})\s+(.+)$/);
+    if (heading) {
+      const headingNode = document.createElement("p");
+      headingNode.className = "markdown-heading";
+      appendInlineMarkdown(headingNode, heading[2]);
+      node.append(headingNode);
+      index += 1;
+      continue;
+    }
+    const unordered = line.match(/^\s*[-*+]\s+(.+)$/);
+    const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/);
+    if (unordered || ordered) {
+      const list = document.createElement(ordered ? "ol" : "ul");
+      while (index < lines.length) {
+        const itemMatch = lines[index].match(ordered ? /^\s*\d+[.)]\s+(.+)$/ : /^\s*[-*+]\s+(.+)$/);
+        if (!itemMatch) break;
+        const item = document.createElement("li");
+        appendInlineMarkdown(item, itemMatch[1]);
+        list.append(item);
+        index += 1;
+      }
+      node.append(list);
+      continue;
+    }
+    if (/^>\s?/.test(line)) {
+      const quote = document.createElement("blockquote");
+      const quoteLines = [];
+      while (index < lines.length && /^>\s?/.test(lines[index])) {
+        quoteLines.push(lines[index].replace(/^>\s?/, ""));
+        index += 1;
+      }
+      appendInlineMarkdown(quote, quoteLines.join("\n"));
+      node.append(quote);
+      continue;
+    }
+    const paragraphLines = [];
+    while (index < lines.length && !isMarkdownBlockBoundary(lines[index])) {
+      paragraphLines.push(lines[index]);
+      index += 1;
+    }
+    appendMarkdownParagraph(node, paragraphLines);
+  }
+  if (!node.childNodes.length) node.append(document.createTextNode(" "));
+  parent.append(node);
+  return node;
+}
+
 function renderChatMessage(message) {
   const item = document.createElement("article");
   item.className = `chat-message chat-role-${message.role} chat-status-${message.status}`;
@@ -3325,7 +3493,7 @@ function renderChatMessage(message) {
   appendText(header, "strong", message.role === "user" ? t("chatUserRole") : t("chatAssistantRole"));
   appendText(header, "span", chatStatusLabel(message.status), "badge");
   item.append(header);
-  appendText(item, "p", message.text || " ", "chat-message-text");
+  appendMarkdown(item, message.text || " ", "chat-message-text");
   const meta = document.createElement("div");
   meta.className = "chat-message-meta";
   appendText(meta, "span", `#${message.sequence}`);
@@ -3348,7 +3516,11 @@ function renderChatRecord(record) {
     appendText(header, "span", t("chatRecordTerminalDelta"), "badge");
   }
   item.append(header);
-  appendText(item, "p", record.text || " ", "chat-message-text");
+  if (["status", "terminal", "terminal_input"].includes(record.record_type)) {
+    appendText(item, "p", record.text || " ", "chat-message-text");
+  } else {
+    appendMarkdown(item, record.text || " ", "chat-message-text");
+  }
   const meta = document.createElement("div");
   meta.className = "chat-message-meta";
   const sequenceText = record.data?.sequence_start && record.data?.sequence_end

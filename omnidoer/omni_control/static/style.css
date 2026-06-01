@@ -1091,6 +1091,64 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
+.chat-message-text.markdown-text {
+  white-space: normal;
+}
+.markdown-text p,
+.markdown-text ul,
+.markdown-text ol,
+.markdown-text blockquote,
+.markdown-text pre {
+  margin: 0 0 0.42em;
+}
+.markdown-text > :last-child {
+  margin-bottom: 0;
+}
+.markdown-text ul,
+.markdown-text ol {
+  padding-left: 1.15em;
+}
+.markdown-text li {
+  margin: 0.08em 0;
+  padding-left: 0.08em;
+}
+.markdown-text code {
+  border-radius: 5px;
+  background: #e2e8f0;
+  color: #0f172a;
+  padding: 0.03em 0.28em;
+  font: 0.9em/1.25 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+.markdown-text pre {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid #d8e1ec;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 6px 8px;
+}
+.markdown-text pre code {
+  display: block;
+  min-width: max-content;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  white-space: pre;
+}
+.markdown-text blockquote {
+  border-left: 3px solid #cbd5e1;
+  color: #475569;
+  padding-left: 8px;
+}
+.markdown-text a {
+  color: var(--accent-strong);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+.markdown-heading {
+  font-weight: 800;
+}
 .chat-message-meta {
   color: var(--muted);
   font-size: 0.66rem;
