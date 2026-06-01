@@ -73,8 +73,9 @@ input without returning file contents. If the caller marks the upload as
 `sensitive: true`, OmniDoer creates a `file_upload` approval request and
 requires that request to be approved before the upload is allowed.
 
-`control.create_pairing` creates a short-lived, one-time Control Client
-pairing URL for the user. The URL is intended to be shown to the user and is
-model-visible while the command is being handled, so it must remain short TTL
-and one-time. The resulting paired device receives a cached, revocable session
-and should not need to pair again during normal use.
+`control.create_pairing` creates a time-limited Control Client pairing URL for
+the user. The URL is intended to be shown to the user and is model-visible while
+the command is being handled, so it remains capped-use: by default 24 hours and
+up to 10 paired browsers/devices. The resulting paired device receives a
+long-lived cached, revocable session and should not need to pair again during
+normal use.

@@ -558,7 +558,7 @@ class McpToolsTest(unittest.TestCase):
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
 
-    def test_create_pairing_tool_returns_short_lived_invite_without_long_lived_secret(self) -> None:
+    def test_create_pairing_tool_returns_reusable_invite_without_long_lived_secret(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             old_home = os.environ.get("OMNIDOER_HOME")
             os.environ["OMNIDOER_HOME"] = tmp
@@ -571,7 +571,9 @@ class McpToolsTest(unittest.TestCase):
                 self.assertIn("https://agent.example.com/pair?code=", result["pairing_url"])
                 self.assertNotIn("##", result["qr_ascii"])
                 self.assertGreater(sum(result["qr_ascii"].count(ch) for ch in "█▀▄"), 100)
-                self.assertTrue(result["one_time_pairing"])
+                self.assertFalse(result["one_time_pairing"])
+                self.assertEqual(result["max_uses"], 10)
+                self.assertEqual(result["remaining_uses"], 10)
                 self.assertTrue(result["paired_sessions_are_cached"])
                 self.assertTrue(result["pairing_code_model_visible"])
                 self.assertFalse(result["secret_exposed_to_model"])

@@ -96,11 +96,12 @@ omnidoer control submit-task "Open the local demo and download my invoice"
 If you used the direct shell installer and `omnidoer` is not on `PATH`, use
 `~/omnidoer/.venv/bin/omnidoer` for the same commands.
 
-Inside the OmniDoer native console, `/pair` creates a short-lived Control Client
-pairing QR code locally through the OmniDoer sidecar and prints it in the
-terminal. Scan it from a phone browser, pair once on a device you control, and
-normal later use reuses the revocable device session instead of asking you to
-pair again.
+Inside the OmniDoer native console, `/pair` creates a Control Client pairing QR
+code locally through the OmniDoer sidecar and prints it in the terminal. By
+default the link is valid for 24 hours and can pair up to 10 browsers/devices.
+Scan it from a phone or desktop browser, pair on devices you control, and
+normal later use reuses the long-lived revocable device session instead of
+asking you to pair again.
 
 Running `omnidoer` with no subcommand opens the OmniDoer-branded interactive
 console. It inherits the existing Codex ChatGPT login and billing path, but the
@@ -442,11 +443,10 @@ omnidoer control serve --cloud-direct \
 omnidoer pair
 ```
 
-`omnidoer pair` is the low-friction pairing entrypoint. It prints a short-lived
-pairing URL and a terminal QR code by default, then the Control Client caches
-the paired device identity and renews active sessions until the device or
-session is revoked. The legacy `omnidoer control pair --print-qr` command
-remains available for scripts.
+`omnidoer pair` is the low-friction pairing entrypoint. It prints a 24-hour,
+10-use pairing URL and a terminal QR code by default, then the Control Client
+caches the paired device identity in a long-lived revocable session. The legacy
+`omnidoer control pair --print-qr` command remains available for scripts.
 
 MCP remains local to Codex CLI. Vault, Broker, Challenge Relay, and browser
 internal interfaces are not public Control Service APIs.

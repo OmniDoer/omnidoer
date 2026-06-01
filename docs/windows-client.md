@@ -1,8 +1,9 @@
 # Windows 11 Control Client
 
 MVP Windows support is the HTML5/PWA Control Client in Edge or Chrome. Pair
-once from a short-lived URL, then pin or install the PWA; it reuses the cached
-device key and session until expiry or revocation.
+from a 24-hour, 10-use URL, then pin or install the PWA; it reuses the cached
+device key and long-lived session until browser data is cleared or the session
+is revoked.
 
 Future native Windows client plan:
 

@@ -256,6 +256,36 @@ class TakeoverBrowserRelayTest(unittest.TestCase):
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
 
+    def test_control_server_takeover_frame_requires_real_browser_frame(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            control_server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            Thread(target=control_server.serve_forever, daemon=True).start()
+            try:
+                request = request_user_control(
+                    origin="https://example.com",
+                    top_level_url="https://example.com/antibot",
+                    reason="missing browser frame",
+                    browser_context_id="missing-browser-frame",
+                )
+                from urllib.request import urlopen
+
+                base = f"http://127.0.0.1:{control_server.server_address[1]}"
+                with self.assertRaises(HTTPError) as raised:
+                    urlopen(f"{base}/api/requests/{request.request_id}/frame", timeout=5)
+                self.assertEqual(raised.exception.code, 409)
+                body = json.loads(raised.exception.read().decode())
+                self.assertEqual(body["error"], "browser_frame_unavailable")
+                self.assertFalse(body["secret_exposed_to_model"])
+            finally:
+                control_server.shutdown()
+                control_server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     def test_cross_process_relay_publishes_preview_frames_before_takeover(self) -> None:
         class FakeBrowser:
             def current_url(self):

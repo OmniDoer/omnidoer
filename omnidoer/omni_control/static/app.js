@@ -183,11 +183,16 @@ const I18N = {
     checkingCachedSession: "Checking cached pairing session...",
     sessionHidden: "This browser is authenticated. The current session is not visible in the latest session list.",
     sessionRevoked: "This browser's cached session was revoked. Pair again to continue.",
-    pairedCached: "Paired. Requests load automatically; pair again only if this session expires or is revoked.",
+    pairedCached: "Paired. This browser stays paired long-term unless the session is revoked or browser data is cleared.",
+    sessionValidUntil: (value) => `valid until ${value}`,
     cachedPairingRejected: "This browser has local pairing data, but its session cookie or signature was rejected. Open the same HTTPS origin, enable cookies, or pair again.",
     pairingDevice: "Pairing this device...",
     pairingFailed: "Pairing failed.",
-    pairedDevice: (name) => `Paired ${name}. This browser will reuse the cached session until it expires or is revoked.`,
+    pairingFailedDetail: (reason) => `Pairing failed: ${reason}`,
+    pairingExpired: "Pairing code expired. Open a fresh pairing link on this device.",
+    pairingAlreadyUsed: "Pairing code reached its 10-use limit. Generate a fresh link for more devices.",
+    pairingInvalid: "Pairing code is invalid. Open the latest pairing link.",
+    pairedDevice: (name) => `Paired ${name}. This browser will stay paired long-term unless the session is revoked or browser data is cleared.`,
     localPairingRemoved: "Local pairing was removed from this browser. Server-side devices and sessions can still be revoked after pairing again.",
     deviceTitle: "Devices / Sessions",
     deviceIntro: "Review paired Control Clients and active sessions.",
@@ -534,11 +539,16 @@ const I18N = {
     checkingCachedSession: "正在检查本地配对会话...",
     sessionHidden: "此浏览器已认证，但当前会话不在最新会话列表中。",
     sessionRevoked: "此浏览器缓存的会话已被撤销，请重新配对。",
-    pairedCached: "已配对。请求会自动加载；只有会话过期或被撤销时才需要重新配对。",
+    pairedCached: "已配对。除非会话被撤销或浏览器数据被清除，此浏览器会长期保持配对。",
+    sessionValidUntil: (value) => `有效至 ${value}`,
     cachedPairingRejected: "当前浏览器有本地配对数据，但会话 Cookie 或签名被拒绝。请使用相同 HTTPS 地址、允许 Cookie，或重新配对。",
     pairingDevice: "正在配对此设备...",
     pairingFailed: "配对失败。",
-    pairedDevice: (name) => `已配对 ${name}。此浏览器会复用本地会话，直到会话过期或被撤销。`,
+    pairingFailedDetail: (reason) => `配对失败：${reason}`,
+    pairingExpired: "配对码已过期。请在此设备上打开新的配对链接。",
+    pairingAlreadyUsed: "配对码已达到 10 次使用上限。请生成新链接配对更多设备。",
+    pairingInvalid: "配对码无效。请打开最新的配对链接。",
+    pairedDevice: (name) => `已配对 ${name}。除非会话被撤销或浏览器数据被清除，此浏览器会长期保持配对。`,
     localPairingRemoved: "已清除本地配对。服务端设备和会话仍可在重新配对后撤销。",
     deviceTitle: "设备 / 会话",
     deviceIntro: "查看已配对的控制客户端和活跃会话。",
@@ -805,6 +815,7 @@ const PANEL_IDS = [
 ];
 const DEFAULT_PANEL_ID = "overview-panel";
 const SYNC_REQUEST_RENEW_WINDOW_MS = 2 * 60 * 1000;
+const PAIRING_STEP_TIMEOUT_MS = 15000;
 
 function t(key, ...args) {
   const value = I18N[currentLanguage]?.[key] ?? I18N.en[key] ?? key;
@@ -1652,6 +1663,7 @@ let pairingSuccessHoldUntil = 0;
 let pairingSuccessMessage = "";
 let cachedPairingAuthenticated = false;
 let autoPairingStarted = false;
+let authenticatedRealtimeStarted = false;
 
 applyLanguage();
 
@@ -2729,9 +2741,11 @@ async function loadPairingDetails(pairingId) {
     document.querySelector("#pairing-broker-fingerprint").textContent = pairing.broker_fingerprint || "not loaded";
     document.querySelector("#pairing-web-broker-fingerprint").textContent = pairing.web_broker_fingerprint || "not loaded";
     document.querySelector("#pairing-expires-at").textContent = formatTimestamp(pairing.expires_at);
+    document.querySelector("#pairing-remaining-uses").textContent = `${pairing.remaining_uses ?? "?"} / ${pairing.max_uses ?? "?"}`;
   } catch {
     document.querySelector("#pairing-broker-fingerprint").textContent = "pairing metadata unavailable";
     document.querySelector("#pairing-web-broker-fingerprint").textContent = "pairing metadata unavailable";
+    document.querySelector("#pairing-remaining-uses").textContent = "pairing metadata unavailable";
   }
 }
 
@@ -2755,6 +2769,14 @@ async function deviceKeyPair() {
   localStorage.setItem("omnidoer_device_private_jwk", JSON.stringify(privateJwk));
   localStorage.setItem("omnidoer_device_public_jwk", JSON.stringify(publicJwk));
   return { publicJwk, privateKey: key.privateKey };
+}
+
+function withTimeout(promise, timeoutMs, message) {
+  let timeoutId = null;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
 }
 
 async function deviceSignatureHeaders(method, path) {
@@ -2787,6 +2809,14 @@ async function deviceSignatureHeaders(method, path) {
   };
 }
 
+function pairingFailureMessage(error, fallbackReason = "") {
+  const value = `${error || ""} ${fallbackReason || ""}`.toLowerCase();
+  if (value.includes("expired") || value.includes("pairing_code_expired")) return t("pairingExpired");
+  if (value.includes("already used") || value.includes("pairing_code_used")) return t("pairingAlreadyUsed");
+  if (value.includes("invalid") || value.includes("pairing_code_invalid")) return t("pairingInvalid");
+  return t("pairingFailedDetail", fallbackReason || error || t("pairingFailed"));
+}
+
 async function deviceAuthSubprotocol(method, path) {
   const headers = await deviceSignatureHeaders(method, path);
   if (!headers["x-omnidoer-device-id"]) return "";
@@ -2814,34 +2844,41 @@ async function pairDevice() {
   const deviceName = document.querySelector("#device-name").value.trim() || "PWA Control Client";
   if (!code) return;
   setPairingUiState({ state: "checking", message: t("pairingDevice") });
-  const { publicJwk } = await deviceKeyPair();
-  const response = await fetch("/api/pair", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ code, device_name: deviceName, device_public_key: JSON.stringify(publicJwk) })
-  });
-  const payload = await response.json();
-  if (!response.ok) {
+  try {
+    const { publicJwk } = await withTimeout(deviceKeyPair(), PAIRING_STEP_TIMEOUT_MS, "device key setup timed out");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PAIRING_STEP_TIMEOUT_MS);
+    const response = await fetch("/api/pair", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code, device_name: deviceName, device_public_key: JSON.stringify(publicJwk) }),
+      signal: controller.signal
+    }).finally(() => clearTimeout(timeoutId));
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(pairingFailureMessage(payload.error, payload.reason));
+    }
+    localStorage.setItem("omnidoer_device_id", payload.device.device_id);
+    localStorage.setItem("omnidoer_session_id", payload.session.session_id);
+    localStorage.setItem("omnidoer_csrf_token", payload.csrf_token);
+    pairingSuccessMessage = t("pairedDevice", payload.device.name);
+    pairingSuccessHoldUntil = Date.now() + 6000;
+    cachedPairingAuthenticated = true;
+    setPairingUiState({
+      state: "paired",
+      message: pairingSuccessMessage,
+      deviceText: `${payload.device.device_id} - ${t("sessionValidUntil", formatTimestamp(payload.session.expires_at))}`,
+      forceStatus: true
+    });
+    await loadRuntimeStatus();
+    await refreshAuthenticatedData();
+    startAuthenticatedRealtime();
+  } catch (error) {
     pairingSuccessHoldUntil = 0;
     pairingSuccessMessage = "";
-    document.querySelector("#pairing-status").textContent = t("pairingFailed");
-    return;
+    const reason = error?.name === "AbortError" ? "request timed out" : (error?.message || t("pairingFailed"));
+    setPairingUiState({ state: "stale", message: reason });
   }
-  localStorage.setItem("omnidoer_device_id", payload.device.device_id);
-  localStorage.setItem("omnidoer_session_id", payload.session.session_id);
-  localStorage.setItem("omnidoer_csrf_token", payload.csrf_token);
-  pairingSuccessMessage = t("pairedDevice", payload.device.name);
-  pairingSuccessHoldUntil = Date.now() + 6000;
-  setPairingUiState({
-    state: "paired",
-    message: pairingSuccessMessage,
-    deviceText: `${payload.device.device_id} - session expires ${formatTimestamp(payload.session.expires_at)}`,
-    forceStatus: true
-  });
-  cachedPairingAuthenticated = true;
-  await loadRuntimeStatus();
-  await loadRequests();
-  await loadDevicesAndSessions();
 }
 
 async function autoPairFromInitialLink() {
@@ -3571,7 +3608,7 @@ async function refreshPairingState() {
     setPairingUiState({
       state: "paired",
       message: t("pairedCached"),
-      deviceText: `${identity.deviceId} - session expires ${formatTimestamp(current.expires_at)}`
+      deviceText: `${identity.deviceId} - ${t("sessionValidUntil", formatTimestamp(current.expires_at))}`
     });
     return true;
   } catch {
@@ -4750,23 +4787,55 @@ async function startChatWebSocket() {
   }
 }
 
-loadRuntimeStatus();
-if (initialPairingCode) {
-  autoPairFromInitialLink().then(() => loadRuntimeStatus()).catch(() => {});
-} else {
-  refreshPairingState().then(() => loadRuntimeStatus()).catch(() => {});
+function authenticatedApiAvailable() {
+  if (cachedPairingAuthenticated) return true;
+  if (!cachedRuntimeStatus) return false;
+  return !modeRequiresPairing(cachedRuntimeStatus.mode);
 }
-loadRequests();
-loadBrowserContexts();
-loadChatMessages();
-loadDevicesAndSessions();
-startRequestWebSocket();
-startBrowserContextWebSocket();
-startChatWebSocket();
+
+async function refreshAuthenticatedData() {
+  if (!authenticatedApiAvailable()) return;
+  await Promise.allSettled([
+    loadRequests(),
+    loadBrowserContexts(),
+    loadChatMessages(),
+    loadDevicesAndSessions()
+  ]);
+}
+
+function startAuthenticatedRealtime() {
+  if (!authenticatedApiAvailable() || authenticatedRealtimeStarted) return;
+  authenticatedRealtimeStarted = true;
+  startRequestWebSocket();
+  startBrowserContextWebSocket();
+  startChatWebSocket();
+}
+
+async function bootstrapControlClient() {
+  await loadRuntimeStatus();
+  if (initialPairingCode) {
+    await autoPairFromInitialLink();
+  } else {
+    await refreshPairingState();
+  }
+  await loadRuntimeStatus();
+  await refreshAuthenticatedData();
+  startAuthenticatedRealtime();
+}
+
+bootstrapControlClient().catch(() => {});
 document.addEventListener("visibilitychange", handleTakeoverVisibilityChange);
 setInterval(loadRuntimeStatus, 10000);
 setInterval(refreshPairingState, 30000);
-setInterval(loadRequests, 15000);
-setInterval(loadBrowserContexts, 5000);
-setInterval(loadChatMessages, 5000);
-setInterval(loadDevicesAndSessions, 15000);
+setInterval(() => {
+  if (authenticatedApiAvailable()) loadRequests();
+}, 15000);
+setInterval(() => {
+  if (authenticatedApiAvailable()) loadBrowserContexts();
+}, 5000);
+setInterval(() => {
+  if (authenticatedApiAvailable()) loadChatMessages();
+}, 5000);
+setInterval(() => {
+  if (authenticatedApiAvailable()) loadDevicesAndSessions();
+}, 15000);

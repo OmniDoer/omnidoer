@@ -9,6 +9,7 @@ from io import StringIO
 from http.server import ThreadingHTTPServer
 from threading import Thread
 from unittest.mock import patch
+from urllib import error as urllib_error
 from urllib import request as urllib_request
 
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -26,6 +27,7 @@ from omnidoer.omni_control.server import (
     sanitize_log_value,
 )
 from omnidoer.omni_control.secure_channel import encrypt_for_broker, load_or_create_keypair
+from omnidoer.omni_control.sessions import CONTROL_SESSION_TTL_SECONDS
 from omnidoer.omni_control.websocket import encode_device_auth_subprotocol
 from tests.test_control_auth import public_jwk, sign_request
 
@@ -171,6 +173,7 @@ class CloudControlServiceTest(unittest.TestCase):
                     body = json.loads(response.read().decode())
                 csrf = body["csrf_token"]
                 self.assertIn("HttpOnly", cookie)
+                self.assertIn(f"Max-Age={CONTROL_SESSION_TTL_SECONDS}", cookie)
                 self.assertNotIn("session_token", repr(body))
 
                 with urllib_request.urlopen(urllib_request.Request(f"{base}/api/requests", headers={"cookie": cookie}), timeout=5) as response:
@@ -398,6 +401,45 @@ class CloudControlServiceTest(unittest.TestCase):
                 self.assertNotIn("code", payload)
                 self.assertNotIn("code_hash", payload)
                 self.assertNotIn(pairing.code, repr(payload))
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_expired_pairing_error_is_specific(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            config = build_config(
+                host="127.0.0.1",
+                port=8787,
+                cloud_direct=True,
+                public_url="https://agent.example.com",
+                behind_reverse_proxy=True,
+            )
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_config = config  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                pairing = PairingStore().create(public_url=config.public_url, ttl_seconds=-1)
+                device_key = ec.generate_private_key(ec.SECP256R1())
+                pair_request = urllib_request.Request(
+                    f"{base}/api/pair",
+                    data=json.dumps({"code": pairing.code, "device_name": "Phone", "device_public_key": public_jwk(device_key)}).encode(),
+                    headers={"content-type": "application/json", "origin": config.public_origin, **PROXY_HEADERS},
+                    method="POST",
+                )
+                with self.assertRaises(urllib_error.HTTPError) as raised:
+                    urllib_request.urlopen(pair_request, timeout=5)
+                self.assertEqual(raised.exception.code, 410)
+                payload = json.loads(raised.exception.read().decode())
+                self.assertEqual(payload["error"], "pairing_code_expired")
+                self.assertEqual(payload["reason"], "pairing code expired")
             finally:
                 server.shutdown()
                 server.server_close()

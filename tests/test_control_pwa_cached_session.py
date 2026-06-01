@@ -51,7 +51,7 @@ class ControlPwaCachedSessionTest(unittest.TestCase):
                         self.assertTrue(session_id)
 
                         page.goto(base, wait_until="domcontentloaded")
-                        expect(page.locator("#pairing-status")).to_contain_text("Requests load automatically", timeout=5000)
+                        expect(page.locator("#pairing-status")).to_contain_text("stays paired long-term", timeout=5000)
                         self.assertIn(device_id, page.locator("#pairing-current-device").inner_text())
                         self.assertEqual(page.evaluate("localStorage.getItem('omnidoer_device_id')"), device_id)
                         self.assertEqual(page.evaluate("localStorage.getItem('omnidoer_session_id')"), session_id)

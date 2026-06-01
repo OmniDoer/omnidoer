@@ -55,7 +55,8 @@ browsers do not allow custom authentication headers there. Each streamed
 snapshot is filtered by the authenticated device session before it leaves the
 Control Service.
 
-The QR pairing URL includes a short-lived `code` and opaque `pairing_id`. Before
+The QR pairing URL includes a time-limited `code` and opaque `pairing_id`. By
+default it is valid for 24 hours and can pair up to 10 browsers/devices. Before
 the user confirms pairing, the PWA can fetch public pairing metadata by
 `pairing_id` so the screen shows the server URL, broker fingerprint, web broker
 fingerprint, and expiry. That metadata endpoint does not return the pairing

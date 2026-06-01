@@ -21,7 +21,7 @@ from omnidoer.omni_control.sessions import SessionStore
 from omnidoer.omni_control.tasks import TaskStore
 
 
-def print_pairing_invite(*, public_url: str | None = None, expires: str = "10m", print_qr: bool = True) -> None:
+def print_pairing_invite(*, public_url: str | None = None, expires: str = "24h", print_qr: bool = True) -> None:
     public_url = resolve_pairing_public_url(public_url)
     pairing = PairingStore().create(public_url=public_url, ttl_seconds=parse_duration_seconds(expires))
     print("OmniDoer Control Client pairing")
@@ -31,8 +31,9 @@ def print_pairing_invite(*, public_url: str | None = None, expires: str = "10m",
         print("qr_ascii_end")
     print(f"pairing_url={pairing_url(pairing)}")
     print(f"expires_at={pairing.expires_at}")
+    print(f"max_uses={pairing.max_uses}")
     print(f"broker_fingerprint={pairing.broker_fingerprint}")
-    print("warning=Only pair devices you control.")
+    print("warning=Only pair devices you control. Pairing URLs are reusable up to 10 times within 24 hours by default.")
 
 
 def _secret_payload(request) -> dict[str, str | bool]:

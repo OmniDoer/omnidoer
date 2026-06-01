@@ -8,6 +8,8 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from omnidoer.omni_control.auth import pair_device
 from omnidoer.omni_control.devices import DeviceStore
 from omnidoer.omni_control.pairing import (
+    DEFAULT_PAIRING_MAX_USES,
+    DEFAULT_PAIRING_TTL_SECONDS,
     PairingStore,
     ascii_qr,
     pairing_code_hash,
@@ -20,18 +22,23 @@ from tests.test_control_auth import public_jwk
 
 
 class PairingFlowTest(unittest.TestCase):
-    def test_pairing_code_is_short_ttl_and_one_time(self) -> None:
+    def test_pairing_code_is_24h_and_reusable_ten_times_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             store = PairingStore(Path(tmp) / "pairing.json")
-            pairing = store.create(public_url="https://agent.example.com", ttl_seconds=60)
+            before = time.time()
+            pairing = store.create(public_url="https://agent.example.com")
             self.assertIn(pairing.code, pairing_url(pairing))
+            self.assertGreater(pairing.expires_at, before + DEFAULT_PAIRING_TTL_SECONDS - 5)
+            self.assertEqual(pairing.max_uses, DEFAULT_PAIRING_MAX_USES)
             raw = (Path(tmp) / "pairing.json").read_text()
             self.assertNotIn(pairing.code, raw)
             self.assertIn(pairing.code_hash, raw)
             self.assertIn("Only", "Only pair devices you control.")
-            consumed = store.consume(pairing.code)
-            self.assertTrue(consumed.used)
-            self.assertEqual(consumed.code, "")
+            for index in range(DEFAULT_PAIRING_MAX_USES):
+                consumed = store.consume(pairing.code)
+                self.assertEqual(consumed.code, "")
+                self.assertEqual(consumed.use_count, index + 1)
+                self.assertEqual(consumed.used, index + 1 == DEFAULT_PAIRING_MAX_USES)
             with self.assertRaises(ValueError):
                 store.consume(pairing.code)
 
@@ -46,6 +53,8 @@ class PairingFlowTest(unittest.TestCase):
             self.assertNotIn("code", public)
             self.assertNotIn("code_hash", public)
             self.assertNotIn(pairing.code, repr(public))
+            self.assertEqual(public["max_uses"], DEFAULT_PAIRING_MAX_USES)
+            self.assertEqual(public["remaining_uses"], DEFAULT_PAIRING_MAX_USES)
 
     def test_pairing_expiry(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -103,6 +112,7 @@ class PairingFlowTest(unittest.TestCase):
             self.assertEqual(result.device.name, "Android")
 
     def test_duration_parser(self) -> None:
+        self.assertEqual(parse_duration_seconds(None), 24 * 60 * 60)
         self.assertEqual(parse_duration_seconds("10m"), 600)
         self.assertEqual(parse_duration_seconds("30s"), 30)
 

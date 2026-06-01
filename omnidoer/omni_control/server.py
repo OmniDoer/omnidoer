@@ -49,7 +49,7 @@ from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.runtime import record_control_service_runtime
 from omnidoer.omni_control.pairing import PairingStore
 from omnidoer.omni_control.secure_channel import load_or_create_keypair, load_or_create_web_keypair
-from omnidoer.omni_control.sessions import ControlSession, SessionStore
+from omnidoer.omni_control.sessions import CONTROL_SESSION_TTL_SECONDS, ControlSession, SessionStore
 from omnidoer.omni_control.tasks import TaskStore
 from omnidoer.omni_takeover.input_events import event_from_dict
 from omnidoer.omni_takeover.relay import apply_input_event, start_stream
@@ -77,6 +77,8 @@ BROWSER_CONTEXT_STREAM_HEARTBEAT_SECONDS = 30.0
 BROWSER_FRAME_STREAM_DEFAULT_SNAPSHOTS = 1200
 BROWSER_FRAME_STREAM_MAX_SNAPSHOTS = 1200
 TAKEOVER_INPUT_RESULT_WAIT_MAX_SECONDS = 10.0
+TLS_ACCEPT_PEEK_TIMEOUT_SECONDS = 2.0
+CONTROL_SERVER_REQUEST_QUEUE_SIZE = 128
 SENSITIVE_LOG_PATTERNS = [
     re.compile(r"(omnidoer_session=)[^;\s]+"),
     re.compile(r"(code=)[^&\s]+"),
@@ -90,6 +92,7 @@ class TLSAwareThreadingHTTPServer(ThreadingHTTPServer):
 
     allow_reuse_address = True
     daemon_threads = True
+    request_queue_size = CONTROL_SERVER_REQUEST_QUEUE_SIZE
 
     def __init__(
         self,
@@ -107,13 +110,18 @@ class TLSAwareThreadingHTTPServer(ThreadingHTTPServer):
         context = self.omnidoer_tls_context
         if context is None:
             return conn, addr
+        previous_timeout = conn.gettimeout()
+        conn.settimeout(getattr(self, "omnidoer_tls_accept_peek_timeout_seconds", TLS_ACCEPT_PEEK_TIMEOUT_SECONDS))
         try:
             first = conn.recv(1, socket.MSG_PEEK)
-        except OSError:
+            if not first:
+                raise OSError("client closed before TLS sniff")
+            if first[0] == 0x16:
+                conn = context.wrap_socket(conn, server_side=True)
+            conn.settimeout(previous_timeout)
+        except (OSError, ssl.SSLError):
             conn.close()
             raise
-        if first and first[0] == 0x16:
-            conn = context.wrap_socket(conn, server_side=True)
         return conn, addr
 
 
@@ -655,17 +663,20 @@ class ControlHandler(SimpleHTTPRequestHandler):
             if index:
                 time.sleep(max(0.0, min(interval, 10.0)))
             request = self._get_request_for_session(store, request_id, session)
-            browser = get_browser_context(request.browser_context_id)
-            if browser is None:
-                from omnidoer.omni_takeover.cross_process import read_frame
-
-                frame = read_frame(request.browser_context_id or "")
-                if frame is None:
-                    frame = start_stream(request_id, browser_controller=None, frame_profile=frame_profile)
-            else:
-                frame = start_stream(request_id, browser_controller=browser, frame_profile=frame_profile)
-            store.record_takeover_frame(request_id, frame)
-            self.wfile.write(websocket_text_frame({"event": "takeover_frame", "request_id": request_id, "data": frame}))
+            frame = self._takeover_request_frame(request_id, request, frame_profile=frame_profile)
+            if frame is not None:
+                store.record_takeover_frame(request_id, frame)
+            self.wfile.write(
+                websocket_text_frame(
+                    {
+                        "event": "takeover_frame",
+                        "request_id": request_id,
+                        "data": frame or {},
+                        "error": None if frame else "browser_frame_unavailable",
+                        "secret_exposed_to_model": False,
+                    }
+                )
+            )
             self.wfile.flush()
         self.close_connection = True
 
@@ -726,6 +737,16 @@ class ControlHandler(SimpleHTTPRequestHandler):
         from omnidoer.omni_takeover.cross_process import read_frame
 
         return read_frame(context_id)
+
+    def _takeover_request_frame(self, request_id: str, request, *, frame_profile: str) -> dict | None:
+        browser = get_browser_context(request.browser_context_id)
+        if browser is not None:
+            return start_stream(request_id, browser_controller=browser, frame_profile=frame_profile)
+        if request.browser_context_id:
+            from omnidoer.omni_takeover.cross_process import read_frame
+
+            return read_frame(request.browser_context_id)
+        return None
 
     def _send_browser_context_frame_websocket_stream(
         self,
@@ -976,7 +997,10 @@ class ControlHandler(SimpleHTTPRequestHandler):
 
     def _set_session_cookie(self, session_id: str, token: str) -> None:
         secure = "; Secure" if self.config.mode == "cloud_direct" else ""
-        self.send_header("set-cookie", f"omnidoer_session={session_id}:{token}; HttpOnly; SameSite=Strict{secure}; Path=/")
+        self.send_header(
+            "set-cookie",
+            f"omnidoer_session={session_id}:{token}; HttpOnly; SameSite=Strict{secure}; Path=/; Max-Age={CONTROL_SESSION_TTL_SECONDS}",
+        )
 
     def _remote_key(self) -> str:
         return self.client_address[0] if self.client_address else "unknown"
@@ -994,6 +1018,22 @@ class ControlHandler(SimpleHTTPRequestHandler):
             self._send_json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "rate_limited"})
             return
         self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+
+    def _send_pairing_error(self, exc: Exception) -> None:
+        reason = str(exc).strip() or type(exc).__name__
+        status = HTTPStatus.UNAUTHORIZED
+        code = "pairing_failed"
+        if isinstance(exc, ValueError):
+            lower = reason.lower()
+            if "expired" in lower:
+                status = HTTPStatus.GONE
+                code = "pairing_code_expired"
+            elif "already used" in lower:
+                status = HTTPStatus.CONFLICT
+                code = "pairing_code_used"
+            elif "invalid" in lower:
+                code = "pairing_code_invalid"
+        self._send_json(status, {"error": code, "reason": reason})
 
     def do_GET(self) -> None:
         if self._plain_http_on_direct_tls_port():
@@ -1421,15 +1461,10 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     query = parse_qs(parsed_url.query)
                     frame_profile = normalize_frame_profile(query.get("profile", [None])[0])
                     request = self._get_request_for_session(store, request_id, session)
-                    browser = get_browser_context(request.browser_context_id)
-                    if browser is None:
-                        from omnidoer.omni_takeover.cross_process import read_frame
-
-                        frame = read_frame(request.browser_context_id or "")
-                        if frame is None:
-                            frame = start_stream(request_id, browser_controller=None, frame_profile=frame_profile)
-                    else:
-                        frame = start_stream(request_id, browser_controller=browser, frame_profile=frame_profile)
+                    frame = self._takeover_request_frame(request_id, request, frame_profile=frame_profile)
+                    if frame is None:
+                        self._send_json(HTTPStatus.CONFLICT, {"error": "browser_frame_unavailable", "secret_exposed_to_model": False})
+                        return
                     store.record_takeover_frame(request_id, frame)
                     self._send_json(HTTPStatus.OK, frame)
                 except KeyError:
@@ -1487,8 +1522,8 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 PAIR_RATE_LIMIT.clear(remote_key)
             except Exception as exc:
                 PAIR_RATE_LIMIT.record_failure(remote_key)
-                AuditLog().append("control_pairing_failed", status=type(exc).__name__)
-                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": type(exc).__name__})
+                AuditLog().append("control_pairing_failed", status=type(exc).__name__, reason=str(exc).strip())
+                self._send_pairing_error(exc)
             return
         if path == "/api/console/restart-bridge":
             try:

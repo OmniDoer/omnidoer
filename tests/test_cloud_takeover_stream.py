@@ -160,12 +160,26 @@ class CloudTakeoverStreamTest(unittest.TestCase):
                 public_url="https://agent.example.com",
                 behind_reverse_proxy=True,
             )
+            context_id = "cloud-frame-browser"
             request = RequestStore().create(
                 "human_takeover",
                 origin="https://example.com",
                 top_level_url="https://example.com/antibot",
                 action_summary="user takeover",
-                browser_context_id="missing",
+                browser_context_id=context_id,
+            )
+            write_frame(
+                context_id,
+                frame_from_image(
+                    b"authenticated-takeover-frame",
+                    url="https://example.com/antibot",
+                    origin="https://example.com",
+                    viewport_width=320,
+                    viewport_height=180,
+                    content_type="image/jpeg",
+                    frame_profile="data_saver",
+                    quality=48,
+                ),
             )
             server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
             server.omnidoer_config = config  # type: ignore[attr-defined]
@@ -245,12 +259,26 @@ class CloudTakeoverStreamTest(unittest.TestCase):
                     body = json.loads(response.read().decode())
                 device_id = body["device"]["device_id"]
                 session_id = body["session"]["session_id"]
+                context_id = "takeover-ws-browser"
+                write_frame(
+                    context_id,
+                    frame_from_image(
+                        b"websocket-takeover-frame",
+                        url="https://example.com/antibot",
+                        origin="https://example.com",
+                        viewport_width=320,
+                        viewport_height=180,
+                        content_type="image/jpeg",
+                        frame_profile="data_saver",
+                        quality=48,
+                    ),
+                )
                 takeover = RequestStore().create(
                     "human_takeover",
                     origin="https://example.com",
                     top_level_url="https://example.com/antibot",
                     action_summary="websocket takeover",
-                    browser_context_id="missing",
+                    browser_context_id=context_id,
                     allowed_device_id=device_id,
                 )
                 frame_path = f"/api/ws/requests/{takeover.request_id}/frames"
@@ -443,12 +471,26 @@ class CloudTakeoverStreamTest(unittest.TestCase):
             try:
                 key_a, cookie_a, body_a = pair("Phone A")
                 key_b, cookie_b, body_b = pair("Phone B")
+                context_id = "scoped-browser"
+                write_frame(
+                    context_id,
+                    frame_from_image(
+                        b"scoped-takeover-frame",
+                        url="https://example.com/antibot",
+                        origin="https://example.com",
+                        viewport_width=320,
+                        viewport_height=180,
+                        content_type="image/jpeg",
+                        frame_profile="data_saver",
+                        quality=48,
+                    ),
+                )
                 takeover = RequestStore().create(
                     "human_takeover",
                     origin="https://example.com",
                     top_level_url="https://example.com/antibot",
                     action_summary="scoped takeover",
-                    browser_context_id="missing",
+                    browser_context_id=context_id,
                     allowed_device_id=body_a["device"]["device_id"],
                 )
                 with self.assertRaises(Exception):

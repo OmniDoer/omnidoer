@@ -1,5 +1,6 @@
 import json
 import http.client
+import socket
 import ssl
 import unittest
 from threading import Thread
@@ -86,6 +87,34 @@ class CloudTlsSelfSignedTest(unittest.TestCase):
         finally:
             if conn:
                 conn.close()
+            server.shutdown()
+            server.server_close()
+
+    def test_idle_tls_probe_does_not_block_pairing_page(self) -> None:
+        config = build_config(
+            host="127.0.0.1",
+            port=8787,
+            cloud_direct=True,
+            public_url="https://localhost:8787",
+            tls_self_signed_dev=True,
+        )
+        server = TLSAwareThreadingHTTPServer(("127.0.0.1", 0), ControlHandler, tls_context=_self_signed_context("127.0.0.1"))
+        server.omnidoer_config = config  # type: ignore[attr-defined]
+        server.omnidoer_direct_tls = True  # type: ignore[attr-defined]
+        server.omnidoer_tls_accept_peek_timeout_seconds = 0.1  # type: ignore[attr-defined]
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        idle = None
+        try:
+            idle = socket.create_connection(("127.0.0.1", server.server_address[1]), timeout=5)
+            context = ssl._create_unverified_context()
+            with urllib_request.urlopen(f"https://127.0.0.1:{server.server_address[1]}/pair", context=context, timeout=5) as response:
+                body = response.read().decode()
+            self.assertEqual(response.status, 200)
+            self.assertIn("OmniDoer", body)
+        finally:
+            if idle:
+                idle.close()
             server.shutdown()
             server.server_close()
 

@@ -26,8 +26,8 @@ omnidoer control serve \
 With direct TLS termination, the public URL must use `https://`. If a browser
 accidentally opens the same port with `http://`, OmniDoer returns an HTTPS
 redirect for ordinary paths. Requests containing query strings, including
-one-time pairing URLs, are not redirected from plaintext HTTP; open the exact
-HTTPS pairing URL instead.
+pairing URLs, are not redirected from plaintext HTTP; open the exact HTTPS
+pairing URL instead.
 
 `0.0.0.0` is rejected unless `--cloud-direct` is explicit. Cloud Direct rejects
 non-HTTPS `public-url` unless `--insecure-dev-public` is explicitly provided
@@ -51,17 +51,16 @@ omnidoer control serve \
   --tls-self-signed-dev
 ```
 
-Create a short-lived pairing URL:
+Create a pairing URL:
 
 ```sh
-omnidoer pair --expires 10m --public-url https://agent.example.com
+omnidoer pair --public-url https://agent.example.com
 ```
 
-Only pair devices you control. Pairing codes are one-time and short TTL. After
-pairing, clients use device identity plus cached, revocable sessions. Active
-sessions slide their expiry forward during normal use so users do not need to
-pair repeatedly. Protected API requests are signed by the paired device key and
-replay-protected with nonces.
+Only pair devices you control. Pairing URLs are valid for 24 hours and can pair
+up to 10 browsers/devices by default. After pairing, clients use device
+identity plus long-lived cached, revocable sessions. Protected API requests are
+signed by the paired device key and replay-protected with nonces.
 When the PWA opens from the QR code, it shows the server URL, pairing code,
 broker fingerprint, web broker fingerprint, and expiry before the user confirms
 pairing. The metadata used for that preview is public but not secret-bearing.

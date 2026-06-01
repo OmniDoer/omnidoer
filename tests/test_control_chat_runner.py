@@ -250,6 +250,7 @@ class ControlChatRunnerTest(unittest.TestCase):
     def test_codex_json_events_stream_into_chat_records(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             old_home = os.environ.get("OMNIDOER_HOME")
+            old_thread = os.environ.pop("OMNIDOER_CHAT_THREAD_ID", None)
             os.environ["OMNIDOER_HOME"] = tmp
             try:
                 fake_codex = Path(tmp) / "fake-codex"
@@ -298,6 +299,8 @@ class ControlChatRunnerTest(unittest.TestCase):
                     os.environ.pop("OMNIDOER_HOME", None)
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
+                if old_thread is not None:
+                    os.environ["OMNIDOER_CHAT_THREAD_ID"] = old_thread
 
     def test_chat_runner_can_resume_bound_codex_thread(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

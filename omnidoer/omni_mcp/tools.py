@@ -141,11 +141,11 @@ def _vault_passphrase(arguments: dict) -> str | None:
 
 
 def _create_pairing(arguments: dict) -> dict:
-    from omnidoer.omni_control.pairing import PairingStore, pairing_url, parse_duration_seconds, qr_text
+    from omnidoer.omni_control.pairing import DEFAULT_PAIRING_MAX_USES, PairingStore, pairing_url, parse_duration_seconds, qr_text
     from omnidoer.omni_control.runtime import resolve_pairing_public_url
 
     public_url = resolve_pairing_public_url(str(arguments.get("public_url") or "") or None)
-    expires = arguments.get("expires") or arguments.get("ttl") or "10m"
+    expires = arguments.get("expires") or arguments.get("ttl") or "24h"
     pairing = PairingStore().create(public_url=public_url, ttl_seconds=parse_duration_seconds(expires))
     return {
         "status": "pairing_created",
@@ -154,10 +154,12 @@ def _create_pairing(arguments: dict) -> dict:
         "expires_at": pairing.expires_at,
         "broker_fingerprint": pairing.broker_fingerprint,
         "web_broker_fingerprint": pairing.web_broker_fingerprint,
-        "one_time_pairing": True,
+        "one_time_pairing": False,
+        "max_uses": pairing.max_uses,
+        "remaining_uses": max(0, pairing.max_uses - pairing.use_count),
         "paired_sessions_are_cached": True,
         "pairing_code_model_visible": True,
-        "warning": "Only pair devices you control. Pairing URLs are one-time and short-lived.",
+        "warning": f"Only pair devices you control. Pairing URLs are reusable up to {DEFAULT_PAIRING_MAX_USES} times within 24 hours by default.",
         "secret_exposed_to_model": False,
     }
 

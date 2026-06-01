@@ -19,6 +19,10 @@ from omnidoer.omni_control.state_io import atomic_write_json, locked_state_file
 from omnidoer.paths import state_file
 
 
+DEFAULT_PAIRING_TTL_SECONDS = 24 * 60 * 60
+DEFAULT_PAIRING_MAX_USES = 10
+
+
 def generate_pairing_code() -> str:
     return "-".join(secrets.token_hex(2) for _ in range(3))
 
@@ -27,7 +31,7 @@ def pairing_code_hash(code: str) -> str:
     return hashlib.sha256(f"omnidoer-pairing-v1:{code}".encode("utf-8")).hexdigest()
 
 
-def parse_duration_seconds(value: str | int | None, default: int = 600) -> int:
+def parse_duration_seconds(value: str | int | None, default: int = DEFAULT_PAIRING_TTL_SECONDS) -> int:
     if value is None:
         return default
     if isinstance(value, int):
@@ -52,6 +56,8 @@ class PairingCode:
     expires_at: float
     code: str = ""
     used: bool = False
+    use_count: int = 0
+    max_uses: int = DEFAULT_PAIRING_MAX_USES
     created_at: float = field(default_factory=time.time)
 
     def is_expired(self, now: float | None = None) -> bool:
@@ -65,6 +71,9 @@ class PairingCode:
             "web_broker_fingerprint": self.web_broker_fingerprint,
             "expires_at": self.expires_at,
             "used": self.used,
+            "use_count": self.use_count,
+            "max_uses": self.max_uses,
+            "remaining_uses": max(0, self.max_uses - self.use_count),
         }
 
 
@@ -81,6 +90,11 @@ class PairingStore:
         for key, value in raw.items():
             if "code_hash" not in value and value.get("code"):
                 value = {**value, "code_hash": pairing_code_hash(value["code"])}
+            if "max_uses" not in value:
+                value = {**value, "max_uses": DEFAULT_PAIRING_MAX_USES}
+            if "use_count" not in value:
+                value = {**value, "use_count": 1 if value.get("used") else 0}
+            value = {**value, "used": int(value.get("use_count") or 0) >= int(value.get("max_uses") or 1)}
             value = {**value, "code": ""}
             pairings[key] = PairingCode(**value)
         return pairings
@@ -93,7 +107,13 @@ class PairingStore:
             payload[key] = item
         atomic_write_json(self.path, payload)
 
-    def create(self, *, public_url: str, ttl_seconds: int = 600) -> PairingCode:
+    def create(
+        self,
+        *,
+        public_url: str,
+        ttl_seconds: int = DEFAULT_PAIRING_TTL_SECONDS,
+        max_uses: int = DEFAULT_PAIRING_MAX_USES,
+    ) -> PairingCode:
         with locked_state_file(self.path):
             keypair = load_or_create_keypair()
             web_keypair = load_or_create_web_keypair()
@@ -106,6 +126,7 @@ class PairingStore:
                 broker_fingerprint=keypair.fingerprint,
                 web_broker_fingerprint=web_keypair.fingerprint,
                 expires_at=time.time() + ttl_seconds,
+                max_uses=max(1, int(max_uses)),
             )
             pairings = self._load()
             pairings[pairing.pairing_id] = pairing
@@ -118,11 +139,12 @@ class PairingStore:
             code_hash = pairing_code_hash(code)
             for pairing in pairings.values():
                 if pairing.code_hash == code_hash:
-                    if pairing.used:
+                    if pairing.use_count >= pairing.max_uses:
                         raise ValueError("pairing code already used")
                     if pairing.is_expired(now):
                         raise ValueError("pairing code expired")
-                    pairing.used = True
+                    pairing.use_count += 1
+                    pairing.used = pairing.use_count >= pairing.max_uses
                     pairings[pairing.pairing_id] = pairing
                     self._save(pairings)
                     return pairing
@@ -156,7 +178,7 @@ def ascii_qr(data: str, *, ansi: bool = False) -> str:
     """Render a real QR matrix as compact terminal-safe text.
 
     The pairing code is intentionally present in the QR payload, but it remains
-    short-lived and one-time use. Do not log this output automatically.
+    time-limited and capped to a small number of uses. Do not log this output automatically.
     """
 
     qr = qrcode.QRCode(border=4)

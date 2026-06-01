@@ -15,8 +15,8 @@ from omnidoer.omni_control.state_io import atomic_write_json, locked_state_file
 from omnidoer.paths import state_file
 
 
-CONTROL_SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
-CONTROL_SESSION_REFRESH_WINDOW_SECONDS = 7 * 24 * 60 * 60
+CONTROL_SESSION_TTL_SECONDS = 10 * 365 * 24 * 60 * 60
+CONTROL_SESSION_REFRESH_WINDOW_SECONDS = 365 * 24 * 60 * 60
 
 
 @dataclass
