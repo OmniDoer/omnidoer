@@ -1293,6 +1293,7 @@ let renderedPaymentApprovalRequestId = null;
 let bridgeActivationMonitor = null;
 let bridgeActivationDeadline = 0;
 let activeChatSyncApprovalRequestId = null;
+let autoOpenedSyncRequestId = "";
 let autoSyncRequestInFlight = false;
 let autoSyncRequestLastAt = 0;
 let pairingSuccessHoldUntil = 0;
@@ -1440,6 +1441,27 @@ function updateChatSyncApprovalCard(request = pendingConsoleRestartRequest()) {
   setButtonText("#chat-sync-approval-deny", "deny");
   setButtonText("#chat-sync-approval-approve", "syncApprovalApprove");
   updateChatSyncApprovalButtons();
+  maybeAutoOpenSyncApprovalCard(request);
+}
+
+function maybeAutoOpenSyncApprovalCard(request) {
+  if (!request || request.request_type !== "console_restart" || request.status !== "pending") {
+    if (!request) autoOpenedSyncRequestId = "";
+    return;
+  }
+  if (autoOpenedSyncRequestId === request.request_id) return;
+  const activePanel = document.body.dataset.activePanel || DEFAULT_PANEL_ID;
+  if (activePanel === "requests-panel" || activePanel === "takeover-panel" || takeoverIsActive()) return;
+  autoOpenedSyncRequestId = request.request_id;
+  activatePanel("task-panel", { persist: false });
+  const scrollToCard = () => {
+    document.querySelector("#chat-sync-approval")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  if (window.requestAnimationFrame) {
+    window.requestAnimationFrame(scrollToCard);
+  } else {
+    setTimeout(scrollToCard, 50);
+  }
 }
 
 function setRequestFilter(filter) {
