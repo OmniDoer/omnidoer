@@ -231,6 +231,11 @@ def control_chat_sync_diagnostics(
         and bound_thread
         and (legacy_active or tui_session_active)
     )
+    restart_browser_takeover_relay_available = bool(
+        tui_bridge_active
+        and bound_thread
+        and bool(mcp_sidecar.get("restart_required"))
+    )
     manual_resume_available = bool(
         state == "bound_thread_without_live_cli"
         and native_ready
@@ -269,6 +274,7 @@ def control_chat_sync_diagnostics(
         "requires_restart_for_native_sync": requires_restart,
         "restart_ready": restart_current_console_available,
         "restart_current_console_available": restart_current_console_available,
+        "restart_browser_takeover_relay_available": restart_browser_takeover_relay_available,
         "manual_resume_available": manual_resume_available,
         "activation_action": activation_action,
         "activation_blocker": activation_blocker,

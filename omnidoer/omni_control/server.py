@@ -187,7 +187,9 @@ def console_restart_request_details(
         "native_sync_active": diagnostics.get("native_sync_active"),
         "current_cli_context_attached": diagnostics.get("current_cli_context_attached"),
         "requires_restart_for_native_sync": diagnostics.get("requires_restart_for_native_sync"),
+        "requires_restart_for_browser_takeover_relay": diagnostics.get("requires_restart_for_browser_takeover_relay"),
         "restart_current_console_available": diagnostics.get("restart_current_console_available"),
+        "restart_browser_takeover_relay_available": diagnostics.get("restart_browser_takeover_relay_available"),
         "activation_action": diagnostics.get("activation_action"),
         "active_cli_pid": active_process.get("pid"),
         "active_cli_binary_reason": active_process.get("reason"),
@@ -200,11 +202,19 @@ def console_restart_request_details(
 
 
 def console_restart_request_available(details: dict) -> bool:
-    return bool(
+    browser_relay_restart = bool(
         details.get("thread_id")
-        and details.get("requires_restart_for_native_sync")
-        and details.get("restart_current_console_available")
-        and details.get("activation_action") == "restart_current_console"
+        and details.get("requires_restart_for_browser_takeover_relay")
+        and details.get("restart_browser_takeover_relay_available")
+    )
+    return bool(
+        browser_relay_restart
+        or (
+            details.get("thread_id")
+            and details.get("requires_restart_for_native_sync")
+            and details.get("restart_current_console_available")
+            and details.get("activation_action") == "restart_current_console"
+        )
     )
 
 
@@ -1085,6 +1095,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
             install_status = native_console_bridge_install_status()
             active_process_bridge = active_tui_process_bridge_status(chat_thread_id)
             mcp_sidecar = active_mcp_sidecar_status(chat_thread_id)
+            mcp_sidecar_restart_required = bool(mcp_sidecar.get("restart_required"))
             heartbeat_age = bridge_heartbeat.get("age_seconds")
             self._send_json(
                 HTTPStatus.OK,
@@ -1098,8 +1109,8 @@ class ControlHandler(SimpleHTTPRequestHandler):
                         "tui_bridge_active": tui_bridge_active,
                         "tui_session_active": tui_session_active,
                         "waiting_for_tui_bridge": waiting_for_tui_bridge,
-                        "restart_required": waiting_for_tui_bridge,
-                        "restart_command": tui_restart_command(chat_thread_id) if waiting_for_tui_bridge else None,
+                        "restart_required": waiting_for_tui_bridge or mcp_sidecar_restart_required,
+                        "restart_command": tui_restart_command(chat_thread_id) if waiting_for_tui_bridge or mcp_sidecar_restart_required else None,
                         "native_console_bridge": install_status,
                         "active_tui_process_bridge": active_process_bridge,
                         "mcp_sidecar": mcp_sidecar,

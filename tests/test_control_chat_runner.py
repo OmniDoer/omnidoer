@@ -247,6 +247,22 @@ class ControlChatRunnerTest(unittest.TestCase):
         self.assertFalse(legacy["manual_resume_available"])
         self.assertTrue(legacy["mcp_sidecar_active"])
         self.assertTrue(legacy["requires_restart_for_browser_takeover_relay"])
+        self.assertFalse(legacy["restart_browser_takeover_relay_available"])
+
+        native_with_stale_sidecar = control_chat_sync_diagnostics(
+            thread_id="thread_demo",
+            tui_bridge_active=True,
+            tui_session_active=True,
+            install_status={"ready": True},
+            legacy_relay={"active": False},
+            active_process_bridge={"native_bridge_ready": True, "running_binary_matches_installed": True},
+            mcp_sidecar={"active": True, "restart_required": True, "reason": "source_updated_after_sidecar_start"},
+            bridge_heartbeat_age_seconds=0.2,
+        )
+        self.assertTrue(native_with_stale_sidecar["native_sync_active"])
+        self.assertTrue(native_with_stale_sidecar["requires_restart_for_browser_takeover_relay"])
+        self.assertTrue(native_with_stale_sidecar["restart_browser_takeover_relay_available"])
+        self.assertFalse(native_with_stale_sidecar["requires_restart_for_native_sync"])
         self.assertEqual(legacy["activation_action"], "restart_current_console")
         self.assertEqual(legacy["activation_blocker"], "running_binary_deleted")
         self.assertFalse(legacy["native_sync_active"])

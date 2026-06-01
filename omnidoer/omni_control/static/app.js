@@ -101,6 +101,7 @@ const I18N = {
     copiedCommand: "Command copied",
     copyCommandFailed: "Copy failed",
     restartBridge: "Restart bridge",
+    restartAgentForTakeover: "Restart Agent",
     enableCurrentSessionSync: "Enable current session sync",
     restartBridgeConfirm: "Restart the active Linux console in its tmux pane to enable full phone sync?",
     restartBridgeConfirmDetailed: (threadId) => `Enable full phone sync for thread ${threadId || "current"}? This restarts the active Codex TUI in its tmux pane, keeps the same thread, and loads the installed native bridge.`,
@@ -470,6 +471,7 @@ const I18N = {
     copiedCommand: "命令已复制",
     copyCommandFailed: "复制失败",
     restartBridge: "重启桥接",
+    restartAgentForTakeover: "重启 Agent",
     enableCurrentSessionSync: "启用当前会话同步",
     restartBridgeConfirm: "要在当前 tmux pane 中重启 Linux console 以启用完整手机同步吗？",
     restartBridgeConfirmDetailed: (threadId) => `要为线程 ${threadId || "当前线程"} 启用完整手机同步吗？这会在当前 tmux pane 中重启活跃 Codex TUI，保留同一个 thread，并加载已安装的原生桥接。`,
@@ -2011,7 +2013,7 @@ function runnerCanRestartCurrentConsole(runner = {}) {
   runner = runner || {};
   const diagnostics = runner.sync_diagnostics || {};
   if ("restart_current_console_available" in diagnostics) {
-    return Boolean(diagnostics.restart_current_console_available);
+    return Boolean(diagnostics.restart_current_console_available || diagnostics.restart_browser_takeover_relay_available);
   }
   const legacyRelay = runner.legacy_tui_relay || {};
   return Boolean(runner.restart_command && legacyRelay.active);
@@ -2073,6 +2075,7 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
     placeholderKey = "chatPlaceholder";
     canSend = true;
     diagnosticKey = mcpSidecar.restart_required ? "chatSyncDiagnosticMcpStale" : "chatSyncDiagnosticNative";
+    canRestart = runnerCanRestartCurrentConsole(runner) && Boolean(mcpSidecar.restart_required);
   } else if (runner?.waiting_for_tui_bridge) {
     const legacyRelay = runner.legacy_tui_relay || {};
     const diagnostics = runner.sync_diagnostics || {};
@@ -2107,7 +2110,8 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
   panel.title = detailText;
   if (restart) {
     restart.hidden = !canRestart;
-    restart.textContent = syncRequest ? t("reviewSyncRequest") : t(runnerNeedsCurrentSessionSync(runner) ? "enableCurrentSessionSync" : "restartBridge");
+    const restartLabel = runner.mcp_sidecar?.restart_required ? "restartAgentForTakeover" : runnerNeedsCurrentSessionSync(runner) ? "enableCurrentSessionSync" : "restartBridge";
+    restart.textContent = syncRequest ? t("reviewSyncRequest") : t(restartLabel);
     restart.classList.toggle("primary-action", canRestart && runnerNeedsCurrentSessionSync(runner));
     restart.classList.toggle("pending-sync-request", Boolean(syncRequest));
   }
@@ -4915,6 +4919,9 @@ async function loadRuntimeStatus() {
       detail = t("runtimeBridgeActive");
       if (mcpSidecar.restart_required) {
         detail = `${detail} ${t("runtimeMcpSidecarNeedsRestart")}`;
+        restartCommand = runner.restart_command || "";
+        restartLabelKey = pendingConsoleRestartRequest() ? "reviewSyncRequest" : "restartAgentForTakeover";
+        restartActionAvailable = runnerCanRestartCurrentConsole(runner);
       }
       runtimeState = "tui_bridge_active";
     } else if (runner.thread_id) {

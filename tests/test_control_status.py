@@ -541,10 +541,56 @@ class ControlStatusTest(unittest.TestCase):
                 ), patch(
                     "omnidoer.omni_control.chat_runner.active_tui_process_bridge_status",
                     return_value={"active": True, "pid": 1234, "reason": "native_bridge_active"},
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.active_mcp_sidecar_status",
+                    return_value={"active": True, "restart_required": False, "browser_takeover_relay_current": True, "reason": "ready"},
                 ):
                     visible = handler._visible_requests(RequestStore(), None)
                 self.assertEqual([request for request in visible if request.request_type == "console_restart"], [])
                 self.assertEqual([request for request in RequestStore().list() if request.request_type == "console_restart"], [])
+            finally:
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_visible_requests_creates_console_restart_when_mcp_sidecar_is_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            config = build_config(host="127.0.0.1", port=8787)
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_config = config  # type: ignore[attr-defined]
+            server.omnidoer_chat_thread_id = "thread_active"  # type: ignore[attr-defined]
+            handler = object.__new__(ControlHandler)
+            handler.server = server
+            try:
+                with patch("omnidoer.omni_control.chat_runner.live_tui_bridge_active", return_value=True), patch(
+                    "omnidoer.omni_control.chat_runner.live_tui_session_active",
+                    return_value=True,
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.native_console_bridge_install_status",
+                    return_value={"ready": True, "reason": "ready"},
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.active_tui_process_bridge_status",
+                    return_value={"active": True, "pid": 1234, "reason": "native_bridge_active"},
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.active_mcp_sidecar_status",
+                    return_value={
+                        "active": True,
+                        "restart_required": True,
+                        "browser_takeover_relay_current": False,
+                        "reason": "source_updated_after_sidecar_start",
+                    },
+                ):
+                    visible = handler._visible_requests(RequestStore(), None)
+                restart_requests = [request for request in visible if request.request_type == "console_restart"]
+                self.assertEqual(len(restart_requests), 1)
+                details = restart_requests[0].structured_details
+                self.assertFalse(details["requires_restart_for_native_sync"])
+                self.assertTrue(details["requires_restart_for_browser_takeover_relay"])
+                self.assertTrue(details["restart_browser_takeover_relay_available"])
             finally:
                 server.server_close()
                 if old_home is None:
