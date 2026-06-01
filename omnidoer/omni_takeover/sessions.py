@@ -21,6 +21,12 @@ def unregister_browser_context(browser_context_id: str) -> None:
     stop_relay = getattr(browser_controller, "stop_control_relay", None)
     if callable(stop_relay):
         stop_relay(browser_context_id)
+    try:
+        from omnidoer.omni_takeover.cross_process import clear_browser_relay_context
+
+        clear_browser_relay_context(browser_context_id)
+    except Exception:
+        pass
 
 
 def get_browser_context(browser_context_id: str | None) -> object | None:

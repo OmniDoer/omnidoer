@@ -50,6 +50,43 @@ class TakeoverBrowserRelayTest(unittest.TestCase):
             self.assertEqual(browser.stopped, [])
         self.assertEqual(browser.stopped, ["hooked-browser"])
 
+    def test_registered_browser_context_clears_cross_process_relay_on_exit(self) -> None:
+        class FakeBrowser:
+            def current_url(self):
+                return "https://example.com/checkout"
+
+            def current_origin(self):
+                return "https://example.com"
+
+        frame = {
+            "frame_id": "frame_closed",
+            "captured_at": time.time(),
+            "url": "https://example.com/checkout",
+            "origin": "https://example.com",
+            "viewport": {"width": 320, "height": 240},
+            "content_type": "image/jpeg",
+            "data_b64": "abcd",
+            "transport": {"profile": "data_saver"},
+            "for_control_client_only": True,
+            "not_for_llm": True,
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                with registered_browser_context("cleanup-browser", FakeBrowser()):
+                    write_context_status("cleanup-browser", FakeBrowser())
+                    write_frame("cleanup-browser", frame)
+                    self.assertTrue(any(context["browser_context_id"] == "cleanup-browser" for context in list_contexts()))
+                    self.assertEqual(read_frame("cleanup-browser")["frame_id"], "frame_closed")
+                self.assertFalse(any(context["browser_context_id"] == "cleanup-browser" for context in list_contexts()))
+                self.assertIsNone(read_frame("cleanup-browser"))
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     def test_control_server_cross_process_browser_context_relay(self) -> None:
         class FakeBrowser:
             def current_url(self):

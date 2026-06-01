@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import threading
 import time
 import uuid
@@ -50,6 +51,17 @@ def _read_json(path: Path) -> dict[str, Any] | None:
         return json.loads(path.read_text())
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return None
+
+
+def clear_browser_relay_context(browser_context_id: str) -> None:
+    """Remove cross-process relay state for a browser context that closed cleanly."""
+
+    try:
+        shutil.rmtree(_context_dir(browser_context_id))
+    except FileNotFoundError:
+        pass
+    except OSError:
+        pass
 
 
 def write_context_status(browser_context_id: str, browser_controller: object) -> dict[str, Any]:
