@@ -47,6 +47,35 @@ class ControlChatStoreTest(unittest.TestCase):
             self.assertFalse(public["secret_fields_allowed"])
             self.assertFalse(public["control_client_calls_model"])
 
+    def test_control_pause_and_continue_messages_have_delivery_priority(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = ChatStore(Path(tmp) / "chat.json")
+            older = store.append(role="user", text="normal queued message")
+            continue_message = store.append(
+                role="user",
+                text="Continue Agent",
+                client_message_id="control_continue_123",
+            )
+            pause = store.append(
+                role="user",
+                text="Pause Agent now",
+                client_message_id="control_pause_456",
+            )
+
+            first = store.next_user_message()
+            second = store.next_user_message()
+            third = store.next_user_message()
+
+            self.assertIsNotNone(first)
+            self.assertIsNotNone(second)
+            self.assertIsNotNone(third)
+            assert first is not None
+            assert second is not None
+            assert third is not None
+            self.assertEqual(first.message_id, pause.message_id)
+            self.assertEqual(second.message_id, continue_message.message_id)
+            self.assertEqual(third.message_id, older.message_id)
+
     def test_chat_message_appends_attachment_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             store = ChatStore(Path(tmp) / "chat.json")

@@ -20,6 +20,8 @@ CHAT_RECORD_TYPES = {"message", "delta", "status", "tool_call", "tool_output", "
 MAX_CHAT_TEXT_LENGTH = 20000
 MAX_CHAT_MESSAGES = 80
 MAX_CHAT_RECORDS = 140
+INTERRUPT_CLIENT_MESSAGE_PREFIXES = ("control_pause_", "omnidoer_pause_")
+PRIORITY_CLIENT_MESSAGE_PREFIXES = (*INTERRUPT_CLIENT_MESSAGE_PREFIXES, "control_continue_")
 
 
 @dataclass
@@ -65,6 +67,15 @@ class ChatRecord:
         payload["secret_fields_allowed"] = False
         payload["control_client_calls_model"] = False
         return payload
+
+
+def control_message_priority(message: ChatMessage) -> int:
+    client_message_id = str(message.client_message_id or "")
+    if client_message_id.startswith(INTERRUPT_CLIENT_MESSAGE_PREFIXES):
+        return 0
+    if client_message_id.startswith(PRIORITY_CLIENT_MESSAGE_PREFIXES):
+        return 1
+    return 2
 
 
 class ChatStore:
@@ -245,7 +256,7 @@ class ChatStore:
             next_sequence, messages, next_record_sequence, records = self._load_payload()
             pending = sorted(
                 (message for message in messages.values() if message.role == "user" and message.status == "queued"),
-                key=lambda message: message.sequence,
+                key=lambda message: (control_message_priority(message), message.sequence),
             )
             if not pending:
                 return None
