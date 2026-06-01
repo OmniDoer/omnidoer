@@ -153,6 +153,51 @@ class ControlChatApiTest(unittest.TestCase):
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
 
+    def test_chat_message_post_delivers_the_new_message_not_older_queue(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_chat_thread_id = "thread_active"  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            pane = TmuxPane(pane_id="%1", tty="/dev/pts/2", current_command="codex", process_pid=99)
+            injected: list[tuple[str, str]] = []
+            try:
+                older = ChatStore().append(role="user", text="older queued message")
+                create = urllib_request.Request(
+                    f"{base}/api/chat/messages",
+                    data=json.dumps({"text": "fresh phone message"}).encode(),
+                    headers={"content-type": "application/json"},
+                    method="POST",
+                )
+                with patch("omnidoer.omni_control.chat_runner.live_tui_bridge_active", return_value=False), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.live_tui_bridge_active",
+                    return_value=False,
+                ), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.find_tmux_pane_for_thread",
+                    return_value=pane,
+                ), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.inject_text_into_tmux_pane",
+                    side_effect=lambda pane_id, text: injected.append((pane_id, text)),
+                ):
+                    with urllib_request.urlopen(create, timeout=5) as response:
+                        self.assertEqual(response.status, 201)
+                        message = json.loads(response.read().decode())
+
+                self.assertEqual(injected, [("%1", "fresh phone message")])
+                self.assertEqual(ChatStore().get(older.message_id).status, "queued")
+                self.assertEqual(message["status"], "completed")
+                self.assertEqual(message["live_console_delivery"]["delivered"], True)
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     def test_control_server_chat_api_and_sse_stream(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             old_home = os.environ.get("OMNIDOER_HOME")

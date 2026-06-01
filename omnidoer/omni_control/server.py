@@ -121,6 +121,168 @@ def sanitize_log_value(value: object) -> object:
     return text
 
 
+def console_restart_request_details(
+    *,
+    public_url: str,
+    chat_thread_id: str | None,
+    detached_thread_resume_allowed: bool = False,
+) -> dict:
+    from omnidoer.omni_control.chat_runner import (
+        active_tui_process_bridge_status,
+        control_chat_sync_diagnostics,
+        live_tui_bridge_active,
+        live_tui_session_active,
+        native_console_bridge_install_status,
+        tui_restart_command,
+    )
+    from omnidoer.omni_control.tui_legacy_relay import legacy_tui_relay_status
+
+    tui_bridge_active = live_tui_bridge_active()
+    tui_session_active = live_tui_session_active(chat_thread_id)
+    legacy_relay = legacy_tui_relay_status(chat_thread_id) if chat_thread_id and not tui_bridge_active else {"active": False}
+    install_status = native_console_bridge_install_status()
+    active_process = active_tui_process_bridge_status(chat_thread_id)
+    diagnostics = control_chat_sync_diagnostics(
+        thread_id=chat_thread_id,
+        tui_bridge_active=tui_bridge_active,
+        tui_session_active=tui_session_active,
+        legacy_relay=legacy_relay,
+        install_status=install_status,
+        active_process_bridge=active_process,
+        detached_thread_resume_allowed=detached_thread_resume_allowed,
+    )
+    return {
+        "thread_id": chat_thread_id,
+        "restart_command": tui_restart_command(chat_thread_id),
+        "current_state": diagnostics.get("state"),
+        "native_sync_active": diagnostics.get("native_sync_active"),
+        "current_cli_context_attached": diagnostics.get("current_cli_context_attached"),
+        "requires_restart_for_native_sync": diagnostics.get("requires_restart_for_native_sync"),
+        "restart_current_console_available": diagnostics.get("restart_current_console_available"),
+        "activation_action": diagnostics.get("activation_action"),
+        "active_cli_pid": active_process.get("pid"),
+        "active_cli_binary_reason": active_process.get("reason"),
+        "legacy_transport": legacy_relay.get("transport"),
+        "legacy_pane_id": legacy_relay.get("pane_id"),
+        "after_approval": "Restart the active Codex TUI in its tmux pane, keep the same thread, and load the installed native bridge.",
+    }
+
+
+def console_restart_request_available(details: dict) -> bool:
+    return bool(
+        details.get("thread_id")
+        and details.get("requires_restart_for_native_sync")
+        and details.get("restart_current_console_available")
+        and details.get("activation_action") == "restart_current_console"
+    )
+
+
+def create_or_renew_console_restart_request(
+    store: RequestStore,
+    *,
+    public_url: str,
+    details: dict,
+    session: ControlSession | None = None,
+    requires_pairing: bool = False,
+) -> tuple[object, bool]:
+    chat_thread_id = str(details.get("thread_id") or "")
+    if not chat_thread_id:
+        raise ValueError("chat_thread_not_bound")
+    now = time.time()
+    for existing in store.list():
+        existing_details = existing.structured_details or {}
+        session_allowed = not requires_pairing or not existing.allowed_device_id or (
+            session is not None and existing.allowed_device_id == session.device_id
+        )
+        if (
+            existing.request_type == "console_restart"
+            and existing.status == "pending"
+            and existing_details.get("thread_id") == chat_thread_id
+            and session_allowed
+        ):
+            should_update = False
+            if existing.structured_details != details:
+                existing.structured_details = details
+                should_update = True
+            if existing.expires_at - now < CONSOLE_RESTART_REQUEST_RENEW_WINDOW_SECONDS:
+                existing.expires_at = now + CONSOLE_RESTART_REQUEST_TTL_SECONDS
+                should_update = True
+            if should_update:
+                existing = store.update(existing)
+            return existing, True
+    request = store.create(
+        "console_restart",
+        origin="omnidoer://control",
+        top_level_url=public_url,
+        action_summary=f"Enable current session sync for {chat_thread_id}",
+        risk_level="high",
+        ttl_seconds=CONSOLE_RESTART_REQUEST_TTL_SECONDS,
+        # Current-session sync is a server-level operation. Any paired
+        # Control Client may review it, but approval still requires the
+        # explicit high-risk confirmation payload.
+        allowed_device_id=None,
+        structured_details=details,
+    )
+    return request, False
+
+
+def ensure_current_session_sync_request(
+    store: RequestStore,
+    *,
+    public_url: str,
+    chat_thread_id: str | None,
+    detached_thread_resume_allowed: bool = False,
+    session: ControlSession | None = None,
+    requires_pairing: bool = False,
+):
+    if requires_pairing and session is None:
+        return None
+    details = console_restart_request_details(
+        public_url=public_url,
+        chat_thread_id=chat_thread_id,
+        detached_thread_resume_allowed=detached_thread_resume_allowed,
+    )
+    if not console_restart_request_available(details):
+        return None
+    request, _ = create_or_renew_console_restart_request(
+        store,
+        public_url=public_url,
+        details=details,
+        session=session,
+        requires_pairing=requires_pairing,
+    )
+    return request
+
+
+def start_current_session_sync_request_maintainer(
+    *,
+    config: ControlServiceConfig,
+    chat_thread_id: str | None,
+    detached_thread_resume_allowed: bool = False,
+    interval_seconds: float = 60.0,
+) -> threading.Thread | None:
+    if not chat_thread_id:
+        return None
+
+    def maintain() -> None:
+        while True:
+            try:
+                ensure_current_session_sync_request(
+                    RequestStore(),
+                    public_url=config.public_url,
+                    chat_thread_id=chat_thread_id,
+                    detached_thread_resume_allowed=detached_thread_resume_allowed,
+                    requires_pairing=False,
+                )
+            except Exception:
+                pass
+            time.sleep(max(5.0, interval_seconds))
+
+    thread = threading.Thread(target=maintain, name="omnidoer-current-session-sync-request", daemon=True)
+    thread.start()
+    return thread
+
+
 def _self_signed_context(host: str) -> ssl.SSLContext:
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     names: list[x509.GeneralName] = [x509.DNSName("localhost")]
@@ -582,21 +744,17 @@ class ControlHandler(SimpleHTTPRequestHandler):
         return not request.allowed_device_id or (session is not None and request.allowed_device_id == session.device_id)
 
     def _console_restart_request_available(self, details: dict) -> bool:
-        return bool(
-            details.get("thread_id")
-            and details.get("requires_restart_for_native_sync")
-            and details.get("restart_current_console_available")
-            and details.get("activation_action") == "restart_current_console"
-        )
+        return console_restart_request_available(details)
 
     def _ensure_current_session_sync_request(self, store: RequestStore, session: ControlSession | None):
-        if self._requires_pairing() and session is None:
-            return None
-        details = self._console_restart_request_details()
-        if not self._console_restart_request_available(details):
-            return None
-        request, _ = self._create_console_restart_request(store, session, details=details)
-        return request
+        return ensure_current_session_sync_request(
+            store,
+            public_url=self.config.public_url,
+            chat_thread_id=getattr(self.server, "omnidoer_chat_thread_id", None),
+            detached_thread_resume_allowed=bool(getattr(self.server, "omnidoer_chat_allow_detached_thread_resume", False)),
+            session=session,
+            requires_pairing=self._requires_pairing(),
+        )
 
     def _visible_requests(self, store: RequestStore, session: ControlSession | None):
         self._ensure_current_session_sync_request(store, session)
@@ -631,7 +789,6 @@ class ControlHandler(SimpleHTTPRequestHandler):
         from omnidoer.omni_control.tui_legacy_relay import (
             LegacyTuiRelay,
             legacy_tui_relay_status,
-            message_requests_priority_delivery,
         )
 
         status = legacy_tui_relay_status(chat_thread_id)
@@ -646,11 +803,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
             message = ChatStore().get(message_id)
         except KeyError:
             message = None
-        delivered = (
-            relay.run_message(message_id)
-            if message is not None and message_requests_priority_delivery(message)
-            else relay.run_once()
-        )
+        delivered = relay.run_message(message_id) if message is not None else False
         return {
             "attempted": True,
             "delivered": bool(delivered),
@@ -725,85 +878,20 @@ class ControlHandler(SimpleHTTPRequestHandler):
         return result
 
     def _console_restart_request_details(self) -> dict:
-        chat_thread_id = getattr(self.server, "omnidoer_chat_thread_id", None)
-        from omnidoer.omni_control.chat_runner import (
-            active_tui_process_bridge_status,
-            control_chat_sync_diagnostics,
-            live_tui_bridge_active,
-            live_tui_session_active,
-            native_console_bridge_install_status,
-            tui_restart_command,
-        )
-        from omnidoer.omni_control.tui_legacy_relay import legacy_tui_relay_status
-
-        tui_bridge_active = live_tui_bridge_active()
-        tui_session_active = live_tui_session_active(chat_thread_id)
-        legacy_relay = legacy_tui_relay_status(chat_thread_id) if chat_thread_id and not tui_bridge_active else {"active": False}
-        install_status = native_console_bridge_install_status()
-        active_process = active_tui_process_bridge_status(chat_thread_id)
-        diagnostics = control_chat_sync_diagnostics(
-            thread_id=chat_thread_id,
-            tui_bridge_active=tui_bridge_active,
-            tui_session_active=tui_session_active,
-            legacy_relay=legacy_relay,
-            install_status=install_status,
-            active_process_bridge=active_process,
+        return console_restart_request_details(
+            public_url=self.config.public_url,
+            chat_thread_id=getattr(self.server, "omnidoer_chat_thread_id", None),
             detached_thread_resume_allowed=bool(getattr(self.server, "omnidoer_chat_allow_detached_thread_resume", False)),
         )
-        return {
-            "thread_id": chat_thread_id,
-            "restart_command": tui_restart_command(chat_thread_id),
-            "current_state": diagnostics.get("state"),
-            "native_sync_active": diagnostics.get("native_sync_active"),
-            "current_cli_context_attached": diagnostics.get("current_cli_context_attached"),
-            "requires_restart_for_native_sync": diagnostics.get("requires_restart_for_native_sync"),
-            "restart_current_console_available": diagnostics.get("restart_current_console_available"),
-            "activation_action": diagnostics.get("activation_action"),
-            "active_cli_pid": active_process.get("pid"),
-            "active_cli_binary_reason": active_process.get("reason"),
-            "legacy_transport": legacy_relay.get("transport"),
-            "legacy_pane_id": legacy_relay.get("pane_id"),
-            "after_approval": "Restart the active Codex TUI in its tmux pane, keep the same thread, and load the installed native bridge.",
-        }
 
     def _create_console_restart_request(self, store: RequestStore, session: ControlSession | None, *, details: dict | None = None) -> tuple[object, bool]:
-        details = dict(details or self._console_restart_request_details())
-        chat_thread_id = str(details.get("thread_id") or "")
-        if not chat_thread_id:
-            raise ValueError("chat_thread_not_bound")
-        now = time.time()
-        for existing in store.list():
-            existing_details = existing.structured_details or {}
-            if (
-                existing.request_type == "console_restart"
-                and existing.status == "pending"
-                and existing_details.get("thread_id") == chat_thread_id
-                and self._request_allowed_for_session(existing, session)
-            ):
-                should_update = False
-                if existing.structured_details != details:
-                    existing.structured_details = details
-                    should_update = True
-                if existing.expires_at - now < CONSOLE_RESTART_REQUEST_RENEW_WINDOW_SECONDS:
-                    existing.expires_at = now + CONSOLE_RESTART_REQUEST_TTL_SECONDS
-                    should_update = True
-                if should_update:
-                    existing = store.update(existing)
-                return existing, True
-        request = store.create(
-            "console_restart",
-            origin="omnidoer://control",
-            top_level_url=self.config.public_url,
-            action_summary=f"Enable current session sync for {chat_thread_id}",
-            risk_level="high",
-            ttl_seconds=CONSOLE_RESTART_REQUEST_TTL_SECONDS,
-            # Current-session sync is a server-level operation. Any paired
-            # Control Client may review it, but approval still requires the
-            # explicit high-risk confirmation payload.
-            allowed_device_id=None,
-            structured_details=details,
+        return create_or_renew_console_restart_request(
+            store,
+            public_url=self.config.public_url,
+            details=dict(details or self._console_restart_request_details()),
+            session=session,
+            requires_pairing=self._requires_pairing(),
         )
-        return request, False
 
     def _set_session_cookie(self, session_id: str, token: str) -> None:
         secure = "; Secure" if self.config.mode == "cloud_direct" else ""
@@ -1798,6 +1886,12 @@ def serve(
 
     threading.Thread(target=cleanup_chat_uploads, name="omnidoer-chat-upload-cleanup", daemon=True).start()
     record_control_service_runtime(config)
+    if chat_thread_id:
+        start_current_session_sync_request_maintainer(
+            config=config,
+            chat_thread_id=chat_thread_id,
+            detached_thread_resume_allowed=bool(chat_allow_detached_thread_resume),
+        )
     if tls_self_signed_dev:
         print("WARNING: --tls-self-signed-dev is for localhost/test only. Use a real certificate or reverse proxy for Cloud Direct.")
     if insecure_dev_public:

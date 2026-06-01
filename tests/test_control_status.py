@@ -16,6 +16,7 @@ from omnidoer.omni_control.server import (
     CONSOLE_RESTART_REQUEST_RENEW_WINDOW_SECONDS,
     CONSOLE_RESTART_REQUEST_TTL_SECONDS,
     ControlHandler,
+    ensure_current_session_sync_request,
 )
 from omnidoer.omni_control.sessions import ControlSession
 
@@ -387,6 +388,77 @@ class ControlStatusTest(unittest.TestCase):
                 self.assertEqual(renewed.structured_details["legacy_pane_id"], "%2")
             finally:
                 server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_current_session_sync_request_helper_renews_without_active_browser_session(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            config = build_config(
+                host="0.0.0.0",
+                port=8787,
+                public_url="https://example.test:8787",
+                cloud_direct=True,
+                insecure_dev_public=True,
+            )
+            try:
+                with patch("omnidoer.omni_control.chat_runner.live_tui_bridge_active", return_value=False), patch(
+                    "omnidoer.omni_control.chat_runner.live_tui_session_active",
+                    return_value=True,
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.native_console_bridge_install_status",
+                    return_value={"ready": True, "reason": "ready"},
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.active_tui_process_bridge_status",
+                    return_value={"active": True, "pid": 1234, "reason": "running_binary_deleted"},
+                ), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.legacy_tui_relay_status",
+                    return_value={"active": True, "transport": "tmux", "pane_id": "%1"},
+                ):
+                    request = ensure_current_session_sync_request(
+                        RequestStore(),
+                        public_url=config.public_url,
+                        chat_thread_id="thread_active",
+                        requires_pairing=False,
+                    )
+                self.assertIsNotNone(request)
+                assert request is not None
+                self.assertEqual(request.request_type, "console_restart")
+                self.assertEqual(request.status, "pending")
+
+                request.expires_at = time.time() + CONSOLE_RESTART_REQUEST_RENEW_WINDOW_SECONDS - 1
+                RequestStore().update(request)
+
+                with patch("omnidoer.omni_control.chat_runner.live_tui_bridge_active", return_value=False), patch(
+                    "omnidoer.omni_control.chat_runner.live_tui_session_active",
+                    return_value=True,
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.native_console_bridge_install_status",
+                    return_value={"ready": True, "reason": "ready"},
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.active_tui_process_bridge_status",
+                    return_value={"active": True, "pid": 5678, "reason": "running_binary_deleted"},
+                ), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.legacy_tui_relay_status",
+                    return_value={"active": True, "transport": "tmux", "pane_id": "%2"},
+                ):
+                    renewed = ensure_current_session_sync_request(
+                        RequestStore(),
+                        public_url=config.public_url,
+                        chat_thread_id="thread_active",
+                        requires_pairing=False,
+                    )
+
+                self.assertIsNotNone(renewed)
+                assert renewed is not None
+                self.assertEqual(renewed.request_id, request.request_id)
+                self.assertGreater(renewed.expires_at, time.time() + CONSOLE_RESTART_REQUEST_TTL_SECONDS - 5)
+                self.assertEqual(renewed.structured_details["active_cli_pid"], 5678)
+                self.assertEqual(renewed.structured_details["legacy_pane_id"], "%2")
+            finally:
                 if old_home is None:
                     os.environ.pop("OMNIDOER_HOME", None)
                 else:
