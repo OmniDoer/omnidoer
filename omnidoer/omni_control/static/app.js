@@ -4041,11 +4041,11 @@ async function refreshPairingState() {
     deviceText: identity.deviceId
   });
   try {
-    const sessions = await signedFetch("/api/sessions", { cache: "no-store" }).then((r) => {
-      if (!r.ok) throw new Error("session unauthorized");
+    const auth = await signedFetch("/api/auth/check", { cache: "no-store" }).then((r) => {
+      if (!r.ok) throw new Error("auth unauthorized");
       return r.json();
     });
-    const current = sessions.find((session) => session.session_id === identity.sessionId);
+    const current = auth.session;
     if (!current) {
       cachedPairingAuthenticated = true;
       setPairingUiState({

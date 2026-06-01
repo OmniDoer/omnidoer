@@ -519,6 +519,25 @@ class CloudControlServiceTest(unittest.TestCase):
                 with self.assertRaises(Exception):
                     urllib_request.urlopen(authed, timeout=5)
 
+                signed = sign_request(device_key, device_id=device_id, session_id=session_id, method="GET", path="/api/auth/check", nonce="nonce-auth-check")
+                auth_check = urllib_request.Request(
+                    f"{base}/api/auth/check",
+                    headers={
+                        "cookie": cookie,
+                        **PROXY_HEADERS,
+                        DEVICE_ID_HEADER: device_id,
+                        DEVICE_TS_HEADER: signed["timestamp"],
+                        DEVICE_NONCE_HEADER: signed["nonce"],
+                        DEVICE_SIG_HEADER: signed["signature"],
+                    },
+                )
+                with urllib_request.urlopen(auth_check, timeout=5) as response:
+                    payload = json.loads(response.read().decode())
+                self.assertTrue(payload["authenticated"])
+                self.assertEqual(payload["device_id"], device_id)
+                self.assertEqual(payload["session"]["session_id"], session_id)
+                self.assertFalse(payload["secret_fields_allowed"])
+
                 signed = sign_request(device_key, device_id=device_id, session_id=session_id, method="GET", path="/api/requests", nonce="nonce-cookieless")
                 recovered_without_cookie = urllib_request.Request(
                     f"{base}/api/requests",
@@ -533,6 +552,23 @@ class CloudControlServiceTest(unittest.TestCase):
                 )
                 with urllib_request.urlopen(recovered_without_cookie, timeout=5) as response:
                     self.assertEqual(response.status, 200)
+
+                signed = sign_request(device_key, device_id=device_id, session_id=session_id, method="GET", path="/api/auth/check", nonce="nonce-auth-check-cookieless")
+                auth_check_without_cookie = urllib_request.Request(
+                    f"{base}/api/auth/check",
+                    headers={
+                        **PROXY_HEADERS,
+                        DEVICE_ID_HEADER: device_id,
+                        DEVICE_SESSION_ID_HEADER: session_id,
+                        DEVICE_TS_HEADER: signed["timestamp"],
+                        DEVICE_NONCE_HEADER: signed["nonce"],
+                        DEVICE_SIG_HEADER: signed["signature"],
+                    },
+                )
+                with urllib_request.urlopen(auth_check_without_cookie, timeout=5) as response:
+                    payload = json.loads(response.read().decode())
+                self.assertTrue(payload["authenticated"])
+                self.assertEqual(payload["session"]["session_id"], session_id)
 
                 signed = sign_request(device_key, device_id=device_id, session_id=session_id, method="GET", path="/api/broker-key", nonce="nonce-broker-key")
                 broker_key = urllib_request.Request(

@@ -1195,6 +1195,29 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 return
             self._send_json(HTTPStatus.OK, pairing.to_public_dict())
             return
+        if path == "/api/auth/check":
+            try:
+                session = self._require_access()
+            except PermissionError:
+                self._send_json(
+                    HTTPStatus.UNAUTHORIZED,
+                    {
+                        "authenticated": False,
+                        "error": "unauthorized",
+                        "secret_fields_allowed": False,
+                    },
+                )
+                return
+            self._send_json(
+                HTTPStatus.OK,
+                {
+                    "authenticated": True,
+                    "session": session.to_public_dict() if session else None,
+                    "device_id": session.device_id if session else None,
+                    "secret_fields_allowed": False,
+                },
+            )
+            return
         if path == "/api/broker-key":
             try:
                 self._require_access()

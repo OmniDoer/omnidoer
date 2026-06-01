@@ -404,6 +404,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("loadPairingDetails", app)
         self.assertIn("pairing_id", app)
         self.assertIn("/api/pair", app)
+        self.assertIn("/api/auth/check", app)
         self.assertIn("/api/devices", app)
         self.assertIn("/api/sessions", app)
         self.assertIn("revokeDevice", app)
