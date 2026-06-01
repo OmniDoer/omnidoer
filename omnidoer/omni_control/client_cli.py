@@ -7,6 +7,7 @@ import json
 import os
 import shlex
 import sys
+import time
 
 from omnidoer.omni_control.cloud import build_config, security_status
 from omnidoer.omni_control.chat import ChatStore
@@ -126,6 +127,22 @@ def _collect_sync_status(thread_id: str | None = None, codex_bin: str | None = N
     }
 
 
+def _wait_for_native_sync_status(
+    *,
+    thread_id: str | None = None,
+    codex_bin: str | None = None,
+    timeout_seconds: float = 30.0,
+) -> dict:
+    deadline = time.time() + max(0.0, timeout_seconds)
+    last_status = _collect_sync_status(thread_id, codex_bin)
+    while time.time() <= deadline:
+        if last_status["sync_diagnostics"]["native_sync_active"]:
+            return {"verified": True, "sync_status": last_status}
+        time.sleep(0.5)
+        last_status = _collect_sync_status(thread_id, codex_bin)
+    return {"verified": False, "sync_status": last_status}
+
+
 def handle_control_command(args) -> int:
     command = args.control_command
     if command == "serve":
@@ -198,6 +215,9 @@ def handle_control_command(args) -> int:
                 rerun.extend(["--thread-id", status["thread_id"]])
             if args.codex_bin:
                 rerun.extend(["--codex-bin", args.codex_bin])
+            if args.wait:
+                rerun.append("--wait")
+                rerun.extend(["--timeout", args.timeout])
             print(
                 json.dumps(
                     {
@@ -212,6 +232,7 @@ def handle_control_command(args) -> int:
                 )
             )
             return 0
+        timeout_seconds = parse_duration_seconds(args.timeout)
         if not diagnostics["restart_current_console_available"]:
             print(
                 json.dumps(
@@ -231,18 +252,30 @@ def handle_control_command(args) -> int:
             status["thread_id"],
             restart_command=status["restart_command"],
         )
+        verification = None
+        if args.wait:
+            verification = _wait_for_native_sync_status(
+                thread_id=status["thread_id"],
+                codex_bin=args.codex_bin,
+                timeout_seconds=timeout_seconds,
+            )
+        response = {
+            "status": "restart_started",
+            "result": result,
+            "sync_status_before_restart": status,
+        }
+        if verification is not None:
+            response["verified"] = verification["verified"]
+            response["sync_status_after_restart"] = verification["sync_status"]
+            response["status"] = "native_sync_active" if verification["verified"] else "restart_started_wait_timeout"
         print(
             json.dumps(
-                {
-                    "status": "restart_started",
-                    "result": result,
-                    "sync_status_before_restart": status,
-                },
+                response,
                 indent=2,
                 sort_keys=True,
             )
         )
-        return 0
+        return 0 if verification is None or verification["verified"] else 1
     if command == "wait-request":
         print("waiting_for_control_client=true", flush=True)
         request = wait_for_request_completion(

@@ -124,6 +124,8 @@ def build_parser() -> argparse.ArgumentParser:
     enable_sync.add_argument("--thread-id")
     enable_sync.add_argument("--codex-bin")
     enable_sync.add_argument("--yes", action="store_true")
+    enable_sync.add_argument("--wait", action="store_true")
+    enable_sync.add_argument("--timeout", default="30s")
     wait_request = control_sub.add_parser("wait-request")
     wait_request.add_argument("request_id")
     wait_request.add_argument("--timeout", default="10m")

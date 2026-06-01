@@ -364,12 +364,14 @@ class CliTest(unittest.TestCase):
 
         from omnidoer.omni_control.client_cli import handle_control_command
 
-        def args(yes: bool) -> SimpleNamespace:
+        def args(yes: bool, wait: bool = False) -> SimpleNamespace:
             return SimpleNamespace(
                 control_command="enable-sync",
                 thread_id="thread_active",
                 codex_bin="/tmp/codex",
                 yes=yes,
+                wait=wait,
+                timeout="1s",
             )
 
         common_patches = [
@@ -407,6 +409,12 @@ class CliTest(unittest.TestCase):
             self.assertIn("--codex-bin /tmp/codex", payload["rerun_with"])
             restart.assert_not_called()
 
+            wait_dry_run = io.StringIO()
+            with redirect_stdout(wait_dry_run):
+                self.assertEqual(handle_control_command(args(False, wait=True)), 0)
+            payload = json.loads(wait_dry_run.getvalue())
+            self.assertIn("--wait --timeout 1s", payload["rerun_with"])
+
             started = io.StringIO()
             with redirect_stdout(started):
                 self.assertEqual(handle_control_command(args(True)), 0)
@@ -416,6 +424,49 @@ class CliTest(unittest.TestCase):
                 "thread_active",
                 restart_command="omnidoer console resume thread_active",
             )
+
+    def test_control_enable_sync_can_wait_until_native_bridge_is_verified(self) -> None:
+        from contextlib import redirect_stdout
+
+        from omnidoer.omni_control.client_cli import handle_control_command
+
+        args = SimpleNamespace(
+            control_command="enable-sync",
+            thread_id="thread_active",
+            codex_bin="/tmp/codex",
+            yes=True,
+            wait=True,
+            timeout="2s",
+        )
+        bridge_states = [False, True]
+
+        def bridge_active() -> bool:
+            return bridge_states.pop(0) if bridge_states else True
+
+        with patch("omnidoer.omni_control.chat_runner.live_tui_bridge_active", side_effect=bridge_active), patch(
+            "omnidoer.omni_control.chat_runner.live_tui_session_active",
+            return_value=True,
+        ), patch(
+            "omnidoer.omni_control.chat_runner.native_console_bridge_install_status",
+            return_value={"ready": True, "reason": "ready"},
+        ), patch(
+            "omnidoer.omni_control.chat_runner.active_tui_process_bridge_status",
+            return_value={"active": True, "native_bridge_ready": True, "reason": "ready"},
+        ), patch(
+            "omnidoer.omni_control.tui_legacy_relay.legacy_tui_relay_status",
+            return_value={"active": True},
+        ), patch(
+            "omnidoer.omni_control.tui_legacy_relay.restart_tmux_pane_for_bridge",
+            return_value={"status": "restart_started", "pane_id": "%1"},
+        ):
+            output = io.StringIO()
+            with redirect_stdout(output):
+                self.assertEqual(handle_control_command(args), 0)
+
+        payload = json.loads(output.getvalue())
+        self.assertEqual(payload["status"], "native_sync_active")
+        self.assertTrue(payload["verified"])
+        self.assertTrue(payload["sync_status_after_restart"]["sync_diagnostics"]["native_sync_active"])
 
     def test_cred_request_can_be_saved_to_vault_without_echoing_secret(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
