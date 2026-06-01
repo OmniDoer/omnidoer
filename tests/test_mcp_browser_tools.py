@@ -59,7 +59,7 @@ class McpBrowserToolsTest(unittest.TestCase):
 
     def test_mcp_browser_detects_challenge_and_antibot(self) -> None:
         with DemoServerFixture() as demo:
-            opened = call_tool("browser.open", {"url": f"{demo.origin}/captcha"})
+            opened = call_tool("browser.open", {"url": f"{demo.origin}/captcha", "auto_takeover": False})
             if opened.get("status") == "unavailable":
                 self.skipTest("playwright chromium unavailable")
             challenge = call_tool("browser.detect_challenge", {})
@@ -70,7 +70,7 @@ class McpBrowserToolsTest(unittest.TestCase):
             self.assertTrue(challenge["takeover_created"])
             self.assertEqual(challenge["request"]["browser_context_id"], "mcp-browser")
             RequestStore().release_takeover(challenge["request"]["request_id"])
-            call_tool("browser.open", {"url": f"{demo.origin}/antibot"})
+            call_tool("browser.open", {"url": f"{demo.origin}/antibot", "auto_takeover": False})
             antibot = call_tool("browser.detect_antibot", {})
             self.assertTrue(antibot["antibot_detected"])
             self.assertTrue(antibot["requires_human_takeover"])
@@ -78,6 +78,21 @@ class McpBrowserToolsTest(unittest.TestCase):
             self.assertTrue(antibot["takeover_created"])
             self.assertEqual(antibot["request"]["browser_context_id"], "mcp-browser")
             RequestStore().release_takeover(antibot["request"]["request_id"])
+
+    def test_mcp_browser_open_auto_pauses_on_challenge(self) -> None:
+        with DemoServerFixture() as demo:
+            opened = call_tool("browser.open", {"url": f"{demo.origin}/captcha"})
+            if opened.get("status") == "unavailable":
+                self.skipTest("playwright chromium unavailable")
+            self.assertEqual(opened["status"], "paused_for_human_takeover")
+            self.assertEqual(opened["browser_action"], "browser.open")
+            self.assertEqual(opened["browser_action_result"]["status"], "opened")
+            self.assertEqual(opened["challenge_type"], "captcha")
+            self.assertTrue(opened["requires_human_takeover"])
+            self.assertTrue(opened["agent_paused"])
+            self.assertTrue(opened["takeover_created"])
+            self.assertEqual(opened["request"]["browser_context_id"], "mcp-browser")
+            RequestStore().release_takeover(opened["request"]["request_id"])
 
     def test_mcp_browser_selects_plain_form_values(self) -> None:
         html = quote("<select id='mode'><option value='slow'>Slow</option><option value='fast'>Fast</option></select>")

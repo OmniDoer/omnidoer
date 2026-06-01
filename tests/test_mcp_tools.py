@@ -253,6 +253,123 @@ class McpToolsTest(unittest.TestCase):
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
 
+    def test_browser_open_auto_pauses_when_challenge_is_detected(self) -> None:
+        class FakeBrowser:
+            def __init__(self):
+                self.url = "https://example.com/start"
+
+            def open(self, url):
+                self.url = url
+                return {"status": "opened", "url": url, "secret_exposed_to_model": False}
+
+            def current_origin(self):
+                return "https://example.com"
+
+            def current_url(self):
+                return self.url
+
+            def detect_challenge(self):
+                return "captcha" if "captcha" in self.url else None
+
+            def detect_antibot(self):
+                return False
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                browser = FakeBrowser()
+                with patch("omnidoer.omni_mcp.runtime.get_browser", return_value=browser):
+                    result = call_tool("browser.open", {"url": "https://example.com/captcha"})
+                self.assertEqual(result["status"], "paused_for_human_takeover")
+                self.assertEqual(result["browser_action"], "browser.open")
+                self.assertEqual(result["browser_action_result"]["status"], "opened")
+                self.assertEqual(result["challenge_type"], "captcha")
+                self.assertFalse(result["antibot_detected"])
+                self.assertTrue(result["requires_human_takeover"])
+                self.assertTrue(result["agent_paused"])
+                self.assertTrue(result["takeover_created"])
+                self.assertFalse(result["reused"])
+                self.assertEqual(result["request"]["request_type"], "human_takeover")
+                self.assertEqual(result["request"]["browser_context_id"], "mcp-browser")
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_browser_open_auto_pause_can_wait_until_user_releases_control(self) -> None:
+        class FakeBrowser:
+            def __init__(self):
+                self.url = "https://example.com/start"
+
+            def open(self, url):
+                self.url = url
+                return {"status": "opened", "url": url, "secret_exposed_to_model": False}
+
+            def current_origin(self):
+                return "https://example.com"
+
+            def current_url(self):
+                return self.url
+
+            def detect_challenge(self):
+                return None
+
+            def detect_antibot(self):
+                return "antibot" in self.url
+
+            def takeover_frame(self, *, frame_profile=None):
+                return {
+                    "frame_id": f"auto_{frame_profile}",
+                    "captured_at": time.time(),
+                    "url": self.current_url(),
+                    "origin": self.current_origin(),
+                    "viewport": {"width": 320, "height": 240},
+                    "content_type": "image/jpeg",
+                    "data_b64": "abcd",
+                    "transport": {"profile": frame_profile},
+                    "for_control_client_only": True,
+                    "not_for_llm": True,
+                }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                def release_created_takeover() -> None:
+                    deadline = time.time() + 2
+                    while time.time() < deadline:
+                        active = [
+                            req
+                            for req in RequestStore().list()
+                            if req.browser_context_id == "mcp-browser" and req.status == "user_control"
+                        ]
+                        if active:
+                            RequestStore().release_takeover(active[0].request_id)
+                            return
+                        time.sleep(0.05)
+
+                Thread(target=release_created_takeover, daemon=True).start()
+                with patch("omnidoer.omni_mcp.runtime.get_browser", return_value=FakeBrowser()):
+                    result = call_tool(
+                        "browser.open",
+                        {"url": "https://example.com/antibot", "wait": True, "takeover_wait_timeout_seconds": 3},
+                    )
+                self.assertEqual(result["status"], "takeover_released")
+                self.assertEqual(result["browser_action"], "browser.open")
+                self.assertTrue(result["antibot_detected"])
+                self.assertTrue(result["takeover_created"])
+                self.assertTrue(result["agent_resumed"])
+                self.assertFalse(result["agent_paused"])
+                self.assertTrue(result["completed_by_user"])
+                self.assertNotIn("abcd", repr(result))
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     def test_browser_detect_challenge_creates_takeover_request(self) -> None:
         class FakeBrowser:
             def current_origin(self):
