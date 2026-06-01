@@ -346,6 +346,8 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn(".chat-record .chat-message-text", (static_root() / "style.css").read_text())
         self.assertIn(".chat-message-text.markdown-text", (static_root() / "style.css").read_text())
         self.assertIn(".markdown-text pre code", (static_root() / "style.css").read_text())
+        self.assertIn('body[data-active-panel="task-panel"] .app-header img', (static_root() / "style.css").read_text())
+        self.assertIn("height: calc(100svh - 142px)", (static_root() / "style.css").read_text())
         self.assertIn(".chat-session-status p", (static_root() / "style.css").read_text())
         self.assertIn("runtime-copy-button", (static_root() / "style.css").read_text())
         self.assertIn("runtime-restart-button", (static_root() / "style.css").read_text())

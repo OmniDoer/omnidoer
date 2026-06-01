@@ -1293,17 +1293,68 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
   padding: 10px;
 }
 @media (max-width: 760px) {
-  main { padding: 8px; }
+  main {
+    padding: 5px 6px;
+    gap: 5px;
+  }
   .app-header {
     display: grid;
-    grid-template-columns: 42px minmax(0, 1fr) auto;
-    gap: 10px;
-    padding: 2px 0 0;
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    gap: 6px;
+    min-height: 32px;
+    padding: 0;
   }
-  .app-header h1 { font-size: 1.16rem; line-height: 1.15; }
+  .app-header h1 {
+    font-size: 0.98rem;
+    line-height: 1.05;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .app-header p { display: none; }
-  .app-header img { width: 42px; height: 42px; }
-  .language-control select { min-height: 36px; padding: 7px 28px 7px 9px; }
+  .app-header img { width: 30px; height: 30px; border-radius: 6px; }
+  #language-select {
+    min-width: 82px;
+    min-height: 30px;
+    padding: 4px 24px 4px 8px;
+    border-radius: 7px;
+    font-size: 0.88rem;
+    line-height: 1;
+  }
+  .section-tabs {
+    gap: 2px;
+    padding: 3px;
+    border-radius: 7px;
+    box-shadow: none;
+  }
+  .section-tabs a {
+    min-height: 30px;
+    padding: 5px 9px;
+    border-radius: 6px;
+    font-size: 0.88rem;
+    line-height: 1;
+  }
+  .section-tabs a.active {
+    box-shadow: none;
+  }
+  .section-tabs a.has-open-requests::after,
+  .section-tabs a.has-active-takeover::after,
+  .section-tabs a.has-browser-preview::after {
+    min-width: 18px;
+    height: 18px;
+    margin-left: 5px;
+    font-size: 0.66rem;
+  }
+  body[data-active-panel="task-panel"] .app-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  body[data-active-panel="task-panel"] .app-header img {
+    display: none;
+  }
+  body[data-active-panel="task-panel"] .app-header h1 {
+    font-size: 0.86rem;
+    color: #334155;
+  }
   .panel-heading, .request-header { display: block; }
   .takeover-text-row {
     grid-template-columns: 1fr 1fr;
@@ -1313,8 +1364,17 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
   }
   .status-strip {
     display: flex;
-    padding: 3px 8px;
-    font-size: 0.78rem;
+    min-height: 26px;
+    padding: 2px 7px;
+    font-size: 0.74rem;
+  }
+  .status-strip #runtime-mode {
+    gap: 5px;
+    max-width: 48vw;
+  }
+  .status-strip #runtime-mode::before {
+    width: 6px;
+    height: 6px;
   }
   .attention-strip {
     display: grid;
@@ -1331,8 +1391,11 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
   }
   .quick-pause-button {
     width: auto;
+    min-height: 22px;
     min-width: 0;
+    padding: 0 8px;
     flex: 0 0 auto;
+    font-size: 0.7rem;
   }
   #runtime-counts { display: none; }
   .runtime-command-row {
@@ -1384,10 +1447,10 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
   }
   button { width: 100%; }
   #task-panel {
-    height: calc(100svh - 190px);
+    height: calc(100svh - 142px);
     min-height: 420px;
-    margin-left: -8px;
-    margin-right: -8px;
+    margin-left: -6px;
+    margin-right: -6px;
   }
   body[data-runtime-state="waiting_for_tui_bridge"] section.control-panel,
   body[data-runtime-state="legacy_tui_relay"] section.control-panel,
@@ -1402,7 +1465,7 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
   body[data-runtime-state="waiting_for_tui_bridge"] #task-panel,
   body[data-runtime-state="legacy_tui_relay"] #task-panel,
   body[data-runtime-state="offline"] #task-panel {
-    height: calc(100svh - 190px);
+    height: calc(100svh - 142px);
   }
   body[data-has-attention="true"] section.control-panel {
     height: calc(100svh - 248px);
@@ -1411,7 +1474,7 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
     height: calc(100svh - 248px);
   }
   body[data-has-attention="true"] #task-panel {
-    height: calc(100svh - 248px);
+    height: calc(100svh - 200px);
   }
   body[data-has-attention="true"][data-runtime-state="waiting_for_tui_bridge"] section.control-panel,
   body[data-has-attention="true"][data-runtime-state="legacy_tui_relay"] section.control-panel,
@@ -1422,7 +1485,7 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
   body[data-has-attention="true"][data-runtime-state="waiting_for_tui_bridge"] #task-panel,
   body[data-has-attention="true"][data-runtime-state="legacy_tui_relay"] #task-panel,
   body[data-has-attention="true"][data-runtime-state="offline"] #task-panel {
-    height: calc(100svh - 248px);
+    height: calc(100svh - 200px);
   }
   .chat-panel-header { display: none; }
   .chat-session-status {
