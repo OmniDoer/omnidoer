@@ -317,6 +317,70 @@ def control_chat_sync_diagnostics(
     }
 
 
+def browser_takeover_readiness(
+    *,
+    diagnostics: dict[str, Any],
+    mcp_sidecar: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    mcp_sidecar = mcp_sidecar or {}
+    native_sync_active = bool(diagnostics.get("native_sync_active"))
+    relay_current = bool(
+        diagnostics.get("browser_takeover_relay_current")
+        or mcp_sidecar.get("browser_takeover_relay_current")
+    )
+    feature_installed = bool(
+        diagnostics.get("browser_takeover_relay_feature_installed")
+        or mcp_sidecar.get("browser_takeover_relay_feature_installed")
+    )
+    mcp_active = bool(diagnostics.get("mcp_sidecar_active") or mcp_sidecar.get("active"))
+    mcp_restart_required = bool(
+        diagnostics.get("mcp_sidecar_restart_required")
+        or mcp_sidecar.get("restart_required")
+        or diagnostics.get("requires_restart_for_browser_takeover_relay")
+    )
+    ready = bool(native_sync_active and relay_current)
+    if ready:
+        state = "ready"
+        detail = "live browser takeover relay is current"
+    elif not diagnostics.get("thread_bound"):
+        state = "thread_not_bound"
+        detail = "no current CLI thread is bound"
+    elif not native_sync_active:
+        state = "needs_current_session_sync"
+        detail = "current CLI session is not natively synced"
+    elif not mcp_active:
+        state = "mcp_sidecar_missing"
+        detail = "MCP sidecar is not running"
+    elif mcp_restart_required:
+        state = "needs_agent_restart"
+        detail = "current MCP sidecar is older than the browser takeover relay code"
+    elif not feature_installed:
+        state = "feature_missing"
+        detail = "browser takeover relay feature markers are missing"
+    else:
+        state = "relay_not_current"
+        detail = "browser takeover relay is not verified current"
+
+    needs_agent_restart = bool(native_sync_active and mcp_restart_required)
+    available_after_restart = "available_after_agent_restart" if needs_agent_restart else "unavailable"
+    return {
+        "ready": ready,
+        "state": state,
+        "detail": detail,
+        "requires_current_session_sync": bool(not native_sync_active and diagnostics.get("requires_restart_for_native_sync")),
+        "requires_agent_restart": needs_agent_restart,
+        "phone_can_pause_agent": bool(diagnostics.get("current_cli_reachable")),
+        "frame_stream": "ready" if ready else available_after_restart,
+        "phone_to_browser_input": "ready" if ready else available_after_restart,
+        "verification_signal": (
+            "mcp_sidecar_feature_markers_and_start_time"
+            if ready
+            else diagnostics.get("browser_takeover_relay_verification_signal")
+        ),
+        "mcp_sidecar_reason": diagnostics.get("mcp_sidecar_reason") or mcp_sidecar.get("reason"),
+    }
+
+
 def _cmdline_is_interactive_tui_for_thread(cmdline: list[str], thread_id: str) -> bool:
     if not cmdline or not thread_id:
         return False

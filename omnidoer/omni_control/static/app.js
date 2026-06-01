@@ -71,6 +71,10 @@ const I18N = {
     overviewSyncBackground: "Background runner",
     overviewSyncOffline: "Offline",
     overviewBrowserIdle: "No live browser handoff.",
+    overviewBrowserRelayReady: "Browser relay ready; no active browser yet.",
+    overviewBrowserRelayNeedsRestart: "Browser relay needs Agent restart.",
+    overviewBrowserRelayNeedsSync: "Browser relay needs current-session sync.",
+    overviewBrowserRelayUnavailable: "Browser relay not ready.",
     overviewBrowserPreview: "Browser preview available.",
     overviewBrowserActive: "You control the browser.",
     overviewNoUrgentAction: "No urgent action",
@@ -451,6 +455,10 @@ const I18N = {
     overviewSyncBackground: "后台 runner",
     overviewSyncOffline: "离线",
     overviewBrowserIdle: "没有实时浏览器交接。",
+    overviewBrowserRelayReady: "浏览器 relay 已就绪，当前没有活动浏览器。",
+    overviewBrowserRelayNeedsRestart: "浏览器 relay 需要重启 Agent。",
+    overviewBrowserRelayNeedsSync: "浏览器 relay 需要当前会话同步。",
+    overviewBrowserRelayUnavailable: "浏览器 relay 尚未就绪。",
     overviewBrowserPreview: "可查看实时浏览器。",
     overviewBrowserActive: "你正在控制浏览器。",
     overviewNoUrgentAction: "暂无紧急操作",
@@ -1256,12 +1264,25 @@ function updateOverviewSyncApprovalCard(request = pendingConsoleRestartRequest()
   updateOverviewSyncApprovalButtons();
 }
 
+function overviewBrowserReadinessText(readiness = {}) {
+  if (readiness.ready) return t("overviewBrowserRelayReady");
+  if (readiness.requires_agent_restart || readiness.state === "needs_agent_restart") {
+    return t("overviewBrowserRelayNeedsRestart");
+  }
+  if (readiness.requires_current_session_sync || readiness.state === "needs_current_session_sync") {
+    return t("overviewBrowserRelayNeedsSync");
+  }
+  if (readiness.state && readiness.state !== "ready") return t("overviewBrowserRelayUnavailable");
+  return t("overviewBrowserIdle");
+}
+
 function updateOverview() {
   const runner = cachedRuntimeStatus?.chat_runner || {};
   const openRequests = cachedRequests.filter(isOpenRequest);
   const primaryRequest = primaryOpenRequest(openRequests);
   const takeoverRequest = findActiveTakeoverRequest(cachedRequests);
   const browserContext = activeBrowserContext();
+  const browserReadiness = runner.browser_takeover || {};
   const runtime = overviewRuntimeState(runner);
   const paired = cachedRuntimeStatus
     ? (!modeRequiresPairing(cachedRuntimeStatus.mode) || cachedPairingAuthenticated)
@@ -1276,11 +1297,22 @@ function updateOverview() {
     detail: t("overviewOpenRequests", openRequests.length, cachedRequests.length),
     meta: primaryRequest ? displayRequestType(primaryRequest) : t("noOpenRequests")
   });
-  const browserState = takeoverRequest ? "active" : browserContext ? "warn" : "idle";
+  const browserRelayNotReady = !takeoverRequest && !browserContext && browserReadiness.ready === false;
+  const browserState = takeoverRequest
+    ? "active"
+    : browserContext
+      ? "warn"
+      : browserRelayNotReady
+        ? "warn"
+        : "idle";
   setOverviewCard("overview-browser-card", {
     state: browserState,
-    detail: takeoverRequest ? t("overviewBrowserActive") : browserContext ? t("overviewBrowserPreview") : t("overviewBrowserIdle"),
-    meta: browserHandoffUrl(takeoverRequest, browserContext)
+    detail: takeoverRequest
+      ? t("overviewBrowserActive")
+      : browserContext
+        ? t("overviewBrowserPreview")
+        : overviewBrowserReadinessText(browserReadiness),
+    meta: browserHandoffUrl(takeoverRequest, browserContext) || browserReadiness.state || ""
   });
   setOverviewCard("overview-chat-card", {
     state: document.body.dataset.chatSendMode === "blocked" ? "blocked" : "ok",
@@ -2097,6 +2129,7 @@ function runnerNeedsCurrentSessionSync(runner = {}) {
 }
 
 function updateChatSessionStatus(runner, { offline = false } = {}) {
+  runner = runner || {};
   const panel = document.querySelector("#chat-session-status");
   if (!panel) return;
   const title = document.querySelector("#chat-session-title");

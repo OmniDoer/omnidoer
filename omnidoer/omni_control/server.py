@@ -1130,6 +1130,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
             from omnidoer.omni_control.chat_runner import (
                 active_tui_process_bridge_status,
                 active_mcp_sidecar_status,
+                browser_takeover_readiness,
                 control_chat_sync_diagnostics,
                 live_tui_bridge_active,
                 live_tui_session_active,
@@ -1149,6 +1150,18 @@ class ControlHandler(SimpleHTTPRequestHandler):
             mcp_sidecar = active_mcp_sidecar_status(chat_thread_id)
             mcp_sidecar_restart_required = bool(mcp_sidecar.get("restart_required"))
             heartbeat_age = bridge_heartbeat.get("age_seconds")
+            sync_diagnostics = control_chat_sync_diagnostics(
+                thread_id=chat_thread_id,
+                tui_bridge_active=tui_bridge_active,
+                tui_session_active=tui_session_active,
+                install_status=install_status,
+                legacy_relay=legacy_relay,
+                active_process_bridge=active_process_bridge,
+                mcp_sidecar=mcp_sidecar,
+                bridge_heartbeat_age_seconds=heartbeat_age,
+                bridge_heartbeat=bridge_heartbeat,
+                detached_thread_resume_allowed=detached_runner_allowed,
+            )
             self._send_json(
                 HTTPStatus.OK,
                 {
@@ -1170,17 +1183,10 @@ class ControlHandler(SimpleHTTPRequestHandler):
                         "bridge_heartbeat_age_seconds": heartbeat_age,
                         "legacy_tui_relay": legacy_relay,
                         "detached_thread_resume_allowed": detached_runner_allowed,
-                        "sync_diagnostics": control_chat_sync_diagnostics(
-                            thread_id=chat_thread_id,
-                            tui_bridge_active=tui_bridge_active,
-                            tui_session_active=tui_session_active,
-                            install_status=install_status,
-                            legacy_relay=legacy_relay,
-                            active_process_bridge=active_process_bridge,
+                        "sync_diagnostics": sync_diagnostics,
+                        "browser_takeover": browser_takeover_readiness(
+                            diagnostics=sync_diagnostics,
                             mcp_sidecar=mcp_sidecar,
-                            bridge_heartbeat_age_seconds=heartbeat_age,
-                            bridge_heartbeat=bridge_heartbeat,
-                            detached_thread_resume_allowed=detached_runner_allowed,
                         ),
                     },
                 },

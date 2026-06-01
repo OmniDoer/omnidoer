@@ -83,6 +83,10 @@ class ControlStatusTest(unittest.TestCase):
                 self.assertFalse(diagnostics["detached_thread_resume_allowed"])
                 self.assertFalse(diagnostics["active_cli_binary_has_native_bridge"])
                 self.assertTrue(diagnostics["active_cli_binary_deleted"])
+                browser_takeover = payload["chat_runner"]["browser_takeover"]
+                self.assertFalse(browser_takeover["ready"])
+                self.assertEqual(browser_takeover["state"], "needs_current_session_sync")
+                self.assertTrue(browser_takeover["requires_current_session_sync"])
             finally:
                 server.shutdown()
                 server.server_close()

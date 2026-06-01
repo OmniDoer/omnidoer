@@ -13,6 +13,7 @@ from omnidoer.omni_control.chat_runner import (
     ChatRunner,
     active_mcp_sidecar_status,
     active_tui_process_bridge_status,
+    browser_takeover_readiness,
     control_chat_sync_diagnostics,
     live_tui_bridge_active,
     live_tui_session_active,
@@ -399,6 +400,53 @@ class ControlChatRunnerTest(unittest.TestCase):
             native_with_current_relay["browser_takeover_relay_verification_signal"],
             "mcp_sidecar_feature_markers_and_start_time",
         )
+
+    def test_browser_takeover_readiness_separates_sync_and_relay_states(self) -> None:
+        needs_sync = browser_takeover_readiness(
+            diagnostics={
+                "thread_bound": True,
+                "native_sync_active": False,
+                "requires_restart_for_native_sync": True,
+                "current_cli_reachable": True,
+            },
+            mcp_sidecar={"active": True},
+        )
+        self.assertFalse(needs_sync["ready"])
+        self.assertEqual(needs_sync["state"], "needs_current_session_sync")
+        self.assertTrue(needs_sync["requires_current_session_sync"])
+        self.assertEqual(needs_sync["frame_stream"], "unavailable")
+
+        needs_agent_restart = browser_takeover_readiness(
+            diagnostics={
+                "thread_bound": True,
+                "native_sync_active": True,
+                "current_cli_reachable": True,
+                "mcp_sidecar_active": True,
+                "mcp_sidecar_restart_required": True,
+                "requires_restart_for_browser_takeover_relay": True,
+                "browser_takeover_relay_feature_installed": True,
+            },
+            mcp_sidecar={"active": True, "restart_required": True},
+        )
+        self.assertFalse(needs_agent_restart["ready"])
+        self.assertEqual(needs_agent_restart["state"], "needs_agent_restart")
+        self.assertTrue(needs_agent_restart["requires_agent_restart"])
+        self.assertEqual(needs_agent_restart["phone_to_browser_input"], "available_after_agent_restart")
+
+        ready = browser_takeover_readiness(
+            diagnostics={
+                "thread_bound": True,
+                "native_sync_active": True,
+                "current_cli_reachable": True,
+                "mcp_sidecar_active": True,
+                "browser_takeover_relay_current": True,
+            },
+            mcp_sidecar={"active": True, "browser_takeover_relay_current": True},
+        )
+        self.assertTrue(ready["ready"])
+        self.assertEqual(ready["state"], "ready")
+        self.assertEqual(ready["frame_stream"], "ready")
+        self.assertEqual(ready["verification_signal"], "mcp_sidecar_feature_markers_and_start_time")
 
     def test_codex_json_events_stream_into_chat_records(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
