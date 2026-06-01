@@ -5,6 +5,7 @@ from __future__ import annotations
 import getpass
 import json
 import os
+import shlex
 import sys
 
 from omnidoer.omni_control.cloud import build_config, security_status
@@ -86,6 +87,45 @@ def _submit_encrypted(request_id: str, payload: dict) -> None:
     store.submit_ciphertext(request.request_id, envelope)
 
 
+def _collect_sync_status(thread_id: str | None = None, codex_bin: str | None = None) -> dict:
+    from omnidoer.omni_control.chat_runner import (
+        active_tui_process_bridge_status,
+        control_chat_sync_diagnostics,
+        live_tui_bridge_active,
+        live_tui_session_active,
+        native_console_bridge_install_status,
+        tui_bridge_heartbeat_age_seconds,
+        tui_restart_command,
+    )
+    from omnidoer.omni_control.tui_legacy_relay import legacy_tui_relay_status
+
+    resolved_thread_id = thread_id or os.environ.get("OMNIDOER_CHAT_THREAD_ID")
+    tui_bridge_active = live_tui_bridge_active()
+    tui_session_active = live_tui_session_active(resolved_thread_id)
+    legacy_relay = legacy_tui_relay_status(resolved_thread_id) if resolved_thread_id and not tui_bridge_active else {"active": False}
+    install_status = native_console_bridge_install_status(codex_bin)
+    active_process_bridge = active_tui_process_bridge_status(resolved_thread_id, codex_bin=codex_bin)
+    diagnostics = control_chat_sync_diagnostics(
+        thread_id=resolved_thread_id,
+        tui_bridge_active=tui_bridge_active,
+        tui_session_active=tui_session_active,
+        install_status=install_status,
+        legacy_relay=legacy_relay,
+        active_process_bridge=active_process_bridge,
+        bridge_heartbeat_age_seconds=tui_bridge_heartbeat_age_seconds(),
+    )
+    return {
+        "thread_id": resolved_thread_id,
+        "tui_bridge_active": tui_bridge_active,
+        "tui_session_active": tui_session_active,
+        "restart_command": tui_restart_command(resolved_thread_id) if diagnostics["requires_restart_for_native_sync"] else None,
+        "native_console_bridge": install_status,
+        "active_tui_process_bridge": active_process_bridge,
+        "legacy_tui_relay": legacy_relay,
+        "sync_diagnostics": diagnostics,
+    }
+
+
 def handle_control_command(args) -> int:
     command = args.control_command
     if command == "serve":
@@ -147,43 +187,56 @@ def handle_control_command(args) -> int:
         print(json.dumps(security_status(config), indent=2, sort_keys=True))
         return 0
     if command == "sync-status":
-        from omnidoer.omni_control.chat_runner import (
-            active_tui_process_bridge_status,
-            control_chat_sync_diagnostics,
-            live_tui_bridge_active,
-            live_tui_session_active,
-            native_console_bridge_install_status,
-            tui_bridge_heartbeat_age_seconds,
-            tui_restart_command,
-        )
-        from omnidoer.omni_control.tui_legacy_relay import legacy_tui_relay_status
+        print(json.dumps(_collect_sync_status(args.thread_id, args.codex_bin), indent=2, sort_keys=True))
+        return 0
+    if command == "enable-sync":
+        status = _collect_sync_status(args.thread_id, args.codex_bin)
+        diagnostics = status["sync_diagnostics"]
+        if not args.yes:
+            rerun = ["omnidoer", "control", "enable-sync", "--yes"]
+            if status["thread_id"]:
+                rerun.extend(["--thread-id", status["thread_id"]])
+            if args.codex_bin:
+                rerun.extend(["--codex-bin", args.codex_bin])
+            print(
+                json.dumps(
+                    {
+                        "status": "dry_run",
+                        "confirmation_required": True,
+                        "rerun_with": " ".join(shlex.quote(part) for part in rerun),
+                        "would_restart_current_console": bool(diagnostics["restart_current_console_available"]),
+                        "sync_status": status,
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+            return 0
+        if not diagnostics["restart_current_console_available"]:
+            print(
+                json.dumps(
+                    {
+                        "status": "not_ready",
+                        "error": "restart_current_console_unavailable",
+                        "sync_status": status,
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+            return 2
+        from omnidoer.omni_control.tui_legacy_relay import restart_tmux_pane_for_bridge
 
-        thread_id = args.thread_id or os.environ.get("OMNIDOER_CHAT_THREAD_ID")
-        tui_bridge_active = live_tui_bridge_active()
-        tui_session_active = live_tui_session_active(thread_id)
-        legacy_relay = legacy_tui_relay_status(thread_id) if thread_id and not tui_bridge_active else {"active": False}
-        install_status = native_console_bridge_install_status(args.codex_bin)
-        active_process_bridge = active_tui_process_bridge_status(thread_id, codex_bin=args.codex_bin)
-        diagnostics = control_chat_sync_diagnostics(
-            thread_id=thread_id,
-            tui_bridge_active=tui_bridge_active,
-            tui_session_active=tui_session_active,
-            install_status=install_status,
-            legacy_relay=legacy_relay,
-            active_process_bridge=active_process_bridge,
-            bridge_heartbeat_age_seconds=tui_bridge_heartbeat_age_seconds(),
+        result = restart_tmux_pane_for_bridge(
+            status["thread_id"],
+            restart_command=status["restart_command"],
         )
         print(
             json.dumps(
                 {
-                    "thread_id": thread_id,
-                    "tui_bridge_active": tui_bridge_active,
-                    "tui_session_active": tui_session_active,
-                    "restart_command": tui_restart_command(thread_id) if diagnostics["requires_restart_for_native_sync"] else None,
-                    "native_console_bridge": install_status,
-                    "active_tui_process_bridge": active_process_bridge,
-                    "legacy_tui_relay": legacy_relay,
-                    "sync_diagnostics": diagnostics,
+                    "status": "restart_started",
+                    "result": result,
+                    "sync_status_before_restart": status,
                 },
                 indent=2,
                 sort_keys=True,

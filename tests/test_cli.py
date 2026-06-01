@@ -11,6 +11,7 @@ import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
+from types import SimpleNamespace
 from unittest.mock import patch
 from urllib.request import urlopen
 
@@ -357,6 +358,64 @@ class CliTest(unittest.TestCase):
             self.assertTrue(diagnostics["manual_resume_available"])
             self.assertFalse(diagnostics["restart_current_console_available"])
             self.assertEqual(payload["restart_command"], "omnidoer console resume thread_missing")
+
+    def test_control_enable_sync_requires_yes_before_respawning_console(self) -> None:
+        from contextlib import redirect_stdout
+
+        from omnidoer.omni_control.client_cli import handle_control_command
+
+        def args(yes: bool) -> SimpleNamespace:
+            return SimpleNamespace(
+                control_command="enable-sync",
+                thread_id="thread_active",
+                codex_bin="/tmp/codex",
+                yes=yes,
+            )
+
+        common_patches = [
+            patch("omnidoer.omni_control.chat_runner.live_tui_bridge_active", return_value=False),
+            patch("omnidoer.omni_control.chat_runner.live_tui_session_active", return_value=True),
+            patch(
+                "omnidoer.omni_control.chat_runner.native_console_bridge_install_status",
+                return_value={"ready": True, "reason": "ready"},
+            ),
+            patch(
+                "omnidoer.omni_control.chat_runner.active_tui_process_bridge_status",
+                return_value={
+                    "active": True,
+                    "native_bridge_ready": False,
+                    "installed_bridge_ready": True,
+                    "executable_deleted": True,
+                    "running_binary_matches_installed": False,
+                    "reason": "running_binary_deleted",
+                },
+            ),
+            patch("omnidoer.omni_control.tui_legacy_relay.legacy_tui_relay_status", return_value={"active": True}),
+        ]
+
+        with common_patches[0], common_patches[1], common_patches[2], common_patches[3], common_patches[4], patch(
+            "omnidoer.omni_control.tui_legacy_relay.restart_tmux_pane_for_bridge",
+            return_value={"status": "restart_started", "pane_id": "%1"},
+        ) as restart:
+            dry_run = io.StringIO()
+            with redirect_stdout(dry_run):
+                self.assertEqual(handle_control_command(args(False)), 0)
+            payload = json.loads(dry_run.getvalue())
+            self.assertEqual(payload["status"], "dry_run")
+            self.assertTrue(payload["would_restart_current_console"])
+            self.assertIn("--thread-id thread_active", payload["rerun_with"])
+            self.assertIn("--codex-bin /tmp/codex", payload["rerun_with"])
+            restart.assert_not_called()
+
+            started = io.StringIO()
+            with redirect_stdout(started):
+                self.assertEqual(handle_control_command(args(True)), 0)
+            payload = json.loads(started.getvalue())
+            self.assertEqual(payload["status"], "restart_started")
+            restart.assert_called_once_with(
+                "thread_active",
+                restart_command="omnidoer console resume thread_active",
+            )
 
     def test_cred_request_can_be_saved_to_vault_without_echoing_secret(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
