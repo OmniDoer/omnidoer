@@ -1287,7 +1287,7 @@ function updateOverviewSyncApprovalCard(request = pendingConsoleRestartRequest()
     return;
   }
   if (activeOverviewSyncApprovalRequestId !== request.request_id && confirm) {
-    confirm.checked = false;
+    confirm.checked = approvalDraftChecked(request, "overview-sync");
   }
   activeOverviewSyncApprovalRequestId = request.request_id;
   const details = request.structured_details || {};
@@ -1533,7 +1533,11 @@ if (overviewSecondaryActionButton) {
 
 const overviewSyncConfirm = document.querySelector("#overview-sync-confirm");
 if (overviewSyncConfirm) {
-  overviewSyncConfirm.onchange = () => updateOverviewSyncApprovalButtons();
+  overviewSyncConfirm.onchange = () => {
+    const request = pendingConsoleRestartRequest();
+    if (request) setApprovalDraftChecked(request, "overview-sync", overviewSyncConfirm.checked);
+    updateOverviewSyncApprovalButtons();
+  };
 }
 
 document.querySelectorAll(".overview-card").forEach((card) => {
@@ -1628,7 +1632,11 @@ if (chatSessionRestartButton) {
 
 const chatSyncApprovalConfirm = document.querySelector("#chat-sync-approval-confirm");
 if (chatSyncApprovalConfirm) {
-  chatSyncApprovalConfirm.onchange = () => updateChatSyncApprovalButtons();
+  chatSyncApprovalConfirm.onchange = () => {
+    const request = pendingConsoleRestartRequest();
+    if (request) setApprovalDraftChecked(request, "chat-sync", chatSyncApprovalConfirm.checked);
+    updateChatSyncApprovalButtons();
+  };
 }
 
 const chatSyncApprovalViewButton = document.querySelector("#chat-sync-approval-view");
@@ -1693,7 +1701,12 @@ if (panTakeoverFrameButton) {
 
 const approvalConfirmInput = document.querySelector("#approval-confirm");
 if (approvalConfirmInput) {
-  approvalConfirmInput.onchange = () => updatePaymentApprovalButtons();
+  approvalConfirmInput.onchange = () => {
+    if (activePaymentApprovalRequest) {
+      setApprovalDraftChecked(activePaymentApprovalRequest, "payment-panel", approvalConfirmInput.checked);
+    }
+    updatePaymentApprovalButtons();
+  };
 }
 
 const approvePaymentButton = document.querySelector("#approve");
@@ -1755,6 +1768,7 @@ let cachedChatRecords = [];
 let cachedChatTerminal = null;
 let cachedBrowserContexts = [];
 let cachedRuntimeStatus = null;
+const approvalConfirmationDrafts = new Map();
 let lastChatPayloadFingerprint = "";
 let realtimeRefreshTimer = null;
 let foregroundRealtimeRecovery = false;
@@ -1926,6 +1940,41 @@ function pendingConsoleRestartRequest() {
   return cachedRequests.find((request) => request.request_type === "console_restart" && request.status === "pending") || null;
 }
 
+function approvalDraftKey(request, scope) {
+  const requestId = typeof request === "string" ? request : request?.request_id;
+  return requestId ? `${scope}:${requestId}` : "";
+}
+
+function approvalDraftChecked(request, scope) {
+  const key = approvalDraftKey(request, scope);
+  return key ? Boolean(approvalConfirmationDrafts.get(key)) : false;
+}
+
+function setApprovalDraftChecked(request, scope, checked) {
+  const key = approvalDraftKey(request, scope);
+  if (!key) return;
+  approvalConfirmationDrafts.set(key, Boolean(checked));
+}
+
+function clearApprovalDraftsForRequest(requestId) {
+  if (!requestId) return;
+  for (const key of [...approvalConfirmationDrafts.keys()]) {
+    if (key.endsWith(`:${requestId}`)) approvalConfirmationDrafts.delete(key);
+  }
+}
+
+function pruneApprovalDrafts(requests = cachedRequests) {
+  const pendingIds = new Set(
+    requests
+      .filter((request) => request.status === "pending")
+      .map((request) => request.request_id)
+  );
+  for (const key of [...approvalConfirmationDrafts.keys()]) {
+    const requestId = key.slice(key.lastIndexOf(":") + 1);
+    if (!pendingIds.has(requestId)) approvalConfirmationDrafts.delete(key);
+  }
+}
+
 function upsertCachedRequest(request) {
   if (!request?.request_id) return;
   const existingIndex = cachedRequests.findIndex((item) => item.request_id === request.request_id);
@@ -1960,7 +2009,7 @@ function updateChatSyncApprovalCard(request = pendingConsoleRestartRequest()) {
   }
   const details = request.structured_details || {};
   if (activeChatSyncApprovalRequestId !== request.request_id && confirm) {
-    confirm.checked = false;
+    confirm.checked = approvalDraftChecked(request, "chat-sync");
   }
   activeChatSyncApprovalRequestId = request.request_id;
   const copyKeys = consoleRestartCopyKeys(request);
@@ -2916,7 +2965,9 @@ function updatePaymentApprovalPanel(requests) {
   setFieldText("#after-approval", detailValue(details, "after_approval") || (request ? "Submit only after approval" : ""));
   setFieldText("#approval-status", request ? `${request.status}: ${request.action_summary || request.request_id}` : t("noPendingPayment"), "");
   const confirm = document.querySelector("#approval-confirm");
-  if (confirm && renderedPaymentApprovalRequestId !== request?.request_id) confirm.checked = false;
+  if (confirm && renderedPaymentApprovalRequestId !== request?.request_id) {
+    confirm.checked = request ? approvalDraftChecked(request, "payment-panel") : false;
+  }
   renderedPaymentApprovalRequestId = request?.request_id || null;
   if (!activePaymentApprovalRequest && confirm) confirm.checked = false;
   updatePaymentApprovalButtons();
@@ -3202,6 +3253,8 @@ async function submitEncrypted(request, payload) {
   });
   if (!response.ok) {
     setStatus(t("requestSubmitFailed"), t("requestSubmitFailedDetail"));
+  } else {
+    clearApprovalDraftsForRequest(request.request_id);
   }
   await loadRequests();
 }
@@ -3213,7 +3266,10 @@ async function postAction(request, action, payload = null) {
   const response = await signedFetch(`/api/requests/${request.request_id}/${action}`, options);
   if (!response.ok) {
     setStatus(t("actionFailed"), `${request.request_type} ${action}`);
-  } else if (request.request_type === "console_restart" && action === "approve") {
+  } else {
+    clearApprovalDraftsForRequest(request.request_id);
+  }
+  if (response.ok && request.request_type === "console_restart" && action === "approve") {
     setStatus(t("restartBridgeStarted"), t("restartBridgeChecking"), "waiting_for_tui_bridge", "", "enableCurrentSessionSync");
     stopBridgeActivationMonitor();
     bridgeActivationDeadline = Date.now() + 30000;
@@ -4951,6 +5007,7 @@ function renderApprovalControls(request, item) {
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
     checkbox.setAttribute(request.request_type === "payment_approval" ? "data-payment-confirm" : "data-approval-confirm", "");
+    checkbox.checked = approvalDraftChecked(request, "request-card");
     confirmLabel.append(checkbox, document.createTextNode(` ${
       request.request_type === "console_restart"
         ? t(consoleRestartCopyKeys(request).confirm)
@@ -4964,8 +5021,13 @@ function renderApprovalControls(request, item) {
   actions.className = "button-row";
   const approve = document.createElement("button");
   approve.textContent = t("approve");
-  approve.disabled = confirm ? true : !isActionable;
-  if (confirm) confirm.onchange = () => { approve.disabled = !confirm.checked || !isActionable; };
+  approve.disabled = confirm ? !confirm.checked || !isActionable : !isActionable;
+  if (confirm) {
+    confirm.onchange = () => {
+      setApprovalDraftChecked(request, "request-card", confirm.checked);
+      approve.disabled = !confirm.checked || !isActionable;
+    };
+  }
   approve.onclick = () => {
     if (confirm && !confirm.checked) {
       setStatus(
@@ -5132,6 +5194,7 @@ async function loadRequests() {
       return r.json();
     });
     cachedRequests = requests;
+    pruneApprovalDrafts(requests);
     renderRequestList(requests);
     refreshRequestDependentUi();
   } catch {
@@ -5162,6 +5225,7 @@ function applyBrowserContextsEvent(payload) {
 
 function applyRequestEvent(payload) {
   cachedRequests = payload.requests || [];
+  pruneApprovalDrafts(cachedRequests);
   renderRequestList(cachedRequests);
   refreshRequestDependentUi();
 }

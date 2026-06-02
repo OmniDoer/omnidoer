@@ -147,6 +147,17 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("item.dataset.requestId = request.request_id", self.app)
         self.assertIn("activeInput.focus({ preventScroll: true })", self.app)
 
+    def test_approval_confirmation_drafts_survive_request_rerender(self) -> None:
+        self.assertIn("approvalConfirmationDrafts", self.app)
+        self.assertIn("setApprovalDraftChecked", self.app)
+        self.assertIn("approvalDraftChecked(request, \"request-card\")", self.app)
+        self.assertIn("approvalDraftChecked(request, \"chat-sync\")", self.app)
+        self.assertIn("approvalDraftChecked(request, \"overview-sync\")", self.app)
+        self.assertIn("approvalDraftChecked(request, \"payment-panel\")", self.app)
+        self.assertIn("clearApprovalDraftsForRequest(request.request_id)", self.app)
+        self.assertIn("pruneApprovalDrafts(requests)", self.app)
+        self.assertIn("pruneApprovalDrafts(cachedRequests)", self.app)
+
     def test_external_handoff_has_clear_controls(self) -> None:
         self.assertIn("externalHandoffNote", self.app)
         self.assertIn("openCurrentUrl", self.app)
