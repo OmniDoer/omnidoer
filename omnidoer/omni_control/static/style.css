@@ -1534,6 +1534,10 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
     font-size: 0.86rem;
     color: #334155;
   }
+  body[data-active-panel="task-panel"] #runtime-status,
+  body[data-active-panel="takeover-panel"] #runtime-status {
+    display: none;
+  }
   .panel-heading, .request-header { display: block; }
   #takeover-panel .takeover-metadata {
     min-height: 28px;
