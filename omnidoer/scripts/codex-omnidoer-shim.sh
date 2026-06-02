@@ -19,11 +19,11 @@ if [ ! -x "$real_codex" ]; then
 fi
 
 if [ "${OMNIDOER_CODEX_MCP_AUTO_REGISTER:-1}" = "1" ] && [ -n "$omnidoer_cli" ]; then
-  codex_config="${CODEX_HOME:-$HOME/.codex}/config.toml"
+  codex_home="${CODEX_HOME:-${HOME:-/root}/.codex}"
+  codex_config="$codex_home/config.toml"
   if ! { [ -f "$codex_config" ] && grep -q "omnidoer" "$codex_config"; }; then
     "$real_codex" mcp add omnidoer -- "$omnidoer_cli" mcp serve >/dev/null 2>&1 || true
   fi
 fi
 
 exec "$real_codex" "$@"
-
