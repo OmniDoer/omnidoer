@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icon-192.png">
-  <link rel="stylesheet" href="/style.css?v=20260602-mobile-session">
+  <link rel="stylesheet" href="/style.css?v=20260602-slash-commands">
   <title>OmniDoer Control Client</title>
 </head>
 <body>
@@ -185,8 +185,9 @@
       <div id="chat-messages" class="chat-feed">Loading messages...</div>
       <div class="chat-composer">
         <label id="chat-input-label" for="chat-input"><span id="chat-input-label-text">Message</span></label>
+        <div id="chat-command-menu" class="chat-command-menu" role="listbox" aria-label="Command suggestions" hidden></div>
         <div class="chat-input-shell">
-          <textarea id="chat-input" rows="2" placeholder="Write to OmniDoer"></textarea>
+          <textarea id="chat-input" rows="2" placeholder="Write to OmniDoer" aria-controls="chat-command-menu" aria-autocomplete="list"></textarea>
           <div id="chat-selected-files" class="chat-selected-files"></div>
           <div class="chat-composer-actions">
             <label id="chat-files-label" class="file-button icon-button" for="chat-files" aria-label="Attach" title="Attach">
@@ -260,6 +261,6 @@
       </div>
     </section>
   </main>
-  <script src="/app.js?v=20260602-mobile-session"></script>
+  <script src="/app.js?v=20260602-slash-commands"></script>
 </body>
 </html>

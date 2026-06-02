@@ -228,6 +228,14 @@ const I18N = {
     chatFilesLabel: "Attach",
     chatSelectedFiles: "Selected files",
     uploadFailed: "Upload failed",
+    slashCommandsLabel: "Command suggestions",
+    slashCommandsHint: "Up/down selects · Tab or Enter completes · Esc closes",
+    slashCommandStatusDesc: "Show OmniDoer runtime, account, and quota status.",
+    slashCommandModelDesc: "Open model selection in the active CLI.",
+    slashCommandResumeDesc: "Resume an existing conversation thread.",
+    slashCommandPairDesc: "Create a short pairing code for another Control Client.",
+    slashCommandCompactDesc: "Compact the current conversation context.",
+    slashCommandHelpDesc: "Show available OmniDoer CLI commands.",
     sendMessage: "Send Message",
     noChatMessages: "No chat messages yet.",
     pairToViewChat: "Pair this device to view and send chat messages.",
@@ -619,6 +627,14 @@ const I18N = {
     chatFilesLabel: "添加附件",
     chatSelectedFiles: "已选文件",
     uploadFailed: "上传失败",
+    slashCommandsLabel: "指令建议",
+    slashCommandsHint: "上下键选择 · Tab 或 Enter 补全 · Esc 关闭",
+    slashCommandStatusDesc: "查看 OmniDoer 运行状态、账号和额度。",
+    slashCommandModelDesc: "在当前 CLI 中打开模型选择。",
+    slashCommandResumeDesc: "恢复已有 conversation thread。",
+    slashCommandPairDesc: "为另一个 Control Client 生成 6 位配对码。",
+    slashCommandCompactDesc: "压缩当前对话上下文。",
+    slashCommandHelpDesc: "查看可用的 OmniDoer CLI 指令。",
     sendMessage: "发送消息",
     noChatMessages: "还没有对话消息。",
     pairToViewChat: "请先配对此设备以查看和发送对话消息。",
@@ -982,6 +998,8 @@ function applyLanguage() {
   setNodeText("#chat-input-label-text", "chatComposerLabel");
   const chatInput = document.querySelector("#chat-input");
   if (chatInput) chatInput.placeholder = t("chatPlaceholder");
+  document.querySelector("#chat-command-menu")?.setAttribute("aria-label", t("slashCommandsLabel"));
+  updateChatCommandMenu();
   setIconControlLabel("#chat-files-label", "chatFilesLabel");
   setIconControlLabel("#send-chat-message", "sendMessage");
   setButtonText("#submit-task", "submitTask");
@@ -1567,10 +1585,23 @@ if (chatFilesInput) {
 
 const chatInput = document.querySelector("#chat-input");
 if (chatInput) {
+  chatInput.addEventListener("input", updateChatCommandMenu);
+  chatInput.addEventListener("click", updateChatCommandMenu);
+  chatInput.addEventListener("keyup", (event) => {
+    if (!["ArrowDown", "ArrowUp", "Tab", "Enter", "Escape"].includes(event.key)) {
+      updateChatCommandMenu();
+    }
+  });
+  chatInput.addEventListener("blur", () => setTimeout(hideChatCommandMenu, 120));
   chatInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
+      hideChatCommandMenu();
       sendChatMessage();
+      return;
+    }
+    if (handleChatCommandKeydown(event)) {
+      return;
     }
   });
 }
@@ -1784,6 +1815,14 @@ const TAKEOVER_DOUBLE_TAP_MS = 320;
 const TAKEOVER_DOUBLE_TAP_DISTANCE = 24;
 const PENDING_TAKEOVER_PAUSE_TTL_MS = 60000;
 const AUTO_SYNC_REQUEST_COOLDOWN_MS = 60000;
+const CHAT_COMMANDS = [
+  { command: "/status", descriptionKey: "slashCommandStatusDesc", aliases: ["quota", "usage"] },
+  { command: "/model", descriptionKey: "slashCommandModelDesc", aliases: ["models"] },
+  { command: "/resume", descriptionKey: "slashCommandResumeDesc", aliases: ["thread"], requiresArgument: true },
+  { command: "/pair", descriptionKey: "slashCommandPairDesc", aliases: ["pairing"] },
+  { command: "/compact", descriptionKey: "slashCommandCompactDesc", aliases: ["compress"] },
+  { command: "/help", descriptionKey: "slashCommandHelpDesc", aliases: ["commands"] }
+];
 let cachedRequests = [];
 let cachedChatMessages = [];
 let cachedChatRecords = [];
@@ -1803,6 +1842,8 @@ let chatStreamSocket = null;
 let browserContextStreamActive = false;
 let browserContextStreamRestart = null;
 let browserContextStreamSocket = null;
+let chatCommandMenuIndex = 0;
+let lastChatCommandQuery = "";
 let activeTakeoverFrameRequest = null;
 let takeoverFrameTimer = null;
 let takeoverFreshnessTimer = null;
@@ -3394,6 +3435,162 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function chatCommandDisplay(command) {
+  return `${command.command}${command.requiresArgument ? " <thread_id>" : ""}`;
+}
+
+function chatCommandCompletionText(command) {
+  return `${command.command} `;
+}
+
+function chatCommandContext(input) {
+  if (!input || input.disabled) return null;
+  const cursor = input.selectionStart ?? input.value.length;
+  const beforeCursor = input.value.slice(0, cursor);
+  const lineStart = beforeCursor.lastIndexOf("\n") + 1;
+  const activeToken = beforeCursor.slice(lineStart);
+  if (!activeToken.startsWith("/") || /\s/.test(activeToken)) return null;
+  return {
+    start: lineStart,
+    end: cursor,
+    query: activeToken.slice(1).toLowerCase()
+  };
+}
+
+function matchingChatCommands(query = "") {
+  const normalized = query.replace(/^\//, "").toLowerCase();
+  if (!normalized) return CHAT_COMMANDS;
+  return CHAT_COMMANDS.filter((command) => {
+    const name = command.command.slice(1).toLowerCase();
+    const aliases = command.aliases || [];
+    const description = t(command.descriptionKey).toLowerCase();
+    return (
+      name.startsWith(normalized) ||
+      aliases.some((alias) => alias.toLowerCase().startsWith(normalized)) ||
+      (normalized.length >= 2 && description.includes(normalized))
+    );
+  });
+}
+
+function activeChatCommandMatches(input = document.querySelector("#chat-input")) {
+  const context = chatCommandContext(input);
+  if (!context) return { context: null, matches: [] };
+  return { context, matches: matchingChatCommands(context.query) };
+}
+
+function setChatCommandMenuIndex(index) {
+  const { matches } = activeChatCommandMatches();
+  if (!matches.length) {
+    chatCommandMenuIndex = 0;
+    return;
+  }
+  chatCommandMenuIndex = (index + matches.length) % matches.length;
+  document.querySelectorAll(".chat-command-option").forEach((button, buttonIndex) => {
+    const selected = buttonIndex === chatCommandMenuIndex;
+    button.setAttribute("aria-selected", selected ? "true" : "false");
+    if (selected) button.scrollIntoView({ block: "nearest" });
+  });
+}
+
+function hideChatCommandMenu() {
+  const menu = document.querySelector("#chat-command-menu");
+  const input = document.querySelector("#chat-input");
+  if (menu) menu.hidden = true;
+  if (input) input.setAttribute("aria-expanded", "false");
+  lastChatCommandQuery = "";
+}
+
+function updateChatCommandMenu() {
+  const input = document.querySelector("#chat-input");
+  const menu = document.querySelector("#chat-command-menu");
+  if (!input || !menu) return;
+  const { context, matches } = activeChatCommandMatches(input);
+  menu.setAttribute("aria-label", t("slashCommandsLabel"));
+  if (!context || !matches.length) {
+    hideChatCommandMenu();
+    return;
+  }
+  if (context.query !== lastChatCommandQuery) {
+    chatCommandMenuIndex = 0;
+    lastChatCommandQuery = context.query;
+  }
+  chatCommandMenuIndex = Math.min(chatCommandMenuIndex, matches.length - 1);
+  menu.innerHTML = "";
+  const header = document.createElement("div");
+  header.className = "chat-command-menu-header";
+  appendText(header, "strong", t("slashCommandsLabel"));
+  appendText(header, "span", t("slashCommandsHint"));
+  menu.append(header);
+  matches.forEach((command, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "chat-command-option";
+    button.setAttribute("role", "option");
+    button.setAttribute("aria-selected", index === chatCommandMenuIndex ? "true" : "false");
+    appendText(button, "code", chatCommandDisplay(command));
+    appendText(button, "span", t(command.descriptionKey));
+    button.onmousedown = (event) => {
+      event.preventDefault();
+      applyChatCommandCompletion(command);
+    };
+    menu.append(button);
+  });
+  input.setAttribute("aria-expanded", "true");
+  menu.hidden = false;
+}
+
+function applyChatCommandCompletion(command = null) {
+  const input = document.querySelector("#chat-input");
+  if (!input) return false;
+  const { context, matches } = activeChatCommandMatches(input);
+  const selected = command || matches[chatCommandMenuIndex];
+  if (!context || !selected) return false;
+  const replacement = chatCommandCompletionText(selected);
+  input.value = `${input.value.slice(0, context.start)}${replacement}${input.value.slice(context.end)}`;
+  const nextCursor = context.start + replacement.length;
+  input.setSelectionRange(nextCursor, nextCursor);
+  hideChatCommandMenu();
+  input.focus();
+  return true;
+}
+
+function handleChatCommandKeydown(event) {
+  const menu = document.querySelector("#chat-command-menu");
+  const { context, matches } = activeChatCommandMatches();
+  if (!context || !matches.length) {
+    if (event.key === "Escape") hideChatCommandMenu();
+    return false;
+  }
+  if (!menu || menu.hidden) {
+    if (event.key === "Tab") {
+      event.preventDefault();
+      updateChatCommandMenu();
+      return applyChatCommandCompletion(matches[0]);
+    }
+    return false;
+  }
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    setChatCommandMenuIndex(chatCommandMenuIndex + 1);
+    return true;
+  }
+  if (event.key === "ArrowUp") {
+    event.preventDefault();
+    setChatCommandMenuIndex(chatCommandMenuIndex - 1);
+    return true;
+  }
+  if (event.key === "Tab" || event.key === "Enter") {
+    event.preventDefault();
+    return applyChatCommandCompletion();
+  }
+  if (event.key === "Escape") {
+    event.preventDefault();
+    hideChatCommandMenu();
+    return true;
+  }
+  return false;
+}
+
 function selectedChatFiles() {
   const input = document.querySelector("#chat-files");
   return input?.files ? Array.from(input.files) : [];
@@ -3471,6 +3668,7 @@ async function sendChatMessage() {
     setStatus(t("chatQueuedForBridge"), t("chatQueuedForBridgeDetail"));
   }
   input.value = "";
+  hideChatCommandMenu();
   if (fileInput) fileInput.value = "";
   renderSelectedChatFiles();
   await loadChatMessages();

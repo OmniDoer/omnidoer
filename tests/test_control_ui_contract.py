@@ -402,6 +402,25 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("chat-record-terminal", (static_root() / "style.css").read_text())
         self.assertIn("chat-terminal-snapshot", (static_root() / "style.css").read_text())
 
+    def test_chat_composer_has_slash_command_completion(self) -> None:
+        style = (static_root() / "style.css").read_text()
+        self.assertIn('id="chat-command-menu"', self.html)
+        self.assertIn('role="listbox"', self.html)
+        self.assertIn('aria-controls="chat-command-menu"', self.html)
+        self.assertIn("const CHAT_COMMANDS", self.app)
+        self.assertIn('command: "/status"', self.app)
+        self.assertIn('command: "/resume"', self.app)
+        self.assertIn("chatCommandContext", self.app)
+        self.assertIn("matchingChatCommands", self.app)
+        self.assertIn("updateChatCommandMenu", self.app)
+        self.assertIn("handleChatCommandKeydown", self.app)
+        self.assertIn("applyChatCommandCompletion", self.app)
+        self.assertIn("slashCommandsHint", self.app)
+        self.assertIn("chatCommandMenuIndex", self.app)
+        self.assertIn(".chat-command-menu", style)
+        self.assertIn(".chat-command-option", style)
+        self.assertIn('.chat-command-option[aria-selected="true"]', style)
+
     def test_pairing_panel_and_cloud_csrf_contract_present(self) -> None:
         self.assertIn("Pair Device", self.html)
         self.assertIn("Only pair devices you control", self.html)
