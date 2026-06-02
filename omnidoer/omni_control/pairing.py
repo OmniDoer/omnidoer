@@ -24,11 +24,21 @@ DEFAULT_PAIRING_MAX_USES = 10
 
 
 def generate_pairing_code() -> str:
-    return "-".join(secrets.token_hex(2) for _ in range(3))
+    return f"{secrets.randbelow(1_000_000):06d}"
+
+
+def normalize_pairing_code(code: str) -> str:
+    text = str(code or "").strip()
+    if not text:
+        return ""
+    digits = "".join(ch for ch in text if ch.isdigit())
+    if len(digits) == 6 and all(ch.isdigit() or ch.isspace() or ch == "-" for ch in text):
+        return digits
+    return text
 
 
 def pairing_code_hash(code: str) -> str:
-    return hashlib.sha256(f"omnidoer-pairing-v1:{code}".encode("utf-8")).hexdigest()
+    return hashlib.sha256(f"omnidoer-pairing-v1:{normalize_pairing_code(code)}".encode("utf-8")).hexdigest()
 
 
 def parse_duration_seconds(value: str | int | None, default: int = DEFAULT_PAIRING_TTL_SECONDS) -> int:
@@ -117,18 +127,30 @@ class PairingStore:
         with locked_state_file(self.path):
             keypair = load_or_create_keypair()
             web_keypair = load_or_create_web_keypair()
-            code = generate_pairing_code()
+            pairings = self._load()
+            now = time.time()
+            active_hashes = {
+                item.code_hash
+                for item in pairings.values()
+                if not item.used and not item.is_expired(now)
+            }
+            for _ in range(20):
+                code = generate_pairing_code()
+                code_hash = pairing_code_hash(code)
+                if code_hash not in active_hashes:
+                    break
+            else:
+                raise RuntimeError("could not generate a unique pairing code")
             pairing = PairingCode(
                 pairing_id=f"pair_{uuid.uuid4().hex}",
                 code=code,
-                code_hash=pairing_code_hash(code),
+                code_hash=code_hash,
                 public_url=public_url.rstrip("/"),
                 broker_fingerprint=keypair.fingerprint,
                 web_broker_fingerprint=web_keypair.fingerprint,
-                expires_at=time.time() + ttl_seconds,
+                expires_at=now + ttl_seconds,
                 max_uses=max(1, int(max_uses)),
             )
-            pairings = self._load()
             pairings[pairing.pairing_id] = pairing
             self._save(pairings)
             return pairing

@@ -55,13 +55,14 @@ browsers do not allow custom authentication headers there. Each streamed
 snapshot is filtered by the authenticated device session before it leaves the
 Control Service.
 
-The QR pairing URL includes a time-limited `code` and opaque `pairing_id`. By
-default it is valid for 24 hours and can pair up to 10 browsers/devices. Before
-the user confirms pairing, the PWA can fetch public pairing metadata by
-`pairing_id` so the screen shows the server URL, broker fingerprint, web broker
-fingerprint, and expiry. That metadata endpoint does not return the pairing
-code, code hash, session token, device private key, secret payload, challenge
-answer, or vault data.
+`omnidoer pair` prints a time-limited 6-digit `code`; the QR/link path also
+includes that code and an opaque `pairing_id`. By default the invite is valid
+for 24 hours and can pair up to 10 browsers/devices. Before the user confirms
+pairing, the PWA can fetch public pairing metadata by `pairing_id` so the
+screen shows the server URL, broker fingerprint, web broker fingerprint, and
+expiry. That metadata endpoint does not return the pairing code, code hash,
+session token, device private key, secret payload, challenge answer, or vault
+data.
 
 If a website requires account registration before the Agent can continue, the
 Control Service uses Registration Handoff rather than model-driven signup. The

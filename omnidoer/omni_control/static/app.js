@@ -21,7 +21,7 @@ const I18N = {
     runtimeModeBackground: "Background runner",
     runtimeModeOffline: "Control Service offline",
     runtimeDetail: "Control Client does not call OpenAI APIs or models directly.",
-    runtimeUnpairedDetail: "This browser is not paired yet. Open a fresh pairing link on this device and tap Pair Device before using requests or session sync.",
+    runtimeUnpairedDetail: "This browser is not paired yet. Enter the 6-digit code from omnidoer pair before using requests or session sync.",
     runtimeOffline: "Runtime offline",
     runtimeOfflineDetail: "Start omnidoer control serve.",
     runtimeBridgeActive: "Live Linux console bridge is active; messages sync with the current TUI.",
@@ -36,7 +36,7 @@ const I18N = {
     chatSessionCheckingTitle: "Checking current CLI session",
     chatSessionCheckingDetail: "Pairing authenticates this browser; session sync also needs a live CLI bridge.",
     chatSessionUnpairedTitle: "Pair this browser",
-    chatSessionUnpairedDetail: "This browser has not authenticated to the Control Service yet. Pair it before using chat, requests, or session sync.",
+    chatSessionUnpairedDetail: "This browser has not authenticated to the Control Service yet. Enter the 6-digit pairing code before using chat, requests, or session sync.",
     chatSessionAttachedTitle: "Current CLI session attached",
     chatSessionAttachedDetail: "Phone messages and streamed output are synced with the active Linux TUI.",
     chatSessionLegacyTitle: "Server paired; current session not synced",
@@ -183,16 +183,19 @@ const I18N = {
     requestSubmitFailedDetail: "Pair again if this is Cloud Direct Mode.",
     actionFailed: "Action failed",
     pairTitle: "Pair Device",
-    pairIntro: "Connect this browser to your own Control Service. Pair only devices you control.",
-    pairSecurity: "After pairing, secret and challenge submissions are encrypted locally.",
+    pairIntro: "Connect this browser to your own Control Service with the 6-digit code printed by omnidoer pair. Pair only devices you control.",
+    pairSecurity: "After pairing, this browser caches its device key locally and encrypts secret and challenge submissions before sending them.",
+    pairCodeLabel: "6-digit pairing code",
+    deviceNameLabel: "Device name",
+    pairingCodePlaceholder: "123456",
     pairButton: "Pair Device",
     forgetPairing: "Forget Local Pairing",
     notPaired: "Not paired.",
     controlOffline: "Control Service is offline.",
     localTrustedMode: "Local trusted mode is active. Pairing is not required on localhost.",
     localTrustedDevice: "local trusted mode",
-    pairingCodeLoaded: "Pairing code loaded. Confirm the server details, then pair this device.",
-    pairFreshLink: "This browser is not paired. Pairing is per browser because the device key stays local; open a fresh pairing link on this device.",
+    pairingCodeLoaded: "Pairing code loaded. Pair this device to save the browser-local session.",
+    pairFreshLink: "This browser is not paired. Enter the 6-digit code from omnidoer pair; the device key stays in this browser after pairing.",
     checkingCachedSession: "Checking cached pairing session...",
     sessionHidden: "This browser is authenticated. The current session is not visible in the latest session list.",
     sessionRevoked: "This browser's cached session was revoked. Pair again to continue.",
@@ -202,9 +205,10 @@ const I18N = {
     pairingDevice: "Pairing this device...",
     pairingFailed: "Pairing failed.",
     pairingFailedDetail: (reason) => `Pairing failed: ${reason}`,
-    pairingExpired: "Pairing code expired. Open a fresh pairing link on this device.",
-    pairingAlreadyUsed: "Pairing code reached its 10-use limit. Generate a fresh link for more devices.",
-    pairingInvalid: "Pairing code is invalid. Open the latest pairing link.",
+    pairingCodeRequired: "Enter the 6-digit pairing code.",
+    pairingExpired: "Pairing code expired. Generate a fresh 6-digit code with omnidoer pair.",
+    pairingAlreadyUsed: "Pairing code reached its 10-use limit. Generate a fresh 6-digit code for more devices.",
+    pairingInvalid: "Pairing code is invalid. Check the 6-digit code or generate a fresh pairing invite.",
     pairedDevice: (name) => `Paired ${name}. This browser will stay paired long-term unless the session is revoked or browser data is cleared.`,
     localPairingRemoved: "Local pairing was removed from this browser. Server-side devices and sessions can still be revoked after pairing again.",
     deviceTitle: "Devices / Sessions",
@@ -408,7 +412,7 @@ const I18N = {
     runtimeModeBackground: "后台 runner",
     runtimeModeOffline: "控制服务离线",
     runtimeDetail: "控制客户端不会直接调用 OpenAI API 或模型。",
-    runtimeUnpairedDetail: "当前浏览器尚未配对。请在此设备上打开新的配对链接，并点击配对设备后再使用请求或会话同步。",
+    runtimeUnpairedDetail: "当前浏览器尚未配对。请先输入 omnidoer pair 打印的 6 位短码，再使用请求或会话同步。",
     runtimeOffline: "运行服务离线",
     runtimeOfflineDetail: "请启动 omnidoer control serve。",
     runtimeBridgeActive: "Linux 控制台实时桥接已启用；消息会同步到当前 TUI。",
@@ -423,7 +427,7 @@ const I18N = {
     chatSessionCheckingTitle: "正在检查当前 CLI 会话",
     chatSessionCheckingDetail: "配对只代表此浏览器已认证；要同步当前会话还需要实时 CLI 桥接。",
     chatSessionUnpairedTitle: "配对此浏览器",
-    chatSessionUnpairedDetail: "当前浏览器尚未通过 Control Service 认证。请先完成配对，再使用对话、请求或会话同步。",
+    chatSessionUnpairedDetail: "当前浏览器尚未通过 Control Service 认证。请先输入 6 位配对码，再使用对话、请求或会话同步。",
     chatSessionAttachedTitle: "已接入当前 CLI 会话",
     chatSessionAttachedDetail: "手机消息和流式输出会同步到活跃 Linux TUI。",
     chatSessionLegacyTitle: "已配对服务器；当前会话未同步",
@@ -570,16 +574,19 @@ const I18N = {
     requestSubmitFailedDetail: "如果这是 Cloud Direct 模式，请重新配对。",
     actionFailed: "操作失败",
     pairTitle: "配对此设备",
-    pairIntro: "将此浏览器连接到你自己的 Control Service。只配对你控制的设备。",
-    pairSecurity: "配对后，凭证和验证内容会在本地加密后提交。",
+    pairIntro: "输入 omnidoer pair 打印的 6 位短码，将此浏览器连接到你自己的 Control Service。只配对你控制的设备。",
+    pairSecurity: "配对成功后，此浏览器会在本地缓存设备密钥；凭证和验证内容会先在本地加密再提交。",
+    pairCodeLabel: "6 位配对码",
+    deviceNameLabel: "设备名称",
+    pairingCodePlaceholder: "123456",
     pairButton: "配对设备",
     forgetPairing: "清除本地配对",
     notPaired: "未配对。",
     controlOffline: "Control Service 离线。",
     localTrustedMode: "本地可信模式已启用，localhost 不需要配对。",
     localTrustedDevice: "本地可信模式",
-    pairingCodeLoaded: "已载入配对码。确认服务端信息后配对此设备。",
-    pairFreshLink: "当前浏览器未配对。配对按浏览器保存，因为设备密钥只留在本机；请在此设备上打开新的配对链接。",
+    pairingCodeLoaded: "已载入配对码。配对后会把会话保存在此浏览器本地。",
+    pairFreshLink: "当前浏览器未配对。请输入 omnidoer pair 显示的 6 位短码；配对后设备密钥会留在此浏览器本地。",
     checkingCachedSession: "正在检查本地配对会话...",
     sessionHidden: "此浏览器已认证，但当前会话不在最新会话列表中。",
     sessionRevoked: "此浏览器缓存的会话已被撤销，请重新配对。",
@@ -589,9 +596,10 @@ const I18N = {
     pairingDevice: "正在配对此设备...",
     pairingFailed: "配对失败。",
     pairingFailedDetail: (reason) => `配对失败：${reason}`,
-    pairingExpired: "配对码已过期。请在此设备上打开新的配对链接。",
-    pairingAlreadyUsed: "配对码已达到 10 次使用上限。请生成新链接配对更多设备。",
-    pairingInvalid: "配对码无效。请打开最新的配对链接。",
+    pairingCodeRequired: "请输入 6 位配对码。",
+    pairingExpired: "配对码已过期。请用 omnidoer pair 生成新的 6 位短码。",
+    pairingAlreadyUsed: "配对码已达到 10 次使用上限。请生成新的 6 位短码配对更多设备。",
+    pairingInvalid: "配对码无效。请检查 6 位短码，或重新生成配对邀请。",
     pairedDevice: (name) => `已配对 ${name}。除非会话被撤销或浏览器数据被清除，此浏览器会长期保持配对。`,
     localPairingRemoved: "已清除本地配对。服务端设备和会话仍可在重新配对后撤销。",
     deviceTitle: "设备 / 会话",
@@ -946,6 +954,9 @@ function applyLanguage() {
   setNodeText("#pairing-panel h2", "pairTitle");
   setNodeText("#pairing-panel > p:nth-of-type(1)", "pairIntro");
   setNodeText("#pairing-panel > p:nth-of-type(2)", "pairSecurity");
+  setNodeText("#pairing-code-label", "pairCodeLabel");
+  setNodeText("#device-name-label", "deviceNameLabel");
+  document.querySelector("#pairing-code")?.setAttribute("placeholder", t("pairingCodePlaceholder"));
   setButtonText("#pair-device", "pairButton");
   setButtonText("#forget-local-pairing", "forgetPairing");
   setNodeText("#device-panel h2", "deviceTitle");
@@ -1569,6 +1580,17 @@ if (pairDeviceButton) {
   pairDeviceButton.onclick = () => pairDevice();
 }
 
+const pairingCodeInput = document.querySelector("#pairing-code");
+if (pairingCodeInput) {
+  pairingCodeInput.addEventListener("input", updatePairingCodePreviewFromInput);
+  pairingCodeInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      pairDevice();
+    }
+  });
+}
+
 const forgetLocalPairingButton = document.querySelector("#forget-local-pairing");
 if (forgetLocalPairingButton) {
   forgetLocalPairingButton.onclick = () => forgetLocalPairing();
@@ -1827,12 +1849,37 @@ let authenticatedRealtimeStarted = false;
 
 applyLanguage();
 
+function pairingInputIsNumericCode(value) {
+  const raw = String(value || "").trim();
+  return raw === "" || /^[0-9\s-]+$/.test(raw);
+}
+
+function normalizePairingCodeInput(value) {
+  const raw = String(value || "").trim();
+  if (pairingInputIsNumericCode(raw)) {
+    return raw.replace(/[^0-9]/g, "");
+  }
+  return raw;
+}
+
+function updatePairingCodePreviewFromInput() {
+  const input = document.querySelector("#pairing-code");
+  const preview = document.querySelector("#pairing-code-preview");
+  if (!input) return "";
+  const code = normalizePairingCodeInput(input.value);
+  if (pairingInputIsNumericCode(input.value)) {
+    input.value = code;
+  }
+  if (preview) preview.textContent = code || "not loaded";
+  return code;
+}
+
 const urlParams = new URLSearchParams(window.location.search);
-const initialPairingCode = urlParams.get("code");
+const initialPairingCode = normalizePairingCodeInput(urlParams.get("code") || "");
 const initialPairingId = urlParams.get("pairing_id");
 if (initialPairingCode) {
   document.querySelector("#pairing-code").value = initialPairingCode;
-  document.querySelector("#pairing-code-preview").textContent = initialPairingCode;
+  updatePairingCodePreviewFromInput();
   activatePanel("pairing-panel", { persist: false });
 }
 if (initialPairingId) {
@@ -3100,9 +3147,18 @@ async function signedFetch(url, options = {}) {
 }
 
 async function pairDevice() {
-  const code = document.querySelector("#pairing-code").value.trim();
+  const input = document.querySelector("#pairing-code");
+  const rawCode = input?.value || "";
+  const code = normalizePairingCodeInput(rawCode);
   const deviceName = document.querySelector("#device-name").value.trim() || "PWA Control Client";
-  if (!code) return;
+  if (input && pairingInputIsNumericCode(rawCode)) {
+    input.value = code;
+  }
+  updatePairingCodePreviewFromInput();
+  if (!code || (pairingInputIsNumericCode(rawCode) && code.length !== 6)) {
+    setPairingUiState({ state: "unpaired", message: t("pairingCodeRequired") });
+    return;
+  }
   setPairingUiState({ state: "checking", message: t("pairingDevice") });
   try {
     const { publicJwk } = await withTimeout(deviceKeyPair(), PAIRING_STEP_TIMEOUT_MS, "device key setup timed out");
@@ -4196,7 +4252,7 @@ async function refreshPairingState() {
   }
   const identity = storedPairingIdentity();
   if (!identity.deviceId || !identity.sessionId || !identity.hasPrivateKey) {
-    const codeLoaded = Boolean(document.querySelector("#pairing-code")?.value.trim());
+    const codeLoaded = Boolean(normalizePairingCodeInput(document.querySelector("#pairing-code")?.value || ""));
     cachedPairingAuthenticated = false;
     setPairingUiState({
       state: "unpaired",

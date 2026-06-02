@@ -568,6 +568,7 @@ class McpToolsTest(unittest.TestCase):
                     {"public_url": "https://agent.example.com", "expires": "30m"},
                 )
                 self.assertEqual(result["status"], "pairing_created")
+                self.assertRegex(result["pairing_code"], r"^\d{6}$")
                 self.assertIn("https://agent.example.com/pair?code=", result["pairing_url"])
                 self.assertNotIn("##", result["qr_ascii"])
                 self.assertGreater(sum(result["qr_ascii"].count(ch) for ch in "█▀▄"), 100)
@@ -602,6 +603,7 @@ class McpToolsTest(unittest.TestCase):
                 )
                 result = call_tool("control.create_pairing", {"expires": "30m"})
                 self.assertEqual(result["status"], "pairing_created")
+                self.assertRegex(result["pairing_code"], r"^\d{6}$")
                 self.assertIn("https://agent.example.com/pair?code=", result["pairing_url"])
             finally:
                 if old_home is None:

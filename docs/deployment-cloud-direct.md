@@ -51,19 +51,20 @@ omnidoer control serve \
   --tls-self-signed-dev
 ```
 
-Create a pairing URL:
+Create a pairing invite:
 
 ```sh
 omnidoer pair --public-url https://agent.example.com
 ```
 
-Only pair devices you control. Pairing URLs are valid for 24 hours and can pair
-up to 10 browsers/devices by default. After pairing, clients use device
-identity plus long-lived cached, revocable sessions. Protected API requests are
-signed by the paired device key and replay-protected with nonces.
-When the PWA opens from the QR code, it shows the server URL, pairing code,
-broker fingerprint, web broker fingerprint, and expiry before the user confirms
-pairing. The metadata used for that preview is public but not secret-bearing.
+Only pair devices you control. `omnidoer pair` prints a 6-digit code plus a QR
+and URL; the invite is valid for 24 hours and can pair up to 10 browsers/devices
+by default. After pairing, clients use device identity plus long-lived cached,
+revocable sessions. Protected API requests are signed by the paired device key
+and replay-protected with nonces. When the PWA opens from the QR code, it shows
+the server URL, pairing code, broker fingerprint, web broker fingerprint, and
+expiry before the user confirms pairing. The metadata used for that preview is
+public but not secret-bearing.
 
 Request push prefers WSS on `/api/ws/requests`. The browser uses its httpOnly
 session cookie plus a nonce-bound device signature in `Sec-WebSocket-Protocol`;

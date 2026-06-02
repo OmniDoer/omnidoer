@@ -23,9 +23,11 @@ them through the safe MCP tool `control.next_user_task`, then continues using
 the existing Codex CLI authentication and billing mode.
 
 In LAN Mode and Cloud Direct Mode the same PWA connects to the user's own
-Control Service. A pairing URL from `omnidoer pair` opens
-the Pair Device panel, registers a device public key, receives an httpOnly
-session cookie, and stores only client-side device metadata plus a CSRF token.
+Control Service. `omnidoer pair` prints a 6-digit pairing code, plus a pairing
+URL and QR code for scan/link-based setup. The user can enter only the 6-digit
+code in the Pair Device panel; the Control Client registers a device public
+key, receives an httpOnly session cookie, and stores only client-side device
+metadata plus a CSRF token.
 Mutating API calls include CSRF, and encrypted secret/challenge envelopes bind
 request, origin, type, device id, and expiry.
 The older `omnidoer control pair --print-qr` command is still supported for
@@ -33,14 +35,14 @@ script compatibility. The paired PWA keeps using its local device key and a
 long-lived session until the user revokes that device or session.
 When opened again, the PWA validates the cached session, shows the current
 device/session state, and loads requests automatically. Users only need a new
-pairing link when no local session exists, browser data was cleared, or the
-session has been revoked.
+6-digit pairing code when no local session exists, browser data was cleared,
+or the session has been revoked.
 When the OmniDoer MCP server is registered with Codex, the Agent can also call
 `control.create_pairing` after the user asks to start pairing. This provides
-the same 24-hour, 10-use URL without making the user leave the conversation to
-find a separate command. The pairing URL is intentionally user-visible and
-capped-use; long-lived access comes only from the paired device's revocable
-session.
+the same 24-hour, 10-use invite without making the user leave the conversation
+to find a separate command. The pairing code and URL are intentionally
+user-visible and capped-use; long-lived access comes only from the paired
+device's revocable session.
 
 Secrets are sent to the Secret Broker, not to Agent/LLM context. Challenge
 answers are handled by the Challenge Relay or target browser, not by the model.

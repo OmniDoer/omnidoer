@@ -29,11 +29,13 @@ def print_pairing_invite(*, public_url: str | None = None, expires: str = "24h",
         print("qr_ascii_begin")
         print(qr_text(pairing, ansi=sys.stdout.isatty()))
         print("qr_ascii_end")
+    print(f"pairing_code={pairing.code}")
     print(f"pairing_url={pairing_url(pairing)}")
     print(f"expires_at={pairing.expires_at}")
     print(f"max_uses={pairing.max_uses}")
     print(f"broker_fingerprint={pairing.broker_fingerprint}")
-    print("warning=Only pair devices you control. Pairing URLs are reusable up to 10 times within 24 hours by default.")
+    print("instruction=Enter the 6-digit pairing_code in the Control Client. Successful pairing is cached in that browser.")
+    print("warning=Only pair devices you control. Pairing codes are reusable up to 10 times within 24 hours by default.")
 
 
 def _secret_payload(request) -> dict[str, str | bool]:

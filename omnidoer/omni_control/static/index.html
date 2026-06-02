@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icon-192.png">
-  <link rel="stylesheet" href="/style.css?v=20260601-takeover-compact">
+  <link rel="stylesheet" href="/style.css?v=20260602-short-pairing">
   <title>OmniDoer Control Client</title>
 </head>
 <body>
@@ -100,8 +100,8 @@
         <dt>Expires at</dt><dd id="pairing-expires-at">not loaded</dd>
         <dt>Remaining uses</dt><dd id="pairing-remaining-uses">not loaded</dd>
       </dl>
-      <label>Pairing code <input id="pairing-code" autocomplete="one-time-code"></label>
-      <label>Device name <input id="device-name" value="PWA Control Client"></label>
+      <label><span id="pairing-code-label">6-digit pairing code</span><input id="pairing-code" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]*" placeholder="123456"></label>
+      <label><span id="device-name-label">Device name</span><input id="device-name" value="PWA Control Client"></label>
       <div class="button-row">
         <button id="pair-device">Pair Device</button>
         <button id="forget-local-pairing" type="button" disabled>Forget Local Pairing</button>
@@ -260,6 +260,6 @@
       </div>
     </section>
   </main>
-  <script src="/app.js?v=20260601-approval-drafts"></script>
+  <script src="/app.js?v=20260602-short-pairing"></script>
 </body>
 </html>

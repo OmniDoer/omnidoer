@@ -13,6 +13,7 @@ from omnidoer.omni_control.pairing import (
     PairingStore,
     ascii_qr,
     pairing_code_hash,
+    normalize_pairing_code,
     parse_duration_seconds,
     pairing_url,
     qr_text,
@@ -27,6 +28,7 @@ class PairingFlowTest(unittest.TestCase):
             store = PairingStore(Path(tmp) / "pairing.json")
             before = time.time()
             pairing = store.create(public_url="https://agent.example.com")
+            self.assertRegex(pairing.code, r"^\d{6}$")
             self.assertIn(pairing.code, pairing_url(pairing))
             self.assertGreater(pairing.expires_at, before + DEFAULT_PAIRING_TTL_SECONDS - 5)
             self.assertEqual(pairing.max_uses, DEFAULT_PAIRING_MAX_USES)
@@ -120,6 +122,19 @@ class PairingFlowTest(unittest.TestCase):
         digest = pairing_code_hash("1234-5678-90ab")
         self.assertEqual(digest, pairing_code_hash("1234-5678-90ab"))
         self.assertNotIn("1234-5678-90ab", digest)
+
+    def test_short_pairing_code_accepts_common_separators(self) -> None:
+        self.assertEqual(normalize_pairing_code("123456"), "123456")
+        self.assertEqual(normalize_pairing_code("123 456"), "123456")
+        self.assertEqual(normalize_pairing_code("123-456"), "123456")
+        self.assertEqual(pairing_code_hash("123456"), pairing_code_hash("123 456"))
+        self.assertEqual(pairing_code_hash("123456"), pairing_code_hash("123-456"))
+        with tempfile.TemporaryDirectory() as tmp:
+            store = PairingStore(Path(tmp) / "pairing.json")
+            pairing = store.create(public_url="https://agent.example.com", max_uses=1)
+            grouped = f"{pairing.code[:3]}-{pairing.code[3:]}"
+            consumed = store.consume(grouped)
+            self.assertEqual(consumed.use_count, 1)
 
     def test_ascii_qr_is_deterministic_for_same_payload(self) -> None:
         first = ascii_qr("https://agent.example.com/pair?code=demo")

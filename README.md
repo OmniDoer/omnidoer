@@ -443,10 +443,12 @@ omnidoer control serve --cloud-direct \
 omnidoer pair
 ```
 
-`omnidoer pair` is the low-friction pairing entrypoint. It prints a 24-hour,
-10-use pairing URL and a terminal QR code by default, then the Control Client
-caches the paired device identity in a long-lived revocable session. The legacy
-`omnidoer control pair --print-qr` command remains available for scripts.
+`omnidoer pair` is the low-friction pairing entrypoint. It prints a 6-digit
+pairing code, plus a 24-hour, 10-use pairing URL and terminal QR code for scan
+or link-based setup. After the user enters the short code, the Control Client
+caches the paired device identity in a long-lived revocable browser session.
+The legacy `omnidoer control pair --print-qr` command remains available for
+scripts.
 
 MCP remains local to Codex CLI. Vault, Broker, Challenge Relay, and browser
 internal interfaces are not public Control Service APIs.

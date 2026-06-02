@@ -1,10 +1,11 @@
 # Android Control Client
 
 MVP Android support is the HTML5/PWA Control Client in a mobile browser.
-Open a 24-hour, 10-use pairing URL, pair once, then install the page to the home
-screen. The PWA keeps its local device key and long-lived cached session, so normal
-credential, challenge, approval, and takeover requests appear without
-re-pairing unless browser data is cleared or the session is revoked.
+Enter the 6-digit, 24-hour, 10-use pairing code from `omnidoer pair`, pair once,
+then install the page to the home screen. The PWA keeps its local device key and
+long-lived cached session, so normal credential, challenge, approval, and
+takeover requests appear without re-pairing unless browser data is cleared or
+the session is revoked.
 
 Future native Android client plan:
 

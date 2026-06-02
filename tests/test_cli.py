@@ -162,6 +162,7 @@ class CliTest(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("OmniDoer Control Client pairing", result.stdout)
+            self.assertRegex(result.stdout, r"pairing_code=\d{6}")
             self.assertIn("pairing_url=https://agent.example.com/pair", result.stdout)
             self.assertIn("broker_fingerprint=", result.stdout)
             self.assertIn("Only pair devices you control", result.stdout)
@@ -177,6 +178,7 @@ class CliTest(unittest.TestCase):
                 env={"OMNIDOER_HOME": tmp},
             )
             self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertRegex(result.stdout, r"pairing_code=\d{6}")
             self.assertIn("pairing_url=https://agent.example.com/pair", result.stdout)
             self.assertNotIn("qr_ascii_begin", result.stdout)
 
@@ -198,6 +200,7 @@ class CliTest(unittest.TestCase):
                 env={"OMNIDOER_HOME": tmp, "OMNIDOER_CONTROL_PUBLIC_URL": ""},
             )
             self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertRegex(result.stdout, r"pairing_code=\d{6}")
             self.assertIn("pairing_url=https://agent.example.com/pair", result.stdout)
 
     def test_update_prompt_skip_once_env_prevents_reexec_loop(self) -> None:
@@ -1075,6 +1078,7 @@ echo "askpass_exit=$?"
                 env=env,
             )
             self.assertEqual(pair.returncode, 0, pair.stderr)
+            self.assertRegex(pair.stdout, r"pairing_code=\d{6}")
             self.assertIn("pairing_url=https://agent.example.com/pair", pair.stdout)
             self.assertIn("broker_fingerprint=", pair.stdout)
             self.assertIn("Only pair devices you control", pair.stdout)

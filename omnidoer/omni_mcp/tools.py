@@ -149,6 +149,7 @@ def _create_pairing(arguments: dict) -> dict:
     pairing = PairingStore().create(public_url=public_url, ttl_seconds=parse_duration_seconds(expires))
     return {
         "status": "pairing_created",
+        "pairing_code": pairing.code,
         "pairing_url": pairing_url(pairing),
         "qr_ascii": qr_text(pairing),
         "expires_at": pairing.expires_at,
@@ -159,7 +160,8 @@ def _create_pairing(arguments: dict) -> dict:
         "remaining_uses": max(0, pairing.max_uses - pairing.use_count),
         "paired_sessions_are_cached": True,
         "pairing_code_model_visible": True,
-        "warning": f"Only pair devices you control. Pairing URLs are reusable up to {DEFAULT_PAIRING_MAX_USES} times within 24 hours by default.",
+        "instruction": "Enter the 6-digit pairing_code in the Control Client. Successful pairing is cached in that browser.",
+        "warning": f"Only pair devices you control. Pairing codes are reusable up to {DEFAULT_PAIRING_MAX_USES} times within 24 hours by default.",
         "secret_exposed_to_model": False,
     }
 
