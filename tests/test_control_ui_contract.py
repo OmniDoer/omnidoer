@@ -652,7 +652,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn(".section-tabs a.has-active-takeover::after", (static_root() / "style.css").read_text())
         self.assertIn(".section-tabs a.has-browser-preview::after", (static_root() / "style.css").read_text())
         self.assertIn(".browser-handoff-strip", (static_root() / "style.css").read_text())
-        self.assertIn("grid-template-rows: auto auto auto auto auto minmax(320px, 1fr) auto", (static_root() / "style.css").read_text())
+        self.assertIn("grid-template-rows: auto auto minmax(0, auto) minmax(0, auto) minmax(0, auto) minmax(96px, 1fr) auto", (static_root() / "style.css").read_text())
         self.assertIn("grid-template-rows: auto minmax(320px, 1fr) auto auto auto", (static_root() / "style.css").read_text())
         self.assertIn("body[data-active-panel=\"takeover-panel\"] .app-header", (static_root() / "style.css").read_text())
         self.assertIn("#takeover-panel .takeover-toolbar", (static_root() / "style.css").read_text())
