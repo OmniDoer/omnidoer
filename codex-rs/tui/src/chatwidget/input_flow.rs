@@ -205,6 +205,10 @@ impl ChatWidget {
             local_image_paths,
             Vec::new(),
         ) {
+            if user_message.text.trim_start().starts_with('/') {
+                self.submit_queued_slash_prompt(user_message);
+                return;
+            }
             let should_interrupt = interrupt_turn
                 && self.turn_lifecycle.agent_turn_running
                 && self.bottom_pane.is_task_running();

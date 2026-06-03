@@ -1066,6 +1066,11 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
   width: 19px;
   height: 19px;
 }
+#send-chat-message.soft-disabled {
+  background: #f8fafc;
+  color: #64748b;
+  opacity: 0.74;
+}
 .file-button.disabled {
   cursor: not-allowed;
   border-color: #cbd5e1;

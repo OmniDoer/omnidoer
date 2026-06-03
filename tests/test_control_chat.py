@@ -56,6 +56,11 @@ class ControlChatStoreTest(unittest.TestCase):
                 text="Continue Agent",
                 client_message_id="control_continue_123",
             )
+            cli_command = store.append(
+                role="user",
+                text="/status",
+                client_message_id="control_cli_789",
+            )
             pause = store.append(
                 role="user",
                 text="Pause Agent now",
@@ -65,16 +70,20 @@ class ControlChatStoreTest(unittest.TestCase):
             first = store.next_user_message()
             second = store.next_user_message()
             third = store.next_user_message()
+            fourth = store.next_user_message()
 
             self.assertIsNotNone(first)
             self.assertIsNotNone(second)
             self.assertIsNotNone(third)
+            self.assertIsNotNone(fourth)
             assert first is not None
             assert second is not None
             assert third is not None
+            assert fourth is not None
             self.assertEqual(first.message_id, pause.message_id)
             self.assertEqual(second.message_id, continue_message.message_id)
-            self.assertEqual(third.message_id, older.message_id)
+            self.assertEqual(third.message_id, cli_command.message_id)
+            self.assertEqual(fourth.message_id, older.message_id)
 
     def test_chat_message_appends_attachment_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

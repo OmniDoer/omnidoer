@@ -99,6 +99,9 @@ const I18N = {
     chatPlaceholderLegacy: "Temporary paste only; enable current session sync for shared context",
     chatPlaceholderUnavailable: "This phone is paired, but the current CLI session is not attached yet",
     chatSendBlocked: "Chat not attached",
+    chatCliCommandQueued: "CLI command queued",
+    chatCliCommandQueuedDetail: "The command will be handled by the active OmniDoer CLI when the bridge receives it.",
+    chatCliCommandNoAttachments: "CLI commands cannot include file attachments.",
     chatDeliveredToConsole: "Pasted to Linux console",
     chatDeliveredToConsoleDetail: "Temporary terminal relay pasted this message into the active TUI; this is not native session sync.",
     chatQueuedForBridge: "Message queued for console bridge",
@@ -498,6 +501,9 @@ const I18N = {
     chatPlaceholderLegacy: "仅临时粘贴；启用当前会话同步后才共享上下文",
     chatPlaceholderUnavailable: "手机已配对，但当前 CLI 会话还没接入",
     chatSendBlocked: "对话尚未接入",
+    chatCliCommandQueued: "CLI 指令已入队",
+    chatCliCommandQueuedDetail: "bridge 收到后会交给活跃 OmniDoer CLI 处理。",
+    chatCliCommandNoAttachments: "CLI 指令不能附带文件。",
     chatDeliveredToConsole: "已临时粘贴到 Linux console",
     chatDeliveredToConsoleDetail: "临时终端 relay 已把这条消息粘贴进活跃 TUI；这还不是原生会话同步。",
     chatQueuedForBridge: "消息已进入 console 桥接队列",
@@ -2372,6 +2378,7 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
   panel.dataset.sessionState = state;
   document.body.dataset.chatSessionState = state;
   document.body.dataset.chatSendMode = canSend ? state : "blocked";
+  const canEditDraft = state !== "unpaired";
   if (title) title.textContent = t(titleKey);
   const detailText = `${t(detailKey)}${diagnosticKey ? ` ${t(diagnosticKey)}` : ""}`;
   if (detail) detail.textContent = detailText;
@@ -2384,11 +2391,14 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
     restart.classList.toggle("pending-sync-request", Boolean(syncRequest));
   }
   if (input) {
-    input.disabled = !canSend;
+    input.disabled = !canEditDraft;
+    input.dataset.sendBlocked = canSend ? "false" : "true";
     input.placeholder = t(placeholderKey);
   }
   if (send) {
-    send.disabled = !canSend;
+    send.disabled = !canEditDraft;
+    send.classList.toggle("soft-disabled", canEditDraft && !canSend);
+    send.setAttribute("aria-disabled", canSend ? "false" : "true");
     send.setAttribute("aria-label", t(sendKey));
     send.title = t(sendKey);
   }
@@ -3457,6 +3467,11 @@ function chatCommandContext(input) {
   };
 }
 
+function chatTextIsCliCommand(text) {
+  const firstLine = String(text || "").trimStart().split(/\r?\n/, 1)[0].trim();
+  return /^\/[A-Za-z][A-Za-z0-9-]*(?:\s|$)/.test(firstLine);
+}
+
 function matchingChatCommands(query = "") {
   const normalized = query.replace(/^\//, "").toLowerCase();
   if (!normalized) return CHAT_COMMANDS;
@@ -3643,6 +3658,15 @@ async function sendChatMessage() {
   const text = input.value.trim();
   const files = selectedChatFiles();
   if (!text && !files.length) return;
+  const cliCommand = chatTextIsCliCommand(text);
+  if (document.body.dataset.chatSendMode === "blocked" && !cliCommand) {
+    setStatus(t("chatSendBlocked"), t("chatSessionServerOnlyDetail"), document.body.dataset.runtimeState || "");
+    return;
+  }
+  if (cliCommand && files.length) {
+    setStatus(t("actionFailed"), t("chatCliCommandNoAttachments"));
+    return;
+  }
   let attachments = [];
   try {
     attachments = await uploadChatAttachments(files);
@@ -3650,7 +3674,8 @@ async function sendChatMessage() {
     setStatus(t("uploadFailed"), t("pairToViewChat"));
     return;
   }
-  const response = await postChatMessage(text, { attachments });
+  const clientMessageId = cliCommand ? `control_cli_${Date.now()}_${Math.random().toString(16).slice(2)}` : null;
+  const response = await postChatMessage(text, { clientMessageId, attachments });
   if (!response.ok) {
     setStatus(t("actionFailed"), t("pairToViewChat"));
     return;
@@ -3662,7 +3687,9 @@ async function sendChatMessage() {
     payload = {};
   }
   const delivery = payload.live_console_delivery || {};
-  if (delivery.delivered) {
+  if (cliCommand) {
+    setStatus(t("chatCliCommandQueued"), t("chatCliCommandQueuedDetail"));
+  } else if (delivery.delivered) {
     setStatus(t("chatDeliveredToConsole"), t("chatDeliveredToConsoleDetail"));
   } else if (delivery.attempted || delivery.reason) {
     setStatus(t("chatQueuedForBridge"), t("chatQueuedForBridgeDetail"));

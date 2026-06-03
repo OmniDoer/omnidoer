@@ -614,6 +614,21 @@ async fn slash_pair_shows_local_pairing_qr() {
 }
 
 #[tokio::test]
+async fn remote_slash_command_dispatches_as_cli_command() {
+    let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+
+    chat.submit_omnidoer_remote_user_message("/pair".to_string(), Vec::new(), false);
+
+    assert_matches!(op_rx.try_recv(), Err(TryRecvError::Empty));
+    let cells = drain_insert_history(&mut rx);
+    assert_eq!(cells.len(), 1, "expected one pairing QR output cell");
+    let rendered = lines_to_single_string(&cells[0]);
+    assert!(rendered.contains("OmniDoer Control Client pairing"));
+    assert!(rendered.contains("qr_ascii_begin"));
+    assert!(rendered.contains("pairing_url=https://agent.example.com/pair"));
+}
+
+#[tokio::test]
 async fn slash_pair_with_args_uses_pairing_options() {
     let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
 
