@@ -154,6 +154,41 @@
       border-bottom: 2px solid var(--accent);
       padding-bottom: 2px;
     }
+    .launch-strip {
+      background: #ecfeff;
+      border-block: 1px solid #a5f3fc;
+    }
+    .launch-strip-inner {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 18px 24px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: center;
+    }
+    .launch-strip h2 {
+      margin: 0 0 6px;
+      font-size: clamp(1.2rem, 2vw, 1.7rem);
+      letter-spacing: 0;
+    }
+    .launch-strip p {
+      margin: 0;
+      max-width: 780px;
+      color: #164e63;
+      font-size: 1rem;
+      line-height: 1.55;
+    }
+    .launch-strip a {
+      border: 1px solid #0e7490;
+      border-radius: 999px;
+      background: #0e7490;
+      color: #ffffff;
+      font-weight: 750;
+      padding: 10px 14px;
+      text-decoration: none;
+      white-space: nowrap;
+    }
     main {
       max-width: 1120px;
       margin: 0 auto;
@@ -346,6 +381,8 @@
       .hero-install { max-width: 100%; }
       .hero-install pre { font-size: 0.86rem; }
       main, nav { padding-left: 16px; padding-right: 16px; }
+      .launch-strip-inner { grid-template-columns: 1fr; padding-left: 16px; padding-right: 16px; }
+      .launch-strip a { width: max-content; }
       .grid, .deploy-grid, .visual-grid, .campaign-grid { grid-template-columns: 1fr; }
       .campaign-card, .campaign-card img { min-height: 240px; }
     }
@@ -385,6 +422,15 @@ omnidoer pair</code></pre>
     <a href="security-model.md" data-i18n="nav_security">Security Model</a>
     <a href="mcp-tools.md" data-i18n="nav_tools">MCP Tools</a>
   </nav>
+  <section class="launch-strip" aria-labelledby="launch-status-heading">
+    <div class="launch-strip-inner">
+      <div>
+        <h2 id="launch-status-heading" data-i18n="launch_heading">OmniDoer is ready for public use</h2>
+        <p data-i18n="launch_copy">The project now has a branded native console, mobile Control Client, one-command install, Cloud Direct pairing, secure slash-command handling, secret custody, challenge handoff, approval gates, audit trail, and a rollback-friendly Codex shim path.</p>
+      </div>
+      <a href="#install" data-i18n="launch_cta">Install OmniDoer</a>
+    </div>
+  </section>
   <main>
     <section>
       <h2 data-i18n="secrets_heading">Secrets Stay Out Of The Model</h2>
@@ -571,6 +617,9 @@ omnidoer control submit-task "Open the local demo and download my invoice"</code
         hero_install_label: "Install from npm",
         hero_install_link: "Install details",
         nav_github: "GitHub", nav_install: "Install", nav_campaign: "Story", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Security Model", nav_tools: "MCP Tools",
+        launch_heading: "OmniDoer is ready for public use",
+        launch_copy: "The project now has a branded native console, mobile Control Client, one-command install, Cloud Direct pairing, secure slash-command handling, secret custody, challenge handoff, approval gates, audit trail, and a rollback-friendly Codex shim path.",
+        launch_cta: "Install OmniDoer",
         secrets_heading: "Secrets Stay Out Of The Model",
         secrets_copy: "The agent may request an action. The broker checks the origin. The vault uses the secret. The browser receives the credential. The model never does.",
         card_codex_title: "Codex Preserved", card_codex_copy: "OmniDoer keeps Codex as the model and billing entrypoint, then runs execution tools on the user's server through MCP.",
@@ -630,6 +679,9 @@ omnidoer control submit-task "Open the local demo and download my invoice"</code
         hero_install_label: "通过 npm 安装",
         hero_install_link: "安装详情",
         nav_github: "GitHub", nav_install: "安装", nav_campaign: "故事线", nav_cloud: "Cloud Direct", nav_control: "控制客户端", nav_security: "安全模型", nav_tools: "MCP 工具",
+        launch_heading: "OmniDoer 已准备公开使用",
+        launch_copy: "项目已经具备 OmniDoer 品牌原生控制台、移动端 Control Client、一键安装、Cloud Direct 配对、安全斜杠指令处理、Secret 托管、挑战接管、审批门、审计链，以及可回退的 Codex shim 路径。",
+        launch_cta: "安装 OmniDoer",
         secrets_heading: "Secret 不进入模型上下文",
         secrets_copy: "Agent 可以请求行动；Broker 校验来源；Vault 使用 secret；浏览器接收凭据；模型永远只看到脱敏状态。",
         card_codex_title: "保留 Codex", card_codex_copy: "OmniDoer 通过 MCP 扩展 Codex CLI，不创建默认 OpenAI API 客户端，也不改变计费路径。",
@@ -689,6 +741,9 @@ omnidoer control submit-task "Open the local demo and download my invoice"</code
         hero_install_label: "Instalar desde npm",
         hero_install_link: "Detalles de instalacion",
         nav_github: "GitHub", nav_install: "Instalar", nav_campaign: "Historia", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Modelo de seguridad", nav_tools: "Herramientas MCP",
+        launch_heading: "OmniDoer ya esta listo para uso publico",
+        launch_copy: "El proyecto ya incluye consola nativa con marca OmniDoer, Control Client movil, instalacion con un comando, pairing Cloud Direct, comandos slash seguros, custodia de secretos, handoff de desafios, aprobaciones, auditoria y una ruta Codex shim reversible.",
+        launch_cta: "Instalar OmniDoer",
         secrets_heading: "Los secretos no entran al modelo", secrets_copy: "El agente solicita una acción; el Broker valida el origen; Vault usa el secreto; el navegador recibe la credencial; el modelo no.",
         card_codex_title: "Codex preservado", card_codex_copy: "OmniDoer extiende Codex CLI con MCP sin crear un cliente OpenAI API ni una ruta de facturación predeterminada.",
         card_control_title: "Control Client", card_control_copy: "El usuario gestiona credenciales, aprobaciones, desafíos y takeover humano en una interfaz PWA.",
@@ -746,6 +801,9 @@ omnidoer control submit-task "Open the local demo and download my invoice"</code
         hero_install_label: "Installer depuis npm",
         hero_install_link: "Details d'installation",
         nav_github: "GitHub", nav_install: "Installer", nav_campaign: "Récit", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Modèle de sécurité", nav_tools: "Outils MCP",
+        launch_heading: "OmniDoer est pret pour un usage public",
+        launch_copy: "Le projet dispose maintenant d'une console native marquee OmniDoer, d'un Control Client mobile, d'une installation en une commande, du pairing Cloud Direct, de commandes slash securisees, d'une garde des secrets, du handoff de defis, d'approbations, d'un audit et d'un chemin Codex shim reversible.",
+        launch_cta: "Installer OmniDoer",
         secrets_heading: "Les secrets restent hors du modèle", secrets_copy: "L'agent demande une action; le Broker vérifie l'origine; Vault utilise le secret; le navigateur reçoit l'identifiant; le modèle jamais.",
         card_codex_title: "Codex préservé", card_codex_copy: "OmniDoer étend Codex CLI via MCP sans créer de client OpenAI API ni de chemin de facturation par défaut.",
         card_control_title: "Control Client", card_control_copy: "L'utilisateur gère identifiants, approbations, défis et takeover humain depuis une interface PWA.",
@@ -803,6 +861,9 @@ omnidoer control submit-task "Open the local demo and download my invoice"</code
         hero_install_label: "Mit npm installieren",
         hero_install_link: "Installationsdetails",
         nav_github: "GitHub", nav_install: "Installieren", nav_campaign: "Story", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "Sicherheitsmodell", nav_tools: "MCP-Tools",
+        launch_heading: "OmniDoer ist bereit fuer die oeffentliche Nutzung",
+        launch_copy: "Das Projekt hat jetzt eine native OmniDoer-Konsole, mobilen Control Client, Ein-Befehl-Installation, Cloud-Direct-Pairing, sichere Slash-Commands, Secret-Verwahrung, Challenge-Handoff, Freigaben, Audit-Trail und einen ruecksetzbaren Codex-Shim-Pfad.",
+        launch_cta: "OmniDoer installieren",
         secrets_heading: "Geheimnisse bleiben aus dem Modell", secrets_copy: "Der Agent fordert eine Aktion an; der Broker prüft den Ursprung; Vault nutzt das Secret; der Browser erhält die Anmeldedaten; das Modell nie.",
         card_codex_title: "Codex bleibt erhalten", card_codex_copy: "OmniDoer erweitert Codex CLI per MCP und erstellt keinen Standard-OpenAI-API-Client oder Billing-Pfad.",
         card_control_title: "Control Client", card_control_copy: "Nutzer steuern Zugangsdaten, Freigaben, Challenges und Human Takeover in einer PWA-Oberfläche.",
@@ -860,6 +921,9 @@ omnidoer control submit-task "Open the local demo and download my invoice"</code
         hero_install_label: "npm からインストール",
         hero_install_link: "インストール詳細",
         nav_github: "GitHub", nav_install: "インストール", nav_campaign: "ストーリー", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "セキュリティモデル", nav_tools: "MCP ツール",
+        launch_heading: "OmniDoer は公開利用できる状態です",
+        launch_copy: "OmniDoer ブランドのネイティブコンソール、モバイル Control Client、ワンコマンド install、Cloud Direct pairing、安全な slash command、secret 管理、challenge handoff、approval gate、audit trail、rollback 可能な Codex shim が揃いました。",
+        launch_cta: "OmniDoer をインストール",
         secrets_heading: "Secret はモデルに渡さない", secrets_copy: "Agent は操作を要求し、Broker が origin を検証し、Vault が secret を使い、ブラウザだけが資格情報を受け取ります。",
         card_codex_title: "Codex を維持", card_codex_copy: "OmniDoer は MCP で Codex CLI を拡張し、既定の OpenAI API クライアントや課金経路を作りません。",
         card_control_title: "Control Client", card_control_copy: "資格情報、承認、チャレンジ、Human Takeover を PWA 対応 UI で扱います。",
@@ -917,6 +981,9 @@ omnidoer control submit-task "Open the local demo and download my invoice"</code
         hero_install_label: "npm으로 설치",
         hero_install_link: "설치 세부 정보",
         nav_github: "GitHub", nav_install: "설치", nav_campaign: "스토리", nav_cloud: "Cloud Direct", nav_control: "Control Client", nav_security: "보안 모델", nav_tools: "MCP 도구",
+        launch_heading: "OmniDoer는 공개 사용 준비가 되었습니다",
+        launch_copy: "OmniDoer 브랜드 네이티브 콘솔, 모바일 Control Client, 원커맨드 설치, Cloud Direct pairing, 안전한 slash command 처리, secret custody, challenge handoff, approval gate, audit trail, 되돌릴 수 있는 Codex shim 경로가 준비되었습니다.",
+        launch_cta: "OmniDoer 설치",
         secrets_heading: "Secret은 모델로 가지 않습니다", secrets_copy: "Agent는 작업을 요청하고, Broker가 origin을 확인하고, Vault가 secret을 사용하며, 브라우저만 자격 증명을 받습니다.",
         card_codex_title: "Codex 유지", card_codex_copy: "OmniDoer는 MCP로 Codex CLI를 확장하며 기본 OpenAI API 클라이언트나 별도 결제 경로를 만들지 않습니다.",
         card_control_title: "Control Client", card_control_copy: "사용자는 PWA 친화 UI에서 자격 증명, 승인, challenge, Human Takeover를 처리합니다.",

@@ -11,6 +11,13 @@ agents: once an agent runs on a real server, passwords, SSH keys, API tokens,
 private keys, and wallet secrets can sit one tool call away. Asking the model to
 "please avoid secrets" is a behavioral request, not an isolation boundary.
 
+**Public launch status:** OmniDoer is now ready for public use. The current
+main branch includes the branded native console, mobile Control Client,
+one-command install, Cloud Direct pairing, secure slash-command handling, Secret
+Broker, encrypted Vault, challenge handoff, approval gates, audit trail, and a
+rollback-friendly Codex shim path for teams that want `codex` and `omnidoer`
+to resolve safely on the same machine.
+
 OmniDoer turns that finding into product architecture. Codex remains the
 reasoning brain and keeps its login, model choice, and quota path. OmniDoer adds
 the secure hands: controlled browser execution, Secret Broker, encrypted Vault,
