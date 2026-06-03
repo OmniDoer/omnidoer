@@ -27,6 +27,7 @@ class ControlChatRunnerTest(unittest.TestCase):
     def test_chat_runner_defers_to_live_tui_bridge(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             old_home = os.environ.get("OMNIDOER_HOME")
+            old_thread = os.environ.pop("OMNIDOER_CHAT_THREAD_ID", None)
             os.environ["OMNIDOER_HOME"] = tmp
             try:
                 heartbeat = Path(tmp) / "control_chat_bridge_heartbeat"
@@ -43,6 +44,8 @@ class ControlChatRunnerTest(unittest.TestCase):
                     os.environ.pop("OMNIDOER_HOME", None)
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
+                if old_thread is not None:
+                    os.environ["OMNIDOER_CHAT_THREAD_ID"] = old_thread
 
     def test_structured_tui_bridge_heartbeat_is_thread_bound(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -136,6 +139,38 @@ class ControlChatRunnerTest(unittest.TestCase):
                     os.environ.pop("OMNIDOER_HOME", None)
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_chat_runner_does_not_send_cli_commands_to_model(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            old_thread = os.environ.pop("OMNIDOER_CHAT_THREAD_ID", None)
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                fake_codex = Path(tmp) / "fake-codex"
+                fake_codex.write_text("#!/bin/sh\necho should-not-run > ran\n")
+                fake_codex.chmod(fake_codex.stat().st_mode | stat.S_IXUSR)
+
+                store = ChatStore()
+                user = store.append(
+                    role="user",
+                    text="/status",
+                    client_message_id="control_cli_123",
+                )
+                result = ChatRunner(store=store, codex_bin=str(fake_codex), cwd=tmp).run_once()
+
+                self.assertIsNotNone(result)
+                assert result is not None
+                self.assertEqual(result.source, "control_service")
+                self.assertIn("not sent to the model", result.text)
+                self.assertFalse((Path(tmp) / "ran").exists())
+                self.assertEqual(store.get(user.message_id).status, "completed")
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+                if old_thread is not None:
+                    os.environ["OMNIDOER_CHAT_THREAD_ID"] = old_thread
 
     def test_native_console_bridge_install_status_detects_required_markers(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

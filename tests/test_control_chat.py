@@ -10,7 +10,13 @@ from threading import Thread
 from urllib import request as urllib_request
 from unittest.mock import patch
 
-from omnidoer.omni_control.chat import MAX_CHAT_MESSAGES, MAX_CHAT_RECORDS, ChatStore
+from omnidoer.omni_control.chat import (
+    MAX_CHAT_MESSAGES,
+    MAX_CHAT_RECORDS,
+    ChatStore,
+    chat_message_is_cli_command,
+    chat_text_is_cli_command,
+)
 from omnidoer.omni_control.chat_uploads import ChatUploadStore
 from omnidoer.omni_control.server import (
     CHAT_STREAM_DEFAULT_SNAPSHOTS,
@@ -84,6 +90,22 @@ class ControlChatStoreTest(unittest.TestCase):
             self.assertEqual(second.message_id, continue_message.message_id)
             self.assertEqual(third.message_id, cli_command.message_id)
             self.assertEqual(fourth.message_id, older.message_id)
+
+    def test_cli_command_detection_matches_mobile_slash_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = ChatStore(Path(tmp) / "chat.json")
+            message = store.append(role="user", text="  /status")
+            prefixed = store.append(
+                role="user",
+                text="status",
+                client_message_id="control_cli_123",
+            )
+
+            self.assertTrue(chat_text_is_cli_command("  /status"))
+            self.assertTrue(chat_text_is_cli_command("/quota now"))
+            self.assertFalse(chat_text_is_cli_command("please run /status"))
+            self.assertTrue(chat_message_is_cli_command(message))
+            self.assertTrue(chat_message_is_cli_command(prefixed))
 
     def test_chat_message_appends_attachment_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -238,6 +260,40 @@ class ControlChatApiTest(unittest.TestCase):
                 self.assertEqual(ChatStore().get(older.message_id).status, "queued")
                 self.assertEqual(message["status"], "completed")
                 self.assertEqual(message["live_console_delivery"]["delivered"], True)
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_mobile_status_slash_command_is_handled_locally_not_queued(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_chat_thread_id = "thread_active"  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                create = urllib_request.Request(
+                    f"{base}/api/chat/messages",
+                    data=json.dumps({"text": "/status", "client_message_id": "control_cli_1"}).encode(),
+                    headers={"content-type": "application/json"},
+                    method="POST",
+                )
+                with urllib_request.urlopen(create, timeout=5) as response:
+                    self.assertEqual(response.status, 201)
+                    message = json.loads(response.read().decode())
+
+                self.assertEqual(message["status"], "completed")
+                self.assertEqual(message["live_console_delivery"]["reason"], "handled_by_control_service")
+                self.assertEqual(message["live_console_delivery"]["submitted_to_model"], False)
+                self.assertIn("cli_command_response", message)
+                self.assertIn("OmniDoer status", message["cli_command_response"]["text"])
+                self.assertIsNone(ChatStore().next_user_message())
             finally:
                 server.shutdown()
                 server.server_close()

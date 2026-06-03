@@ -27,7 +27,7 @@ from cryptography.x509.oid import NameOID
 
 from omnidoer.omni_audit.audit import AuditLog
 from omnidoer.omni_control.auth import authenticate_session, authenticate_signed_session_request, pair_device
-from omnidoer.omni_control.chat import ChatStore
+from omnidoer.omni_control.chat import ChatStore, chat_cli_command_name, chat_text_is_cli_command
 from omnidoer.omni_control.chat_uploads import (
     MAX_CHAT_UPLOAD_BYTES,
     ChatUploadStore,
@@ -1019,6 +1019,99 @@ class ControlHandler(SimpleHTTPRequestHandler):
             "secret_exposed_to_model": False,
         }
 
+    def _control_client_status_text(self) -> str:
+        from omnidoer.omni_control.chat_runner import (
+            active_mcp_sidecar_status,
+            active_tui_process_bridge_status,
+            live_tui_bridge_active,
+            native_console_bridge_install_status,
+            tui_bridge_heartbeat_status,
+        )
+
+        chat_thread_id = getattr(self.server, "omnidoer_chat_thread_id", None)
+        bridge_heartbeat = tui_bridge_heartbeat_status(chat_thread_id)
+        active_process = active_tui_process_bridge_status(chat_thread_id)
+        native_bridge = native_console_bridge_install_status()
+        mcp_sidecar = active_mcp_sidecar_status(chat_thread_id)
+        browser_takeover = (mcp_sidecar.get("browser_takeover") or {}) if isinstance(mcp_sidecar, dict) else {}
+        bridge_active = live_tui_bridge_active(chat_thread_id)
+        restart_required = bool(
+            active_process.get("restart_required")
+            or mcp_sidecar.get("restart_required")
+            or not native_bridge.get("ready")
+        )
+        heartbeat_age = bridge_heartbeat.get("age_seconds")
+        heartbeat_label = f"{heartbeat_age:.1f}s" if isinstance(heartbeat_age, (int, float)) else "unknown"
+        lines = [
+            "OmniDoer status",
+            f"Mode: {self.config.mode}",
+            f"Control service: ok",
+            f"Public URL: {self.config.public_url}",
+            f"Thread: {chat_thread_id or 'not bound'}",
+            f"CLI bridge: {'active' if bridge_active else bridge_heartbeat.get('reason') or 'inactive'}",
+            f"Bridge heartbeat: {heartbeat_label}",
+            f"Native console bridge: {native_bridge.get('reason') or 'unknown'}",
+            f"Active console process: {active_process.get('reason') or 'unknown'}",
+            f"MCP sidecar: {mcp_sidecar.get('reason') or 'unknown'}",
+            f"Browser takeover relay: {browser_takeover.get('state') or browser_takeover.get('reason') or 'unknown'}",
+            f"Restart required: {'yes' if restart_required else 'no'}",
+            "Secret exposure: false",
+            "Model submission: false",
+        ]
+        return "\n".join(lines)
+
+    def _control_client_help_text(self) -> str:
+        return "\n".join(
+            [
+                "OmniDoer CLI commands",
+                "/status - show runtime, bridge, and safety status",
+                "/quota or /usage - alias for /status in the mobile Control Client",
+                "/help - show this command list",
+                "Other slash commands are delivered to the active OmniDoer console bridge, not to the model.",
+            ]
+        )
+
+    def _handle_control_cli_command(
+        self,
+        *,
+        text: str,
+        client_message_id: str | None,
+        session: ControlSession | None,
+    ) -> dict | None:
+        if not (str(client_message_id or "").startswith("control_cli_") or chat_text_is_cli_command(text)):
+            return None
+        command = chat_cli_command_name(text)
+        if command not in {"status", "quota", "usage", "help"}:
+            return None
+        chat_store = ChatStore()
+        user = chat_store.append(
+            role="user",
+            text=text,
+            status="completed",
+            source="control_client",
+            author_device_id=session.device_id if session else None,
+            client_message_id=client_message_id,
+        )
+        response_text = self._control_client_help_text() if command == "help" else self._control_client_status_text()
+        assistant = chat_store.append(
+            role="assistant",
+            text=response_text,
+            status="completed",
+            source="control_service",
+            reply_to_message_id=user.message_id,
+        )
+        payload = user.to_public_dict()
+        payload["live_console_delivery"] = {
+            "attempted": False,
+            "delivered": True,
+            "reason": "handled_by_control_service",
+            "command": f"/{command}",
+            "secret_exposed_to_model": False,
+            "submitted_to_model": False,
+        }
+        payload["cli_command_response"] = assistant.to_public_dict()
+        return payload
+
     def _safe_queue_agent_instruction(
         self,
         *,
@@ -1695,15 +1788,25 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 return
             try:
                 body = self._read_json()
+                text = str(body.get("text") or "")
+                client_message_id = str(body.get("client_message_id") or "") or None
+                local_cli_response = self._handle_control_cli_command(
+                    text=text,
+                    client_message_id=client_message_id,
+                    session=session,
+                )
+                if local_cli_response is not None:
+                    self._send_json(HTTPStatus.CREATED, local_cli_response)
+                    return
                 upload_store = ChatUploadStore()
                 upload_store.cleanup_expired(ttl_seconds=self._chat_upload_ttl_seconds())
                 chat_store = ChatStore()
                 message = chat_store.append(
                     role="user",
-                    text=str(body.get("text") or ""),
+                    text=text,
                     source="control_client",
                     author_device_id=session.device_id if session else None,
-                    client_message_id=str(body.get("client_message_id") or "") or None,
+                    client_message_id=client_message_id,
                     reply_to_message_id=str(body.get("reply_to_message_id") or "") or None,
                     attachments=validate_uploaded_attachments(body.get("attachments"), upload_store.directory),
                 )

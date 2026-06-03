@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -21,7 +22,26 @@ MAX_CHAT_TEXT_LENGTH = 20000
 MAX_CHAT_MESSAGES = 80
 MAX_CHAT_RECORDS = 140
 INTERRUPT_CLIENT_MESSAGE_PREFIXES = ("control_pause_", "omnidoer_pause_")
-PRIORITY_CLIENT_MESSAGE_PREFIXES = (*INTERRUPT_CLIENT_MESSAGE_PREFIXES, "control_continue_", "control_cli_")
+CLI_CLIENT_MESSAGE_PREFIX = "control_cli_"
+PRIORITY_CLIENT_MESSAGE_PREFIXES = (*INTERRUPT_CLIENT_MESSAGE_PREFIXES, "control_continue_", CLI_CLIENT_MESSAGE_PREFIX)
+_CLI_COMMAND_RE = re.compile(r"^/([A-Za-z][A-Za-z0-9-]*)(?:\s|$)")
+
+
+def chat_cli_command_name(text: str) -> str | None:
+    first_line = str(text or "").lstrip().splitlines()[0:1]
+    if not first_line:
+        return None
+    match = _CLI_COMMAND_RE.match(first_line[0].strip())
+    return match.group(1).lower() if match else None
+
+
+def chat_text_is_cli_command(text: str) -> bool:
+    return chat_cli_command_name(text) is not None
+
+
+def chat_message_is_cli_command(message: "ChatMessage") -> bool:
+    client_message_id = str(message.client_message_id or "")
+    return client_message_id.startswith(CLI_CLIENT_MESSAGE_PREFIX) or chat_text_is_cli_command(message.text)
 
 
 @dataclass

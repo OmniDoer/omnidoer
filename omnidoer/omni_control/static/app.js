@@ -99,6 +99,8 @@ const I18N = {
     chatPlaceholderLegacy: "Temporary paste only; enable current session sync for shared context",
     chatPlaceholderUnavailable: "This phone is paired, but the current CLI session is not attached yet",
     chatSendBlocked: "Chat not attached",
+    chatCliCommandHandled: "CLI command handled",
+    chatCliCommandHandledDetail: "The Control Service returned the command result locally.",
     chatCliCommandQueued: "CLI command queued",
     chatCliCommandQueuedDetail: "The command will be handled by the active OmniDoer CLI when the bridge receives it.",
     chatCliCommandNoAttachments: "CLI commands cannot include file attachments.",
@@ -501,6 +503,8 @@ const I18N = {
     chatPlaceholderLegacy: "仅临时粘贴；启用当前会话同步后才共享上下文",
     chatPlaceholderUnavailable: "手机已配对，但当前 CLI 会话还没接入",
     chatSendBlocked: "对话尚未接入",
+    chatCliCommandHandled: "CLI 指令已处理",
+    chatCliCommandHandledDetail: "Control Service 已在本地返回指令结果。",
     chatCliCommandQueued: "CLI 指令已入队",
     chatCliCommandQueuedDetail: "bridge 收到后会交给活跃 OmniDoer CLI 处理。",
     chatCliCommandNoAttachments: "CLI 指令不能附带文件。",
@@ -3688,7 +3692,11 @@ async function sendChatMessage() {
   }
   const delivery = payload.live_console_delivery || {};
   if (cliCommand) {
-    setStatus(t("chatCliCommandQueued"), t("chatCliCommandQueuedDetail"));
+    if (delivery.reason === "handled_by_control_service") {
+      setStatus(t("chatCliCommandHandled"), t("chatCliCommandHandledDetail"));
+    } else {
+      setStatus(t("chatCliCommandQueued"), t("chatCliCommandQueuedDetail"));
+    }
   } else if (delivery.delivered) {
     setStatus(t("chatDeliveredToConsole"), t("chatDeliveredToConsoleDetail"));
   } else if (delivery.attempted || delivery.reason) {

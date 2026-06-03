@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from omnidoer.omni_control.chat import ChatMessage, ChatStore
+from omnidoer.omni_control.chat import ChatMessage, ChatStore, chat_message_is_cli_command
 from omnidoer.omni_control.chat_uploads import image_attachment_paths
 from omnidoer.paths import state_file
 
@@ -857,6 +857,8 @@ class ChatRunner:
         user_message = self.store.next_user_message(claim=True)
         if user_message is None:
             return None
+        if chat_message_is_cli_command(user_message):
+            return self._complete_cli_command_without_model(user_message)
         assistant = self.store.append(
             role="assistant",
             text="",
@@ -928,6 +930,28 @@ class ChatRunner:
             bridge.record("error", f"Codex process exited with code {return_code}.", role="system")
         self.store.complete(user_message.message_id)
         return self.store.complete(assistant.message_id)
+
+    def _complete_cli_command_without_model(self, user_message: ChatMessage) -> ChatMessage:
+        text = (
+            "CLI command requires the active OmniDoer console bridge and was not sent to the model. "
+            "Open the paired console or use a locally handled command such as /status."
+        )
+        self.store.complete(user_message.message_id)
+        self.store.append_record(
+            record_type="status",
+            text="CLI command was blocked from the background model runner.",
+            role="system",
+            message_id=user_message.message_id,
+            source="control_service",
+            data={"secret_exposed_to_model": False},
+        )
+        return self.store.append(
+            role="assistant",
+            text=text,
+            status="completed",
+            source="control_service",
+            reply_to_message_id=user_message.message_id,
+        )
 
     def run_forever(self, stop_event: threading.Event | None = None) -> None:
         stop = stop_event or threading.Event()
