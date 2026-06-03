@@ -1065,9 +1065,22 @@ class ControlHandler(SimpleHTTPRequestHandler):
             [
                 "OmniDoer CLI commands",
                 "/status - show runtime, bridge, and safety status",
+                "/model - mobile model switching is not available yet; use the terminal console model picker",
                 "/quota or /usage - alias for /status in the mobile Control Client",
                 "/help - show this command list",
                 "Other slash commands are delivered to the active OmniDoer console bridge, not to the model.",
+            ]
+        )
+
+    def _control_client_model_text(self) -> str:
+        return "\n".join(
+            [
+                "OmniDoer model selection",
+                "/model opens an interactive TUI picker in the terminal console.",
+                "The mobile Control Client cannot render that picker yet, so this command was handled locally instead of opening a hidden SSH-side menu.",
+                "Use the terminal console for model changes until the mobile model selector is implemented.",
+                "Secret exposure: false",
+                "Model submission: false",
             ]
         )
 
@@ -1141,6 +1154,15 @@ class ControlHandler(SimpleHTTPRequestHandler):
         if not (str(client_message_id or "").startswith("control_cli_") or chat_text_is_cli_command(text)):
             return None
         command = chat_cli_command_name(text)
+        if command == "model":
+            return self._append_control_cli_response(
+                text=text,
+                client_message_id=client_message_id,
+                session=session,
+                command=command,
+                response_text=self._control_client_model_text(),
+                delivery_reason="handled_by_control_service",
+            )
         if command not in {"status", "quota", "usage", "help"}:
             bridge_ready, reason = self._active_cli_accepts_remote_slash_commands()
             if bridge_ready:

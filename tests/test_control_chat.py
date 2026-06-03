@@ -314,7 +314,7 @@ class ControlChatApiTest(unittest.TestCase):
             try:
                 create = urllib_request.Request(
                     f"{base}/api/chat/messages",
-                    data=json.dumps({"text": "/model", "client_message_id": "control_cli_2"}).encode(),
+                    data=json.dumps({"text": "/resume thread_demo", "client_message_id": "control_cli_2"}).encode(),
                     headers={"content-type": "application/json"},
                     method="POST",
                 )
@@ -333,6 +333,46 @@ class ControlChatApiTest(unittest.TestCase):
                 self.assertEqual(message["live_console_delivery"]["reason"], "running_binary_deleted")
                 self.assertEqual(message["live_console_delivery"]["submitted_to_model"], False)
                 self.assertIn("not sent to the model", message["cli_command_response"]["text"])
+                self.assertIsNone(ChatStore().next_user_message())
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_mobile_model_slash_command_is_handled_locally_even_when_bridge_ready(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_chat_thread_id = "thread_active"  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                create = urllib_request.Request(
+                    f"{base}/api/chat/messages",
+                    data=json.dumps({"text": "/model", "client_message_id": "control_cli_model"}).encode(),
+                    headers={"content-type": "application/json"},
+                    method="POST",
+                )
+                with patch("omnidoer.omni_control.chat_runner.live_tui_bridge_active", return_value=True), patch(
+                    "omnidoer.omni_control.chat_runner.native_console_bridge_install_status",
+                    return_value={"ready": True, "reason": "ready"},
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.active_tui_process_bridge_status",
+                    return_value={"active": True, "restart_required": False, "reason": "ready"},
+                ):
+                    with urllib_request.urlopen(create, timeout=5) as response:
+                        self.assertEqual(response.status, 201)
+                        message = json.loads(response.read().decode())
+
+                self.assertEqual(message["status"], "completed")
+                self.assertEqual(message["live_console_delivery"]["reason"], "handled_by_control_service")
+                self.assertEqual(message["live_console_delivery"]["submitted_to_model"], False)
+                self.assertIn("mobile Control Client cannot render", message["cli_command_response"]["text"])
                 self.assertIsNone(ChatStore().next_user_message())
             finally:
                 server.shutdown()
