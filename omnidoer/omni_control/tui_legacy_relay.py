@@ -148,7 +148,7 @@ def legacy_tui_relay_status(thread_id: str | None) -> dict[str, object]:
 
 
 def capture_tmux_pane(pane_id: str, *, line_count: int = 80) -> str:
-    start = f"-{max(1, min(line_count, 200))}"
+    start = f"-{max(1, min(line_count, 1000))}"
     try:
         return subprocess.check_output(
             ["tmux", "capture-pane", "-pJ", "-S", start, "-t", pane_id],

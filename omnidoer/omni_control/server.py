@@ -87,6 +87,91 @@ SENSITIVE_LOG_PATTERNS = [
     re.compile(r"(pairing_id=)[^&\s]+"),
     re.compile(r"(token=)[^&\s]+"),
 ]
+STATUS_QUOTA_LABELS = (
+    "Context window",
+    "OmniDoer Usage limit",
+    "OmniDoer limit",
+    "GPT-5.3-Codex-Spark Usage limit",
+    "GPT-5.3-Codex-Spark limit",
+    "5h limit",
+    "Weekly limit",
+    "Daily limit",
+    "Monthly limit",
+    "Usage limit",
+)
+STATUS_BOX_CHARS = "│┃║╭╮╰╯┌┐└┘├┤┬┴┼─━═"
+
+
+def _clean_terminal_status_line(line: str) -> str:
+    text = line.strip()
+    text = text.strip(STATUS_BOX_CHARS).strip()
+    text = re.sub(r"\[[█░▓▒\s]+\]\s*", "", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
+def _looks_like_status_quota_line(text: str) -> bool:
+    return any(text.startswith(f"{label}:") for label in STATUS_QUOTA_LABELS)
+
+
+def _looks_like_status_continuation(text: str) -> bool:
+    return text.startswith("(resets ") or text.startswith("resets ")
+
+
+def _extract_latest_terminal_quota_lines(snapshot: str) -> list[str]:
+    latest: list[str] = []
+    current: list[str] = []
+    for raw_line in snapshot.splitlines():
+        if "│" not in raw_line:
+            if current:
+                latest = current
+                current = []
+            continue
+        if re.match(r"^\s*(?:\d+\s+)?[+-]\s*│", raw_line):
+            if current:
+                latest = current
+                current = []
+            continue
+        text = _clean_terminal_status_line(raw_line)
+        if not text:
+            if current:
+                latest = current
+                current = []
+            continue
+        if text.startswith("Context window:"):
+            if current:
+                latest = current
+            current = [text]
+            continue
+        if not current:
+            continue
+        if _looks_like_status_quota_line(text) or _looks_like_status_continuation(text):
+            if _looks_like_status_continuation(text) and current:
+                current[-1] = f"{current[-1]} {text}"
+            else:
+                current.append(text)
+            continue
+        if current:
+            latest = current
+            current = []
+    if current:
+        latest = current
+    return latest
+
+
+def _active_terminal_quota_text(chat_thread_id: str | None) -> str | None:
+    if not chat_thread_id:
+        return None
+    from omnidoer.omni_control.tui_legacy_relay import capture_tmux_pane, find_tmux_pane_for_thread
+
+    pane = find_tmux_pane_for_thread(chat_thread_id)
+    if pane is None:
+        return None
+    snapshot = capture_tmux_pane(pane.pane_id, line_count=1000)
+    lines = _extract_latest_terminal_quota_lines(snapshot)
+    if not lines:
+        return None
+    return "\n".join(["Quota:"] + lines)
 
 
 class TLSAwareThreadingHTTPServer(ThreadingHTTPServer):
@@ -1058,6 +1143,9 @@ class ControlHandler(SimpleHTTPRequestHandler):
             "Secret exposure: false",
             "Model submission: false",
         ]
+        quota_text = _active_terminal_quota_text(chat_thread_id)
+        if quota_text:
+            lines.extend(["", quota_text])
         return "\n".join(lines)
 
     def _control_client_help_text(self) -> str:

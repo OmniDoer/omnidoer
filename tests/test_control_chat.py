@@ -23,6 +23,7 @@ from omnidoer.omni_control.server import (
     CHAT_STREAM_HEARTBEAT_SECONDS,
     CHAT_STREAM_MAX_SNAPSHOTS,
     ControlHandler,
+    _extract_latest_terminal_quota_lines,
 )
 from omnidoer.omni_control.tui_legacy_relay import TmuxPane
 
@@ -175,6 +176,34 @@ class ControlChatApiTest(unittest.TestCase):
         self.assertEqual(CHAT_STREAM_MAX_SNAPSHOTS, 1200)
         self.assertEqual(CHAT_STREAM_HEARTBEAT_SECONDS, 30.0)
 
+    def test_terminal_quota_parser_returns_latest_status_block(self) -> None:
+        snapshot = """
+│  Context window:              70% left (80K used / 258K)            │
+│  OmniDoer Usage limit:        80% left (resets 00:10)               │
+╰─────────────────────────────────────────────────────────────────────╯
+
+╭─────────────────────────────────────────────────────────────────────╮
+│  Context window:              69% left (88.4K used / 258K)          │
+│  OmniDoer Usage limit:        [████████████████████] 100% left      │
+│                               (resets 01:21)                        │
+│  GPT-5.3-Codex-Spark limit:                                         │
+│  5h limit:                    [████████████████████] 100% left      │
+│                               (resets 06:21)                        │
+│  Weekly limit:                [████████████████████] 100% left      │
+│                               (resets 01:21 on 10 Jun)              │
+╰─────────────────────────────────────────────────────────────────────╯
+"""
+        self.assertEqual(
+            _extract_latest_terminal_quota_lines(snapshot),
+            [
+                "Context window: 69% left (88.4K used / 258K)",
+                "OmniDoer Usage limit: 100% left (resets 01:21)",
+                "GPT-5.3-Codex-Spark limit:",
+                "5h limit: 100% left (resets 06:21)",
+                "Weekly limit: 100% left (resets 01:21 on 10 Jun)",
+            ],
+        )
+
     def test_chat_message_post_attempts_immediate_legacy_console_delivery(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             old_home = os.environ.get("OMNIDOER_HOME")
@@ -293,6 +322,61 @@ class ControlChatApiTest(unittest.TestCase):
                 self.assertEqual(message["live_console_delivery"]["submitted_to_model"], False)
                 self.assertIn("cli_command_response", message)
                 self.assertIn("OmniDoer status", message["cli_command_response"]["text"])
+                self.assertIsNone(ChatStore().next_user_message())
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_mobile_status_slash_command_includes_terminal_quota_when_available(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_chat_thread_id = "thread_active"  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            terminal_snapshot = """
+╭────────────────────────────────────────────────────────────╮
+│  Context window:              69% left (88.4K used / 258K) │
+│  OmniDoer Usage limit:        [████████████████████] 100% left │
+│                               (resets 01:21)              │
+│  GPT-5.3-Codex-Spark limit:                               │
+│  5h limit:                    [████████████████████] 100% left │
+│                               (resets 06:21)              │
+│  Weekly limit:                [████████████████████] 100% left │
+│                               (resets 01:21 on 10 Jun)    │
+╰────────────────────────────────────────────────────────────╯
+"""
+            try:
+                create = urllib_request.Request(
+                    f"{base}/api/chat/messages",
+                    data=json.dumps({"text": "/status", "client_message_id": "control_cli_1"}).encode(),
+                    headers={"content-type": "application/json"},
+                    method="POST",
+                )
+                with patch(
+                    "omnidoer.omni_control.tui_legacy_relay.find_tmux_pane_for_thread",
+                    return_value=TmuxPane(pane_id="%1", tty="/dev/pts/2", current_command="codex", process_pid=99),
+                ), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.capture_tmux_pane",
+                    return_value=terminal_snapshot,
+                ):
+                    with urllib_request.urlopen(create, timeout=5) as response:
+                        self.assertEqual(response.status, 201)
+                        message = json.loads(response.read().decode())
+
+                text = message["cli_command_response"]["text"]
+                self.assertIn("Quota:", text)
+                self.assertIn("Context window: 69% left (88.4K used / 258K)", text)
+                self.assertIn("OmniDoer Usage limit: 100% left (resets 01:21)", text)
+                self.assertIn("5h limit: 100% left (resets 06:21)", text)
+                self.assertIn("Weekly limit: 100% left (resets 01:21 on 10 Jun)", text)
+                self.assertIn("Model submission: false", text)
                 self.assertIsNone(ChatStore().next_user_message())
             finally:
                 server.shutdown()
