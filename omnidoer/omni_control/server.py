@@ -1071,18 +1071,38 @@ class ControlHandler(SimpleHTTPRequestHandler):
             ]
         )
 
-    def _handle_control_cli_command(
+    def _active_cli_accepts_remote_slash_commands(self) -> tuple[bool, str]:
+        from omnidoer.omni_control.chat_runner import (
+            active_tui_process_bridge_status,
+            live_tui_bridge_active,
+            native_console_bridge_install_status,
+        )
+
+        chat_thread_id = getattr(self.server, "omnidoer_chat_thread_id", None)
+        if not chat_thread_id:
+            return False, "chat_thread_not_bound"
+        if not live_tui_bridge_active(chat_thread_id):
+            return False, "native_bridge_inactive"
+        native_bridge = native_console_bridge_install_status()
+        if not native_bridge.get("ready"):
+            return False, str(native_bridge.get("reason") or "native_bridge_not_ready")
+        active_process = active_tui_process_bridge_status(chat_thread_id)
+        if not active_process.get("active"):
+            return False, str(active_process.get("reason") or "active_console_not_found")
+        if active_process.get("restart_required"):
+            return False, str(active_process.get("reason") or "active_console_restart_required")
+        return True, "native_bridge_ready"
+
+    def _append_control_cli_response(
         self,
         *,
         text: str,
         client_message_id: str | None,
         session: ControlSession | None,
-    ) -> dict | None:
-        if not (str(client_message_id or "").startswith("control_cli_") or chat_text_is_cli_command(text)):
-            return None
-        command = chat_cli_command_name(text)
-        if command not in {"status", "quota", "usage", "help"}:
-            return None
+        command: str,
+        response_text: str,
+        delivery_reason: str,
+    ) -> dict:
         chat_store = ChatStore()
         user = chat_store.append(
             role="user",
@@ -1092,7 +1112,6 @@ class ControlHandler(SimpleHTTPRequestHandler):
             author_device_id=session.device_id if session else None,
             client_message_id=client_message_id,
         )
-        response_text = self._control_client_help_text() if command == "help" else self._control_client_status_text()
         assistant = chat_store.append(
             role="assistant",
             text=response_text,
@@ -1104,13 +1123,50 @@ class ControlHandler(SimpleHTTPRequestHandler):
         payload["live_console_delivery"] = {
             "attempted": False,
             "delivered": True,
-            "reason": "handled_by_control_service",
+            "reason": delivery_reason,
             "command": f"/{command}",
             "secret_exposed_to_model": False,
             "submitted_to_model": False,
         }
         payload["cli_command_response"] = assistant.to_public_dict()
         return payload
+
+    def _handle_control_cli_command(
+        self,
+        *,
+        text: str,
+        client_message_id: str | None,
+        session: ControlSession | None,
+    ) -> dict | None:
+        if not (str(client_message_id or "").startswith("control_cli_") or chat_text_is_cli_command(text)):
+            return None
+        command = chat_cli_command_name(text)
+        if command not in {"status", "quota", "usage", "help"}:
+            bridge_ready, reason = self._active_cli_accepts_remote_slash_commands()
+            if bridge_ready:
+                return None
+            response_text = (
+                f"CLI command /{command or 'unknown'} was not sent to the model. "
+                f"The active OmniDoer console bridge is not ready for remote slash commands: {reason}. "
+                "Restart the active console to run this command through the CLI."
+            )
+            return self._append_control_cli_response(
+                text=text,
+                client_message_id=client_message_id,
+                session=session,
+                command=command or "unknown",
+                response_text=response_text,
+                delivery_reason=reason,
+            )
+        response_text = self._control_client_help_text() if command == "help" else self._control_client_status_text()
+        return self._append_control_cli_response(
+            text=text,
+            client_message_id=client_message_id,
+            session=session,
+            command=command,
+            response_text=response_text,
+            delivery_reason="handled_by_control_service",
+        )
 
     def _safe_queue_agent_instruction(
         self,
