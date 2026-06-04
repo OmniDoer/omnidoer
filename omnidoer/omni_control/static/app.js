@@ -20,6 +20,7 @@ const I18N = {
     runtimeModeUnpaired: "Control Service reachable",
     runtimeModeBackground: "Background runner",
     runtimeModeOffline: "Control Service offline",
+    runtimeQuotaLabel: "Codex/OmniDoer · 5h weekly",
     runtimeDetail: "Control Client does not call OpenAI APIs or models directly.",
     runtimeUnpairedDetail: "This browser is not paired yet. Enter the 6-digit code from omnidoer pair before using requests or session sync.",
     runtimeOffline: "Runtime offline",
@@ -427,6 +428,7 @@ const I18N = {
     runtimeModeUnpaired: "Control Service 可达",
     runtimeModeBackground: "后台 runner",
     runtimeModeOffline: "控制服务离线",
+    runtimeQuotaLabel: "Codex/OmniDoer · 5h weekly",
     runtimeDetail: "控制客户端不会直接调用 OpenAI API 或模型。",
     runtimeUnpairedDetail: "当前浏览器尚未配对。请先输入 omnidoer pair 打印的 6 位短码，再使用请求或会话同步。",
     runtimeOffline: "运行服务离线",
@@ -1022,6 +1024,7 @@ function applyLanguage() {
   setNodeText("#takeover-panel h2", "takeoverTitle");
   setNodeText("#payment-approval h2", "paymentTitle");
   setNodeText("#approval-status", "noPendingPayment");
+  setNodeText("#runtime-quota", "runtimeQuotaLabel");
   setButtonText("#runtime-copy-command", "copyCommand");
   setButtonText("#request-takeover-pause", "pauseAgent");
   setButtonText("#release-active-takeover", "releaseControl");
@@ -1504,7 +1507,10 @@ runtimeStatus.id = "runtime-status";
 runtimeStatus.className = "status-strip";
 runtimeStatus.innerHTML = `
   <div>
-    <strong id="runtime-mode">${t("checkingRuntime")}</strong>
+    <div class="runtime-primary-line">
+      <strong id="runtime-mode">${t("checkingRuntime")}</strong>
+      <span id="runtime-quota" class="runtime-quota">${t("runtimeQuotaLabel")}</span>
+    </div>
     <span id="runtime-detail">${t("runtimeDetail")}</span>
     <div id="runtime-command-row" class="runtime-command-row" hidden>
       <code id="runtime-command"></code>

@@ -227,6 +227,12 @@ button:disabled {
   font-size: 0.84rem;
 }
 .status-strip span, .status-strip div { color: inherit; }
+.runtime-primary-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
 .status-strip #runtime-mode {
   display: inline-flex;
   align-items: center;
@@ -260,6 +266,21 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
 }
 .status-strip #runtime-detail {
   display: none;
+}
+.runtime-quota {
+  flex: 0 0 auto;
+  max-width: 24vw;
+  padding: 2px 7px;
+  border: 1px solid rgba(226, 232, 240, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #dbeafe;
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .runtime-actions {
   display: flex;
@@ -1722,11 +1743,19 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
   }
   .status-strip #runtime-mode {
     gap: 5px;
-    max-width: 48vw;
+    max-width: 44vw;
   }
   .status-strip #runtime-mode::before {
     width: 6px;
     height: 6px;
+  }
+  .runtime-primary-line {
+    gap: 5px;
+  }
+  .runtime-quota {
+    max-width: 32vw;
+    padding: 1px 6px;
+    font-size: 0.66rem;
   }
   .attention-strip {
     display: grid;
