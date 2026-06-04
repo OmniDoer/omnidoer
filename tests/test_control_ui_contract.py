@@ -270,6 +270,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("copyTextToClipboard", app)
         self.assertIn("runtimeQuotaLabel", app)
         self.assertIn('id="runtime-quota"', app)
+        self.assertIn("20260604-runtime-quota", self.html)
         self.assertIn("markdown-copy-button", app)
         self.assertIn("chatSendInFlight", app)
         self.assertIn("forceChatScrollToBottom", app)
