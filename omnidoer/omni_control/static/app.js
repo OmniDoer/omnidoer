@@ -20,7 +20,8 @@ const I18N = {
     runtimeModeUnpaired: "Control Service reachable",
     runtimeModeBackground: "Background runner",
     runtimeModeOffline: "Control Service offline",
-    runtimeQuotaLabel: "Codex/OmniDoer · 5h weekly",
+    runtimeQuotaLabel: "5h --% · weekly --%",
+    runtimeQuotaValues: (fiveHour, weekly) => `5h ${fiveHour} · weekly ${weekly}`,
     runtimeDetail: "Control Client does not call OpenAI APIs or models directly.",
     runtimeUnpairedDetail: "This browser is not paired yet. Enter the 6-digit code from omnidoer pair before using requests or session sync.",
     runtimeOffline: "Runtime offline",
@@ -428,7 +429,8 @@ const I18N = {
     runtimeModeUnpaired: "Control Service 可达",
     runtimeModeBackground: "后台 runner",
     runtimeModeOffline: "控制服务离线",
-    runtimeQuotaLabel: "Codex/OmniDoer · 5h weekly",
+    runtimeQuotaLabel: "5h --% · weekly --%",
+    runtimeQuotaValues: (fiveHour, weekly) => `5h ${fiveHour} · weekly ${weekly}`,
     runtimeDetail: "控制客户端不会直接调用 OpenAI API 或模型。",
     runtimeUnpairedDetail: "当前浏览器尚未配对。请先输入 omnidoer pair 打印的 6 位短码，再使用请求或会话同步。",
     runtimeOffline: "运行服务离线",
@@ -944,6 +946,22 @@ function setIconControlLabel(selector, key) {
   node.setAttribute("title", label);
 }
 
+function formatPercent(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "--%";
+  const rounded = Math.round(number * 10) / 10;
+  return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)}%`;
+}
+
+function runtimeQuotaText(status = null) {
+  const quota = status?.quota || {};
+  return t(
+    "runtimeQuotaValues",
+    formatPercent(quota.codex_5h_percent_left),
+    formatPercent(quota.codex_weekly_percent_left)
+  );
+}
+
 function languageTag(lang) {
   return { zh: "zh-CN", ja: "ja", ko: "ko", es: "es", fr: "fr", de: "de" }[lang] || "en";
 }
@@ -1024,7 +1042,7 @@ function applyLanguage() {
   setNodeText("#takeover-panel h2", "takeoverTitle");
   setNodeText("#payment-approval h2", "paymentTitle");
   setNodeText("#approval-status", "noPendingPayment");
-  setNodeText("#runtime-quota", "runtimeQuotaLabel");
+  setFieldText("#runtime-quota", runtimeQuotaText(cachedRuntimeStatus), t("runtimeQuotaLabel"));
   setButtonText("#runtime-copy-command", "copyCommand");
   setButtonText("#request-takeover-pause", "pauseAgent");
   setButtonText("#release-active-takeover", "releaseControl");
@@ -1509,7 +1527,7 @@ runtimeStatus.innerHTML = `
   <div>
     <div class="runtime-primary-line">
       <strong id="runtime-mode">${t("checkingRuntime")}</strong>
-      <span id="runtime-quota" class="runtime-quota">${t("runtimeQuotaLabel")}</span>
+      <span id="runtime-quota" class="runtime-quota">${runtimeQuotaText(null)}</span>
     </div>
     <span id="runtime-detail">${t("runtimeDetail")}</span>
     <div id="runtime-command-row" class="runtime-command-row" hidden>
@@ -5464,6 +5482,8 @@ async function loadRuntimeStatus() {
   try {
     const status = await fetch("/api/status", { cache: "no-store" }).then((r) => r.json());
     cachedRuntimeStatus = status;
+    const quotaText = runtimeQuotaText(status);
+    setFieldText("#runtime-quota", quotaText, t("runtimeQuotaLabel"));
     const runner = status.chat_runner || {};
     let mode = t("runtimeModeCloudDirect", status.mode);
     let detail = t("runtimeDetail");
@@ -5503,7 +5523,7 @@ async function loadRuntimeStatus() {
       restartActionAvailable = runnerCanRestartCurrentConsole(runner);
     } else if (runner.tui_bridge_active) {
       const mcpSidecar = runner.mcp_sidecar || {};
-      mode = t("runtimeQuotaLabel");
+      mode = quotaText;
       detail = t("runtimeBridgeActive");
       if (mcpSidecar.restart_required) {
         mode = t("runtimeModeAttached");

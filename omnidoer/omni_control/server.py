@@ -159,7 +159,29 @@ def _extract_latest_terminal_quota_lines(snapshot: str) -> list[str]:
     return latest
 
 
-def _active_terminal_quota_text(chat_thread_id: str | None) -> str | None:
+def _quota_percent_left(line: str) -> float | None:
+    match = re.search(r"(\d+(?:\.\d+)?)%\s+left", line)
+    if not match:
+        return None
+    return float(match.group(1))
+
+
+def _terminal_quota_summary(lines: list[str]) -> dict[str, object]:
+    summary: dict[str, object] = {"lines": lines}
+    for line in lines:
+        percent = _quota_percent_left(line)
+        if percent is None:
+            continue
+        if line.startswith(("OmniDoer Usage limit:", "OmniDoer limit:")):
+            summary["omnidoer_percent_left"] = percent
+        elif line.startswith("5h limit:"):
+            summary["codex_5h_percent_left"] = percent
+        elif line.startswith("Weekly limit:"):
+            summary["codex_weekly_percent_left"] = percent
+    return summary
+
+
+def _active_terminal_quota_summary(chat_thread_id: str | None) -> dict[str, object] | None:
     if not chat_thread_id:
         return None
     from omnidoer.omni_control.tui_legacy_relay import capture_tmux_pane, find_tmux_pane_for_thread
@@ -171,6 +193,14 @@ def _active_terminal_quota_text(chat_thread_id: str | None) -> str | None:
     lines = _extract_latest_terminal_quota_lines(snapshot)
     if not lines:
         return None
+    return _terminal_quota_summary(lines)
+
+
+def _active_terminal_quota_text(chat_thread_id: str | None) -> str | None:
+    summary = _active_terminal_quota_summary(chat_thread_id)
+    if not summary:
+        return None
+    lines = [str(line) for line in summary.get("lines", [])]
     return "\n".join(["Quota:"] + lines)
 
 
@@ -1409,6 +1439,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
             mcp_sidecar = active_mcp_sidecar_status(chat_thread_id)
             mcp_sidecar_restart_required = bool(mcp_sidecar.get("restart_required"))
             heartbeat_age = bridge_heartbeat.get("age_seconds")
+            quota_summary = _active_terminal_quota_summary(chat_thread_id) or {}
             sync_diagnostics = control_chat_sync_diagnostics(
                 thread_id=chat_thread_id,
                 tui_bridge_active=tui_bridge_active,
@@ -1428,6 +1459,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     "mode": getattr(config, "mode", "local_dev"),
                     "public_url": getattr(config, "public_url", "http://127.0.0.1:8787"),
                     "agent_llm_receives_secrets": False,
+                    "quota": quota_summary,
                     "chat_runner": {
                         "thread_id": chat_thread_id,
                         "tui_bridge_active": tui_bridge_active,
