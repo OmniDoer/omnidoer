@@ -24,6 +24,7 @@ from omnidoer.omni_control.server import (
     CHAT_STREAM_MAX_SNAPSHOTS,
     ControlHandler,
     _extract_latest_terminal_quota_lines,
+    _recent_chat_quota_summary,
     _terminal_quota_summary,
 )
 from omnidoer.omni_control.tui_legacy_relay import TmuxPane
@@ -250,6 +251,85 @@ class ControlChatApiTest(unittest.TestCase):
             self.assertEqual(payload["quota"]["codex_weekly_percent_left"], 54.0)
         finally:
             server.shutdown()
+
+    def test_recent_chat_quota_summary_parses_plain_status_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                ChatStore().append(
+                    role="assistant",
+                    text="\n".join(
+                        [
+                            "Quota:",
+                            "Context window: 69% left (88.4K used / 258K)",
+                            "OmniDoer Usage limit: 88% left",
+                            "GPT-5.3-Codex-Spark limit:",
+                            "5h limit: 76% left",
+                            "Weekly limit: 54% left",
+                        ]
+                    ),
+                    status="completed",
+                    source="agent",
+                )
+
+                summary = _recent_chat_quota_summary()
+
+                self.assertIsNotNone(summary)
+                assert summary is not None
+                self.assertEqual(summary["codex_5h_percent_left"], 76.0)
+                self.assertEqual(summary["codex_weekly_percent_left"], 54.0)
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_status_api_queues_cli_status_refresh_when_quota_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_chat_thread_id = "thread_active"  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                with patch("omnidoer.omni_control.chat_runner.live_tui_bridge_active", return_value=True), patch(
+                    "omnidoer.omni_control.chat_runner.live_tui_session_active",
+                    return_value=False,
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.native_console_bridge_install_status",
+                    return_value={"ready": True, "reason": "ready"},
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.active_tui_process_bridge_status",
+                    return_value={"active": False, "reason": "live_tui_process_not_found"},
+                ), patch(
+                    "omnidoer.omni_control.chat_runner.active_mcp_sidecar_status",
+                    return_value={"active": False, "reason": "live_tui_process_not_found"},
+                ):
+                    with urllib_request.urlopen(f"{base}/api/status", timeout=5) as response:
+                        first = json.loads(response.read().decode())
+                    with urllib_request.urlopen(f"{base}/api/status", timeout=5) as response:
+                        second = json.loads(response.read().decode())
+
+                self.assertEqual(first["quota"], {})
+                self.assertTrue(first["quota_refresh"]["attempted"])
+                self.assertEqual(first["quota_refresh"]["reason"], "queued")
+                self.assertEqual(second["quota_refresh"]["reason"], "rate_limited")
+                messages = ChatStore().list(limit=20)
+                auto_status = [message for message in messages if str(message.client_message_id or "").startswith("omnidoer_auto_status_")]
+                self.assertEqual(len(auto_status), 1)
+                self.assertEqual(auto_status[0].text, "/status")
+                self.assertEqual(auto_status[0].source, "control_service")
+                self.assertEqual(auto_status[0].status, "queued")
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
 
     def test_chat_message_post_attempts_immediate_legacy_console_delivery(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

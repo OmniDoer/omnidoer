@@ -72,6 +72,7 @@ REQUEST_STREAM_HEARTBEAT_SECONDS = 30.0
 CHAT_STREAM_DEFAULT_SNAPSHOTS = 1200
 CHAT_STREAM_MAX_SNAPSHOTS = 1200
 CHAT_STREAM_HEARTBEAT_SECONDS = 30.0
+QUOTA_STATUS_REFRESH_MIN_SECONDS = 120.0
 BROWSER_CONTEXT_STREAM_DEFAULT_SNAPSHOTS = 1200
 BROWSER_CONTEXT_STREAM_MAX_SNAPSHOTS = 1200
 BROWSER_CONTEXT_STREAM_HEARTBEAT_SECONDS = 30.0
@@ -159,6 +160,36 @@ def _extract_latest_terminal_quota_lines(snapshot: str) -> list[str]:
     return latest
 
 
+def _extract_latest_plain_quota_lines(text: str) -> list[str]:
+    latest: list[str] = []
+    current: list[str] = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip().strip("`").lstrip("> ").strip()
+        cleaned = _clean_terminal_status_line(line)
+        if cleaned == "Quota:":
+            if current:
+                latest = current
+            current = []
+            continue
+        if _looks_like_status_quota_line(cleaned):
+            if not current or cleaned.startswith("Context window:"):
+                if current:
+                    latest = current
+                current = [cleaned]
+            else:
+                current.append(cleaned)
+            continue
+        if _looks_like_status_continuation(cleaned) and current:
+            current[-1] = f"{current[-1]} {cleaned}"
+            continue
+        if current:
+            latest = current
+            current = []
+    if current:
+        latest = current
+    return latest
+
+
 def _quota_percent_left(line: str) -> float | None:
     match = re.search(r"(\d+(?:\.\d+)?)%\s+left", line)
     if not match:
@@ -179,6 +210,31 @@ def _terminal_quota_summary(lines: list[str]) -> dict[str, object]:
         elif line.startswith("Weekly limit:"):
             summary["codex_weekly_percent_left"] = percent
     return summary
+
+
+def _quota_summary_has_codex_percentages(summary: dict[str, object] | None) -> bool:
+    if not summary:
+        return False
+    return "codex_5h_percent_left" in summary and "codex_weekly_percent_left" in summary
+
+
+def _recent_chat_quota_summary() -> dict[str, object] | None:
+    candidates: list[tuple[float, str]] = []
+    store = ChatStore()
+    for record in store.list_records(limit=140):
+        if record.text:
+            candidates.append((float(record.created_at or 0), record.text))
+    for message in store.list(limit=80):
+        if message.text:
+            candidates.append((float(message.updated_at or message.created_at or 0), message.text))
+    for _, text in sorted(candidates, key=lambda item: item[0], reverse=True):
+        lines = _extract_latest_terminal_quota_lines(text) or _extract_latest_plain_quota_lines(text)
+        if not lines:
+            continue
+        summary = _terminal_quota_summary(lines)
+        if _quota_summary_has_codex_percentages(summary):
+            return summary
+    return None
 
 
 def _active_terminal_quota_summary(chat_thread_id: str | None) -> dict[str, object] | None:
@@ -1178,6 +1234,58 @@ class ControlHandler(SimpleHTTPRequestHandler):
             lines.extend(["", quota_text])
         return "\n".join(lines)
 
+    def _maybe_queue_quota_status_refresh(
+        self,
+        *,
+        chat_thread_id: str | None,
+        tui_bridge_active: bool,
+        quota_summary: dict[str, object],
+    ) -> dict[str, object]:
+        if _quota_summary_has_codex_percentages(quota_summary):
+            return {"attempted": False, "reason": "quota_available"}
+        if not chat_thread_id:
+            return {"attempted": False, "reason": "chat_thread_not_bound"}
+        if not tui_bridge_active:
+            return {"attempted": False, "reason": "native_bridge_inactive"}
+
+        now = time.time()
+        last_requested = float(getattr(self.server, "omnidoer_last_quota_status_request_at", 0.0) or 0.0)
+        if now - last_requested < QUOTA_STATUS_REFRESH_MIN_SECONDS:
+            return {
+                "attempted": False,
+                "reason": "rate_limited",
+                "retry_after_seconds": max(0.0, QUOTA_STATUS_REFRESH_MIN_SECONDS - (now - last_requested)),
+            }
+
+        store = ChatStore()
+        for message in store.list(limit=20):
+            client_message_id = str(message.client_message_id or "")
+            if (
+                client_message_id.startswith("omnidoer_auto_status_")
+                and message.status in {"queued", "claimed"}
+                and now - float(message.created_at or 0) < QUOTA_STATUS_REFRESH_MIN_SECONDS
+            ):
+                setattr(self.server, "omnidoer_last_quota_status_request_at", now)
+                return {
+                    "attempted": False,
+                    "reason": "status_refresh_already_pending",
+                    "message_id": message.message_id,
+                }
+
+        message = store.append(
+            role="user",
+            text="/status",
+            source="control_service",
+            client_message_id=f"omnidoer_auto_status_{int(now * 1000)}",
+        )
+        setattr(self.server, "omnidoer_last_quota_status_request_at", now)
+        return {
+            "attempted": True,
+            "reason": "queued",
+            "message_id": message.message_id,
+            "thread_id": chat_thread_id,
+        }
+
     def _control_client_help_text(self) -> str:
         return "\n".join(
             [
@@ -1439,7 +1547,12 @@ class ControlHandler(SimpleHTTPRequestHandler):
             mcp_sidecar = active_mcp_sidecar_status(chat_thread_id)
             mcp_sidecar_restart_required = bool(mcp_sidecar.get("restart_required"))
             heartbeat_age = bridge_heartbeat.get("age_seconds")
-            quota_summary = _active_terminal_quota_summary(chat_thread_id) or {}
+            quota_summary = _active_terminal_quota_summary(chat_thread_id) or _recent_chat_quota_summary() or {}
+            quota_refresh = self._maybe_queue_quota_status_refresh(
+                chat_thread_id=chat_thread_id,
+                tui_bridge_active=tui_bridge_active,
+                quota_summary=quota_summary,
+            )
             sync_diagnostics = control_chat_sync_diagnostics(
                 thread_id=chat_thread_id,
                 tui_bridge_active=tui_bridge_active,
@@ -1460,6 +1573,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     "public_url": getattr(config, "public_url", "http://127.0.0.1:8787"),
                     "agent_llm_receives_secrets": False,
                     "quota": quota_summary,
+                    "quota_refresh": quota_refresh,
                     "chat_runner": {
                         "thread_id": chat_thread_id,
                         "tui_bridge_active": tui_bridge_active,
