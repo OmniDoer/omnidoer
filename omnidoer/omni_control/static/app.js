@@ -5503,9 +5503,10 @@ async function loadRuntimeStatus() {
       restartActionAvailable = runnerCanRestartCurrentConsole(runner);
     } else if (runner.tui_bridge_active) {
       const mcpSidecar = runner.mcp_sidecar || {};
-      mode = t("runtimeModeAttached");
+      mode = t("runtimeQuotaLabel");
       detail = t("runtimeBridgeActive");
       if (mcpSidecar.restart_required) {
+        mode = t("runtimeModeAttached");
         detail = `${detail} ${t("runtimeMcpSidecarNeedsRestart")}`;
         restartCommand = runner.restart_command || "";
         restartLabelKey = pendingConsoleRestartRequest() ? "reviewSyncRequest" : "restartAgentForTakeover";

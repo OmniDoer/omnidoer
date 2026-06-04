@@ -264,6 +264,12 @@ body[data-runtime-state="offline"] .status-strip #runtime-mode::before,
 body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
   background: #ef4444;
 }
+body[data-runtime-state="tui_bridge_active"] .runtime-quota {
+  display: none;
+}
+body[data-runtime-state="tui_bridge_active"] .status-strip #runtime-mode {
+  max-width: 66vw;
+}
 .status-strip #runtime-detail {
   display: none;
 }
@@ -1744,6 +1750,9 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
   .status-strip #runtime-mode {
     gap: 5px;
     max-width: 44vw;
+  }
+  body[data-runtime-state="tui_bridge_active"] .status-strip #runtime-mode {
+    max-width: 62vw;
   }
   .status-strip #runtime-mode::before {
     width: 6px;
