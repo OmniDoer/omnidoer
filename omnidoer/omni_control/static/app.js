@@ -111,6 +111,9 @@ const I18N = {
     copyCommand: "Copy command",
     copiedCommand: "Command copied",
     copyCommandFailed: "Copy failed",
+    copyCodeBlock: "Copy",
+    copiedCodeBlock: "Copied",
+    copyCodeBlockFailed: "Failed",
     restartBridge: "Restart bridge",
     restartAgentForTakeover: "Restart Agent",
     enableCurrentSessionSync: "Enable current session sync",
@@ -515,6 +518,9 @@ const I18N = {
     copyCommand: "复制命令",
     copiedCommand: "命令已复制",
     copyCommandFailed: "复制失败",
+    copyCodeBlock: "复制",
+    copiedCodeBlock: "已复制",
+    copyCodeBlockFailed: "失败",
     restartBridge: "重启桥接",
     restartAgentForTakeover: "重启 Agent",
     enableCurrentSessionSync: "启用当前会话同步",
@@ -2420,15 +2426,36 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
 async function copyRuntimeCommand() {
   const command = document.querySelector("#runtime-command")?.textContent || "";
   const button = document.querySelector("#runtime-copy-command");
-  if (!command || !navigator.clipboard?.writeText) {
+  if (!command) {
     if (button) button.textContent = t("copyCommandFailed");
     return;
   }
   try {
-    await navigator.clipboard.writeText(command);
+    await copyTextToClipboard(command);
     if (button) button.textContent = t("copiedCommand");
   } catch {
     if (button) button.textContent = t("copyCommandFailed");
+  }
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.top = "0";
+  document.body.append(textarea);
+  textarea.focus();
+  textarea.select();
+  try {
+    if (!document.execCommand("copy")) throw new Error("copy failed");
+  } finally {
+    textarea.remove();
   }
 }
 
@@ -3967,12 +3994,32 @@ function appendMarkdownParagraph(parent, lines) {
 }
 
 function appendMarkdownCodeBlock(parent, lines, language = "") {
+  const wrapper = document.createElement("div");
+  wrapper.className = "markdown-code-block";
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "markdown-copy-button";
+  button.textContent = t("copyCodeBlock");
+  button.setAttribute("aria-label", t("copyCodeBlock"));
   const pre = document.createElement("pre");
   const code = document.createElement("code");
   if (language) code.dataset.language = language;
   code.textContent = lines.join("\n");
   pre.append(code);
-  parent.append(pre);
+  button.addEventListener("click", async () => {
+    const originalText = button.textContent;
+    try {
+      await copyTextToClipboard(code.textContent || "");
+      button.textContent = t("copiedCodeBlock");
+    } catch {
+      button.textContent = t("copyCodeBlockFailed");
+    }
+    window.setTimeout(() => {
+      button.textContent = originalText || t("copyCodeBlock");
+    }, 1600);
+  });
+  wrapper.append(button, pre);
+  parent.append(wrapper);
 }
 
 function appendMarkdown(parent, text, className) {
