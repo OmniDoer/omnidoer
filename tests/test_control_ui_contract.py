@@ -389,6 +389,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn(".chat-message-text.markdown-text", (static_root() / "style.css").read_text())
         self.assertIn(".markdown-code-block", (static_root() / "style.css").read_text())
         self.assertIn(".markdown-copy-button", (static_root() / "style.css").read_text())
+        self.assertIn("width: auto;", (static_root() / "style.css").read_text())
         self.assertIn(".markdown-text pre code", (static_root() / "style.css").read_text())
         self.assertIn(".chat-tool-summary", (static_root() / "style.css").read_text())
         self.assertIn(".chat-tool-full", (static_root() / "style.css").read_text())

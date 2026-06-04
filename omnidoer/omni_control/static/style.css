@@ -1227,8 +1227,14 @@ body[data-runtime-state="unpaired"] .status-strip #runtime-mode::before {
   top: 5px;
   right: 5px;
   z-index: 1;
-  min-width: 54px;
-  min-height: 25px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 48px;
+  max-width: 72px;
+  min-height: 24px;
+  padding: 3px 8px;
   border: 1px solid rgba(226, 232, 240, 0.38);
   border-radius: 5px;
   background: rgba(15, 23, 42, 0.86);
