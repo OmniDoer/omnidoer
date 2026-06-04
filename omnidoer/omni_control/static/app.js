@@ -1847,6 +1847,8 @@ let cachedBrowserContexts = [];
 let cachedRuntimeStatus = null;
 const approvalConfirmationDrafts = new Map();
 let lastChatPayloadFingerprint = "";
+let chatSendInFlight = false;
+let forceChatScrollToBottom = false;
 let realtimeRefreshTimer = null;
 let foregroundRealtimeRecovery = false;
 let requestStreamActive = false;
@@ -2406,7 +2408,7 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
     input.placeholder = t(placeholderKey);
   }
   if (send) {
-    send.disabled = !canEditDraft;
+    send.disabled = !canEditDraft || chatSendInFlight;
     send.classList.toggle("soft-disabled", canEditDraft && !canSend);
     send.setAttribute("aria-disabled", canSend ? "false" : "true");
     send.setAttribute("aria-label", t(sendKey));
@@ -3679,6 +3681,7 @@ async function postChatMessage(text, { clientMessageId = null, attachments = [] 
 }
 
 async function sendChatMessage() {
+  if (chatSendInFlight) return;
   const sendButton = document.querySelector("#send-chat-message");
   if (sendButton?.disabled) {
     setStatus(t("chatSendBlocked"), t("chatSessionServerOnlyDetail"), document.body.dataset.runtimeState || "");
@@ -3698,24 +3701,42 @@ async function sendChatMessage() {
     setStatus(t("actionFailed"), t("chatCliCommandNoAttachments"));
     return;
   }
+  const originalText = input.value;
+  chatSendInFlight = true;
+  if (sendButton) sendButton.disabled = true;
+  input.value = "";
+  hideChatCommandMenu();
   let attachments = [];
   try {
     attachments = await uploadChatAttachments(files);
   } catch {
+    input.value = originalText;
     setStatus(t("uploadFailed"), t("pairToViewChat"));
+    chatSendInFlight = false;
+    updateChatSessionStatus(cachedRuntimeStatus?.runner || null, { offline: !cachedRuntimeStatus });
     return;
   }
   const clientMessageId = cliCommand ? `control_cli_${Date.now()}_${Math.random().toString(16).slice(2)}` : null;
-  const response = await postChatMessage(text, { clientMessageId, attachments });
-  if (!response.ok) {
-    setStatus(t("actionFailed"), t("pairToViewChat"));
-    return;
-  }
   let payload = {};
   try {
-    payload = await response.json();
+    const response = await postChatMessage(text, { clientMessageId, attachments });
+    if (!response.ok) {
+      input.value = originalText;
+      setStatus(t("actionFailed"), t("pairToViewChat"));
+      return;
+    }
+    try {
+      payload = await response.json();
+    } catch {
+      payload = {};
+    }
   } catch {
-    payload = {};
+    input.value = originalText;
+    setStatus(t("actionFailed"), t("pairToViewChat"));
+    return;
+  } finally {
+    chatSendInFlight = false;
+    updateChatSessionStatus(cachedRuntimeStatus?.runner || null, { offline: !cachedRuntimeStatus });
   }
   const delivery = payload.live_console_delivery || {};
   if (cliCommand) {
@@ -3729,10 +3750,9 @@ async function sendChatMessage() {
   } else if (delivery.attempted || delivery.reason) {
     setStatus(t("chatQueuedForBridge"), t("chatQueuedForBridgeDetail"));
   }
-  input.value = "";
-  hideChatCommandMenu();
   if (fileInput) fileInput.value = "";
   renderSelectedChatFiles();
+  forceChatScrollToBottom = true;
   await loadChatMessages();
 }
 
@@ -4327,10 +4347,16 @@ function renderLiveConsole(terminal) {
   if (pre) pre.scrollTop = pre.scrollHeight;
 }
 
+function chatFeedNearBottom(list) {
+  return list.scrollHeight - list.scrollTop - list.clientHeight < 96;
+}
+
 function renderChatTimeline(messages, records = [], terminal = null) {
   const list = document.querySelector("#chat-messages");
   if (!list) return;
   renderLiveConsole(terminal);
+  const shouldStickToBottom = forceChatScrollToBottom || chatFeedNearBottom(list);
+  forceChatScrollToBottom = false;
   list.innerHTML = "";
 
   const conversation = document.createElement("div");
@@ -4350,7 +4376,9 @@ function renderChatTimeline(messages, records = [], terminal = null) {
     compactChatActivityRecords(records).forEach((record) => activity.append(renderChatRecord(record)));
     list.append(activity);
   }
-  list.scrollTop = list.scrollHeight;
+  if (shouldStickToBottom) {
+    list.scrollTop = list.scrollHeight;
+  }
 }
 
 async function loadChatMessages() {
