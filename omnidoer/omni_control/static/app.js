@@ -1896,6 +1896,7 @@ const TAKEOVER_FRAME_WS_SNAPSHOTS = 1200;
 const TAKEOVER_FRAME_WS_INTERVAL_SECONDS = 0.75;
 const TAKEOVER_FRAME_PROFILE_DEFAULT = "balanced";
 const TAKEOVER_FRAME_PROFILE_DATA_SAVER = "data_saver";
+const API_FETCH_TIMEOUT_MS = 12000;
 const TAKEOVER_ZOOM_MIN = 1;
 const TAKEOVER_ZOOM_MAX = 3;
 const TAKEOVER_ZOOM_STEP = 0.25;
@@ -3314,11 +3315,24 @@ async function deviceAuthSubprotocol(method, path) {
 async function signedFetch(url, options = {}) {
   const target = new URL(url, window.location.origin);
   const method = (options.method || "GET").toUpperCase();
+  const externalSignal = options.signal;
+  const controller = new AbortController();
+  const timeoutMs = options.timeoutMs || API_FETCH_TIMEOUT_MS;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort();
+    else externalSignal.addEventListener("abort", () => controller.abort(), { once: true });
+  }
   const headers = {
     ...(options.headers || {}),
     ...(await deviceSignatureHeaders(method, target.pathname))
   };
-  return fetch(url, { ...options, method, headers });
+  try {
+    const { timeoutMs: _timeoutMs, ...fetchOptions } = options;
+    return await fetch(url, { ...fetchOptions, method, headers, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 async function pairDevice() {
@@ -4749,6 +4763,16 @@ function restoreChatTimelineCache() {
   }
 }
 
+function setChatFeedFallback(textKey = "pairToViewChat") {
+  const list = document.querySelector("#chat-messages");
+  if (!list) return;
+  if (cachedChatMessages.length || cachedChatRecords.length) {
+    renderChatTimeline(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
+    return;
+  }
+  list.textContent = t(textKey);
+}
+
 async function loadChatMessages() {
   const list = document.querySelector("#chat-messages");
   if (!list) return;
@@ -4770,9 +4794,7 @@ async function loadChatMessages() {
   try {
     await chatMessagesLoadPromise;
   } catch {
-    if (!restoreChatTimelineCache() && !cachedChatMessages.length && !cachedChatRecords.length) {
-      list.textContent = t("pairToViewChat");
-    }
+    if (!restoreChatTimelineCache()) setChatFeedFallback("pairToViewChat");
   } finally {
     chatMessagesLoadPromise = null;
   }
@@ -6317,6 +6339,7 @@ function handleControlClientVisibilityChange() {
 }
 
 async function bootstrapControlClient() {
+  restoreChatTimelineCache();
   await loadRuntimeStatus();
   if (initialPairingCode) {
     await autoPairFromInitialLink();
@@ -6325,8 +6348,8 @@ async function bootstrapControlClient() {
   }
   await loadRuntimeStatus();
   if (authenticatedApiAvailable()) await loadChatSessions();
-  restoreChatTimelineCache();
   await refreshAuthenticatedData();
+  setChatFeedFallback("pairToViewChat");
   startAuthenticatedRealtime();
 }
 
