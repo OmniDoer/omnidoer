@@ -1922,6 +1922,7 @@ let cachedBrowserContexts = [];
 let cachedRuntimeStatus = null;
 const CHAT_CACHE_KEY_PREFIX = "omnidoer_chat_timeline_cache_v2";
 const CHAT_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
+const CHAT_COMPACT_LIMIT = 40;
 const approvalConfirmationDrafts = new Map();
 let lastChatPayloadFingerprint = "";
 let chatSendInFlight = false;
@@ -4778,11 +4779,12 @@ async function loadChatMessages() {
   if (!list) return;
   if (chatMessagesLoadPromise) return chatMessagesLoadPromise;
   chatMessagesLoadPromise = (async () => {
-    const payload = await signedFetch(`/api/chat/messages?session_id=${encodeURIComponent(activeChatSessionId)}`, { cache: "no-store" }).then((r) => {
+    const sessionParam = encodeURIComponent(activeChatSessionId);
+    const payload = await signedFetch(`/api/chat/messages?compact=1&limit=${CHAT_COMPACT_LIMIT}&session_id=${sessionParam}`, { cache: "no-store" }).then((r) => {
       if (!r.ok) throw new Error("unauthorized");
       return r.json();
     });
-    renderChatSessions(payload.sessions || {});
+    if (payload.sessions) renderChatSessions(payload.sessions);
     const pruned = pruneChatTimelineForRetention(payload.messages || [], payload.records || []);
     cachedChatMessages = pruned.messages;
     cachedChatRecords = pruned.records;
@@ -6232,7 +6234,7 @@ async function startChatStream() {
   if (chatStreamRestart) clearTimeout(chatStreamRestart);
   try {
     const sessionParam = encodeURIComponent(activeChatSessionId);
-    const response = await signedFetch(`/api/chat/events?stream=1&snapshots=1200&interval=0.75&session_id=${sessionParam}`, { cache: "no-store" });
+    const response = await signedFetch(`/api/chat/events?stream=1&snapshots=1200&interval=0.75&compact=1&limit=${CHAT_COMPACT_LIMIT}&session_id=${sessionParam}`, { cache: "no-store" });
     if (!response.ok || !response.body) throw new Error("chat stream unavailable");
     const reader = response.body.getReader();
     let buffer = "";
@@ -6266,7 +6268,7 @@ async function startChatWebSocket() {
   try {
     const protocol = await deviceAuthSubprotocol("GET", path);
     const sessionParam = encodeURIComponent(activeChatSessionId);
-    const query = `snapshots=1200&interval=0.75&session_id=${sessionParam}`;
+    const query = `snapshots=1200&interval=0.75&compact=1&limit=${CHAT_COMPACT_LIMIT}&session_id=${sessionParam}`;
     const socket = protocol
       ? new WebSocket(websocketUrl(`${path}?${query}`), [protocol])
       : new WebSocket(websocketUrl(`${path}?${query}`));

@@ -703,12 +703,24 @@ class ControlHandler(SimpleHTTPRequestHandler):
             return validate_chat_session_id(value)
         return ChatSessionStore().active_session_id()
 
-    def _chat_payload(self, *, limit: int = 200, after_sequence: int | None = None, session_id: str | None = None) -> dict:
+    def _chat_payload(self, *, limit: int = 200, after_sequence: int | None = None, session_id: str | None = None, compact: bool = False) -> dict:
         resolved_session_id = validate_chat_session_id(session_id or ChatSessionStore().active_session_id())
         store = ChatStore(session_id=resolved_session_id)
-        store.prune_now()
-        messages = store.list(limit=limit)
-        records = store.list_records(limit=limit, after_sequence=after_sequence)
+        if not compact:
+            store.prune_now()
+        resolved_limit = max(1, min(limit, 40 if compact else 200))
+        messages = store.list(limit=resolved_limit)
+        records = store.list_records(limit=resolved_limit, after_sequence=after_sequence)
+        if compact:
+            return {
+                "messages": [message.to_public_dict() for message in messages],
+                "records": [record.to_public_dict() for record in records],
+                "session_id": resolved_session_id,
+                "streaming": True,
+                "compact": True,
+                "retention": {"days": 3, "max_records": 140},
+                "control_client_calls_model": False,
+            }
         chat_thread_id = getattr(self.server, "omnidoer_chat_thread_id", None)
         from omnidoer.omni_control.tui_legacy_relay import legacy_tui_terminal_snapshot
 
@@ -856,7 +868,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
             last_write_at = time.monotonic()
         self.close_connection = True
 
-    def _send_chat_sse_stream(self, *, snapshots: int, interval: float, limit: int, after_sequence: int | None, session_id: str | None = None) -> None:
+    def _send_chat_sse_stream(self, *, snapshots: int, interval: float, limit: int, after_sequence: int | None, session_id: str | None = None, compact: bool = False) -> None:
         from omnidoer.omni_control.websocket import sse_event
 
         self.send_response(HTTPStatus.OK)
@@ -869,7 +881,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
         for index in range(max(1, min(snapshots, CHAT_STREAM_MAX_SNAPSHOTS))):
             if index:
                 time.sleep(max(0.0, min(interval, 10.0)))
-            payload = self._chat_payload(limit=limit, after_sequence=after_sequence, session_id=session_id)
+            payload = self._chat_payload(limit=limit, after_sequence=after_sequence, session_id=session_id, compact=compact)
             fingerprint = self._chat_payload_fingerprint(payload)
             if index and fingerprint == last_fingerprint:
                 now = time.monotonic()
@@ -884,14 +896,14 @@ class ControlHandler(SimpleHTTPRequestHandler):
             last_write_at = time.monotonic()
         self.close_connection = True
 
-    def _send_chat_websocket_stream(self, *, snapshots: int, interval: float, limit: int, after_sequence: int | None, session_id: str | None = None) -> None:
+    def _send_chat_websocket_stream(self, *, snapshots: int, interval: float, limit: int, after_sequence: int | None, session_id: str | None = None, compact: bool = False) -> None:
         websocket_text_frame = self._open_websocket()
         last_fingerprint = ""
         last_write_at = 0.0
         for index in range(max(1, min(snapshots, CHAT_STREAM_MAX_SNAPSHOTS))):
             if index:
                 time.sleep(max(0.0, min(interval, 10.0)))
-            payload = self._chat_payload(limit=limit, after_sequence=after_sequence, session_id=session_id)
+            payload = self._chat_payload(limit=limit, after_sequence=after_sequence, session_id=session_id, compact=compact)
             fingerprint = self._chat_payload_fingerprint(payload)
             if index and fingerprint == last_fingerprint:
                 now = time.monotonic()
@@ -1682,7 +1694,16 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 limit = int(query.get("limit", ["200"])[0])
                 after = query.get("after_sequence", [None])[0]
                 session_id = self._chat_session_id_from_query(query)
-                self._send_json(HTTPStatus.OK, self._chat_payload(limit=limit, after_sequence=int(after) if after else None, session_id=session_id))
+                compact = query.get("compact", ["0"])[0] == "1"
+                self._send_json(
+                    HTTPStatus.OK,
+                    self._chat_payload(
+                        limit=limit,
+                        after_sequence=int(after) if after else None,
+                        session_id=session_id,
+                        compact=compact,
+                    ),
+                )
             except PermissionError:
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
             except ValueError:
@@ -1704,6 +1725,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 limit = int(query.get("limit", ["200"])[0])
                 after = query.get("after_sequence", [None])[0]
                 session_id = self._chat_session_id_from_query(query)
+                compact = query.get("compact", ["0"])[0] == "1"
                 if query.get("stream", ["0"])[0] == "1":
                     self._send_chat_sse_stream(
                         snapshots=snapshots,
@@ -1711,9 +1733,18 @@ class ControlHandler(SimpleHTTPRequestHandler):
                         limit=limit,
                         after_sequence=int(after) if after else None,
                         session_id=session_id,
+                        compact=compact,
                     )
                 else:
-                    self._send_sse(self._chat_payload(limit=limit, after_sequence=int(after) if after else None, session_id=session_id), event="chat")
+                    self._send_sse(
+                        self._chat_payload(
+                            limit=limit,
+                            after_sequence=int(after) if after else None,
+                            session_id=session_id,
+                            compact=compact,
+                        ),
+                        event="chat",
+                    )
             except PermissionError:
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
             except CLIENT_DISCONNECT_EXCEPTIONS:
@@ -1754,12 +1785,14 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 limit = int(query.get("limit", ["200"])[0])
                 after = query.get("after_sequence", [None])[0]
                 session_id = self._chat_session_id_from_query(query)
+                compact = query.get("compact", ["0"])[0] == "1"
                 self._send_chat_websocket_stream(
                     snapshots=snapshots,
                     interval=interval,
                     limit=limit,
                     after_sequence=int(after) if after else None,
                     session_id=session_id,
+                    compact=compact,
                 )
             except PermissionError:
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})

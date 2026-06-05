@@ -785,6 +785,15 @@ class ControlChatApiTest(unittest.TestCase):
                 self.assertFalse(payload["control_client_calls_model"])
                 self.assertEqual(payload["retention"]["days"], 3)
 
+                with urllib_request.urlopen(f"{base}/api/chat/messages?compact=1&limit=1", timeout=5) as response:
+                    compact_payload = json.loads(response.read().decode())
+                self.assertTrue(compact_payload["compact"])
+                self.assertEqual(len(compact_payload["messages"]), 1)
+                self.assertEqual(len(compact_payload["records"]), 1)
+                self.assertNotIn("terminal", compact_payload)
+                self.assertNotIn("sessions", compact_payload)
+                self.assertNotIn("uploads", compact_payload)
+
                 with urllib_request.urlopen(f"{base}/api/chat/events?stream=1&snapshots=1&interval=0", timeout=5) as response:
                     stream = response.read().decode()
                 self.assertIn("event: chat", stream)
