@@ -1,7 +1,7 @@
 const I18N = {
   en: {
-    appTitle: "OmniDoer Control Client",
-    appSubtitle: "Secure approvals, credentials, challenges, and human takeover.",
+    appTitle: "OmniDoer",
+    appSubtitle: "",
     navOverview: "Home",
     navRequests: "Requests",
     navTasks: "Chat",
@@ -275,6 +275,7 @@ const I18N = {
     chatToolUnknown: "tool",
     chatToolOutputNoContent: "no visible output",
     chatToolOutputLines: (count) => `${count} lines`,
+    chatTurnStatus: (minutes, reasoning, tools) => `Turn ${minutes} · thinking ${reasoning} · tools ${tools}`,
     chatRecordReasoning: "Reasoning",
     chatRecordTerminal: "Terminal",
     chatRecordTerminalInput: "Terminal input",
@@ -417,8 +418,8 @@ const I18N = {
     }
   },
   zh: {
-    appTitle: "OmniDoer 控制客户端",
-    appSubtitle: "安全处理授权、凭证、验证和人工接管。",
+    appTitle: "OmniDoer",
+    appSubtitle: "",
     navOverview: "总览",
     navRequests: "请求",
     navTasks: "对话",
@@ -692,6 +693,7 @@ const I18N = {
     chatToolUnknown: "工具",
     chatToolOutputNoContent: "无可见输出",
     chatToolOutputLines: (count) => `${count} 行`,
+    chatTurnStatus: (minutes, reasoning, tools) => `本轮 ${minutes} · 思考 ${reasoning} · 工具 ${tools}`,
     chatRecordReasoning: "思考摘要",
     chatRecordTerminal: "终端",
     chatRecordTerminalInput: "终端输入",
@@ -1885,7 +1887,7 @@ document.querySelectorAll("[data-filter]").forEach((button) => {
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
-const BASE_DOCUMENT_TITLE = document.title || "OmniDoer Control Client";
+const BASE_DOCUMENT_TITLE = document.title || "OmniDoer";
 const TAKEOVER_FRAME_MAX_AGE_MS = 30000;
 const TAKEOVER_FRAME_POLL_MS = 1500;
 const BROWSER_PREVIEW_POLL_MS = 2000;
@@ -4462,7 +4464,41 @@ function renderChatRecord(record) {
   return item;
 }
 
-function renderToolStatusLine(records = []) {
+function currentTurnToolStats(messages = [], records = []) {
+  const lastUser = [...messages].reverse().find((message) => message.role === "user");
+  const turnStart = Number(lastUser?.created_at || 0);
+  const turnRecords = turnStart > 0
+    ? records.filter((record) => Number(record.created_at || 0) >= turnStart)
+    : records;
+  const reasoningCount = turnRecords.filter((record) => (
+    record.record_type === "reasoning" ||
+    (record.record_type === "note" && /^Reasoning summary:/i.test(record.text || ""))
+  )).length;
+  const toolCallIds = new Set();
+  turnRecords.forEach((record) => {
+    if (record.record_type === "tool_call") {
+      toolCallIds.add(record.data?.item_id || record.record_id || record.sequence);
+    }
+    if (record.record_type === "tool_group") {
+      toolCallIds.add(record.data?.tool_call?.record_id || record.record_id || record.sequence);
+    }
+  });
+  const lastActivityAt = Math.max(
+    turnStart,
+    ...turnRecords.map((record) => Number(record.created_at || 0)),
+    ...messages.filter((message) => Number(message.created_at || 0) >= turnStart).map((message) => Number(message.updated_at || message.created_at || 0))
+  );
+  const seconds = Math.max(0, (lastActivityAt || Date.now() / 1000) - (turnStart || lastActivityAt || Date.now() / 1000));
+  const minuteCount = Math.floor(seconds / 60);
+  const minutes = minuteCount < 1 ? "<1m" : `${minuteCount}m`;
+  return {
+    minutes,
+    reasoningCount,
+    toolCallCount: toolCallIds.size || turnRecords.filter((record) => record.record_type === "tool_output").length
+  };
+}
+
+function renderToolStatusLine(records = [], messages = []) {
   const toolRecords = records.filter((record) => ["tool_call", "tool_output", "tool_group"].includes(record.record_type));
   if (!toolRecords.length) return null;
   const compactedTools = compactToolActivityRecords(toolRecords);
@@ -4471,19 +4507,10 @@ function renderToolStatusLine(records = []) {
   const line = document.createElement("div");
   line.className = "chat-tool-status-line";
   const summary = document.createElement("span");
-  summary.className = "chat-tool-summary";
-  if (lastTool.record_type === "tool_group") {
-    const callRecord = lastTool.data?.tool_call || lastTool;
-    const outputs = Array.isArray(lastTool.data?.tool_outputs) ? lastTool.data.tool_outputs : [];
-    appendToolSummary(summary, t("chatToolActivity", toolNameFromRecord(callRecord)), toolGroupOutputSummary(outputs));
-  } else if (lastTool.record_type === "tool_call") {
-    appendToolSummary(summary, t("chatToolCalling", toolNameFromRecord(lastTool)), lastTool.data?.status || "");
-  } else {
-    appendToolSummary(summary, t("chatToolReturned", toolNameFromRecord(lastTool)), toolOutputSummary(lastTool));
-  }
+  summary.className = "chat-turn-status-text";
+  const stats = currentTurnToolStats(messages, records);
+  summary.textContent = t("chatTurnStatus", stats.minutes, stats.reasoningCount, stats.toolCallCount);
   line.append(summary);
-  const timeText = formatChatTimestamp(lastTool.created_at);
-  if (timeText) appendText(line, "span", timeText, "chat-tool-status-time");
   return line;
 }
 
@@ -4624,7 +4651,7 @@ function renderChatTimeline(messages, records = [], terminal = null) {
   appendText(conversation, "div", t("chatConversationTitle"), "chat-lane-title");
   if (visibleMessages.length) {
     visibleMessages.forEach((message) => conversation.append(renderChatMessage(message)));
-    const toolStatusLine = renderToolStatusLine(visibleToolRecords);
+    const toolStatusLine = renderToolStatusLine(visibleToolRecords, visibleMessages);
     if (toolStatusLine) conversation.append(toolStatusLine);
   } else {
     appendText(conversation, "p", t("noChatMessages"), "chat-empty-state");
