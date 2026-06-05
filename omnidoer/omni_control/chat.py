@@ -21,8 +21,11 @@ CHAT_RECORD_TYPES = {"message", "delta", "status", "tool_call", "tool_output", "
 MAX_CHAT_TEXT_LENGTH = 20000
 MAX_CHAT_MESSAGES = 80
 MAX_CHAT_RECORDS = 140
+MAX_CHAT_SESSIONS = 5
 CHAT_RETENTION_SECONDS = 3 * 24 * 60 * 60
 CHAT_ARCHIVE_DIR_NAME = "control_chat_archives"
+DEFAULT_CHAT_SESSION_ID = "default"
+CHAT_SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,48}$")
 INTERRUPT_CLIENT_MESSAGE_PREFIXES = ("control_pause_", "omnidoer_pause_")
 CLI_CLIENT_MESSAGE_PREFIX = "control_cli_"
 PRIORITY_CLIENT_MESSAGE_PREFIXES = (*INTERRUPT_CLIENT_MESSAGE_PREFIXES, "control_continue_", CLI_CLIENT_MESSAGE_PREFIX)
@@ -91,6 +94,24 @@ class ChatRecord:
         return payload
 
 
+@dataclass
+class ChatSession:
+    session_id: str
+    title: str
+    status: str = "open"
+    created_at: float = 0.0
+    updated_at: float = 0.0
+    closed_at: float | None = None
+
+    def to_public_dict(self, *, message_count: int = 0, record_count: int = 0) -> dict[str, Any]:
+        data = asdict(self)
+        data["message_count"] = message_count
+        data["record_count"] = record_count
+        data["secret_fields_allowed"] = False
+        data["control_client_calls_model"] = False
+        return data
+
+
 def control_message_priority(message: ChatMessage) -> int:
     client_message_id = str(message.client_message_id or "")
     if client_message_id.startswith(INTERRUPT_CLIENT_MESSAGE_PREFIXES):
@@ -100,9 +121,168 @@ def control_message_priority(message: ChatMessage) -> int:
     return 2
 
 
-class ChatStore:
+def validate_chat_session_id(session_id: str | None) -> str:
+    value = str(session_id or DEFAULT_CHAT_SESSION_ID).strip() or DEFAULT_CHAT_SESSION_ID
+    if not CHAT_SESSION_ID_RE.match(value):
+        raise ValueError("invalid chat session id")
+    return value
+
+
+def chat_session_file(session_id: str | None) -> Path:
+    resolved = validate_chat_session_id(session_id)
+    if resolved == DEFAULT_CHAT_SESSION_ID:
+        return state_file("control_chat_messages.json")
+    return state_file("control_chat_sessions") / f"{resolved}.json"
+
+
+class ChatSessionStore:
     def __init__(self, path: Path | None = None):
-        self.path = path or state_file("control_chat_messages.json")
+        self.path = path or state_file("control_chat_sessions.json")
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+
+    def _load_payload(self) -> tuple[str, dict[str, ChatSession]]:
+        if not self.path.exists():
+            now = time.time()
+            default = ChatSession(
+                session_id=DEFAULT_CHAT_SESSION_ID,
+                title="Default",
+                created_at=now,
+                updated_at=now,
+            )
+            return DEFAULT_CHAT_SESSION_ID, {DEFAULT_CHAT_SESSION_ID: default}
+        raw = json.loads(self.path.read_text())
+        active_session_id = validate_chat_session_id(raw.get("active_session_id") or DEFAULT_CHAT_SESSION_ID)
+        sessions = {
+            key: ChatSession(**value)
+            for key, value in (raw.get("sessions") or {}).items()
+        }
+        if DEFAULT_CHAT_SESSION_ID not in sessions:
+            now = time.time()
+            sessions[DEFAULT_CHAT_SESSION_ID] = ChatSession(
+                session_id=DEFAULT_CHAT_SESSION_ID,
+                title="Default",
+                created_at=now,
+                updated_at=now,
+            )
+        if active_session_id not in sessions or sessions[active_session_id].status != "open":
+            active_session_id = self._first_open_session_id(sessions) or DEFAULT_CHAT_SESSION_ID
+        return active_session_id, sessions
+
+    def _save(self, active_session_id: str, sessions: dict[str, ChatSession]) -> None:
+        payload = {
+            "active_session_id": validate_chat_session_id(active_session_id),
+            "sessions": {key: asdict(value) for key, value in sessions.items()},
+        }
+        atomic_write_json(self.path, payload)
+
+    def _first_open_session_id(self, sessions: dict[str, ChatSession]) -> str | None:
+        open_sessions = sorted(
+            (session for session in sessions.values() if session.status == "open"),
+            key=lambda session: (session.updated_at, session.created_at),
+            reverse=True,
+        )
+        return open_sessions[0].session_id if open_sessions else None
+
+    def _public_session(self, session: ChatSession) -> dict[str, Any]:
+        store = ChatStore(session_id=session.session_id)
+        return session.to_public_dict(
+            message_count=len(store.list(limit=1000)),
+            record_count=len(store.list_records(limit=1000)),
+        )
+
+    def list(self) -> dict[str, Any]:
+        with locked_state_file(self.path):
+            active_session_id, sessions = self._load_payload()
+            self._save(active_session_id, sessions)
+        visible = sorted(sessions.values(), key=lambda session: (session.status != "open", -session.updated_at))
+        return {
+            "active_session_id": active_session_id,
+            "max_sessions": MAX_CHAT_SESSIONS,
+            "sessions": [self._public_session(session) for session in visible],
+        }
+
+    def open_session_ids(self) -> list[str]:
+        active_session_id, sessions = self._load_payload()
+        open_ids = [session.session_id for session in sessions.values() if session.status == "open"]
+        if active_session_id in open_ids:
+            open_ids.remove(active_session_id)
+            open_ids.insert(0, active_session_id)
+        return open_ids[:MAX_CHAT_SESSIONS]
+
+    def active_session_id(self) -> str:
+        active_session_id, _ = self._load_payload()
+        return active_session_id
+
+    def create(self, *, title: str | None = None) -> ChatSession:
+        with locked_state_file(self.path):
+            _, sessions = self._load_payload()
+            open_count = sum(1 for session in sessions.values() if session.status == "open")
+            if open_count >= MAX_CHAT_SESSIONS:
+                raise ValueError("chat session limit reached")
+            now = time.time()
+            session_id = f"chat_{int(now)}_{uuid.uuid4().hex[:8]}"
+            session = ChatSession(
+                session_id=session_id,
+                title=str(title or "").strip()[:80] or f"Session {open_count + 1}",
+                created_at=now,
+                updated_at=now,
+            )
+            sessions[session_id] = session
+            self._save(session_id, sessions)
+            return session
+
+    def activate(self, session_id: str) -> ChatSession:
+        resolved = validate_chat_session_id(session_id)
+        with locked_state_file(self.path):
+            _, sessions = self._load_payload()
+            session = sessions.get(resolved)
+            if session is None or session.status != "open":
+                raise KeyError("chat session not found")
+            session.updated_at = time.time()
+            sessions[resolved] = session
+            self._save(resolved, sessions)
+            return session
+
+    def touch(self, session_id: str) -> None:
+        resolved = validate_chat_session_id(session_id)
+        with locked_state_file(self.path):
+            active_session_id, sessions = self._load_payload()
+            session = sessions.get(resolved)
+            if not session:
+                return
+            session.updated_at = time.time()
+            sessions[resolved] = session
+            self._save(active_session_id, sessions)
+
+    def close(self, session_id: str) -> dict[str, Any]:
+        resolved = validate_chat_session_id(session_id)
+        with locked_state_file(self.path):
+            active_session_id, sessions = self._load_payload()
+            session = sessions.get(resolved)
+            if session is None or session.status != "open":
+                raise KeyError("chat session not found")
+            open_ids = [item.session_id for item in sessions.values() if item.status == "open"]
+            if len(open_ids) <= 1:
+                raise ValueError("cannot close last chat session")
+            archived = ChatStore(session_id=resolved).archive_and_reset()
+            now = time.time()
+            session.status = "closed"
+            session.closed_at = now
+            session.updated_at = now
+            sessions[resolved] = session
+            if active_session_id == resolved:
+                active_session_id = self._first_open_session_id(sessions) or DEFAULT_CHAT_SESSION_ID
+            self._save(active_session_id, sessions)
+            return {"session": session.to_public_dict(), "active_session_id": active_session_id, "archived": archived}
+
+
+class ChatStore:
+    def __init__(self, path: Path | None = None, *, session_id: str | None = None):
+        if path is not None and session_id is not None:
+            raise ValueError("path and session_id are mutually exclusive")
+        self.session_id = validate_chat_session_id(session_id)
+        self.managed_session = path is None
+        self.path = path or chat_session_file(self.session_id)
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
     def _load_payload(self) -> tuple[int, dict[str, ChatMessage], int, dict[str, ChatRecord]]:
@@ -312,7 +492,9 @@ class ChatStore:
             )
             records[record.record_id] = record
             self._save(next_sequence + 1, messages, next_record_sequence + 1, records)
-            return message
+        if self.managed_session:
+            ChatSessionStore().touch(self.session_id)
+        return message
 
     def next_user_message(self, *, claim: bool = True) -> ChatMessage | None:
         with locked_state_file(self.path):

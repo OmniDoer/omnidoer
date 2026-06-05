@@ -246,11 +246,14 @@ const I18N = {
     slashCommandPairDesc: "Create a short pairing code for another Control Client.",
     slashCommandCompactDesc: "Compact the current conversation context.",
     slashCommandHelpDesc: "Show available OmniDoer CLI commands.",
-    newChatSession: "New Chat",
-    newChatConfirm: "Archive the current chat view and start a new empty conversation?",
+    chatSessions: "Sessions",
+    newChatSession: "New",
+    closeChatSession: "Close",
+    closeChatConfirm: "Close and archive this chat session?",
     newChatStarted: "New chat started",
-    newChatStartedDetail: "Previous messages were archived on the Control Service.",
-    newChatFailed: "New chat failed",
+    newChatStartedDetail: "You are now working in a separate chat session.",
+    chatSessionClosed: "Chat session closed",
+    newChatFailed: "Session action failed",
     sendMessage: "Send Message",
     noChatMessages: "No chat messages yet.",
     pairToViewChat: "Pair this device to view and send chat messages.",
@@ -660,11 +663,14 @@ const I18N = {
     slashCommandPairDesc: "为另一个 Control Client 生成 6 位配对码。",
     slashCommandCompactDesc: "压缩当前对话上下文。",
     slashCommandHelpDesc: "查看可用的 OmniDoer CLI 指令。",
-    newChatSession: "新会话",
-    newChatConfirm: "归档当前对话视图并开始一个空的新会话？",
+    chatSessions: "会话",
+    newChatSession: "新建",
+    closeChatSession: "关闭",
+    closeChatConfirm: "关闭并归档当前会话？",
     newChatStarted: "已开始新会话",
-    newChatStartedDetail: "之前的消息已在 Control Service 上归档。",
-    newChatFailed: "新会话创建失败",
+    newChatStartedDetail: "现在正在一个独立的对话会话中工作。",
+    chatSessionClosed: "会话已关闭",
+    newChatFailed: "会话操作失败",
     sendMessage: "发送消息",
     noChatMessages: "还没有对话消息。",
     pairToViewChat: "请先配对此设备以查看和发送对话消息。",
@@ -956,6 +962,10 @@ function setIconControlLabel(selector, key) {
   node.setAttribute("title", label);
 }
 
+function activeChatCacheKey() {
+  return `${CHAT_CACHE_KEY_PREFIX}_${activeChatSessionId || "default"}`;
+}
+
 function formatPercent(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return "--%";
@@ -1054,7 +1064,9 @@ function applyLanguage() {
   if (chatInput) chatInput.placeholder = t("chatPlaceholder");
   document.querySelector("#chat-command-menu")?.setAttribute("aria-label", t("slashCommandsLabel"));
   updateChatCommandMenu();
-  setIconControlLabel("#new-chat-session", "newChatSession");
+  document.querySelector(".chat-session-toolbar")?.setAttribute("aria-label", t("chatSessions"));
+  setButtonText("#create-chat-session", "newChatSession");
+  setButtonText("#close-chat-session", "closeChatSession");
   setIconControlLabel("#chat-files-label", "chatFilesLabel");
   setIconControlLabel("#send-chat-message", "sendMessage");
   setButtonText("#submit-task", "submitTask");
@@ -1637,9 +1649,19 @@ if (sendChatMessageButton) {
   sendChatMessageButton.onclick = () => sendChatMessage();
 }
 
-const newChatSessionButton = document.querySelector("#new-chat-session");
-if (newChatSessionButton) {
-  newChatSessionButton.onclick = () => startNewChatSession();
+const chatSessionSelect = document.querySelector("#chat-session-select");
+if (chatSessionSelect) {
+  chatSessionSelect.onchange = () => activateChatSession(chatSessionSelect.value);
+}
+
+const createChatSessionButton = document.querySelector("#create-chat-session");
+if (createChatSessionButton) {
+  createChatSessionButton.onclick = () => createChatSession();
+}
+
+const closeChatSessionButton = document.querySelector("#close-chat-session");
+if (closeChatSessionButton) {
+  closeChatSessionButton.onclick = () => closeChatSession(activeChatSessionId);
 }
 
 const chatFilesInput = document.querySelector("#chat-files");
@@ -1891,9 +1913,11 @@ let cachedRequests = [];
 let cachedChatMessages = [];
 let cachedChatRecords = [];
 let cachedChatTerminal = null;
+let cachedChatSessions = [];
+let activeChatSessionId = "default";
 let cachedBrowserContexts = [];
 let cachedRuntimeStatus = null;
-const CHAT_CACHE_KEY = "omnidoer_chat_timeline_cache_v1";
+const CHAT_CACHE_KEY_PREFIX = "omnidoer_chat_timeline_cache_v2";
 const CHAT_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
 const approvalConfirmationDrafts = new Map();
 let lastChatPayloadFingerprint = "";
@@ -2377,7 +2401,8 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
   const restart = document.querySelector("#chat-session-restart");
   const input = document.querySelector("#chat-input");
   const send = document.querySelector("#send-chat-message");
-  const newChat = document.querySelector("#new-chat-session");
+  const createSession = document.querySelector("#create-chat-session");
+  const closeSession = document.querySelector("#close-chat-session");
   const files = document.querySelector("#chat-files");
   const fileLabel = document.querySelector("#chat-files-label");
   const syncRequest = pendingConsoleRestartRequest();
@@ -2465,10 +2490,12 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
     send.setAttribute("aria-label", t(sendKey));
     send.title = t(sendKey);
   }
-  if (newChat) {
-    newChat.disabled = !canEditDraft;
-    newChat.classList.toggle("soft-disabled", !canEditDraft);
-    newChat.setAttribute("aria-disabled", canEditDraft ? "false" : "true");
+  const openSessionCount = cachedChatSessions.filter((session) => session.status === "open").length;
+  if (createSession) {
+    createSession.disabled = !canEditDraft || openSessionCount >= 5;
+  }
+  if (closeSession) {
+    closeSession.disabled = !canEditDraft || openSessionCount <= 1;
   }
   if (files) {
     files.disabled = !canSend;
@@ -3732,29 +3759,128 @@ async function postChatMessage(text, { clientMessageId = null, attachments = [] 
   return signedFetch("/api/chat/messages", {
     method: "POST",
     headers: { "content-type": "application/json", ...csrfHeaders() },
-    body: JSON.stringify({ text, client_message_id: messageId, attachments })
+    body: JSON.stringify({ text, client_message_id: messageId, attachments, session_id: activeChatSessionId })
   });
 }
 
-async function startNewChatSession() {
-  const button = document.querySelector("#new-chat-session");
+function renderChatSessions(payload = {}) {
+  const sessionPayload = Array.isArray(payload.sessions) ? payload : (payload.sessions || payload);
+  cachedChatSessions = Array.isArray(sessionPayload.sessions) ? sessionPayload.sessions : cachedChatSessions;
+  activeChatSessionId = sessionPayload.active_session_id || payload.session_id || activeChatSessionId || "default";
+  const select = document.querySelector("#chat-session-select");
+  if (select) {
+    select.innerHTML = "";
+    cachedChatSessions
+      .filter((session) => session.status === "open")
+      .forEach((session) => {
+        const option = document.createElement("option");
+        option.value = session.session_id;
+        const count = Number(session.message_count || 0);
+        option.textContent = `${session.title || session.session_id}${count ? ` (${count})` : ""}`;
+        select.append(option);
+      });
+    select.value = activeChatSessionId;
+  }
+  updateChatSessionStatus(cachedRuntimeStatus?.runner || null, { offline: !cachedRuntimeStatus });
+}
+
+async function loadChatSessions() {
+  try {
+    const payload = await signedFetch("/api/chat/sessions", { cache: "no-store" }).then((r) => {
+      if (!r.ok) throw new Error("unauthorized");
+      return r.json();
+    });
+    renderChatSessions(payload);
+    return payload;
+  } catch {
+    renderChatSessions({});
+    return null;
+  }
+}
+
+function resetChatTimelineForSession(sessionId) {
+  activeChatSessionId = sessionId || activeChatSessionId || "default";
+  cachedChatMessages = [];
+  cachedChatRecords = [];
+  cachedChatTerminal = null;
+  lastChatPayloadFingerprint = "";
+  forceChatScrollToBottom = true;
+  renderChatTimeline(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
+}
+
+function restartChatRealtimeForActiveSession() {
+  if (chatStreamRestart) clearTimeout(chatStreamRestart);
+  closeRealtimeSocket(chatStreamSocket);
+  chatStreamRestart = null;
+  chatStreamSocket = null;
+  chatStreamActive = false;
+  if (authenticatedApiAvailable()) startChatWebSocket();
+}
+
+async function createChatSession() {
+  const button = document.querySelector("#create-chat-session");
   if (button?.disabled) return;
-  if (!window.confirm(t("newChatConfirm"))) return;
   if (button) button.disabled = true;
   try {
-    const response = await signedFetch("/api/chat/session/new", {
+    const response = await signedFetch("/api/chat/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...csrfHeaders() },
+      body: JSON.stringify({})
+    });
+    if (!response.ok) throw new Error("new chat failed");
+    const payload = await response.json();
+    renderChatSessions(payload);
+    resetChatTimelineForSession(payload.active_session_id || payload.session?.session_id);
+    restoreChatTimelineCache();
+    restartChatRealtimeForActiveSession();
+    setStatus(t("newChatStarted"), t("newChatStartedDetail"));
+    await loadChatMessages();
+  } catch {
+    setStatus(t("newChatFailed"), t("pairToViewChat"));
+  } finally {
+    if (button) button.disabled = false;
+    updateChatSessionStatus(cachedRuntimeStatus?.runner || null, { offline: !cachedRuntimeStatus });
+  }
+}
+
+async function activateChatSession(sessionId) {
+  if (!sessionId || sessionId === activeChatSessionId) return;
+  try {
+    const response = await signedFetch(`/api/chat/sessions/${encodeURIComponent(sessionId)}/activate`, {
       method: "POST",
       headers: csrfHeaders()
     });
-    if (!response.ok) throw new Error("new chat failed");
-    cachedChatMessages = [];
-    cachedChatRecords = [];
-    cachedChatTerminal = null;
-    lastChatPayloadFingerprint = "";
-    localStorage.removeItem(CHAT_CACHE_KEY);
-    forceChatScrollToBottom = true;
-    renderChatTimeline(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
-    setStatus(t("newChatStarted"), t("newChatStartedDetail"));
+    if (!response.ok) throw new Error("activate failed");
+    const payload = await response.json();
+    renderChatSessions(payload);
+    resetChatTimelineForSession(payload.active_session_id || sessionId);
+    restoreChatTimelineCache();
+    restartChatRealtimeForActiveSession();
+    await loadChatMessages();
+  } catch {
+    setStatus(t("newChatFailed"), t("pairToViewChat"));
+    renderChatSessions({ active_session_id: activeChatSessionId, sessions: cachedChatSessions });
+  }
+}
+
+async function closeChatSession(sessionId) {
+  const button = document.querySelector("#close-chat-session");
+  if (!sessionId || button?.disabled) return;
+  if (!window.confirm(t("closeChatConfirm"))) return;
+  if (button) button.disabled = true;
+  try {
+    const response = await signedFetch(`/api/chat/sessions/${encodeURIComponent(sessionId)}/close`, {
+      method: "POST",
+      headers: csrfHeaders()
+    });
+    if (!response.ok) throw new Error("close failed");
+    const payload = await response.json();
+    localStorage.removeItem(activeChatCacheKey());
+    renderChatSessions(payload);
+    resetChatTimelineForSession(payload.active_session_id || "default");
+    restoreChatTimelineCache();
+    restartChatRealtimeForActiveSession();
+    setStatus(t("chatSessionClosed"), t("newChatStartedDetail"));
     await loadChatMessages();
   } catch {
     setStatus(t("newChatFailed"), t("pairToViewChat"));
@@ -4514,7 +4640,7 @@ function persistChatTimelineCache() {
     const pruned = pruneChatTimelineForRetention(cachedChatMessages, cachedChatRecords);
     cachedChatMessages = pruned.messages;
     cachedChatRecords = pruned.records;
-    localStorage.setItem(CHAT_CACHE_KEY, JSON.stringify({
+    localStorage.setItem(activeChatCacheKey(), JSON.stringify({
       messages: cachedChatMessages,
       records: cachedChatRecords,
       terminal: cachedChatTerminal,
@@ -4556,7 +4682,7 @@ function pruneChatTimelineForRetention(messages = [], records = []) {
 
 function restoreChatTimelineCache() {
   try {
-    const raw = localStorage.getItem(CHAT_CACHE_KEY);
+    const raw = localStorage.getItem(activeChatCacheKey());
     if (!raw) return false;
     const payload = JSON.parse(raw);
     const pruned = pruneChatTimelineForRetention(
@@ -4580,10 +4706,11 @@ async function loadChatMessages() {
   const list = document.querySelector("#chat-messages");
   if (!list) return;
   try {
-    const payload = await signedFetch("/api/chat/messages", { cache: "no-store" }).then((r) => {
+    const payload = await signedFetch(`/api/chat/messages?session_id=${encodeURIComponent(activeChatSessionId)}`, { cache: "no-store" }).then((r) => {
       if (!r.ok) throw new Error("unauthorized");
       return r.json();
     });
+    renderChatSessions(payload.sessions || {});
     const pruned = pruneChatTimelineForRetention(payload.messages || [], payload.records || []);
     cachedChatMessages = pruned.messages;
     cachedChatRecords = pruned.records;
@@ -5803,6 +5930,8 @@ function refreshRequestDependentUi() {
 }
 
 function applyChatEvent(payload) {
+  if (payload.session_id && payload.session_id !== activeChatSessionId) return;
+  if (payload.sessions) renderChatSessions(payload.sessions);
   const pruned = pruneChatTimelineForRetention(payload.messages || [], payload.records || []);
   const messages = pruned.messages;
   const records = pruned.records;
@@ -6002,7 +6131,8 @@ async function startChatStream() {
   chatStreamActive = true;
   if (chatStreamRestart) clearTimeout(chatStreamRestart);
   try {
-    const response = await signedFetch("/api/chat/events?stream=1&snapshots=1200&interval=0.25", { cache: "no-store" });
+    const sessionParam = encodeURIComponent(activeChatSessionId);
+    const response = await signedFetch(`/api/chat/events?stream=1&snapshots=1200&interval=0.25&session_id=${sessionParam}`, { cache: "no-store" });
     if (!response.ok || !response.body) throw new Error("chat stream unavailable");
     const reader = response.body.getReader();
     let buffer = "";
@@ -6035,9 +6165,11 @@ async function startChatWebSocket() {
   const path = "/api/ws/chat";
   try {
     const protocol = await deviceAuthSubprotocol("GET", path);
+    const sessionParam = encodeURIComponent(activeChatSessionId);
+    const query = `snapshots=1200&interval=0.25&session_id=${sessionParam}`;
     const socket = protocol
-      ? new WebSocket(websocketUrl(`${path}?snapshots=1200&interval=0.25`), [protocol])
-      : new WebSocket(websocketUrl(`${path}?snapshots=1200&interval=0.25`));
+      ? new WebSocket(websocketUrl(`${path}?${query}`), [protocol])
+      : new WebSocket(websocketUrl(`${path}?${query}`));
     chatStreamSocket = socket;
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data);
@@ -6069,6 +6201,7 @@ function authenticatedApiAvailable() {
 async function refreshAuthenticatedData() {
   if (!authenticatedApiAvailable()) return;
   await Promise.allSettled([
+    loadChatSessions(),
     loadRequests(),
     loadBrowserContexts(),
     loadChatMessages(),
@@ -6106,7 +6239,6 @@ function handleControlClientVisibilityChange() {
 }
 
 async function bootstrapControlClient() {
-  restoreChatTimelineCache();
   await loadRuntimeStatus();
   if (initialPairingCode) {
     await autoPairFromInitialLink();
@@ -6114,6 +6246,8 @@ async function bootstrapControlClient() {
     await refreshPairingState();
   }
   await loadRuntimeStatus();
+  if (authenticatedApiAvailable()) await loadChatSessions();
+  restoreChatTimelineCache();
   await refreshAuthenticatedData();
   startAuthenticatedRealtime();
 }
@@ -6131,6 +6265,9 @@ setInterval(() => {
 setInterval(() => {
   if (authenticatedApiAvailable()) loadChatMessages();
 }, 5000);
+setInterval(() => {
+  if (authenticatedApiAvailable()) loadChatSessions();
+}, 15000);
 setInterval(() => {
   if (authenticatedApiAvailable()) loadDevicesAndSessions();
 }, 15000);

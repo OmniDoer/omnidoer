@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from omnidoer.omni_control.chat import ChatMessage, ChatStore, chat_message_is_cli_command
+from omnidoer.omni_control.chat import DEFAULT_CHAT_SESSION_ID, ChatMessage, ChatSessionStore, ChatStore, chat_message_is_cli_command
 from omnidoer.omni_control.chat_uploads import image_attachment_paths
 from omnidoer.paths import state_file
 
@@ -1006,3 +1006,47 @@ def start_chat_runner_thread(
     thread = threading.Thread(target=runner.run_forever, name="omnidoer-chat-runner", daemon=True)
     thread.start()
     return thread
+
+
+def start_chat_session_runner_supervisor(
+    *,
+    codex_bin: str | None = None,
+    cwd: str | Path | None = None,
+    thread_id: str | None = None,
+    extra_args: list[str] | None = None,
+    poll_interval: float = 1.0,
+    require_live_tui_for_thread: bool = True,
+    allow_detached_thread_resume: bool = False,
+) -> threading.Thread:
+    started: dict[str, threading.Thread] = {}
+
+    def supervise() -> None:
+        while True:
+            for session_id in ChatSessionStore().open_session_ids():
+                existing = started.get(session_id)
+                if existing and existing.is_alive():
+                    continue
+                session_thread_id = thread_id if session_id == DEFAULT_CHAT_SESSION_ID else None
+                session_require_live_tui = require_live_tui_for_thread if session_id == DEFAULT_CHAT_SESSION_ID else False
+                runner = ChatRunner(
+                    store=ChatStore(session_id=session_id),
+                    codex_bin=codex_bin,
+                    cwd=cwd,
+                    thread_id=session_thread_id,
+                    extra_args=extra_args,
+                    poll_interval=poll_interval,
+                    require_live_tui_for_thread=session_require_live_tui,
+                    allow_detached_thread_resume=allow_detached_thread_resume,
+                )
+                thread = threading.Thread(
+                    target=runner.run_forever,
+                    name=f"omnidoer-chat-runner-{session_id}",
+                    daemon=True,
+                )
+                started[session_id] = thread
+                thread.start()
+            time.sleep(max(0.5, poll_interval))
+
+    supervisor = threading.Thread(target=supervise, name="omnidoer-chat-session-runner-supervisor", daemon=True)
+    supervisor.start()
+    return supervisor

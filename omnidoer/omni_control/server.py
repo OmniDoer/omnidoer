@@ -27,7 +27,7 @@ from cryptography.x509.oid import NameOID
 
 from omnidoer.omni_audit.audit import AuditLog
 from omnidoer.omni_control.auth import authenticate_session, authenticate_signed_session_request, pair_device
-from omnidoer.omni_control.chat import ChatStore, chat_cli_command_name, chat_text_is_cli_command
+from omnidoer.omni_control.chat import DEFAULT_CHAT_SESSION_ID, ChatSessionStore, ChatStore, chat_cli_command_name, chat_text_is_cli_command, validate_chat_session_id
 from omnidoer.omni_control.chat_uploads import (
     MAX_CHAT_UPLOAD_BYTES,
     ChatUploadStore,
@@ -697,8 +697,15 @@ class ControlHandler(SimpleHTTPRequestHandler):
     def _request_payload_fingerprint(self, payload: dict) -> str:
         return json.dumps(payload, ensure_ascii=False, sort_keys=True)
 
-    def _chat_payload(self, *, limit: int = 200, after_sequence: int | None = None) -> dict:
-        store = ChatStore()
+    def _chat_session_id_from_query(self, query: dict[str, list[str]]) -> str:
+        value = query.get("session_id", [None])[0]
+        if value:
+            return validate_chat_session_id(value)
+        return ChatSessionStore().active_session_id()
+
+    def _chat_payload(self, *, limit: int = 200, after_sequence: int | None = None, session_id: str | None = None) -> dict:
+        resolved_session_id = validate_chat_session_id(session_id or ChatSessionStore().active_session_id())
+        store = ChatStore(session_id=resolved_session_id)
         store.prune_now()
         messages = store.list(limit=limit)
         records = store.list_records(limit=limit, after_sequence=after_sequence)
@@ -708,6 +715,8 @@ class ControlHandler(SimpleHTTPRequestHandler):
         return {
             "messages": [message.to_public_dict() for message in messages],
             "records": [record.to_public_dict() for record in records],
+            "session_id": resolved_session_id,
+            "sessions": ChatSessionStore().list(),
             "streaming": True,
             "terminal": legacy_tui_terminal_snapshot(chat_thread_id),
             "retention": {"days": 3, "max_records": 140},
@@ -847,7 +856,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
             last_write_at = time.monotonic()
         self.close_connection = True
 
-    def _send_chat_sse_stream(self, *, snapshots: int, interval: float, limit: int, after_sequence: int | None) -> None:
+    def _send_chat_sse_stream(self, *, snapshots: int, interval: float, limit: int, after_sequence: int | None, session_id: str | None = None) -> None:
         from omnidoer.omni_control.websocket import sse_event
 
         self.send_response(HTTPStatus.OK)
@@ -860,7 +869,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
         for index in range(max(1, min(snapshots, CHAT_STREAM_MAX_SNAPSHOTS))):
             if index:
                 time.sleep(max(0.0, min(interval, 10.0)))
-            payload = self._chat_payload(limit=limit, after_sequence=after_sequence)
+            payload = self._chat_payload(limit=limit, after_sequence=after_sequence, session_id=session_id)
             fingerprint = self._chat_payload_fingerprint(payload)
             if index and fingerprint == last_fingerprint:
                 now = time.monotonic()
@@ -875,14 +884,14 @@ class ControlHandler(SimpleHTTPRequestHandler):
             last_write_at = time.monotonic()
         self.close_connection = True
 
-    def _send_chat_websocket_stream(self, *, snapshots: int, interval: float, limit: int, after_sequence: int | None) -> None:
+    def _send_chat_websocket_stream(self, *, snapshots: int, interval: float, limit: int, after_sequence: int | None, session_id: str | None = None) -> None:
         websocket_text_frame = self._open_websocket()
         last_fingerprint = ""
         last_write_at = 0.0
         for index in range(max(1, min(snapshots, CHAT_STREAM_MAX_SNAPSHOTS))):
             if index:
                 time.sleep(max(0.0, min(interval, 10.0)))
-            payload = self._chat_payload(limit=limit, after_sequence=after_sequence)
+            payload = self._chat_payload(limit=limit, after_sequence=after_sequence, session_id=session_id)
             fingerprint = self._chat_payload_fingerprint(payload)
             if index and fingerprint == last_fingerprint:
                 now = time.monotonic()
@@ -1672,11 +1681,19 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 query = parse_qs(parsed_url.query)
                 limit = int(query.get("limit", ["200"])[0])
                 after = query.get("after_sequence", [None])[0]
-                self._send_json(HTTPStatus.OK, self._chat_payload(limit=limit, after_sequence=int(after) if after else None))
+                session_id = self._chat_session_id_from_query(query)
+                self._send_json(HTTPStatus.OK, self._chat_payload(limit=limit, after_sequence=int(after) if after else None, session_id=session_id))
             except PermissionError:
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
             except ValueError:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid chat options"})
+            return
+        if path == "/api/chat/sessions":
+            try:
+                self._require_access()
+                self._send_json(HTTPStatus.OK, ChatSessionStore().list())
+            except PermissionError:
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
             return
         if path == "/api/chat/events":
             try:
@@ -1686,15 +1703,17 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 interval = float(query.get("interval", ["1"])[0])
                 limit = int(query.get("limit", ["200"])[0])
                 after = query.get("after_sequence", [None])[0]
+                session_id = self._chat_session_id_from_query(query)
                 if query.get("stream", ["0"])[0] == "1":
                     self._send_chat_sse_stream(
                         snapshots=snapshots,
                         interval=interval,
                         limit=limit,
                         after_sequence=int(after) if after else None,
+                        session_id=session_id,
                     )
                 else:
-                    self._send_sse(self._chat_payload(limit=limit, after_sequence=int(after) if after else None), event="chat")
+                    self._send_sse(self._chat_payload(limit=limit, after_sequence=int(after) if after else None, session_id=session_id), event="chat")
             except PermissionError:
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
             except CLIENT_DISCONNECT_EXCEPTIONS:
@@ -1734,11 +1753,13 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 interval = float(query.get("interval", ["1"])[0])
                 limit = int(query.get("limit", ["200"])[0])
                 after = query.get("after_sequence", [None])[0]
+                session_id = self._chat_session_id_from_query(query)
                 self._send_chat_websocket_stream(
                     snapshots=snapshots,
                     interval=interval,
                     limit=limit,
                     after_sequence=int(after) if after else None,
+                    session_id=session_id,
                 )
             except PermissionError:
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
@@ -2098,6 +2119,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 body = self._read_json()
                 text = str(body.get("text") or "")
                 client_message_id = str(body.get("client_message_id") or "") or None
+                chat_session_id = validate_chat_session_id(body.get("session_id") or ChatSessionStore().active_session_id())
                 local_cli_response = self._handle_control_cli_command(
                     text=text,
                     client_message_id=client_message_id,
@@ -2108,7 +2130,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     return
                 upload_store = ChatUploadStore()
                 upload_store.cleanup_expired(ttl_seconds=self._chat_upload_ttl_seconds())
-                chat_store = ChatStore()
+                chat_store = ChatStore(session_id=chat_session_id)
                 message = chat_store.append(
                     role="user",
                     text=text,
@@ -2118,13 +2140,61 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     reply_to_message_id=str(body.get("reply_to_message_id") or "") or None,
                     attachments=validate_uploaded_attachments(body.get("attachments"), upload_store.directory),
                 )
-                delivery = self._try_deliver_chat_to_live_console(message.message_id)
+                delivery = (
+                    self._try_deliver_chat_to_live_console(message.message_id)
+                    if chat_session_id == DEFAULT_CHAT_SESSION_ID
+                    else {"attempted": False, "reason": "background_session", "secret_exposed_to_model": False}
+                )
                 try:
                     payload = chat_store.get(message.message_id).to_public_dict()
                 except KeyError:
                     payload = message.to_public_dict()
                 payload["live_console_delivery"] = delivery
                 self._send_json(HTTPStatus.CREATED, payload)
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
+        if path == "/api/chat/sessions":
+            try:
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+                return
+            try:
+                body = self._read_json()
+                created = ChatSessionStore().create(title=str(body.get("title") or "") or None)
+                self._send_json(
+                    HTTPStatus.CREATED,
+                    {"session": created.to_public_dict(), **ChatSessionStore().list()},
+                )
+            except ValueError as exc:
+                self._send_json(HTTPStatus.CONFLICT, {"error": str(exc)})
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
+        if len(parts) == 5 and parts[:3] == ["api", "chat", "sessions"]:
+            try:
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+                return
+            session_id, action = parts[3], parts[4]
+            try:
+                if action == "activate":
+                    activated = ChatSessionStore().activate(session_id)
+                    self._send_json(HTTPStatus.OK, {"session": activated.to_public_dict(), **ChatSessionStore().list()})
+                    return
+                if action == "close":
+                    closed = ChatSessionStore().close(session_id)
+                    self._send_json(HTTPStatus.OK, {**closed, **ChatSessionStore().list()})
+                    return
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "unknown action"})
+            except KeyError:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "chat session not found"})
+            except ValueError as exc:
+                self._send_json(HTTPStatus.CONFLICT, {"error": str(exc)})
             except Exception as exc:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
             return
@@ -2603,12 +2673,12 @@ def serve(
     if insecure_dev_public:
         print("WARNING: --insecure-dev-public disables Cloud Direct HTTPS enforcement. Use only for temporary testing.")
     if chat_runner:
-        from omnidoer.omni_control.chat_runner import start_chat_runner_thread
+        from omnidoer.omni_control.chat_runner import start_chat_session_runner_supervisor
         from omnidoer.omni_control.tui_legacy_relay import start_legacy_tui_relay_thread
 
         detached_runner_allowed = bool(chat_allow_detached_thread_resume or not chat_thread_id)
         if detached_runner_allowed:
-            start_chat_runner_thread(
+            start_chat_session_runner_supervisor(
                 codex_bin=chat_codex_bin,
                 cwd=chat_runner_cwd,
                 thread_id=chat_thread_id,

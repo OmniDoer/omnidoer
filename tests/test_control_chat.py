@@ -13,8 +13,10 @@ from unittest.mock import patch
 from omnidoer.omni_control.chat import (
     CHAT_ARCHIVE_DIR_NAME,
     CHAT_RETENTION_SECONDS,
+    MAX_CHAT_SESSIONS,
     MAX_CHAT_MESSAGES,
     MAX_CHAT_RECORDS,
+    ChatSessionStore,
     ChatStore,
     chat_message_is_cli_command,
     chat_text_is_cli_command,
@@ -206,6 +208,36 @@ class ControlChatStoreTest(unittest.TestCase):
             payload = json.loads(archive_path.read_text())
             self.assertIn(message.message_id, payload["messages"])
             self.assertEqual(payload["messages"][message.message_id]["text"], "keep this in archive")
+
+    def test_chat_sessions_are_isolated_and_limited(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                sessions = ChatSessionStore()
+                first = sessions.create(title="Work")
+                second = sessions.create(title="Phone")
+                ChatStore(session_id=first.session_id).append(role="user", text="first session")
+                ChatStore(session_id=second.session_id).append(role="user", text="second session")
+
+                self.assertEqual(ChatStore(session_id=first.session_id).list()[0].text, "first session")
+                self.assertEqual(ChatStore(session_id=second.session_id).list()[0].text, "second session")
+                self.assertEqual(sessions.activate(first.session_id).session_id, first.session_id)
+
+                for index in range(MAX_CHAT_SESSIONS - 3):
+                    sessions.create(title=f"extra {index}")
+                with self.assertRaises(ValueError):
+                    sessions.create(title="too many")
+
+                closed = sessions.close(first.session_id)
+                self.assertEqual(closed["session"]["status"], "closed")
+                self.assertNotEqual(closed["active_session_id"], first.session_id)
+                self.assertTrue(Path(closed["archived"]["archive_path"]).exists())
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
 
 
 class ControlChatUploadStoreTest(unittest.TestCase):

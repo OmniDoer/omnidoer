@@ -657,7 +657,7 @@ body[data-runtime-state="tui_bridge_active"] .status-strip #runtime-mode {
 .task p, .mini-record p { margin: 6px 0; overflow-wrap: anywhere; }
 #task-panel {
   display: grid;
-  grid-template-rows: auto auto minmax(0, auto) minmax(0, auto) minmax(0, auto) minmax(96px, 1fr) auto;
+  grid-template-rows: auto auto auto minmax(0, auto) minmax(0, auto) minmax(0, auto) minmax(96px, 1fr) auto;
   min-height: min(780px, calc(100svh - 190px));
   padding: 0;
   overflow: hidden;
@@ -691,6 +691,31 @@ body[data-runtime-state="tui_bridge_active"] .status-strip #runtime-mode {
   padding: 2px 12px;
   border-bottom: 1px solid #eef2f7;
   background: #f8fafc;
+}
+.chat-session-toolbar {
+  grid-row: 3;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 8px;
+  border-bottom: 1px solid #eef2f7;
+  background: #ffffff;
+}
+.chat-session-toolbar select {
+  min-width: 0;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  padding: 0 8px;
+  font-weight: 650;
+}
+.chat-session-toolbar button {
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
 }
 .chat-session-status > div {
   min-width: 0;
@@ -767,7 +792,7 @@ body[data-runtime-state="tui_bridge_active"] .status-strip #runtime-mode {
   display: none;
 }
 .chat-sync-approval-card {
-  grid-row: 3;
+  grid-row: 4;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 10px;
@@ -801,7 +826,7 @@ body[data-runtime-state="tui_bridge_active"] .status-strip #runtime-mode {
   min-width: 112px;
 }
 .browser-handoff-strip {
-  grid-row: 4;
+  grid-row: 5;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -846,7 +871,7 @@ body[data-runtime-state="tui_bridge_active"] .status-strip #runtime-mode {
   display: none;
 }
 .chat-live-console {
-  grid-row: 5;
+  grid-row: 6;
   padding: 12px min(5vw, 56px);
   border-bottom: 1px solid #1e293b;
   background: #0f172a;
@@ -867,7 +892,7 @@ body[data-runtime-state="tui_bridge_active"] .status-strip #runtime-mode {
   font: 0.82rem/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 .chat-feed {
-  grid-row: 6;
+  grid-row: 7;
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -904,7 +929,7 @@ body[data-runtime-state="tui_bridge_active"] .status-strip #runtime-mode {
   color: var(--muted);
 }
 .chat-composer {
-  grid-row: 7;
+  grid-row: 8;
   position: sticky;
   bottom: 0;
   display: grid;
@@ -1056,7 +1081,6 @@ body[data-runtime-state="tui_bridge_active"] .status-strip #runtime-mode {
   pointer-events: none;
 }
 .file-button,
-#new-chat-session,
 #send-chat-message {
   min-height: 34px;
   width: 34px;
@@ -1884,7 +1908,7 @@ body[data-runtime-state="tui_bridge_active"] .status-strip #runtime-mode {
   }
   button { width: 100%; }
   #task-panel {
-    grid-template-rows: auto auto minmax(0, auto) minmax(0, auto) minmax(0, auto) minmax(88px, 1fr) auto;
+    grid-template-rows: auto auto auto minmax(0, auto) minmax(0, auto) minmax(0, auto) minmax(88px, 1fr) auto;
     height: calc(100svh - 142px);
     min-height: 0;
     margin-left: -6px;
