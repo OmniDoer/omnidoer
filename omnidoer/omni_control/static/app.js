@@ -962,6 +962,18 @@ function runtimeQuotaText(status = null) {
   );
 }
 
+function formatChatTimestamp(seconds) {
+  const value = Number(seconds);
+  if (!Number.isFinite(value) || value <= 0) return "";
+  const date = new Date(value * 1000);
+  const now = new Date();
+  const sameDay = date.toDateString() === now.toDateString();
+  const options = sameDay
+    ? { hour: "2-digit", minute: "2-digit" }
+    : { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" };
+  return new Intl.DateTimeFormat(undefined, options).format(date);
+}
+
 function languageTag(lang) {
   return { zh: "zh-CN", ja: "ja", ko: "ko", es: "es", fr: "fr", de: "de" }[lang] || "en";
 }
@@ -4238,6 +4250,8 @@ function renderChatMessage(message) {
   const meta = document.createElement("div");
   meta.className = "chat-message-meta";
   appendText(meta, "span", `#${message.sequence}`);
+  const timeText = formatChatTimestamp(message.updated_at || message.created_at);
+  if (timeText) appendText(meta, "span", timeText);
   if (message.source) appendText(meta, "span", message.source);
   item.append(meta);
   return item;
@@ -4275,6 +4289,8 @@ function renderChatRecord(record) {
     ? `${t("chatRecordNumber", record.data.sequence_start)}-${record.data.sequence_end}`
     : t("chatRecordNumber", record.sequence);
   appendText(meta, "span", sequenceText);
+  const timeText = formatChatTimestamp(record.created_at);
+  if (timeText) appendText(meta, "span", timeText);
   if (record.data?.delta_count) appendText(meta, "span", t("chatRecordChunks", record.data.delta_count));
   if (record.message_id) appendText(meta, "span", shortChatId(record.message_id));
   item.append(meta);

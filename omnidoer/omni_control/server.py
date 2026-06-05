@@ -699,6 +699,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
 
     def _chat_payload(self, *, limit: int = 200, after_sequence: int | None = None) -> dict:
         store = ChatStore()
+        store.prune_now()
         messages = store.list(limit=limit)
         records = store.list_records(limit=limit, after_sequence=after_sequence)
         chat_thread_id = getattr(self.server, "omnidoer_chat_thread_id", None)
@@ -709,7 +710,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
             "records": [record.to_public_dict() for record in records],
             "streaming": True,
             "terminal": legacy_tui_terminal_snapshot(chat_thread_id),
-            "retention": {"approx_screen_count": 5, "max_records": 140},
+            "retention": {"days": 3, "max_records": 140},
             "uploads": {
                 "directory": str(ChatUploadStore().directory),
                 "ttl_seconds": self._chat_upload_ttl_seconds(),

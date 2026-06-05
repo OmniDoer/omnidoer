@@ -21,6 +21,7 @@ CHAT_RECORD_TYPES = {"message", "delta", "status", "tool_call", "tool_output", "
 MAX_CHAT_TEXT_LENGTH = 20000
 MAX_CHAT_MESSAGES = 80
 MAX_CHAT_RECORDS = 140
+CHAT_RETENTION_SECONDS = 3 * 24 * 60 * 60
 INTERRUPT_CLIENT_MESSAGE_PREFIXES = ("control_pause_", "omnidoer_pause_")
 CLI_CLIENT_MESSAGE_PREFIX = "control_cli_"
 PRIORITY_CLIENT_MESSAGE_PREFIXES = (*INTERRUPT_CLIENT_MESSAGE_PREFIXES, "control_continue_", CLI_CLIENT_MESSAGE_PREFIX)
@@ -146,16 +147,28 @@ class ChatStore:
         messages: dict[str, ChatMessage],
         records: dict[str, ChatRecord],
     ) -> tuple[dict[str, ChatMessage], dict[str, ChatRecord]]:
-        sorted_records = sorted(records.values(), key=lambda record: record.sequence)
-        retained_records = sorted_records[-MAX_CHAT_RECORDS:]
-        retained_record_ids = {record.record_id for record in retained_records}
-        records = {key: value for key, value in records.items() if key in retained_record_ids}
-
+        cutoff = time.time() - CHAT_RETENTION_SECONDS
         active_message_ids = {
             message.message_id
             for message in messages.values()
             if message.status in {"queued", "claimed", "streaming"}
         }
+        messages = {
+            key: value
+            for key, value in messages.items()
+            if key in active_message_ids or max(float(value.created_at or 0), float(value.updated_at or 0)) >= cutoff
+        }
+        records = {
+            key: value
+            for key, value in records.items()
+            if (value.message_id and value.message_id in active_message_ids) or float(value.created_at or 0) >= cutoff
+        }
+
+        sorted_records = sorted(records.values(), key=lambda record: record.sequence)
+        retained_records = sorted_records[-MAX_CHAT_RECORDS:]
+        retained_record_ids = {record.record_id for record in retained_records}
+        records = {key: value for key, value in records.items() if key in retained_record_ids}
+
         referenced_message_ids = {
             record.message_id
             for record in records.values()
@@ -165,6 +178,11 @@ class ChatStore:
         retained_message_ids = active_message_ids | referenced_message_ids | {message.message_id for message in recent_messages}
         messages = {key: value for key, value in messages.items() if key in retained_message_ids}
         return messages, records
+
+    def prune_now(self) -> None:
+        with locked_state_file(self.path):
+            next_sequence, messages, next_record_sequence, records = self._load_payload()
+            self._save(next_sequence, messages, next_record_sequence, records)
 
     def _new_record(
         self,

@@ -11,6 +11,7 @@ from urllib import request as urllib_request
 from unittest.mock import patch
 
 from omnidoer.omni_control.chat import (
+    CHAT_RETENTION_SECONDS,
     MAX_CHAT_MESSAGES,
     MAX_CHAT_RECORDS,
     ChatStore,
@@ -155,6 +156,35 @@ class ControlChatStoreTest(unittest.TestCase):
             self.assertLessEqual(len(messages), MAX_CHAT_MESSAGES)
             self.assertEqual(messages[0].text, "done 20")
             self.assertEqual(messages[-1].text, f"done {MAX_CHAT_MESSAGES + 19}")
+
+    def test_completed_chat_messages_older_than_three_days_are_pruned(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "chat.json"
+            store = ChatStore(path)
+            old_done = store.append(role="user", text="old completed")
+            store.complete(old_done.message_id)
+            old_active = store.append(role="user", text="old active")
+            recent = store.append(role="user", text="recent completed")
+            store.complete(recent.message_id)
+
+            payload = json.loads(path.read_text())
+            old_time = time.time() - CHAT_RETENTION_SECONDS - 60
+            for message_id in (old_done.message_id, old_active.message_id):
+                payload["messages"][message_id]["created_at"] = old_time
+                payload["messages"][message_id]["updated_at"] = old_time
+                payload["messages"][message_id]["completed_at"] = old_time if message_id == old_done.message_id else None
+            for record in payload["records"].values():
+                if record.get("message_id") in {old_done.message_id, old_active.message_id}:
+                    record["created_at"] = old_time
+            path.write_text(json.dumps(payload))
+
+            store.prune_now()
+            messages = store.list(limit=1000)
+            texts = [message.text for message in messages]
+
+            self.assertNotIn("old completed", texts)
+            self.assertIn("old active", texts)
+            self.assertIn("recent completed", texts)
 
 
 class ControlChatUploadStoreTest(unittest.TestCase):
@@ -700,7 +730,7 @@ class ControlChatApiTest(unittest.TestCase):
                 self.assertGreaterEqual(len(payload["records"]), 4)
                 self.assertEqual(payload["records"][-1]["record_type"], "delta")
                 self.assertFalse(payload["control_client_calls_model"])
-                self.assertEqual(payload["retention"]["approx_screen_count"], 5)
+                self.assertEqual(payload["retention"]["days"], 3)
 
                 with urllib_request.urlopen(f"{base}/api/chat/events?stream=1&snapshots=1&interval=0", timeout=5) as response:
                     stream = response.read().decode()
