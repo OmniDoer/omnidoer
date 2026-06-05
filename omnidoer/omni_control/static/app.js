@@ -4242,6 +4242,10 @@ function renderChatMessage(message) {
   return item;
 }
 
+function isInternalAutoStatusMessage(message) {
+  return String(message?.client_message_id || "").startsWith("omnidoer_auto_status_");
+}
+
 function renderChatRecord(record) {
   if (["tool_call", "tool_output", "tool_group"].includes(record.record_type)) {
     return renderToolRecord(record);
@@ -4382,22 +4386,25 @@ function renderChatTimeline(messages, records = [], terminal = null) {
   const shouldStickToBottom = forceChatScrollToBottom || chatFeedNearBottom(list);
   forceChatScrollToBottom = false;
   list.innerHTML = "";
+  const visibleMessages = messages.filter((message) => !isInternalAutoStatusMessage(message));
+  const hiddenMessageIds = new Set(messages.filter(isInternalAutoStatusMessage).map((message) => message.message_id));
+  const visibleRecords = records.filter((record) => !hiddenMessageIds.has(record.message_id));
 
   const conversation = document.createElement("div");
   conversation.className = "chat-conversation";
   appendText(conversation, "div", t("chatConversationTitle"), "chat-lane-title");
-  if (messages.length) {
-    messages.forEach((message) => conversation.append(renderChatMessage(message)));
+  if (visibleMessages.length) {
+    visibleMessages.forEach((message) => conversation.append(renderChatMessage(message)));
   } else {
     appendText(conversation, "p", t("noChatMessages"), "chat-empty-state");
   }
   list.append(conversation);
 
-  if (records.length) {
+  if (visibleRecords.length) {
     const activity = document.createElement("div");
     activity.className = "chat-activity";
     appendText(activity, "div", t("chatActivityTitle"), "chat-lane-title");
-    compactChatActivityRecords(records).forEach((record) => activity.append(renderChatRecord(record)));
+    compactChatActivityRecords(visibleRecords).forEach((record) => activity.append(renderChatRecord(record)));
     list.append(activity);
   }
   if (shouldStickToBottom) {
