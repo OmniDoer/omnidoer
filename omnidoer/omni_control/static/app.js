@@ -1882,6 +1882,7 @@ let cachedChatTerminal = null;
 let cachedBrowserContexts = [];
 let cachedRuntimeStatus = null;
 const CHAT_CACHE_KEY = "omnidoer_chat_timeline_cache_v1";
+const CHAT_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
 const approvalConfirmationDrafts = new Map();
 let lastChatPayloadFingerprint = "";
 let chatSendInFlight = false;
@@ -4431,6 +4432,9 @@ function renderChatTimeline(messages, records = [], terminal = null) {
 
 function persistChatTimelineCache() {
   try {
+    const pruned = pruneChatTimelineForRetention(cachedChatMessages, cachedChatRecords);
+    cachedChatMessages = pruned.messages;
+    cachedChatRecords = pruned.records;
     localStorage.setItem(CHAT_CACHE_KEY, JSON.stringify({
       messages: cachedChatMessages,
       records: cachedChatRecords,
@@ -4440,15 +4444,51 @@ function persistChatTimelineCache() {
   } catch {}
 }
 
+function pruneChatTimelineForRetention(messages = [], records = []) {
+  const cutoff = Date.now() - CHAT_RETENTION_MS;
+  const activeMessageIds = new Set(
+    messages
+      .filter((message) => ["queued", "streaming"].includes(message.status))
+      .map((message) => message.message_id)
+      .filter(Boolean)
+  );
+  const retainedMessages = messages.filter((message) => {
+    const messageTime = Math.max(Number(message.created_at || 0), Number(message.updated_at || 0)) * 1000;
+    return activeMessageIds.has(message.message_id) || messageTime >= cutoff;
+  });
+  const retainedMessageIds = new Set(retainedMessages.map((message) => message.message_id).filter(Boolean));
+  const retainedRecords = records.filter((record) => {
+    const recordTime = Number(record.created_at || 0) * 1000;
+    return recordTime >= cutoff || (record.message_id && activeMessageIds.has(record.message_id));
+  });
+  const recordMessageIds = new Set(
+    retainedRecords
+      .map((record) => record.message_id)
+      .filter((messageId) => messageId && retainedMessageIds.has(messageId))
+  );
+  return {
+    messages: retainedMessages.filter((message) => {
+      const messageId = message.message_id;
+      return activeMessageIds.has(messageId) || recordMessageIds.has(messageId) || retainedMessageIds.has(messageId);
+    }),
+    records: retainedRecords
+  };
+}
+
 function restoreChatTimelineCache() {
   try {
     const raw = localStorage.getItem(CHAT_CACHE_KEY);
     if (!raw) return false;
     const payload = JSON.parse(raw);
-    cachedChatMessages = Array.isArray(payload.messages) ? payload.messages : [];
-    cachedChatRecords = Array.isArray(payload.records) ? payload.records : [];
+    const pruned = pruneChatTimelineForRetention(
+      Array.isArray(payload.messages) ? payload.messages : [],
+      Array.isArray(payload.records) ? payload.records : []
+    );
+    cachedChatMessages = pruned.messages;
+    cachedChatRecords = pruned.records;
     cachedChatTerminal = payload.terminal || null;
     lastChatPayloadFingerprint = chatPayloadFingerprint(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
+    persistChatTimelineCache();
     renderChatTimeline(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
     updateOverview();
     return cachedChatMessages.length > 0 || cachedChatRecords.length > 0;
@@ -4465,8 +4505,9 @@ async function loadChatMessages() {
       if (!r.ok) throw new Error("unauthorized");
       return r.json();
     });
-    cachedChatMessages = payload.messages || [];
-    cachedChatRecords = payload.records || [];
+    const pruned = pruneChatTimelineForRetention(payload.messages || [], payload.records || []);
+    cachedChatMessages = pruned.messages;
+    cachedChatRecords = pruned.records;
     cachedChatTerminal = payload.terminal || null;
     lastChatPayloadFingerprint = chatPayloadFingerprint(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
     persistChatTimelineCache();
@@ -5683,8 +5724,9 @@ function refreshRequestDependentUi() {
 }
 
 function applyChatEvent(payload) {
-  const messages = payload.messages || [];
-  const records = payload.records || [];
+  const pruned = pruneChatTimelineForRetention(payload.messages || [], payload.records || []);
+  const messages = pruned.messages;
+  const records = pruned.records;
   const terminal = payload.terminal || null;
   const fingerprint = chatPayloadFingerprint(messages, records, terminal);
   const changed = fingerprint !== lastChatPayloadFingerprint;

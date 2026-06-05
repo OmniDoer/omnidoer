@@ -282,6 +282,8 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("restoreChatTimelineCache", app)
         self.assertIn("persistChatTimelineCache", app)
         self.assertIn("formatChatTimestamp", app)
+        self.assertIn("CHAT_RETENTION_MS", app)
+        self.assertIn("pruneChatTimelineForRetention", app)
         self.assertIn("20260605-chat-retention", self.html)
         self.assertIn("markdown-copy-button", app)
         self.assertIn("chatSendInFlight", app)
