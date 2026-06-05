@@ -966,11 +966,7 @@ function formatChatTimestamp(seconds) {
   const value = Number(seconds);
   if (!Number.isFinite(value) || value <= 0) return "";
   const date = new Date(value * 1000);
-  const now = new Date();
-  const sameDay = date.toDateString() === now.toDateString();
-  const options = sameDay
-    ? { hour: "2-digit", minute: "2-digit" }
-    : { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" };
+  const options = { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" };
   return new Intl.DateTimeFormat(undefined, options).format(date);
 }
 
@@ -4250,10 +4246,8 @@ function renderChatMessage(message) {
   appendMarkdown(item, message.text || " ", "chat-message-text");
   const meta = document.createElement("div");
   meta.className = "chat-message-meta";
-  appendText(meta, "span", `#${message.sequence}`);
   const timeText = formatChatTimestamp(message.updated_at || message.created_at);
   if (timeText) appendText(meta, "span", timeText);
-  if (message.source) appendText(meta, "span", message.source);
   item.append(meta);
   return item;
 }
@@ -4286,16 +4280,35 @@ function renderChatRecord(record) {
   }
   const meta = document.createElement("div");
   meta.className = "chat-message-meta";
-  const sequenceText = record.data?.sequence_start && record.data?.sequence_end
-    ? `${t("chatRecordNumber", record.data.sequence_start)}-${record.data.sequence_end}`
-    : t("chatRecordNumber", record.sequence);
-  appendText(meta, "span", sequenceText);
   const timeText = formatChatTimestamp(record.created_at);
   if (timeText) appendText(meta, "span", timeText);
-  if (record.data?.delta_count) appendText(meta, "span", t("chatRecordChunks", record.data.delta_count));
-  if (record.message_id) appendText(meta, "span", shortChatId(record.message_id));
   item.append(meta);
   return item;
+}
+
+function renderToolStatusLine(records = []) {
+  const toolRecords = records.filter((record) => ["tool_call", "tool_output", "tool_group"].includes(record.record_type));
+  if (!toolRecords.length) return null;
+  const compactedTools = compactToolActivityRecords(toolRecords);
+  const lastTool = compactedTools[compactedTools.length - 1];
+  if (!lastTool) return null;
+  const line = document.createElement("div");
+  line.className = "chat-tool-status-line";
+  const summary = document.createElement("span");
+  summary.className = "chat-tool-summary";
+  if (lastTool.record_type === "tool_group") {
+    const callRecord = lastTool.data?.tool_call || lastTool;
+    const outputs = Array.isArray(lastTool.data?.tool_outputs) ? lastTool.data.tool_outputs : [];
+    appendToolSummary(summary, t("chatToolActivity", toolNameFromRecord(callRecord)), toolGroupOutputSummary(outputs));
+  } else if (lastTool.record_type === "tool_call") {
+    appendToolSummary(summary, t("chatToolCalling", toolNameFromRecord(lastTool)), lastTool.data?.status || "");
+  } else {
+    appendToolSummary(summary, t("chatToolReturned", toolNameFromRecord(lastTool)), toolOutputSummary(lastTool));
+  }
+  line.append(summary);
+  const timeText = formatChatTimestamp(lastTool.created_at);
+  if (timeText) appendText(line, "span", timeText, "chat-tool-status-time");
+  return line;
 }
 
 function compactChatActivityRecords(records = []) {
@@ -4407,22 +4420,26 @@ function renderChatTimeline(messages, records = [], terminal = null) {
   const visibleMessages = messages.filter((message) => !isInternalAutoStatusMessage(message));
   const hiddenMessageIds = new Set(messages.filter(isInternalAutoStatusMessage).map((message) => message.message_id));
   const visibleRecords = records.filter((record) => !hiddenMessageIds.has(record.message_id));
+  const visibleToolRecords = visibleRecords.filter((record) => ["tool_call", "tool_output", "tool_group"].includes(record.record_type));
+  const visibleActivityRecords = visibleRecords.filter((record) => !["tool_call", "tool_output", "tool_group"].includes(record.record_type));
 
   const conversation = document.createElement("div");
   conversation.className = "chat-conversation";
   appendText(conversation, "div", t("chatConversationTitle"), "chat-lane-title");
   if (visibleMessages.length) {
     visibleMessages.forEach((message) => conversation.append(renderChatMessage(message)));
+    const toolStatusLine = renderToolStatusLine(visibleToolRecords);
+    if (toolStatusLine) conversation.append(toolStatusLine);
   } else {
     appendText(conversation, "p", t("noChatMessages"), "chat-empty-state");
   }
   list.append(conversation);
 
-  if (visibleRecords.length) {
+  if (visibleActivityRecords.length) {
     const activity = document.createElement("div");
     activity.className = "chat-activity";
     appendText(activity, "div", t("chatActivityTitle"), "chat-lane-title");
-    compactChatActivityRecords(visibleRecords).forEach((record) => activity.append(renderChatRecord(record)));
+    compactChatActivityRecords(visibleActivityRecords).forEach((record) => activity.append(renderChatRecord(record)));
     list.append(activity);
   }
   if (shouldStickToBottom) {

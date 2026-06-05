@@ -1335,6 +1335,44 @@ body[data-runtime-state="tui_bridge_active"] .status-strip #runtime-mode {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.chat-tool-status-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(92%, 560px);
+  margin: 0 0 1px;
+  padding: 4px 8px;
+  border: 1px solid #d7e3ef;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.74rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.chat-tool-status-line::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #0ea5e9;
+  animation: chatToolPulse 1.15s ease-in-out infinite;
+}
+.chat-tool-status-line .chat-tool-summary {
+  flex: 1 1 auto;
+  font-size: inherit;
+}
+.chat-tool-status-time {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+@keyframes chatToolPulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.86); }
+  50% { opacity: 1; transform: scale(1); }
+}
 .chat-tool-details {
   min-width: 0;
 }
