@@ -257,6 +257,8 @@ const I18N = {
     sendMessage: "Send Message",
     noChatMessages: "No chat messages yet.",
     pairToViewChat: "Pair this device to view and send chat messages.",
+    chatStatusSending: "Sending",
+    chatStatusSendFailed: "Pending send",
     chatStatusQueued: "Queued",
     chatStatusClaimed: "Delivered",
     chatStatusStreaming: "Streaming",
@@ -675,6 +677,8 @@ const I18N = {
     sendMessage: "发送消息",
     noChatMessages: "还没有对话消息。",
     pairToViewChat: "请先配对此设备以查看和发送对话消息。",
+    chatStatusSending: "发送中",
+    chatStatusSendFailed: "待发送",
     chatStatusQueued: "待处理",
     chatStatusClaimed: "已送达",
     chatStatusStreaming: "流式回复中",
@@ -1918,6 +1922,7 @@ let cachedChatRecords = [];
 let cachedChatTerminal = null;
 let cachedChatSessions = [];
 let activeChatSessionId = "default";
+let pendingChatMessages = new Map();
 let cachedBrowserContexts = [];
 let cachedRuntimeStatus = null;
 const CHAT_CACHE_KEY_PREFIX = "omnidoer_chat_timeline_cache_v2";
@@ -2411,8 +2416,6 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
   const restart = document.querySelector("#chat-session-restart");
   const input = document.querySelector("#chat-input");
   const send = document.querySelector("#send-chat-message");
-  const createSession = document.querySelector("#create-chat-session");
-  const closeSession = document.querySelector("#close-chat-session");
   const files = document.querySelector("#chat-files");
   const fileLabel = document.querySelector("#chat-files-label");
   const syncRequest = pendingConsoleRestartRequest();
@@ -2476,7 +2479,7 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
   panel.dataset.sessionState = state;
   document.body.dataset.chatSessionState = state;
   document.body.dataset.chatSendMode = canSend ? state : "blocked";
-  const canEditDraft = state !== "unpaired";
+  const canEditDraft = true;
   if (title) title.textContent = state === "attached" ? runtimeQuotaText(cachedRuntimeStatus) : t(titleKey);
   const detailText = `${t(detailKey)}${diagnosticKey ? ` ${t(diagnosticKey)}` : ""}`;
   if (detail) detail.textContent = detailText;
@@ -2494,21 +2497,14 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
     input.placeholder = t(placeholderKey);
   }
   if (send) {
-    send.disabled = !canEditDraft || chatSendInFlight;
+    send.disabled = false;
     send.classList.toggle("soft-disabled", canEditDraft && !canSend);
     send.setAttribute("aria-disabled", canSend ? "false" : "true");
     send.setAttribute("aria-label", t(sendKey));
     send.title = t(sendKey);
   }
-  const openSessionCount = cachedChatSessions.filter((session) => session.status === "open").length;
-  if (createSession) {
-    createSession.disabled = !canEditDraft || openSessionCount >= 5;
-  }
-  if (closeSession) {
-    closeSession.disabled = !canEditDraft || openSessionCount <= 1;
-  }
   if (files) {
-    files.disabled = !canSend;
+    files.disabled = false;
   }
   if (fileLabel) {
     fileLabel.classList.toggle("disabled", !canSend);
@@ -3846,6 +3842,64 @@ function restartChatRealtimeForActiveSession() {
   if (authenticatedApiAvailable()) startChatWebSocket();
 }
 
+function currentPendingChatMessages() {
+  return Array.from(pendingChatMessages.values())
+    .filter((message) => message.session_id === activeChatSessionId)
+    .sort((a, b) => Number(a.created_at || 0) - Number(b.created_at || 0));
+}
+
+function mergePendingChatMessages(messages = []) {
+  const confirmedClientIds = new Set(
+    messages
+      .map((message) => message.client_message_id)
+      .filter(Boolean)
+  );
+  confirmedClientIds.forEach((clientId) => pendingChatMessages.delete(clientId));
+  const pending = currentPendingChatMessages()
+    .filter((message) => !confirmedClientIds.has(message.client_message_id));
+  return [...messages, ...pending].sort((a, b) => {
+    const sequenceA = Number(a.sequence || Number.MAX_SAFE_INTEGER);
+    const sequenceB = Number(b.sequence || Number.MAX_SAFE_INTEGER);
+    if (sequenceA !== sequenceB) return sequenceA - sequenceB;
+    return Number(a.created_at || 0) - Number(b.created_at || 0);
+  });
+}
+
+function addPendingChatMessage({ text, clientMessageId, attachments = [], status = "sending" }) {
+  const now = Date.now() / 1000;
+  const message = {
+    message_id: `pending_${clientMessageId}`,
+    sequence: Number.MAX_SAFE_INTEGER - pendingChatMessages.size,
+    role: "user",
+    text,
+    status,
+    source: "control_client",
+    client_message_id: clientMessageId,
+    session_id: activeChatSessionId,
+    attachments,
+    created_at: now,
+    updated_at: now,
+    secret_fields_allowed: false,
+    control_client_calls_model: false,
+    submitted_to_openai_api_by_control_client: false,
+    delivered_to_agent: false
+  };
+  pendingChatMessages.set(clientMessageId, message);
+  cachedChatMessages = mergePendingChatMessages(cachedChatMessages);
+  forceChatScrollToBottom = true;
+  renderChatTimeline(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
+}
+
+function updatePendingChatMessage(clientMessageId, status) {
+  const message = pendingChatMessages.get(clientMessageId);
+  if (!message) return;
+  message.status = status;
+  message.updated_at = Date.now() / 1000;
+  pendingChatMessages.set(clientMessageId, message);
+  cachedChatMessages = mergePendingChatMessages(cachedChatMessages.filter((item) => item.client_message_id !== clientMessageId));
+  renderChatTimeline(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
+}
+
 async function createChatSession() {
   const button = document.querySelector("#create-chat-session");
   if (button?.disabled) return;
@@ -3920,47 +3974,48 @@ async function closeChatSession(sessionId) {
 }
 
 async function sendChatMessage() {
-  if (chatSendInFlight) return;
-  const sendButton = document.querySelector("#send-chat-message");
-  if (sendButton?.disabled) {
-    setStatus(t("chatSendBlocked"), t("chatSessionServerOnlyDetail"), document.body.dataset.runtimeState || "");
-    return;
-  }
   const input = document.querySelector("#chat-input");
   const fileInput = document.querySelector("#chat-files");
   const text = input.value.trim();
   const files = selectedChatFiles();
+  if (chatSendInFlight && !text && files.length) return;
   if (!text && !files.length) return;
   const cliCommand = chatTextIsCliCommand(text);
-  if (document.body.dataset.chatSendMode === "blocked" && !cliCommand) {
-    setStatus(t("chatSendBlocked"), t("chatSessionServerOnlyDetail"), document.body.dataset.runtimeState || "");
-    return;
-  }
   if (cliCommand && files.length) {
     setStatus(t("actionFailed"), t("chatCliCommandNoAttachments"));
     return;
   }
   const originalText = input.value;
+  const clientMessageId = cliCommand
+    ? `control_cli_${Date.now()}_${Math.random().toString(16).slice(2)}`
+    : `control_client_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  addPendingChatMessage({ text: originalText.trim(), clientMessageId });
   chatSendInFlight = true;
-  if (sendButton) sendButton.disabled = true;
   input.value = "";
+  if (fileInput) fileInput.value = "";
+  renderSelectedChatFiles();
   hideChatCommandMenu();
   let attachments = [];
   try {
     attachments = await uploadChatAttachments(files);
+    const pending = pendingChatMessages.get(clientMessageId);
+    if (pending) {
+      pending.attachments = attachments;
+      pending.text = attachments.length ? `${originalText.trim()}\n\n[Attachments]` : originalText.trim();
+      pendingChatMessages.set(clientMessageId, pending);
+    }
   } catch {
-    input.value = originalText;
+    updatePendingChatMessage(clientMessageId, "send_failed");
     setStatus(t("uploadFailed"), t("pairToViewChat"));
     chatSendInFlight = false;
     updateChatSessionStatus(cachedRuntimeStatus?.runner || null, { offline: !cachedRuntimeStatus });
     return;
   }
-  const clientMessageId = cliCommand ? `control_cli_${Date.now()}_${Math.random().toString(16).slice(2)}` : null;
   let payload = {};
   try {
     const response = await postChatMessage(text, { clientMessageId, attachments });
     if (!response.ok) {
-      input.value = originalText;
+      updatePendingChatMessage(clientMessageId, "send_failed");
       setStatus(t("actionFailed"), t("pairToViewChat"));
       return;
     }
@@ -3970,7 +4025,7 @@ async function sendChatMessage() {
       payload = {};
     }
   } catch {
-    input.value = originalText;
+    updatePendingChatMessage(clientMessageId, "send_failed");
     setStatus(t("actionFailed"), t("pairToViewChat"));
     return;
   } finally {
@@ -3989,8 +4044,6 @@ async function sendChatMessage() {
   } else if (delivery.attempted || delivery.reason) {
     setStatus(t("chatQueuedForBridge"), t("chatQueuedForBridgeDetail"));
   }
-  if (fileInput) fileInput.value = "";
-  renderSelectedChatFiles();
   forceChatScrollToBottom = true;
   await loadChatMessages();
 }
@@ -4137,6 +4190,8 @@ async function requestTakeoverPause() {
 
 function chatStatusLabel(status) {
   return {
+    sending: t("chatStatusSending"),
+    send_failed: t("chatStatusSendFailed"),
     queued: t("chatStatusQueued"),
     claimed: t("chatStatusClaimed"),
     streaming: t("chatStatusStreaming"),
@@ -4700,7 +4755,7 @@ function renderChatTimeline(messages, records = [], terminal = null) {
 function persistChatTimelineCache() {
   try {
     const pruned = pruneChatTimelineForRetention(cachedChatMessages, cachedChatRecords);
-    cachedChatMessages = pruned.messages;
+    cachedChatMessages = mergePendingChatMessages(pruned.messages);
     cachedChatRecords = pruned.records;
     localStorage.setItem(activeChatCacheKey(), JSON.stringify({
       messages: cachedChatMessages,
@@ -4751,7 +4806,7 @@ function restoreChatTimelineCache() {
       Array.isArray(payload.messages) ? payload.messages : [],
       Array.isArray(payload.records) ? payload.records : []
     );
-    cachedChatMessages = pruned.messages;
+    cachedChatMessages = mergePendingChatMessages(pruned.messages);
     cachedChatRecords = pruned.records;
     cachedChatTerminal = payload.terminal || null;
     lastChatPayloadFingerprint = chatPayloadFingerprint(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
@@ -6040,7 +6095,7 @@ function applyChatEvent(payload) {
   const fingerprint = chatPayloadFingerprint(messages, records, terminal);
   const changed = fingerprint !== lastChatPayloadFingerprint;
   lastChatPayloadFingerprint = fingerprint;
-  cachedChatMessages = messages;
+  cachedChatMessages = mergePendingChatMessages(messages);
   cachedChatRecords = records;
   cachedChatTerminal = terminal;
   if (!changed) return;

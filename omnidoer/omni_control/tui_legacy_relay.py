@@ -8,6 +8,7 @@ cannot hot-load the bridge code until the user restarts it.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import threading
 import time
@@ -35,6 +36,11 @@ class TmuxPane:
     current_command: str
     pane_pid: int | None = None
     process_pid: int | None = None
+    session_name: str = ""
+    window_index: str = ""
+    window_name: str = ""
+    pane_index: str = ""
+    active: bool = False
 
 
 def _cmdline_is_interactive_tui_for_thread(cmdline: list[str], thread_id: str) -> bool:
@@ -91,7 +97,8 @@ def list_tmux_panes() -> list[TmuxPane]:
                 "list-panes",
                 "-a",
                 "-F",
-                "#{pane_id}\t#{pane_tty}\t#{pane_current_command}\t#{pane_pid}",
+                "#{pane_id}\t#{pane_tty}\t#{pane_current_command}\t#{pane_pid}"
+                "\t#{session_name}\t#{window_index}\t#{window_name}\t#{pane_index}\t#{pane_active}",
             ],
             text=True,
             timeout=5,
@@ -104,8 +111,64 @@ def list_tmux_panes() -> list[TmuxPane]:
         if len(parts) < 4:
             continue
         pane_pid = int(parts[3]) if parts[3].isdigit() else None
-        panes.append(TmuxPane(pane_id=parts[0], tty=parts[1], current_command=parts[2], pane_pid=pane_pid))
+        panes.append(
+            TmuxPane(
+                pane_id=parts[0],
+                tty=parts[1],
+                current_command=parts[2],
+                pane_pid=pane_pid,
+                session_name=parts[4] if len(parts) > 4 else "",
+                window_index=parts[5] if len(parts) > 5 else "",
+                window_name=parts[6] if len(parts) > 6 else "",
+                pane_index=parts[7] if len(parts) > 7 else "",
+                active=(parts[8] == "1") if len(parts) > 8 else False,
+            )
+        )
     return panes
+
+
+def tmux_chat_session_id_for_pane(pane_id: str) -> str:
+    suffix = re.sub(r"[^A-Za-z0-9_-]+", "_", str(pane_id or "").strip("%")).strip("_")
+    return f"tmux_{suffix or 'pane'}"[:48]
+
+
+def tmux_pane_id_for_chat_session(session_id: str | None) -> str | None:
+    value = str(session_id or "")
+    if not value.startswith("tmux_"):
+        return None
+    suffix = value.removeprefix("tmux_").replace("_", ".")
+    if not suffix:
+        return None
+    return f"%{suffix}"
+
+
+def list_tmux_chat_sessions(*, limit: int = 5) -> list[dict[str, object]]:
+    panes = sorted(list_tmux_panes(), key=lambda pane: (not pane.active, pane.session_name, pane.window_index, pane.pane_index))
+    sessions: list[dict[str, object]] = []
+    for pane in panes[: max(1, limit)]:
+        title_parts = [
+            pane.session_name or "tmux",
+            f"{pane.window_index}.{pane.pane_index}".strip(".") or pane.pane_id,
+        ]
+        if pane.window_name:
+            title_parts.append(pane.window_name)
+        title = " ".join(part for part in title_parts if part)
+        sessions.append(
+            {
+                "session_id": tmux_chat_session_id_for_pane(pane.pane_id),
+                "title": title,
+                "status": "open",
+                "transport": "tmux",
+                "pane_id": pane.pane_id,
+                "pane_tty": pane.tty,
+                "current_command": pane.current_command,
+                "message_count": 0,
+                "record_count": 0,
+                "secret_fields_allowed": False,
+                "control_client_calls_model": False,
+            }
+        )
+    return sessions
 
 
 def find_tmux_pane_for_thread(thread_id: str | None) -> TmuxPane | None:

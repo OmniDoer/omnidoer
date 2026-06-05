@@ -190,14 +190,39 @@ class ChatSessionStore:
             record_count=len(store.list_records(limit=1000)),
         )
 
+    def _tmux_sessions(self) -> list[dict[str, Any]]:
+        try:
+            from omnidoer.omni_control.tui_legacy_relay import list_tmux_chat_sessions
+        except Exception:
+            return []
+        sessions = list_tmux_chat_sessions(limit=MAX_CHAT_SESSIONS)
+        for session in sessions:
+            session_id = str(session.get("session_id") or DEFAULT_CHAT_SESSION_ID)
+            store = ChatStore(session_id=session_id)
+            session["message_count"] = len(store.list(limit=1000))
+            session["record_count"] = len(store.list_records(limit=1000))
+        return sessions
+
     def list(self) -> dict[str, Any]:
         with locked_state_file(self.path):
             active_session_id, sessions = self._load_payload()
+            tmux_sessions = self._tmux_sessions()
+            tmux_session_ids = {str(session.get("session_id")) for session in tmux_sessions}
+            if tmux_sessions and active_session_id not in tmux_session_ids:
+                active_session_id = str(tmux_sessions[0].get("session_id") or DEFAULT_CHAT_SESSION_ID)
             self._save(active_session_id, sessions)
+        if tmux_sessions:
+            return {
+                "active_session_id": active_session_id,
+                "max_sessions": MAX_CHAT_SESSIONS,
+                "source": "tmux",
+                "sessions": tmux_sessions,
+            }
         visible = sorted(sessions.values(), key=lambda session: (session.status != "open", -session.updated_at))
         return {
             "active_session_id": active_session_id,
             "max_sessions": MAX_CHAT_SESSIONS,
+            "source": "local",
             "sessions": [self._public_session(session) for session in visible],
         }
 
@@ -235,6 +260,16 @@ class ChatSessionStore:
         resolved = validate_chat_session_id(session_id)
         with locked_state_file(self.path):
             _, sessions = self._load_payload()
+            if resolved.startswith("tmux_"):
+                session = sessions.get(resolved) or ChatSession(
+                    session_id=resolved,
+                    title=resolved,
+                    created_at=time.time(),
+                    updated_at=time.time(),
+                )
+                sessions[resolved] = session
+                self._save(resolved, sessions)
+                return session
             session = sessions.get(resolved)
             if session is None or session.status != "open":
                 raise KeyError("chat session not found")

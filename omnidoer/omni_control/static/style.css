@@ -696,7 +696,7 @@ body[data-runtime-state="tui_bridge_active"] .status-strip #runtime-mode {
 .chat-session-toolbar {
   grid-row: 3;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
   align-items: center;
   padding: 6px 8px;
@@ -1181,6 +1181,18 @@ body[data-runtime-state="tui_bridge_active"] .status-strip #runtime-mode {
 .chat-status-streaming {
   border-color: #67e8f9;
   box-shadow: inset 4px 0 0 var(--accent);
+}
+.chat-status-sending,
+.chat-status-send_failed {
+  border-color: #c4b5fd;
+  background: #faf5ff;
+  box-shadow: inset 4px 0 0 #8b5cf6;
+}
+.chat-status-sending .badge,
+.chat-status-send_failed .badge {
+  border-color: #ddd6fe;
+  background: #ede9fe;
+  color: #5b21b6;
 }
 .chat-record-delta {
   border-color: #bae6fd;

@@ -1157,7 +1157,37 @@ class ControlHandler(SimpleHTTPRequestHandler):
         if float(envelope.get("expires_at", "nan")) != float(request.expires_at):
             raise PermissionError("envelope expiry mismatch")
 
-    def _try_deliver_chat_to_live_console(self, message_id: str) -> dict:
+    def _try_deliver_chat_to_live_console(self, message_id: str, *, session_id: str | None = None) -> dict:
+        chat_session_id = validate_chat_session_id(session_id or DEFAULT_CHAT_SESSION_ID)
+        if chat_session_id.startswith("tmux_"):
+            from omnidoer.omni_control.tui_legacy_relay import inject_text_into_tmux_pane, tmux_pane_id_for_chat_session
+
+            pane_id = tmux_pane_id_for_chat_session(chat_session_id)
+            if not pane_id:
+                return {"attempted": False, "reason": "tmux_pane_not_found", "secret_exposed_to_model": False}
+            try:
+                message = ChatStore(session_id=chat_session_id).get(message_id)
+            except KeyError:
+                return {"attempted": False, "reason": "chat_message_not_found", "secret_exposed_to_model": False}
+            try:
+                inject_text_into_tmux_pane(pane_id, message.text)
+            except Exception as exc:
+                return {
+                    "attempted": True,
+                    "delivered": False,
+                    "reason": type(exc).__name__,
+                    "transport": "tmux",
+                    "pane_id": pane_id,
+                    "secret_exposed_to_model": False,
+                }
+            return {
+                "attempted": True,
+                "delivered": True,
+                "message_id": message_id,
+                "transport": "tmux",
+                "pane_id": pane_id,
+                "secret_exposed_to_model": False,
+            }
         chat_thread_id = getattr(self.server, "omnidoer_chat_thread_id", None)
         if not chat_thread_id:
             return {"attempted": False, "reason": "chat_thread_not_bound", "secret_exposed_to_model": False}
@@ -1179,7 +1209,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
             }
         relay = LegacyTuiRelay(thread_id=chat_thread_id)
         try:
-            message = ChatStore().get(message_id)
+            message = ChatStore(session_id=chat_session_id).get(message_id)
         except KeyError:
             message = None
         delivered = relay.run_message(message_id) if message is not None else False
@@ -2173,11 +2203,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     reply_to_message_id=str(body.get("reply_to_message_id") or "") or None,
                     attachments=validate_uploaded_attachments(body.get("attachments"), upload_store.directory),
                 )
-                delivery = (
-                    self._try_deliver_chat_to_live_console(message.message_id)
-                    if chat_session_id == DEFAULT_CHAT_SESSION_ID
-                    else {"attempted": False, "reason": "background_session", "secret_exposed_to_model": False}
-                )
+                delivery = self._try_deliver_chat_to_live_console(message.message_id, session_id=chat_session_id)
                 try:
                     payload = chat_store.get(message.message_id).to_public_dict()
                 except KeyError:

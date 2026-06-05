@@ -99,6 +99,37 @@ class ControlChatStoreTest(unittest.TestCase):
             self.assertEqual(third.message_id, cli_command.message_id)
             self.assertEqual(fourth.message_id, older.message_id)
 
+    def test_chat_sessions_follow_tmux_panes_when_available(self) -> None:
+        old_home = os.environ.get("OMNIDOER_HOME")
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["OMNIDOER_HOME"] = tmp
+            panes = [
+                TmuxPane(
+                    pane_id=f"%{index}",
+                    tty=f"/dev/pts/{index}",
+                    current_command="omnidoer",
+                    session_name="main",
+                    window_index=str(index),
+                    window_name=f"agent-{index}",
+                    pane_index="0",
+                    active=(index == 2),
+                )
+                for index in range(1, 7)
+            ]
+            with patch("omnidoer.omni_control.tui_legacy_relay.list_tmux_panes", return_value=panes):
+                payload = ChatSessionStore().list()
+                self.assertEqual(payload["source"], "tmux")
+                self.assertEqual(payload["active_session_id"], "tmux_2")
+                self.assertEqual(len(payload["sessions"]), MAX_CHAT_SESSIONS)
+                self.assertEqual(payload["sessions"][0]["session_id"], "tmux_2")
+                self.assertEqual(payload["sessions"][0]["transport"], "tmux")
+                ChatSessionStore().activate("tmux_3")
+                self.assertEqual(ChatSessionStore().active_session_id(), "tmux_3")
+        if old_home is None:
+            os.environ.pop("OMNIDOER_HOME", None)
+        else:
+            os.environ["OMNIDOER_HOME"] = old_home
+
     def test_cli_command_detection_matches_mobile_slash_commands(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             store = ChatStore(Path(tmp) / "chat.json")
