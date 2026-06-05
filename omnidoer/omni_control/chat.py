@@ -151,7 +151,7 @@ class ChatStore:
         active_message_ids = {
             message.message_id
             for message in messages.values()
-            if message.status in {"queued", "claimed", "streaming"}
+            if message.status in {"queued", "streaming"}
         }
         messages = {
             key: value

@@ -163,18 +163,20 @@ class ControlChatStoreTest(unittest.TestCase):
             store = ChatStore(path)
             old_done = store.append(role="user", text="old completed")
             store.complete(old_done.message_id)
+            old_claimed = store.append(role="user", text="old claimed")
+            store.next_user_message()
             old_active = store.append(role="user", text="old active")
             recent = store.append(role="user", text="recent completed")
             store.complete(recent.message_id)
 
             payload = json.loads(path.read_text())
             old_time = time.time() - CHAT_RETENTION_SECONDS - 60
-            for message_id in (old_done.message_id, old_active.message_id):
+            for message_id in (old_done.message_id, old_active.message_id, old_claimed.message_id):
                 payload["messages"][message_id]["created_at"] = old_time
                 payload["messages"][message_id]["updated_at"] = old_time
                 payload["messages"][message_id]["completed_at"] = old_time if message_id == old_done.message_id else None
             for record in payload["records"].values():
-                if record.get("message_id") in {old_done.message_id, old_active.message_id}:
+                if record.get("message_id") in {old_done.message_id, old_active.message_id, old_claimed.message_id}:
                     record["created_at"] = old_time
             path.write_text(json.dumps(payload))
 
@@ -184,6 +186,7 @@ class ControlChatStoreTest(unittest.TestCase):
 
             self.assertNotIn("old completed", texts)
             self.assertIn("old active", texts)
+            self.assertNotIn("old claimed", texts)
             self.assertIn("recent completed", texts)
 
 
