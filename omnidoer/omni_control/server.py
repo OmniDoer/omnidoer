@@ -711,6 +711,14 @@ class ControlHandler(SimpleHTTPRequestHandler):
         resolved_limit = max(1, min(limit, 40 if compact else 200))
         messages = store.list(limit=resolved_limit)
         records = store.list_records(limit=resolved_limit, after_sequence=after_sequence)
+        chat_thread_id = getattr(self.server, "omnidoer_chat_thread_id", None)
+        from omnidoer.omni_control.tui_legacy_relay import legacy_tui_terminal_snapshot, tmux_chat_terminal_snapshot
+
+        terminal = (
+            tmux_chat_terminal_snapshot(resolved_session_id)
+            if resolved_session_id.startswith("tmux_")
+            else legacy_tui_terminal_snapshot(chat_thread_id)
+        )
         if compact:
             return {
                 "messages": [message.to_public_dict() for message in messages],
@@ -718,19 +726,17 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 "session_id": resolved_session_id,
                 "streaming": True,
                 "compact": True,
+                "terminal": terminal,
                 "retention": {"days": 3, "max_records": 140},
                 "control_client_calls_model": False,
             }
-        chat_thread_id = getattr(self.server, "omnidoer_chat_thread_id", None)
-        from omnidoer.omni_control.tui_legacy_relay import legacy_tui_terminal_snapshot
-
         return {
             "messages": [message.to_public_dict() for message in messages],
             "records": [record.to_public_dict() for record in records],
             "session_id": resolved_session_id,
             "sessions": ChatSessionStore().list(),
             "streaming": True,
-            "terminal": legacy_tui_terminal_snapshot(chat_thread_id),
+            "terminal": terminal,
             "retention": {"days": 3, "max_records": 140},
             "uploads": {
                 "directory": str(ChatUploadStore().directory),
@@ -1180,6 +1186,15 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     "pane_id": pane_id,
                     "secret_exposed_to_model": False,
                 }
+            ChatStore(session_id=chat_session_id).complete(message_id)
+            ChatStore(session_id=chat_session_id).append_record(
+                record_type="status",
+                text=f"Delivered Control Client message to tmux pane {pane_id}.",
+                role="system",
+                message_id=message_id,
+                source="tmux_relay",
+                data={"pane_id": pane_id, "transport": "tmux"},
+            )
             return {
                 "attempted": True,
                 "delivered": True,

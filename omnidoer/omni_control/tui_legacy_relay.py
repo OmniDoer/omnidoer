@@ -230,6 +230,25 @@ def legacy_tui_terminal_snapshot(thread_id: str | None, *, line_count: int = 80)
     return {"available": bool(text), "text": text, **status}
 
 
+def tmux_chat_terminal_snapshot(session_id: str | None, *, line_count: int = 80) -> dict[str, object]:
+    pane_id = tmux_pane_id_for_chat_session(session_id)
+    if not pane_id:
+        return {"available": False, "reason": "tmux_pane_not_found"}
+    text = capture_tmux_pane(pane_id, line_count=line_count)
+    return {
+        "available": bool(text),
+        "text": text,
+        "active": bool(text),
+        "transport": "tmux",
+        "pane_id": pane_id,
+        "capabilities": {
+            "message_injection": True,
+            "terminal_snapshot": True,
+            "structured_stream": False,
+        },
+    }
+
+
 def inject_text_into_tmux_pane(pane_id: str, text: str) -> None:
     buffer_name = f"omnidoer-control-{os.getpid()}"
     subprocess.run(
@@ -241,7 +260,8 @@ def inject_text_into_tmux_pane(pane_id: str, text: str) -> None:
     )
     try:
         subprocess.run(["tmux", "paste-buffer", "-b", buffer_name, "-t", pane_id], check=True, timeout=5)
-        subprocess.run(["tmux", "send-keys", "-t", pane_id, "Enter"], check=True, timeout=5)
+        subprocess.run(["tmux", "send-keys", "-t", pane_id, "C-m"], check=True, timeout=5)
+        subprocess.run(["tmux", "send-keys", "-t", pane_id, "C-m"], check=True, timeout=5)
     finally:
         subprocess.run(["tmux", "delete-buffer", "-b", buffer_name], check=False, timeout=5)
 

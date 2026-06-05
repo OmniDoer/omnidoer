@@ -284,7 +284,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("formatChatTimestamp", app)
         self.assertIn("CHAT_RETENTION_MS", app)
         self.assertIn("pruneChatTimelineForRetention", app)
-        self.assertIn("20260605-tmuxchat", self.html)
+        self.assertIn("20260605-tmuxfix", self.html)
         self.assertIn("<title>OmniDoer</title>", self.html)
         self.assertIn("markdown-copy-button", app)
         self.assertIn("chatSendInFlight", app)

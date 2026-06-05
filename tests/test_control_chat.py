@@ -821,7 +821,7 @@ class ControlChatApiTest(unittest.TestCase):
                 self.assertTrue(compact_payload["compact"])
                 self.assertEqual(len(compact_payload["messages"]), 1)
                 self.assertEqual(len(compact_payload["records"]), 1)
-                self.assertNotIn("terminal", compact_payload)
+                self.assertIn("terminal", compact_payload)
                 self.assertNotIn("sessions", compact_payload)
                 self.assertNotIn("uploads", compact_payload)
 
