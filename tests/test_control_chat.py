@@ -24,6 +24,7 @@ from omnidoer.omni_control.server import (
     CHAT_STREAM_MAX_SNAPSHOTS,
     ControlHandler,
     _extract_latest_terminal_quota_lines,
+    _active_terminal_quota_summary,
     _recent_chat_quota_summary,
     _terminal_quota_summary,
 )
@@ -220,6 +221,19 @@ class ControlChatApiTest(unittest.TestCase):
                 "codex_weekly_percent_left": 100.0,
             },
         )
+        self.assertEqual(
+            _terminal_quota_summary(
+                [
+                    "OmniDoer limit:",
+                    "5h limit: 100% left (resets 22:34)",
+                    "Weekly limit: 97% left (resets 07:47 on 11 Jun)",
+                    "GPT-5.3-Codex-Spark limit:",
+                    "5h limit: 100% left (resets 22:33)",
+                    "Weekly limit: 100% left (resets 17:33 on 11 Jun)",
+                ]
+            )["codex_weekly_percent_left"],
+            97.0,
+        )
 
     def test_status_api_includes_terminal_quota_percentages(self) -> None:
         server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
@@ -251,6 +265,38 @@ class ControlChatApiTest(unittest.TestCase):
             self.assertEqual(payload["quota"]["codex_weekly_percent_left"], 54.0)
         finally:
             server.shutdown()
+
+    def test_quota_summary_scans_codex_tmux_pane_when_thread_pane_is_missing(self) -> None:
+        terminal_snapshot = """
+╭────────────────────────────────────────────────────────────╮
+│  Context window:              61% left (107K used / 258K)  │
+│  OmniDoer limit:                                          │
+│  5h limit:                    [████████████████████] 100% left │
+│                               (resets 22:34)              │
+│  Weekly limit:                [███████████████████░] 97% left │
+│                               (resets 07:47 on 11 Jun)    │
+│  GPT-5.3-Codex-Spark limit:                               │
+│  5h limit:                    [████████████████████] 100% left │
+│  Weekly limit:                [████████████████████] 100% left │
+╰────────────────────────────────────────────────────────────╯
+"""
+        with patch(
+            "omnidoer.omni_control.tui_legacy_relay.find_tmux_pane_for_thread",
+            return_value=None,
+        ), patch(
+            "omnidoer.omni_control.tui_legacy_relay.list_tmux_panes",
+            return_value=[TmuxPane(pane_id="%0", tty="/dev/pts/1", current_command="codex", process_pid=99)],
+        ), patch(
+            "omnidoer.omni_control.tui_legacy_relay.capture_tmux_pane",
+            return_value=terminal_snapshot,
+        ):
+            summary = _active_terminal_quota_summary("thread_mismatch")
+
+        self.assertIsNotNone(summary)
+        assert summary is not None
+        self.assertEqual(summary["codex_5h_percent_left"], 100.0)
+        self.assertEqual(summary["codex_weekly_percent_left"], 97.0)
+        self.assertEqual(summary["pane_id"], "%0")
 
     def test_recent_chat_quota_summary_parses_plain_status_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -285,7 +331,7 @@ class ControlChatApiTest(unittest.TestCase):
                 else:
                     os.environ["OMNIDOER_HOME"] = old_home
 
-    def test_status_api_queues_cli_status_refresh_when_quota_missing(self) -> None:
+    def test_status_api_requests_tmux_status_refresh_when_quota_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             old_home = os.environ.get("OMNIDOER_HOME")
             os.environ["OMNIDOER_HOME"] = tmp
@@ -294,6 +340,7 @@ class ControlChatApiTest(unittest.TestCase):
             thread = Thread(target=server.serve_forever, daemon=True)
             thread.start()
             base = f"http://127.0.0.1:{server.server_address[1]}"
+            injected: list[tuple[str, str]] = []
             try:
                 with patch("omnidoer.omni_control.chat_runner.live_tui_bridge_active", return_value=True), patch(
                     "omnidoer.omni_control.chat_runner.live_tui_session_active",
@@ -307,6 +354,12 @@ class ControlChatApiTest(unittest.TestCase):
                 ), patch(
                     "omnidoer.omni_control.chat_runner.active_mcp_sidecar_status",
                     return_value={"active": False, "reason": "live_tui_process_not_found"},
+                ), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.list_tmux_panes",
+                    return_value=[TmuxPane(pane_id="%1", tty="/dev/pts/2", current_command="codex", process_pid=99)],
+                ), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.inject_text_into_tmux_pane",
+                    side_effect=lambda pane_id, text: injected.append((pane_id, text)),
                 ):
                     with urllib_request.urlopen(f"{base}/api/status", timeout=5) as response:
                         first = json.loads(response.read().decode())
@@ -315,14 +368,12 @@ class ControlChatApiTest(unittest.TestCase):
 
                 self.assertEqual(first["quota"], {})
                 self.assertTrue(first["quota_refresh"]["attempted"])
-                self.assertEqual(first["quota_refresh"]["reason"], "queued")
+                self.assertEqual(first["quota_refresh"]["reason"], "tmux_status_requested")
                 self.assertEqual(second["quota_refresh"]["reason"], "rate_limited")
+                self.assertEqual(injected, [("%1", "/status")])
                 messages = ChatStore().list(limit=20)
                 auto_status = [message for message in messages if str(message.client_message_id or "").startswith("omnidoer_auto_status_")]
-                self.assertEqual(len(auto_status), 1)
-                self.assertEqual(auto_status[0].text, "/status")
-                self.assertEqual(auto_status[0].source, "control_service")
-                self.assertEqual(auto_status[0].status, "queued")
+                self.assertEqual(auto_status, [])
             finally:
                 server.shutdown()
                 server.server_close()

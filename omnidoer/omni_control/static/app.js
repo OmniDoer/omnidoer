@@ -2415,7 +2415,7 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
   document.body.dataset.chatSessionState = state;
   document.body.dataset.chatSendMode = canSend ? state : "blocked";
   const canEditDraft = state !== "unpaired";
-  if (title) title.textContent = t(titleKey);
+  if (title) title.textContent = state === "attached" ? runtimeQuotaText(cachedRuntimeStatus) : t(titleKey);
   const detailText = `${t(detailKey)}${diagnosticKey ? ` ${t(diagnosticKey)}` : ""}`;
   if (detail) detail.textContent = detailText;
   panel.title = detailText;

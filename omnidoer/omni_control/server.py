@@ -206,9 +206,9 @@ def _terminal_quota_summary(lines: list[str]) -> dict[str, object]:
         if line.startswith(("OmniDoer Usage limit:", "OmniDoer limit:")):
             summary["omnidoer_percent_left"] = percent
         elif line.startswith("5h limit:"):
-            summary["codex_5h_percent_left"] = percent
+            summary.setdefault("codex_5h_percent_left", percent)
         elif line.startswith("Weekly limit:"):
-            summary["codex_weekly_percent_left"] = percent
+            summary.setdefault("codex_weekly_percent_left", percent)
     return summary
 
 
@@ -240,16 +240,23 @@ def _recent_chat_quota_summary() -> dict[str, object] | None:
 def _active_terminal_quota_summary(chat_thread_id: str | None) -> dict[str, object] | None:
     if not chat_thread_id:
         return None
-    from omnidoer.omni_control.tui_legacy_relay import capture_tmux_pane, find_tmux_pane_for_thread
+    from omnidoer.omni_control.tui_legacy_relay import capture_tmux_pane, find_tmux_pane_for_thread, list_tmux_panes
 
     pane = find_tmux_pane_for_thread(chat_thread_id)
-    if pane is None:
-        return None
-    snapshot = capture_tmux_pane(pane.pane_id, line_count=1000)
-    lines = _extract_latest_terminal_quota_lines(snapshot)
-    if not lines:
-        return None
-    return _terminal_quota_summary(lines)
+    panes = [pane] if pane is not None else [
+        candidate for candidate in list_tmux_panes() if candidate.current_command in {"codex", "omnidoer"}
+    ]
+    for candidate in panes:
+        snapshot = capture_tmux_pane(candidate.pane_id, line_count=1000)
+        lines = _extract_latest_terminal_quota_lines(snapshot)
+        if not lines:
+            continue
+        summary = _terminal_quota_summary(lines)
+        if _quota_summary_has_codex_percentages(summary):
+            summary["source"] = "tmux"
+            summary["pane_id"] = candidate.pane_id
+            return summary
+    return None
 
 
 def _active_terminal_quota_text(chat_thread_id: str | None) -> str | None:
@@ -1257,32 +1264,20 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 "retry_after_seconds": max(0.0, QUOTA_STATUS_REFRESH_MIN_SECONDS - (now - last_requested)),
             }
 
-        store = ChatStore()
-        for message in store.list(limit=20):
-            client_message_id = str(message.client_message_id or "")
-            if (
-                client_message_id.startswith("omnidoer_auto_status_")
-                and message.status in {"queued", "claimed"}
-                and now - float(message.created_at or 0) < QUOTA_STATUS_REFRESH_MIN_SECONDS
-            ):
-                setattr(self.server, "omnidoer_last_quota_status_request_at", now)
-                return {
-                    "attempted": False,
-                    "reason": "status_refresh_already_pending",
-                    "message_id": message.message_id,
-                }
+        from omnidoer.omni_control.tui_legacy_relay import inject_text_into_tmux_pane, list_tmux_panes
 
-        message = store.append(
-            role="user",
-            text="/status",
-            source="control_service",
-            client_message_id=f"omnidoer_auto_status_{int(now * 1000)}",
-        )
+        pane = next((candidate for candidate in list_tmux_panes() if candidate.current_command in {"codex", "omnidoer"}), None)
+        if pane is None:
+            return {"attempted": False, "reason": "tmux_pane_not_found"}
+        try:
+            inject_text_into_tmux_pane(pane.pane_id, "/status")
+        except Exception as exc:
+            return {"attempted": False, "reason": type(exc).__name__}
         setattr(self.server, "omnidoer_last_quota_status_request_at", now)
         return {
             "attempted": True,
-            "reason": "queued",
-            "message_id": message.message_id,
+            "reason": "tmux_status_requested",
+            "pane_id": pane.pane_id,
             "thread_id": chat_thread_id,
         }
 
