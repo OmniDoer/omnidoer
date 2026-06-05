@@ -1733,15 +1733,12 @@ body[data-runtime-state="tui_bridge_active"] .status-strip #runtime-mode {
     margin-left: 5px;
     font-size: 0.66rem;
   }
-  body[data-active-panel="task-panel"] .app-header,
   body[data-active-panel="takeover-panel"] .app-header {
     grid-template-columns: minmax(0, 1fr) auto;
   }
-  body[data-active-panel="task-panel"] .app-header img,
   body[data-active-panel="takeover-panel"] .app-header img {
     display: none;
   }
-  body[data-active-panel="task-panel"] .app-header h1,
   body[data-active-panel="takeover-panel"] .app-header h1 {
     font-size: 0.86rem;
     color: #334155;
@@ -1914,7 +1911,7 @@ body[data-runtime-state="tui_bridge_active"] .status-strip #runtime-mode {
   button { width: 100%; }
   #task-panel {
     grid-template-rows: auto auto auto minmax(0, auto) minmax(0, auto) minmax(0, auto) minmax(88px, 1fr) auto;
-    height: calc(100svh - 142px);
+    height: calc(100dvh - 92px);
     min-height: 0;
     margin-left: -6px;
     margin-right: -6px;
@@ -1941,7 +1938,7 @@ body[data-runtime-state="tui_bridge_active"] .status-strip #runtime-mode {
   body[data-runtime-state="waiting_for_tui_bridge"] #task-panel,
   body[data-runtime-state="legacy_tui_relay"] #task-panel,
   body[data-runtime-state="offline"] #task-panel {
-    height: calc(100svh - 142px);
+    height: calc(100dvh - 92px);
   }
   body[data-has-attention="true"] section.control-panel {
     height: calc(100svh - 248px);
@@ -1950,7 +1947,7 @@ body[data-runtime-state="tui_bridge_active"] .status-strip #runtime-mode {
     height: calc(100svh - 248px);
   }
   body[data-has-attention="true"] #task-panel {
-    height: calc(100svh - 200px);
+    height: calc(100dvh - 150px);
   }
   body[data-has-attention="true"] #takeover-panel {
     height: calc(100svh - 200px);
@@ -1967,7 +1964,7 @@ body[data-runtime-state="tui_bridge_active"] .status-strip #runtime-mode {
   body[data-has-attention="true"][data-runtime-state="waiting_for_tui_bridge"] #takeover-panel,
   body[data-has-attention="true"][data-runtime-state="legacy_tui_relay"] #takeover-panel,
   body[data-has-attention="true"][data-runtime-state="offline"] #takeover-panel {
-    height: calc(100svh - 200px);
+    height: calc(100dvh - 150px);
   }
   .chat-panel-header { display: none; }
   .chat-session-status {

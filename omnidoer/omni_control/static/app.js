@@ -4467,13 +4467,21 @@ function renderChatRecord(record) {
 function currentTurnToolStats(messages = [], records = []) {
   const lastUser = [...messages].reverse().find((message) => message.role === "user");
   const turnStart = Number(lastUser?.created_at || 0);
+  const turnMessages = turnStart > 0
+    ? messages.filter((message) => Number(message.updated_at || message.created_at || 0) >= turnStart)
+    : messages;
   const turnRecords = turnStart > 0
     ? records.filter((record) => Number(record.created_at || 0) >= turnStart)
     : records;
-  const reasoningCount = turnRecords.filter((record) => (
+  const reasoningRecordCount = turnRecords.filter((record) => (
     record.record_type === "reasoning" ||
     (record.record_type === "note" && /^Reasoning summary:/i.test(record.text || ""))
   )).length;
+  const assistantMessageCount = new Set(turnMessages
+    .filter((message) => message.role === "assistant" && ((message.text || "").trim() || message.status === "streaming"))
+    .map((message) => message.message_id || message.sequence)
+  ).size;
+  const reasoningCount = Math.max(reasoningRecordCount, assistantMessageCount);
   const toolCallIds = new Set();
   turnRecords.forEach((record) => {
     if (record.record_type === "tool_call") {
@@ -4486,7 +4494,7 @@ function currentTurnToolStats(messages = [], records = []) {
   const lastActivityAt = Math.max(
     turnStart,
     ...turnRecords.map((record) => Number(record.created_at || 0)),
-    ...messages.filter((message) => Number(message.created_at || 0) >= turnStart).map((message) => Number(message.updated_at || message.created_at || 0))
+    ...turnMessages.map((message) => Number(message.updated_at || message.created_at || 0))
   );
   const seconds = Math.max(0, (lastActivityAt || Date.now() / 1000) - (turnStart || lastActivityAt || Date.now() / 1000));
   const minuteCount = Math.floor(seconds / 60);
