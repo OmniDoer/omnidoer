@@ -1926,6 +1926,12 @@ let lastChatPayloadFingerprint = "";
 let chatSendInFlight = false;
 let forceChatScrollToBottom = false;
 let realtimeRefreshTimer = null;
+let runtimeStatusLoadPromise = null;
+let chatMessagesLoadPromise = null;
+let chatSessionsLoadPromise = null;
+let requestsLoadPromise = null;
+let browserContextsLoadPromise = null;
+let devicesSessionsLoadPromise = null;
 let foregroundRealtimeRecovery = false;
 let requestStreamActive = false;
 let requestStreamRestart = null;
@@ -3787,16 +3793,22 @@ function renderChatSessions(payload = {}) {
 }
 
 async function loadChatSessions() {
-  try {
+  if (chatSessionsLoadPromise) return chatSessionsLoadPromise;
+  chatSessionsLoadPromise = (async () => {
     const payload = await signedFetch("/api/chat/sessions", { cache: "no-store" }).then((r) => {
       if (!r.ok) throw new Error("unauthorized");
       return r.json();
     });
     renderChatSessions(payload);
     return payload;
+  })();
+  try {
+    return await chatSessionsLoadPromise;
   } catch {
     renderChatSessions({});
     return null;
+  } finally {
+    chatSessionsLoadPromise = null;
   }
 }
 
@@ -4740,7 +4752,8 @@ function restoreChatTimelineCache() {
 async function loadChatMessages() {
   const list = document.querySelector("#chat-messages");
   if (!list) return;
-  try {
+  if (chatMessagesLoadPromise) return chatMessagesLoadPromise;
+  chatMessagesLoadPromise = (async () => {
     const payload = await signedFetch(`/api/chat/messages?session_id=${encodeURIComponent(activeChatSessionId)}`, { cache: "no-store" }).then((r) => {
       if (!r.ok) throw new Error("unauthorized");
       return r.json();
@@ -4753,10 +4766,15 @@ async function loadChatMessages() {
     lastChatPayloadFingerprint = chatPayloadFingerprint(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
     persistChatTimelineCache();
     renderChatTimeline(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
+  })();
+  try {
+    await chatMessagesLoadPromise;
   } catch {
     if (!restoreChatTimelineCache() && !cachedChatMessages.length && !cachedChatRecords.length) {
       list.textContent = t("pairToViewChat");
     }
+  } finally {
+    chatMessagesLoadPromise = null;
   }
 }
 
@@ -4872,7 +4890,8 @@ async function loadDevicesAndSessions() {
   const devicesRoot = document.querySelector("#devices-list");
   const sessionsRoot = document.querySelector("#sessions-list");
   if (!devicesRoot || !sessionsRoot) return;
-  try {
+  if (devicesSessionsLoadPromise) return devicesSessionsLoadPromise;
+  devicesSessionsLoadPromise = (async () => {
     const [devices, sessions] = await Promise.all([
       signedFetch("/api/devices", { cache: "no-store" }).then((r) => {
         if (!r.ok) throw new Error("devices unauthorized");
@@ -4895,9 +4914,14 @@ async function loadDevicesAndSessions() {
     } else {
       sessions.forEach((session) => sessionsRoot.append(renderSession(session)));
     }
+  })();
+  try {
+    await devicesSessionsLoadPromise;
   } catch {
     devicesRoot.textContent = t("pairToViewDevices");
     sessionsRoot.textContent = t("pairToViewSessions");
+  } finally {
+    devicesSessionsLoadPromise = null;
   }
 }
 
@@ -5816,7 +5840,8 @@ function renderRequestList(requests, filter = activeFilter()) {
 }
 
 async function loadRuntimeStatus() {
-  try {
+  if (runtimeStatusLoadPromise) return runtimeStatusLoadPromise;
+  runtimeStatusLoadPromise = (async () => {
     const status = await fetch("/api/status", { cache: "no-store" }).then((r) => r.json());
     cachedRuntimeStatus = status;
     const quotaText = runtimeQuotaText(status);
@@ -5878,11 +5903,16 @@ async function loadRuntimeStatus() {
     updateChatSessionStatus(runner);
     setStatus(mode, detail, runtimeState, restartCommand, restartLabelKey, restartActionAvailable);
     updateOverview();
+  })();
+  try {
+    await runtimeStatusLoadPromise;
   } catch {
     cachedRuntimeStatus = null;
     updateChatSessionStatus(null, { offline: true });
     setStatus(t("runtimeModeOffline"), t("runtimeOfflineDetail"), "offline");
     updateOverview();
+  } finally {
+    runtimeStatusLoadPromise = null;
   }
 }
 
@@ -5912,11 +5942,12 @@ function scheduleRealtimeRefreshFromChat() {
       loadRequests(),
       loadBrowserContexts()
     ]);
-  }, 250);
+  }, 1500);
 }
 
 async function loadRequests() {
-  try {
+  if (requestsLoadPromise) return requestsLoadPromise;
+  requestsLoadPromise = (async () => {
     const requests = await signedFetch("/api/requests", { cache: "no-store" }).then((r) => {
       if (!r.ok) throw new Error("unauthorized");
       return r.json();
@@ -5925,22 +5956,33 @@ async function loadRequests() {
     pruneApprovalDrafts(requests);
     renderRequestList(requests);
     refreshRequestDependentUi();
+  })();
+  try {
+    await requestsLoadPromise;
   } catch {
     updateAttentionStrip([]);
     updateRequestsTabBadge(0, 0);
     document.querySelector("#requests-list").textContent = t("pairToViewRequests");
+  } finally {
+    requestsLoadPromise = null;
   }
 }
 
 async function loadBrowserContexts() {
-  try {
+  if (browserContextsLoadPromise) return browserContextsLoadPromise;
+  browserContextsLoadPromise = (async () => {
     const payload = await signedFetch("/api/browser/contexts", { cache: "no-store" }).then((r) => {
       if (!r.ok) throw new Error("unauthorized");
       return r.json();
     });
     applyBrowserContextsEvent(payload);
+  })();
+  try {
+    await browserContextsLoadPromise;
   } catch {
     cachedBrowserContexts = [];
+  } finally {
+    browserContextsLoadPromise = null;
   }
 }
 
@@ -5977,10 +6019,11 @@ function applyChatEvent(payload) {
   cachedChatMessages = messages;
   cachedChatRecords = records;
   cachedChatTerminal = terminal;
+  if (!changed) return;
   persistChatTimelineCache();
   renderChatTimeline(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
   updateOverview();
-  if (changed) scheduleRealtimeRefreshFromChat();
+  scheduleRealtimeRefreshFromChat();
 }
 
 function handleSseBlock(block) {
@@ -6167,7 +6210,7 @@ async function startChatStream() {
   if (chatStreamRestart) clearTimeout(chatStreamRestart);
   try {
     const sessionParam = encodeURIComponent(activeChatSessionId);
-    const response = await signedFetch(`/api/chat/events?stream=1&snapshots=1200&interval=0.25&session_id=${sessionParam}`, { cache: "no-store" });
+    const response = await signedFetch(`/api/chat/events?stream=1&snapshots=1200&interval=0.75&session_id=${sessionParam}`, { cache: "no-store" });
     if (!response.ok || !response.body) throw new Error("chat stream unavailable");
     const reader = response.body.getReader();
     let buffer = "";
@@ -6201,7 +6244,7 @@ async function startChatWebSocket() {
   try {
     const protocol = await deviceAuthSubprotocol("GET", path);
     const sessionParam = encodeURIComponent(activeChatSessionId);
-    const query = `snapshots=1200&interval=0.25&session_id=${sessionParam}`;
+    const query = `snapshots=1200&interval=0.75&session_id=${sessionParam}`;
     const socket = protocol
       ? new WebSocket(websocketUrl(`${path}?${query}`), [protocol])
       : new WebSocket(websocketUrl(`${path}?${query}`));
@@ -6299,7 +6342,7 @@ setInterval(() => {
 }, 5000);
 setInterval(() => {
   if (authenticatedApiAvailable()) loadChatMessages();
-}, 5000);
+}, 10000);
 setInterval(() => {
   if (authenticatedApiAvailable()) loadChatSessions();
 }, 15000);
