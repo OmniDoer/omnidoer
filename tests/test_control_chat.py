@@ -11,6 +11,7 @@ from urllib import request as urllib_request
 from unittest.mock import patch
 
 from omnidoer.omni_control.chat import (
+    CHAT_ARCHIVE_DIR_NAME,
     CHAT_RETENTION_SECONDS,
     MAX_CHAT_MESSAGES,
     MAX_CHAT_RECORDS,
@@ -188,6 +189,23 @@ class ControlChatStoreTest(unittest.TestCase):
             self.assertIn("old active", texts)
             self.assertNotIn("old claimed", texts)
             self.assertIn("recent completed", texts)
+
+    def test_archive_and_reset_starts_empty_chat_without_losing_archive(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "chat.json"
+            store = ChatStore(path)
+            message = store.append(role="user", text="keep this in archive")
+            store.complete(message.message_id)
+
+            archived = store.archive_and_reset()
+
+            self.assertEqual(store.list(limit=1000), [])
+            self.assertEqual(store.list_records(limit=1000), [])
+            archive_path = Path(archived["archive_path"])
+            self.assertEqual(archive_path.parent.name, CHAT_ARCHIVE_DIR_NAME)
+            payload = json.loads(archive_path.read_text())
+            self.assertIn(message.message_id, payload["messages"])
+            self.assertEqual(payload["messages"][message.message_id]["text"], "keep this in archive")
 
 
 class ControlChatUploadStoreTest(unittest.TestCase):

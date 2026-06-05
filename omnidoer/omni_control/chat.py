@@ -22,6 +22,7 @@ MAX_CHAT_TEXT_LENGTH = 20000
 MAX_CHAT_MESSAGES = 80
 MAX_CHAT_RECORDS = 140
 CHAT_RETENTION_SECONDS = 3 * 24 * 60 * 60
+CHAT_ARCHIVE_DIR_NAME = "control_chat_archives"
 INTERRUPT_CLIENT_MESSAGE_PREFIXES = ("control_pause_", "omnidoer_pause_")
 CLI_CLIENT_MESSAGE_PREFIX = "control_cli_"
 PRIORITY_CLIENT_MESSAGE_PREFIXES = (*INTERRUPT_CLIENT_MESSAGE_PREFIXES, "control_continue_", CLI_CLIENT_MESSAGE_PREFIX)
@@ -183,6 +184,30 @@ class ChatStore:
         with locked_state_file(self.path):
             next_sequence, messages, next_record_sequence, records = self._load_payload()
             self._save(next_sequence, messages, next_record_sequence, records)
+
+    def archive_and_reset(self) -> dict[str, Any]:
+        with locked_state_file(self.path):
+            next_sequence, messages, next_record_sequence, records = self._load_payload()
+            now = time.time()
+            archive_id = time.strftime("%Y%m%d-%H%M%S", time.localtime(now))
+            archive_path = self.path.parent / CHAT_ARCHIVE_DIR_NAME / f"{archive_id}-{uuid.uuid4().hex[:8]}.json"
+            archive_payload = {
+                "archived_at": now,
+                "source_file": str(self.path),
+                "next_sequence": next_sequence,
+                "next_record_sequence": next_record_sequence,
+                "messages": {key: asdict(value) for key, value in messages.items()},
+                "records": {key: asdict(value) for key, value in records.items()},
+            }
+            atomic_write_json(archive_path, archive_payload)
+            self._save(1, {}, 1, {})
+            return {
+                "archive_id": archive_path.stem,
+                "archive_path": str(archive_path),
+                "archived_at": now,
+                "message_count": len(messages),
+                "record_count": len(records),
+            }
 
     def _new_record(
         self,

@@ -246,6 +246,11 @@ const I18N = {
     slashCommandPairDesc: "Create a short pairing code for another Control Client.",
     slashCommandCompactDesc: "Compact the current conversation context.",
     slashCommandHelpDesc: "Show available OmniDoer CLI commands.",
+    newChatSession: "New Chat",
+    newChatConfirm: "Archive the current chat view and start a new empty conversation?",
+    newChatStarted: "New chat started",
+    newChatStartedDetail: "Previous messages were archived on the Control Service.",
+    newChatFailed: "New chat failed",
     sendMessage: "Send Message",
     noChatMessages: "No chat messages yet.",
     pairToViewChat: "Pair this device to view and send chat messages.",
@@ -655,6 +660,11 @@ const I18N = {
     slashCommandPairDesc: "为另一个 Control Client 生成 6 位配对码。",
     slashCommandCompactDesc: "压缩当前对话上下文。",
     slashCommandHelpDesc: "查看可用的 OmniDoer CLI 指令。",
+    newChatSession: "新会话",
+    newChatConfirm: "归档当前对话视图并开始一个空的新会话？",
+    newChatStarted: "已开始新会话",
+    newChatStartedDetail: "之前的消息已在 Control Service 上归档。",
+    newChatFailed: "新会话创建失败",
     sendMessage: "发送消息",
     noChatMessages: "还没有对话消息。",
     pairToViewChat: "请先配对此设备以查看和发送对话消息。",
@@ -1044,6 +1054,7 @@ function applyLanguage() {
   if (chatInput) chatInput.placeholder = t("chatPlaceholder");
   document.querySelector("#chat-command-menu")?.setAttribute("aria-label", t("slashCommandsLabel"));
   updateChatCommandMenu();
+  setIconControlLabel("#new-chat-session", "newChatSession");
   setIconControlLabel("#chat-files-label", "chatFilesLabel");
   setIconControlLabel("#send-chat-message", "sendMessage");
   setButtonText("#submit-task", "submitTask");
@@ -1624,6 +1635,11 @@ document.querySelectorAll(".overview-card").forEach((card) => {
 const sendChatMessageButton = document.querySelector("#send-chat-message");
 if (sendChatMessageButton) {
   sendChatMessageButton.onclick = () => sendChatMessage();
+}
+
+const newChatSessionButton = document.querySelector("#new-chat-session");
+if (newChatSessionButton) {
+  newChatSessionButton.onclick = () => startNewChatSession();
 }
 
 const chatFilesInput = document.querySelector("#chat-files");
@@ -2361,6 +2377,7 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
   const restart = document.querySelector("#chat-session-restart");
   const input = document.querySelector("#chat-input");
   const send = document.querySelector("#send-chat-message");
+  const newChat = document.querySelector("#new-chat-session");
   const files = document.querySelector("#chat-files");
   const fileLabel = document.querySelector("#chat-files-label");
   const syncRequest = pendingConsoleRestartRequest();
@@ -2447,6 +2464,11 @@ function updateChatSessionStatus(runner, { offline = false } = {}) {
     send.setAttribute("aria-disabled", canSend ? "false" : "true");
     send.setAttribute("aria-label", t(sendKey));
     send.title = t(sendKey);
+  }
+  if (newChat) {
+    newChat.disabled = !canEditDraft;
+    newChat.classList.toggle("soft-disabled", !canEditDraft);
+    newChat.setAttribute("aria-disabled", canEditDraft ? "false" : "true");
   }
   if (files) {
     files.disabled = !canSend;
@@ -3714,6 +3736,34 @@ async function postChatMessage(text, { clientMessageId = null, attachments = [] 
   });
 }
 
+async function startNewChatSession() {
+  const button = document.querySelector("#new-chat-session");
+  if (button?.disabled) return;
+  if (!window.confirm(t("newChatConfirm"))) return;
+  if (button) button.disabled = true;
+  try {
+    const response = await signedFetch("/api/chat/session/new", {
+      method: "POST",
+      headers: csrfHeaders()
+    });
+    if (!response.ok) throw new Error("new chat failed");
+    cachedChatMessages = [];
+    cachedChatRecords = [];
+    cachedChatTerminal = null;
+    lastChatPayloadFingerprint = "";
+    localStorage.removeItem(CHAT_CACHE_KEY);
+    forceChatScrollToBottom = true;
+    renderChatTimeline(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
+    setStatus(t("newChatStarted"), t("newChatStartedDetail"));
+    await loadChatMessages();
+  } catch {
+    setStatus(t("newChatFailed"), t("pairToViewChat"));
+  } finally {
+    if (button) button.disabled = false;
+    updateChatSessionStatus(cachedRuntimeStatus?.runner || null, { offline: !cachedRuntimeStatus });
+  }
+}
+
 async function sendChatMessage() {
   if (chatSendInFlight) return;
   const sendButton = document.querySelector("#send-chat-message");
@@ -4311,6 +4361,14 @@ function renderToolStatusLine(records = []) {
   return line;
 }
 
+function chatRecordMirrorsVisibleMessage(record, visibleMessageIds) {
+  return Boolean(
+    record.message_id &&
+    visibleMessageIds.has(record.message_id) &&
+    ["message", "delta", "status"].includes(record.record_type)
+  );
+}
+
 function compactChatActivityRecords(records = []) {
   const compacted = [];
   const deltaByKey = new Map();
@@ -4418,10 +4476,22 @@ function renderChatTimeline(messages, records = [], terminal = null) {
   forceChatScrollToBottom = false;
   list.innerHTML = "";
   const visibleMessages = messages.filter((message) => !isInternalAutoStatusMessage(message));
+  const visibleMessageIds = new Set(visibleMessages.map((message) => message.message_id).filter(Boolean));
   const hiddenMessageIds = new Set(messages.filter(isInternalAutoStatusMessage).map((message) => message.message_id));
   const visibleRecords = records.filter((record) => !hiddenMessageIds.has(record.message_id));
   const visibleToolRecords = visibleRecords.filter((record) => ["tool_call", "tool_output", "tool_group"].includes(record.record_type));
-  const visibleActivityRecords = visibleRecords.filter((record) => !["tool_call", "tool_output", "tool_group"].includes(record.record_type));
+  const visibleActivityRecords = visibleRecords.filter((record) => (
+    !["tool_call", "tool_output", "tool_group"].includes(record.record_type) &&
+    !chatRecordMirrorsVisibleMessage(record, visibleMessageIds)
+  ));
+
+  if (visibleActivityRecords.length) {
+    const activity = document.createElement("div");
+    activity.className = "chat-activity";
+    appendText(activity, "div", t("chatActivityTitle"), "chat-lane-title");
+    compactChatActivityRecords(visibleActivityRecords).forEach((record) => activity.append(renderChatRecord(record)));
+    list.append(activity);
+  }
 
   const conversation = document.createElement("div");
   conversation.className = "chat-conversation";
@@ -4434,14 +4504,6 @@ function renderChatTimeline(messages, records = [], terminal = null) {
     appendText(conversation, "p", t("noChatMessages"), "chat-empty-state");
   }
   list.append(conversation);
-
-  if (visibleActivityRecords.length) {
-    const activity = document.createElement("div");
-    activity.className = "chat-activity";
-    appendText(activity, "div", t("chatActivityTitle"), "chat-lane-title");
-    compactChatActivityRecords(visibleActivityRecords).forEach((record) => activity.append(renderChatRecord(record)));
-    list.append(activity);
-  }
   if (shouldStickToBottom) {
     list.scrollTop = list.scrollHeight;
   }

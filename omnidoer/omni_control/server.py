@@ -2128,6 +2128,28 @@ class ControlHandler(SimpleHTTPRequestHandler):
             except Exception as exc:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
             return
+        if path == "/api/chat/session/new":
+            try:
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+                return
+            try:
+                archived = ChatStore().archive_and_reset()
+                self._send_json(
+                    HTTPStatus.CREATED,
+                    {
+                        "status": "created",
+                        "session_started_at": time.time(),
+                        "archived": archived,
+                        "secret_fields_allowed": False,
+                        "control_client_calls_model": False,
+                    },
+                )
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
         if path == "/api/chat/attachments":
             try:
                 session = self._require_access(mutating=True)

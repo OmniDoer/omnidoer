@@ -1056,6 +1056,7 @@ body[data-runtime-state="tui_bridge_active"] .status-strip #runtime-mode {
   pointer-events: none;
 }
 .file-button,
+#new-chat-session,
 #send-chat-message {
   min-height: 34px;
   width: 34px;
@@ -1078,6 +1079,14 @@ body[data-runtime-state="tui_bridge_active"] .status-strip #runtime-mode {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+.secondary-icon-button {
+  border: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--ink);
+}
+.secondary-icon-button:disabled {
+  opacity: 0.48;
 }
 .control-icon {
   width: 18px;
