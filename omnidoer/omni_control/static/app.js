@@ -1869,6 +1869,7 @@ let cachedChatRecords = [];
 let cachedChatTerminal = null;
 let cachedBrowserContexts = [];
 let cachedRuntimeStatus = null;
+const CHAT_CACHE_KEY = "omnidoer_chat_timeline_cache_v1";
 const approvalConfirmationDrafts = new Map();
 let lastChatPayloadFingerprint = "";
 let chatSendInFlight = false;
@@ -4412,6 +4413,34 @@ function renderChatTimeline(messages, records = [], terminal = null) {
   }
 }
 
+function persistChatTimelineCache() {
+  try {
+    localStorage.setItem(CHAT_CACHE_KEY, JSON.stringify({
+      messages: cachedChatMessages,
+      records: cachedChatRecords,
+      terminal: cachedChatTerminal,
+      saved_at: Date.now()
+    }));
+  } catch {}
+}
+
+function restoreChatTimelineCache() {
+  try {
+    const raw = localStorage.getItem(CHAT_CACHE_KEY);
+    if (!raw) return false;
+    const payload = JSON.parse(raw);
+    cachedChatMessages = Array.isArray(payload.messages) ? payload.messages : [];
+    cachedChatRecords = Array.isArray(payload.records) ? payload.records : [];
+    cachedChatTerminal = payload.terminal || null;
+    lastChatPayloadFingerprint = chatPayloadFingerprint(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
+    renderChatTimeline(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
+    updateOverview();
+    return cachedChatMessages.length > 0 || cachedChatRecords.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 async function loadChatMessages() {
   const list = document.querySelector("#chat-messages");
   if (!list) return;
@@ -4424,9 +4453,12 @@ async function loadChatMessages() {
     cachedChatRecords = payload.records || [];
     cachedChatTerminal = payload.terminal || null;
     lastChatPayloadFingerprint = chatPayloadFingerprint(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
+    persistChatTimelineCache();
     renderChatTimeline(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
   } catch {
-    list.textContent = t("pairToViewChat");
+    if (!restoreChatTimelineCache() && !cachedChatMessages.length && !cachedChatRecords.length) {
+      list.textContent = t("pairToViewChat");
+    }
   }
 }
 
@@ -5644,6 +5676,7 @@ function applyChatEvent(payload) {
   cachedChatMessages = messages;
   cachedChatRecords = records;
   cachedChatTerminal = terminal;
+  persistChatTimelineCache();
   renderChatTimeline(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
   updateOverview();
   if (changed) scheduleRealtimeRefreshFromChat();
@@ -5846,7 +5879,7 @@ async function startChatStream() {
     }
   } catch {
     if (!cachedChatMessages.length && !cachedChatRecords.length) {
-      document.querySelector("#chat-messages").textContent = t("pairToViewChat");
+      restoreChatTimelineCache();
     }
   } finally {
     chatStreamActive = false;
@@ -5936,6 +5969,7 @@ function handleControlClientVisibilityChange() {
 }
 
 async function bootstrapControlClient() {
+  restoreChatTimelineCache();
   await loadRuntimeStatus();
   if (initialPairingCode) {
     await autoPairFromInitialLink();
