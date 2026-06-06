@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>OmniDoer Lite</title>
+  <link rel="stylesheet" href="/lite.css?v=20260606-lite1">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="mark">OD</span><strong>OmniDoer Lite</strong></div>
+    <div id="status" class="status">启动中</div>
+  </header>
+  <main>
+    <section id="pair-card" class="panel">
+      <h1>配对</h1>
+      <p>输入当前服务器生成的 6 位配对码。设备密钥只保存在此浏览器。</p>
+      <div class="row">
+        <input id="pair-code" inputmode="numeric" autocomplete="one-time-code" maxlength="12" placeholder="123456">
+        <button id="pair-button" type="button">配对</button>
+      </div>
+      <small id="pair-note"></small>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <h2>核心审批</h2>
+        <button id="refresh-button" type="button">刷新</button>
+      </div>
+      <div id="requests" class="request-list"></div>
+    </section>
+
+    <section class="panel chat-panel">
+      <div class="section-head">
+        <h2>消息</h2>
+        <select id="session-select" aria-label="会话"></select>
+      </div>
+      <div id="messages" class="messages"></div>
+      <pre id="terminal" class="terminal" hidden></pre>
+      <form id="chat-form" class="composer">
+        <textarea id="chat-input" rows="1" placeholder="发送给 OmniDoer"></textarea>
+        <button id="send-button" type="submit">发送</button>
+      </form>
+    </section>
+  </main>
+  <script src="/lite.js?v=20260606-lite1"></script>
+</body>
+</html>

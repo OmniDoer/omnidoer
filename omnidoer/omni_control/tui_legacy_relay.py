@@ -8,6 +8,7 @@ cannot hot-load the bridge code until the user restarts it.
 from __future__ import annotations
 
 import os
+import base64
 import re
 import subprocess
 import threading
@@ -128,12 +129,20 @@ def list_tmux_panes() -> list[TmuxPane]:
 
 
 def tmux_chat_session_id_for_pane(pane_id: str) -> str:
-    suffix = re.sub(r"[^A-Za-z0-9_-]+", "_", str(pane_id or "").strip("%")).strip("_")
-    return f"tmux_{suffix or 'pane'}"[:48]
+    raw = str(pane_id or "").encode()
+    suffix = base64.urlsafe_b64encode(raw).decode().rstrip("=")
+    return f"tmuxp_{suffix}"[:48]
 
 
 def tmux_pane_id_for_chat_session(session_id: str | None) -> str | None:
     value = str(session_id or "")
+    if value.startswith("tmuxp_"):
+        suffix = value.removeprefix("tmuxp_")
+        padding = "=" * (-len(suffix) % 4)
+        try:
+            return base64.urlsafe_b64decode(f"{suffix}{padding}").decode()
+        except Exception:
+            return None
     if not value.startswith("tmux_"):
         return None
     suffix = value.removeprefix("tmux_").replace("_", ".")
@@ -142,8 +151,22 @@ def tmux_pane_id_for_chat_session(session_id: str | None) -> str | None:
     return f"%{suffix}"
 
 
+def chat_session_id_is_tmux(session_id: str | None) -> bool:
+    return tmux_pane_id_for_chat_session(session_id) is not None
+
+
+def tmux_pane_looks_like_omnidoer_session(pane: TmuxPane) -> bool:
+    haystack = " ".join([pane.current_command, pane.window_name, pane.session_name]).lower()
+    return any(token in haystack for token in ("omnidoer", "codex"))
+
+
 def list_tmux_chat_sessions(*, limit: int = 5) -> list[dict[str, object]]:
-    panes = sorted(list_tmux_panes(), key=lambda pane: (not pane.active, pane.session_name, pane.window_index, pane.pane_index))
+    panes = [
+        pane
+        for pane in list_tmux_panes()
+        if tmux_pane_looks_like_omnidoer_session(pane)
+    ]
+    panes = sorted(panes, key=lambda pane: (not pane.active, pane.session_name, pane.window_index, pane.pane_index))
     sessions: list[dict[str, object]] = []
     for pane in panes[: max(1, limit)]:
         title_parts = [

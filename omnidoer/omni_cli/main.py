@@ -101,6 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--chat-codex-arg", action="append", default=[])
     serve.add_argument("--chat-upload-ttl", default=None)
     serve.add_argument("--chat-allow-detached-thread-resume", action="store_true")
+    serve.add_argument("--lite", action="store_true")
     serve.add_argument("--background", action="store_true")
     pair = control_sub.add_parser("pair")
     pair.add_argument("--print-qr", action="store_true")
@@ -410,6 +411,7 @@ def main(argv: list[str] | None = None) -> int:
                 ("--insecure-dev-public", args.insecure_dev_public),
                 ("--chat-runner", args.chat_runner),
                 ("--chat-allow-detached-thread-resume", args.chat_allow_detached_thread_resume),
+                ("--lite", args.lite),
             ):
                 if enabled:
                     background_args.append(flag)

@@ -62,6 +62,10 @@ def static_root() -> Path:
     return Path(str(resources.files("omnidoer.omni_control") / "static"))
 
 
+def lite_static_root() -> Path:
+    return Path(str(resources.files("omnidoer.omni_control") / "lite_static"))
+
+
 PAIR_RATE_LIMIT = RateLimiter(max_attempts=8, window_seconds=60, lockout_seconds=300)
 CONTROL_MUTATION_RATE_LIMIT = RateLimiter(max_attempts=120, window_seconds=60, lockout_seconds=60)
 CONSOLE_RESTART_REQUEST_TTL_SECONDS = 30 * 60
@@ -81,6 +85,19 @@ BROWSER_FRAME_STREAM_MAX_SNAPSHOTS = 1200
 TAKEOVER_INPUT_RESULT_WAIT_MAX_SECONDS = 10.0
 TLS_ACCEPT_PEEK_TIMEOUT_SECONDS = 2.0
 CONTROL_SERVER_REQUEST_QUEUE_SIZE = 128
+LITE_REQUEST_TYPES = {
+    "credential",
+    "totp",
+    "one_time_code",
+    "sms_code",
+    "email_code",
+    "payment_approval",
+    "oauth_approval",
+    "account_delete",
+    "password_change",
+    "two_factor_change",
+    "console_restart",
+}
 CLIENT_DISCONNECT_EXCEPTIONS = (BrokenPipeError, ConnectionResetError, ssl.SSLEOFError)
 SENSITIVE_LOG_PATTERNS = [
     re.compile(r"(omnidoer_session=)[^;\s]+"),
@@ -620,6 +637,23 @@ class ControlHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _lite_state_payload(self, store: RequestStore, session: ControlSession | None, *, session_id: str | None = None) -> dict:
+        chat_session_id = validate_chat_session_id(session_id or ChatSessionStore().active_session_id())
+        if session_id:
+            try:
+                ChatSessionStore().activate(chat_session_id)
+            except KeyError:
+                pass
+        return {
+            "authenticated": True,
+            "requests": [request.to_public_dict() for request in self._visible_lite_requests(store, session)],
+            "chat": self._chat_payload(limit=24, session_id=chat_session_id, compact=True),
+            "sessions": ChatSessionStore().list(),
+            "server_time": time.time(),
+            "secret_exposed_to_model": False,
+            "control_client_calls_model": False,
+        }
+
     def _plain_http_on_direct_tls_port(self) -> bool:
         return bool(getattr(self.server, "omnidoer_direct_tls", False)) and not isinstance(self.request, ssl.SSLSocket)
 
@@ -712,11 +746,11 @@ class ControlHandler(SimpleHTTPRequestHandler):
         messages = store.list(limit=resolved_limit)
         records = store.list_records(limit=resolved_limit, after_sequence=after_sequence)
         chat_thread_id = getattr(self.server, "omnidoer_chat_thread_id", None)
-        from omnidoer.omni_control.tui_legacy_relay import legacy_tui_terminal_snapshot, tmux_chat_terminal_snapshot
+        from omnidoer.omni_control.tui_legacy_relay import chat_session_id_is_tmux, legacy_tui_terminal_snapshot, tmux_chat_terminal_snapshot
 
         terminal = (
             tmux_chat_terminal_snapshot(resolved_session_id)
-            if resolved_session_id.startswith("tmux_")
+            if chat_session_id_is_tmux(resolved_session_id)
             else legacy_tui_terminal_snapshot(chat_thread_id)
         )
         if compact:
@@ -1145,6 +1179,13 @@ class ControlHandler(SimpleHTTPRequestHandler):
         self._ensure_current_session_sync_request(store, session)
         return [request for request in store.list() if self._request_allowed_for_session(request, session)]
 
+    def _visible_lite_requests(self, store: RequestStore, session: ControlSession | None):
+        return [
+            request
+            for request in self._visible_requests(store, session)
+            if request.request_type in LITE_REQUEST_TYPES
+        ]
+
     def _get_request_for_session(self, store: RequestStore, request_id: str, session: ControlSession | None):
         request = store.get(request_id)
         if not self._request_allowed_for_session(request, session):
@@ -1165,7 +1206,8 @@ class ControlHandler(SimpleHTTPRequestHandler):
 
     def _try_deliver_chat_to_live_console(self, message_id: str, *, session_id: str | None = None) -> dict:
         chat_session_id = validate_chat_session_id(session_id or DEFAULT_CHAT_SESSION_ID)
-        if chat_session_id.startswith("tmux_"):
+        from omnidoer.omni_control.tui_legacy_relay import chat_session_id_is_tmux
+        if chat_session_id_is_tmux(chat_session_id):
             from omnidoer.omni_control.tui_legacy_relay import inject_text_into_tmux_pane, tmux_pane_id_for_chat_session
 
             pane_id = tmux_pane_id_for_chat_session(chat_session_id)
@@ -1581,6 +1623,23 @@ class ControlHandler(SimpleHTTPRequestHandler):
         store = RequestStore()
         if path in {"/pair", "/pair/"}:
             self._send_pwa_index()
+            return
+        if path == "/api/lite/state":
+            try:
+                session = self._require_access()
+                query = parse_qs(parsed_url.query)
+                self._send_json(
+                    HTTPStatus.OK,
+                    self._lite_state_payload(
+                        store,
+                        session,
+                        session_id=query.get("session_id", [None])[0],
+                    ),
+                )
+            except PermissionError:
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"authenticated": False, "error": "unauthorized"})
+            except ValueError:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid lite options"})
             return
         if path == "/api/status":
             config = getattr(self.server, "omnidoer_config", None)
@@ -2198,6 +2257,11 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 text = str(body.get("text") or "")
                 client_message_id = str(body.get("client_message_id") or "") or None
                 chat_session_id = validate_chat_session_id(body.get("session_id") or ChatSessionStore().active_session_id())
+                if body.get("session_id"):
+                    try:
+                        ChatSessionStore().activate(chat_session_id)
+                    except KeyError:
+                        pass
                 local_cli_response = self._handle_control_cli_command(
                     text=text,
                     client_message_id=client_message_id,
@@ -2679,6 +2743,20 @@ class ControlHandler(SimpleHTTPRequestHandler):
         super().do_HEAD()
 
 
+class LiteControlHandler(ControlHandler):
+    def __init__(self, *args, **kwargs):
+        SimpleHTTPRequestHandler.__init__(self, *args, directory=str(lite_static_root()), **kwargs)
+
+    def _send_pwa_index(self) -> None:
+        data = (lite_static_root() / "index.html").read_bytes()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("content-type", "text/html; charset=utf-8")
+        self.send_header("cache-control", "no-store")
+        self.send_header("content-length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+
 def serve(
     host: str = "127.0.0.1",
     port: int = 8787,
@@ -2698,6 +2776,7 @@ def serve(
     chat_codex_args: list[str] | None = None,
     chat_upload_ttl: str | int | None = None,
     chat_allow_detached_thread_resume: bool = False,
+    lite: bool = False,
 ) -> None:
     try:
         config = build_config(
@@ -2719,7 +2798,8 @@ def serve(
         tls_context.load_cert_chain(tls_cert, tls_key)
     elif tls_self_signed_dev:
         tls_context = _self_signed_context(host)
-    server = TLSAwareThreadingHTTPServer((host, port), ControlHandler, tls_context=tls_context)
+    handler = LiteControlHandler if lite else ControlHandler
+    server = TLSAwareThreadingHTTPServer((host, port), handler, tls_context=tls_context)
     server.omnidoer_config = config  # type: ignore[attr-defined]
     server.omnidoer_direct_tls = tls_context is not None  # type: ignore[attr-defined]
     server.omnidoer_chat_thread_id = chat_thread_id  # type: ignore[attr-defined]

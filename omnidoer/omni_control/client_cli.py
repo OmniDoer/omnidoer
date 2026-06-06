@@ -170,6 +170,7 @@ def handle_control_command(args) -> int:
             chat_codex_args=args.chat_codex_arg,
             chat_upload_ttl=args.chat_upload_ttl,
             chat_allow_detached_thread_resume=args.chat_allow_detached_thread_resume,
+            lite=args.lite,
         )
         return 0
     if command == "pair":

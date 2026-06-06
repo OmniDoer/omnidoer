@@ -28,7 +28,7 @@ omnidoer = "omnidoer.omni_cli.main:main"
 include = ["omnidoer*"]
 
 [tool.setuptools.package-data]
-"omnidoer.omni_control" = ["static/*"]
+"omnidoer.omni_control" = ["static/*", "lite_static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

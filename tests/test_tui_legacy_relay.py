@@ -15,11 +15,31 @@ from omnidoer.omni_control.tui_legacy_relay import (
     find_tmux_pane_for_thread,
     legacy_tui_relay_status,
     legacy_tui_terminal_snapshot,
+    list_tmux_chat_sessions,
     live_tui_process_for_thread,
+    tmux_chat_session_id_for_pane,
+    tmux_pane_id_for_chat_session,
 )
 
 
 class TuiLegacyRelayTest(unittest.TestCase):
+    def test_tmux_chat_session_id_is_reversible_for_pane_ids(self) -> None:
+        for pane_id in ("%1", "%10", "%1.2", "%agent-pane"):
+            session_id = tmux_chat_session_id_for_pane(pane_id)
+            self.assertTrue(session_id.startswith("tmuxp_"))
+            self.assertEqual(tmux_pane_id_for_chat_session(session_id), pane_id)
+        self.assertEqual(tmux_pane_id_for_chat_session("tmux_3"), "%3")
+
+    def test_tmux_chat_sessions_filter_to_omnidoer_or_codex_panes(self) -> None:
+        panes = [
+            TmuxPane(pane_id="%1", tty="/dev/pts/1", current_command="bash", session_name="main", window_name="shell"),
+            TmuxPane(pane_id="%2", tty="/dev/pts/2", current_command="codex", session_name="main", window_name="work"),
+            TmuxPane(pane_id="%3", tty="/dev/pts/3", current_command="python", session_name="main", window_name="omnidoer"),
+        ]
+        with patch("omnidoer.omni_control.tui_legacy_relay.list_tmux_panes", return_value=panes):
+            sessions = list_tmux_chat_sessions(limit=5)
+        self.assertEqual([session["pane_id"] for session in sessions], ["%2", "%3"])
+
     def test_inject_text_submits_with_double_carriage_return(self) -> None:
         commands: list[list[str]] = []
 

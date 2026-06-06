@@ -22,17 +22,20 @@ from omnidoer.omni_control.chat import (
     chat_text_is_cli_command,
 )
 from omnidoer.omni_control.chat_uploads import ChatUploadStore
+from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.server import (
     CHAT_STREAM_DEFAULT_SNAPSHOTS,
     CHAT_STREAM_HEARTBEAT_SECONDS,
     CHAT_STREAM_MAX_SNAPSHOTS,
     ControlHandler,
+    LiteControlHandler,
     _extract_latest_terminal_quota_lines,
     _active_terminal_quota_summary,
     _recent_chat_quota_summary,
     _terminal_quota_summary,
 )
 from omnidoer.omni_control.tui_legacy_relay import TmuxPane
+from omnidoer.omni_control.tui_legacy_relay import tmux_chat_session_id_for_pane
 
 
 class ControlChatStoreTest(unittest.TestCase):
@@ -118,13 +121,15 @@ class ControlChatStoreTest(unittest.TestCase):
             ]
             with patch("omnidoer.omni_control.tui_legacy_relay.list_tmux_panes", return_value=panes):
                 payload = ChatSessionStore().list()
+                active_session_id = tmux_chat_session_id_for_pane("%2")
+                third_session_id = tmux_chat_session_id_for_pane("%3")
                 self.assertEqual(payload["source"], "tmux")
-                self.assertEqual(payload["active_session_id"], "tmux_2")
+                self.assertEqual(payload["active_session_id"], active_session_id)
                 self.assertEqual(len(payload["sessions"]), MAX_CHAT_SESSIONS)
-                self.assertEqual(payload["sessions"][0]["session_id"], "tmux_2")
+                self.assertEqual(payload["sessions"][0]["session_id"], active_session_id)
                 self.assertEqual(payload["sessions"][0]["transport"], "tmux")
-                ChatSessionStore().activate("tmux_3")
-                self.assertEqual(ChatSessionStore().active_session_id(), "tmux_3")
+                ChatSessionStore().activate(third_session_id)
+                self.assertEqual(ChatSessionStore().active_session_id(), third_session_id)
         if old_home is None:
             os.environ.pop("OMNIDOER_HOME", None)
         else:
@@ -292,6 +297,110 @@ class ControlChatApiTest(unittest.TestCase):
         self.assertEqual(CHAT_STREAM_DEFAULT_SNAPSHOTS, 1200)
         self.assertEqual(CHAT_STREAM_MAX_SNAPSHOTS, 1200)
         self.assertEqual(CHAT_STREAM_HEARTBEAT_SECONDS, 30.0)
+
+    def test_lite_handler_serves_core_state_only(self) -> None:
+        old_home = os.environ.get("OMNIDOER_HOME")
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["OMNIDOER_HOME"] = tmp
+            store = RequestStore()
+            credential = store.create(
+                "credential",
+                origin="https://vault.example",
+                top_level_url="https://vault.example",
+                action_summary="Need password",
+                requested_fields=["username", "password"],
+            )
+            store.create(
+                "human_takeover",
+                origin="https://browser.example",
+                top_level_url="https://browser.example",
+                action_summary="Browser control",
+            )
+            server = ThreadingHTTPServer(("127.0.0.1", 0), LiteControlHandler)
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                with urllib_request.urlopen(f"{base}/", timeout=5) as response:
+                    html = response.read().decode()
+                self.assertIn("OmniDoer Lite", html)
+                with urllib_request.urlopen(f"{base}/api/lite/state", timeout=5) as response:
+                    payload = json.loads(response.read().decode())
+                self.assertEqual([item["request_id"] for item in payload["requests"]], [credential.request_id])
+                self.assertIn("chat", payload)
+                self.assertIn("sessions", payload)
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_tmux_chat_session_send_and_lite_state_are_pane_scoped(self) -> None:
+        old_home = os.environ.get("OMNIDOER_HOME")
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["OMNIDOER_HOME"] = tmp
+            pane_one = TmuxPane(
+                pane_id="%1",
+                tty="/dev/pts/1",
+                current_command="codex",
+                session_name="main",
+                window_index="1",
+                window_name="codex-one",
+                pane_index="0",
+            )
+            pane_two = TmuxPane(
+                pane_id="%2",
+                tty="/dev/pts/2",
+                current_command="omnidoer",
+                session_name="main",
+                window_index="2",
+                window_name="agent-two",
+                pane_index="0",
+            )
+            session_one = tmux_chat_session_id_for_pane("%1")
+            session_two = tmux_chat_session_id_for_pane("%2")
+            injected: list[tuple[str, str]] = []
+
+            server = ThreadingHTTPServer(("127.0.0.1", 0), LiteControlHandler)
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                with patch("omnidoer.omni_control.tui_legacy_relay.list_tmux_panes", return_value=[pane_one, pane_two]), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.inject_text_into_tmux_pane",
+                    side_effect=lambda pane_id, text: injected.append((pane_id, text)),
+                ), patch(
+                    "omnidoer.omni_control.tui_legacy_relay.capture_tmux_pane",
+                    side_effect=lambda pane_id, **_kwargs: f"terminal {pane_id}",
+                ):
+                    create = urllib_request.Request(
+                        f"{base}/api/chat/messages",
+                        data=json.dumps({"text": "hello pane two", "session_id": session_two}).encode(),
+                        headers={"content-type": "application/json"},
+                        method="POST",
+                    )
+                    with urllib_request.urlopen(create, timeout=5) as response:
+                        message = json.loads(response.read().decode())
+                    self.assertEqual(injected, [("%2", "hello pane two")])
+                    self.assertEqual(message["status"], "completed")
+
+                    with urllib_request.urlopen(f"{base}/api/lite/state?session_id={session_one}", timeout=5) as response:
+                        state_one = json.loads(response.read().decode())
+                    with urllib_request.urlopen(f"{base}/api/lite/state?session_id={session_two}", timeout=5) as response:
+                        state_two = json.loads(response.read().decode())
+                    self.assertEqual(state_one["chat"]["terminal"]["pane_id"], "%1")
+                    self.assertEqual(state_one["chat"]["terminal"]["text"], "terminal %1")
+                    self.assertEqual(state_two["chat"]["terminal"]["pane_id"], "%2")
+                    self.assertEqual(state_two["chat"]["messages"][0]["text"], "hello pane two")
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
 
     def test_terminal_quota_parser_returns_latest_status_block(self) -> None:
         snapshot = """

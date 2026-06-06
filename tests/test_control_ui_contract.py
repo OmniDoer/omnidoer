@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from omnidoer.omni_control.server import static_root
+from omnidoer.omni_control.server import lite_static_root, static_root
 
 
 class ControlUiContractTest(unittest.TestCase):
@@ -15,6 +15,33 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("Secret Broker", self.html)
         self.assertIn("Not sent to Agent/LLM context", self.html)
         self.assertIn("MCP return values", self.html)
+
+    def test_lite_client_keeps_only_pairing_core_approvals_and_streaming_chat(self) -> None:
+        lite_html = (lite_static_root() / "index.html").read_text()
+        lite_app = (lite_static_root() / "lite.js").read_text()
+        lite_style = (lite_static_root() / "lite.css").read_text()
+        cli_main = (self.root / "omnidoer" / "omni_cli" / "main.py").read_text()
+        client_cli = (self.root / "omnidoer" / "omni_control" / "client_cli.py").read_text()
+
+        self.assertIn("OmniDoer Lite", lite_html)
+        self.assertIn("pair-code", lite_html)
+        self.assertIn("核心审批", lite_html)
+        self.assertIn("消息", lite_html)
+        self.assertIn("/api/lite/state", lite_app)
+        self.assertIn("/api/pair", lite_app)
+        self.assertIn("/api/broker-key", lite_app)
+        self.assertIn("encryptForBroker", lite_app)
+        self.assertIn("CORE_SECRET_TYPES", lite_app)
+        self.assertIn("HIGH_RISK_TYPES", lite_app)
+        self.assertIn("/api/chat/events?stream=1", lite_app)
+        self.assertIn("streamChatOnce", lite_app)
+        self.assertNotIn("takeover-panel", lite_html)
+        self.assertNotIn("devices-list", lite_html)
+        self.assertNotIn("security-status", lite_html)
+        self.assertIn(".chat-panel", lite_style)
+        self.assertIn('serve.add_argument("--lite"', cli_main)
+        self.assertIn('("--lite", args.lite)', cli_main)
+        self.assertIn("lite=args.lite", client_cli)
 
     def test_password_inputs_are_password_type(self) -> None:
         self.assertIn('id="password"', self.app)

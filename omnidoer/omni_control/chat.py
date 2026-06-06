@@ -260,7 +260,11 @@ class ChatSessionStore:
         resolved = validate_chat_session_id(session_id)
         with locked_state_file(self.path):
             _, sessions = self._load_payload()
-            if resolved.startswith("tmux_"):
+            try:
+                from omnidoer.omni_control.tui_legacy_relay import chat_session_id_is_tmux
+            except Exception:
+                chat_session_id_is_tmux = lambda value: False
+            if chat_session_id_is_tmux(resolved):
                 session = sessions.get(resolved) or ChatSession(
                     session_id=resolved,
                     title=resolved,
