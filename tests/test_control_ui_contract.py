@@ -64,6 +64,8 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("captureRequestDrafts", lite_app)
         self.assertIn("pruneRequestDrafts", lite_app)
         self.assertIn("data-secret-field", lite_app)
+        self.assertIn("payload.save_to_vault = Boolean(request.save_to_vault)", lite_app)
+        self.assertNotIn("fields: payload", lite_app)
         self.assertIn('serve.add_argument("--lite"', cli_main)
         self.assertIn('("--lite", args.lite)', cli_main)
         self.assertIn("lite=args.lite", client_cli)

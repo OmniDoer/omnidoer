@@ -224,7 +224,8 @@ function renderRequests(requests = []) {
         secretFields(request).forEach((field) => {
           payload[field] = requestDrafts.get(requestDraftKey(request, field)) || "";
         });
-        const envelope = await encryptForBroker({ fields: payload, save_to_vault: Boolean(request.save_to_vault) }, request);
+        payload.save_to_vault = Boolean(request.save_to_vault);
+        const envelope = await encryptForBroker(payload, request);
         await signedFetch(`/api/requests/${encodeURIComponent(request.request_id)}/submit`, {
           method: "POST",
           headers: { "content-type": "application/json", ...csrfHeaders() },
