@@ -13,6 +13,7 @@ let renderedTerminalTail = "";
 let renderedLiveTerminalKey = "";
 let selectedFiles = [];
 let manualScrollPauseUntil = 0;
+const requestDrafts = new Map();
 
 function setStatus(text) {
   $("#status").textContent = text;
@@ -169,10 +170,29 @@ function secretFields(request) {
   return fields.slice(0, 4);
 }
 
+function requestDraftKey(request, field) {
+  return `${request.request_id}:${field}`;
+}
+
+function captureRequestDrafts() {
+  document.querySelectorAll("[data-request-id][data-secret-field]").forEach((input) => {
+    requestDrafts.set(`${input.dataset.requestId}:${input.dataset.secretField}`, input.value);
+  });
+}
+
+function pruneRequestDrafts(activeRequests = []) {
+  const activeIds = new Set(activeRequests.map((request) => request.request_id));
+  Array.from(requestDrafts.keys()).forEach((key) => {
+    if (!activeIds.has(key.split(":")[0])) requestDrafts.delete(key);
+  });
+}
+
 function renderRequests(requests = []) {
+  captureRequestDrafts();
   const root = $("#requests");
   root.textContent = "";
   const active = requests.filter((request) => ["pending", "user_control", "fulfilled", "approved"].includes(request.status));
+  pruneRequestDrafts(active);
   if (!active.length) {
     root.innerHTML = '<p class="meta">暂无核心审批请求。</p>';
     return;
@@ -185,7 +205,6 @@ function renderRequests(requests = []) {
     const actions = document.createElement("div");
     actions.className = "actions";
     if (CORE_SECRET_TYPES.has(request.request_type)) {
-      const payload = {};
       secretFields(request).forEach((field) => {
         const wrap = document.createElement("label");
         wrap.className = "field";
@@ -193,17 +212,25 @@ function renderRequests(requests = []) {
         const input = document.createElement("input");
         input.type = field.toLowerCase().includes("password") ? "password" : "text";
         input.autocomplete = "off";
-        input.oninput = () => { payload[field] = input.value; };
+        input.dataset.requestId = request.request_id;
+        input.dataset.secretField = field;
+        input.value = requestDrafts.get(requestDraftKey(request, field)) || "";
+        input.oninput = () => { requestDrafts.set(requestDraftKey(request, field), input.value); };
         wrap.append(input);
         item.append(wrap);
       });
       const submit = button("提交到保险柜", async () => {
+        const payload = {};
+        secretFields(request).forEach((field) => {
+          payload[field] = requestDrafts.get(requestDraftKey(request, field)) || "";
+        });
         const envelope = await encryptForBroker({ fields: payload, save_to_vault: Boolean(request.save_to_vault) }, request);
         await signedFetch(`/api/requests/${encodeURIComponent(request.request_id)}/submit`, {
           method: "POST",
           headers: { "content-type": "application/json", ...csrfHeaders() },
           body: JSON.stringify({ envelope })
         });
+        secretFields(request).forEach((field) => requestDrafts.delete(requestDraftKey(request, field)));
         await loadState();
       });
       actions.append(submit);

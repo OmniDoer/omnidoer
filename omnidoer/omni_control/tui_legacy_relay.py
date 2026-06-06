@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from omnidoer.omni_control.chat import ChatStore
-from omnidoer.omni_control.chat_runner import live_tui_bridge_active
+from omnidoer.omni_control.chat_runner import live_tui_bridge_active, prompt_with_control_capabilities
 
 TERMINAL_CAPTURE_LINES = 120
 TERMINAL_RECORD_LIMIT = 6000
@@ -274,7 +274,7 @@ def tmux_chat_terminal_snapshot(session_id: str | None, *, line_count: int = 80)
 
 def inject_text_into_tmux_pane(pane_id: str, text: str) -> None:
     buffer_name = f"omnidoer-control-{os.getpid()}"
-    payload = str(text or "").rstrip("\n")
+    payload = prompt_with_control_capabilities(text).rstrip("\n")
     subprocess.run(
         ["tmux", "load-buffer", "-b", buffer_name, "-"],
         input=payload,

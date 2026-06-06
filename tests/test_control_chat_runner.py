@@ -573,7 +573,9 @@ class ControlChatRunnerTest(unittest.TestCase):
                 self.assertEqual(argv[:2], ["exec", "resume"])
                 self.assertIn("--json", argv)
                 self.assertIn("thread_active", argv)
-                self.assertEqual(argv[-1], "Use the active context")
+                self.assertIn("OmniDoer control capability", argv[-1])
+                self.assertIn("omnidoer cred request", argv[-1])
+                self.assertIn("User request:\nUse the active context", argv[-1])
                 self.assertTrue(any("Resuming Codex thread thread_active" in record.text for record in ChatStore().list_records()))
             finally:
                 if old_home is None:

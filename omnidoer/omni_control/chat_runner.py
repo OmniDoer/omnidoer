@@ -25,6 +25,11 @@ TUI_BRIDGE_INSTALL_MARKERS = (
     b"chat-log-user",
     b"failed to publish OmniDoer user chat message",
 )
+CONTROL_CLIENT_CAPABILITY_CONTEXT = """OmniDoer control capability:
+- If a task needs a username, password, TOTP seed, one-time code, SMS code, or email code, do not ask the user to type the secret in chat and do not invent credentials.
+- Create a Control Client request instead. For login credentials, run:
+  omnidoer cred request --origin <scheme://host> --summary "<why the credential is needed>" --wait --vault /root/.omnidoer/vault.json --passphrase-file /root/.omnidoer/vault-passphrase --create-vault
+- The user will submit secrets through the paired Control Client; the model should only see request status/metadata, never plaintext secrets."""
 MCP_SIDECAR_REQUIRED_SOURCE_FILES = (
     ("omni_mcp", "runtime.py"),
     ("omni_takeover", "browser_worker.py"),
@@ -41,6 +46,13 @@ MCP_SIDECAR_REQUIRED_FEATURE_MARKERS = (
     ),
 )
 _bridge_install_cache: dict[tuple[str, int, int], dict[str, Any]] = {}
+
+
+def prompt_with_control_capabilities(text: str) -> str:
+    cleaned = str(text or "").strip()
+    if not cleaned:
+        return CONTROL_CLIENT_CAPABILITY_CONTEXT
+    return f"{CONTROL_CLIENT_CAPABILITY_CONTEXT}\n\nUser request:\n{cleaned}"
 
 
 def find_codex_binary(explicit: str | None = None) -> str | None:
@@ -891,7 +903,7 @@ class ChatRunner:
                 *image_args,
                 *self.extra_args,
                 self.thread_id,
-                user_message.text,
+                prompt_with_control_capabilities(user_message.text),
             ]
         else:
             command = [
@@ -904,7 +916,7 @@ class ChatRunner:
                 *image_args,
                 *self.extra_args,
                 "--",
-                user_message.text,
+                prompt_with_control_capabilities(user_message.text),
             ]
         env = self._subprocess_env()
         try:
