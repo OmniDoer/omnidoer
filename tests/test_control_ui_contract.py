@@ -65,6 +65,8 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("requestDrafts", lite_app)
         self.assertIn("captureRequestDrafts", lite_app)
         self.assertIn("pruneRequestDrafts", lite_app)
+        self.assertIn('["pending", "user_control"].includes(request.status)', lite_app)
+        self.assertNotIn('"fulfilled", "approved"].includes(request.status)', lite_app)
         self.assertIn("data-secret-field", lite_app)
         self.assertIn("payload.save_to_vault = Boolean(request.save_to_vault)", lite_app)
         self.assertNotIn("fields: payload", lite_app)

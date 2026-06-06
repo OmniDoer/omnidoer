@@ -197,7 +197,7 @@ function renderRequests(requests = []) {
   captureRequestDrafts();
   const root = $("#requests");
   root.textContent = "";
-  const active = requests.filter((request) => ["pending", "user_control", "fulfilled", "approved"].includes(request.status));
+  const active = requests.filter((request) => ["pending", "user_control"].includes(request.status));
   pruneRequestDrafts(active);
   if (!active.length) {
     root.innerHTML = '<p class="meta">暂无核心审批请求。</p>';
