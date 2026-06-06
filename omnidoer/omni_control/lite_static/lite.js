@@ -10,6 +10,7 @@ let pendingChatPayload = null;
 let chatRenderFrame = 0;
 const renderedMessageNodes = new Map();
 let renderedTerminalTail = "";
+let renderedLiveTerminalKey = "";
 let selectedFiles = [];
 
 function setStatus(text) {
@@ -258,6 +259,24 @@ function messageKey(message) {
   return message.message_id || message.client_message_id || `${message.role}_${message.sequence}`;
 }
 
+function liveTerminalMessage(chat = {}) {
+  const terminal = chat.terminal || {};
+  const text = String(terminal.text || "").trim();
+  if (!text || !terminal.active) return null;
+  const paneId = terminal.pane_id || "terminal";
+  const tail = text.split("\n").slice(-48).join("\n").trim();
+  if (!tail) return null;
+  return {
+    message_id: `live_terminal_${paneId}`,
+    sequence: Number.MAX_SAFE_INTEGER,
+    role: "assistant",
+    status: "实时",
+    text: tail,
+    attachments: [],
+    updated_at: Date.now() / 1000
+  };
+}
+
 function createMessageNode(message) {
   const item = document.createElement("article");
   const meta = document.createElement("div");
@@ -325,8 +344,10 @@ function renderAttachmentList(root, attachments = []) {
 
 function renderChatNow(chat = {}) {
   const root = $("#messages");
-  const messages = (chat.messages || []).filter((message) => !String(message.client_message_id || "").startsWith("omnidoer_auto_status_"));
-  const fp = JSON.stringify([messages.length, messages.at(-1)?.message_id, messages.at(-1)?.updated_at, chat.terminal?.text?.slice(-160)]);
+  const storedMessages = (chat.messages || []).filter((message) => !String(message.client_message_id || "").startsWith("omnidoer_auto_status_"));
+  const terminalMessage = liveTerminalMessage(chat);
+  const messages = terminalMessage ? [...storedMessages, terminalMessage] : storedMessages;
+  const fp = JSON.stringify([messages.length, messages.at(-1)?.message_id, messages.at(-1)?.updated_at, terminalMessage?.text?.slice(-300)]);
   if (fp === lastFingerprint) return;
   lastFingerprint = fp;
   const stick = root.scrollHeight - root.scrollTop - root.clientHeight < 80;
@@ -352,18 +373,9 @@ function renderChatNow(chat = {}) {
   });
   root.append(fragment);
   const terminal = $("#terminal");
-  if (chat.terminal?.text) {
-    const terminalTail = chat.terminal.text.slice(-5000);
-    terminal.hidden = false;
-    if (terminalTail !== renderedTerminalTail) {
-      terminal.textContent = terminalTail;
-      renderedTerminalTail = terminalTail;
-    }
-    terminal.scrollTop = terminal.scrollHeight;
-  } else {
-    terminal.hidden = true;
-    renderedTerminalTail = "";
-  }
+  terminal.hidden = true;
+  terminal.textContent = "";
+  renderedTerminalTail = "";
   if (stick) root.scrollTop = root.scrollHeight;
 }
 
@@ -400,7 +412,7 @@ function applyChatPayload(payload) {
 
 async function streamChatOnce(signal) {
   const response = await signedFetch(
-    `/api/chat/events?stream=1&snapshots=1200&interval=0.5&compact=1&limit=24&session_id=${encodeURIComponent(activeSessionId)}`,
+    `/api/chat/events?stream=1&snapshots=1800&interval=0.18&compact=1&limit=24&session_id=${encodeURIComponent(activeSessionId)}`,
     { cache: "no-store", timeoutMs: 600000, signal }
   );
   if (!response.ok || !response.body) throw new Error("chat stream unavailable");
@@ -517,6 +529,7 @@ $("#session-select").onchange = () => {
   renderedMessageNodes.clear();
   $("#messages").textContent = "";
   renderedTerminalTail = "";
+  renderedLiveTerminalKey = "";
   $("#terminal").hidden = true;
   loadState();
   startChatStream();

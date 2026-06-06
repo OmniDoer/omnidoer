@@ -159,6 +159,10 @@ textarea {
 }
 .message.user { align-self: flex-end; max-width: 92%; background: #f7fbff; }
 .message.assistant, .message.system { align-self: flex-start; max-width: 96%; }
+.message.assistant {
+  border-color: #b7eef6;
+  box-shadow: inset 4px 0 0 rgba(0, 168, 200, 0.45);
+}
 .message.pending {
   border-color: #c4b5fd;
   background: #faf5ff;

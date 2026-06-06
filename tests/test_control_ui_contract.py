@@ -44,6 +44,8 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("uploadChatAttachments", lite_app)
         self.assertIn("renderAttachmentList", lite_app)
         self.assertIn("streamChatOnce", lite_app)
+        self.assertIn("liveTerminalMessage", lite_app)
+        self.assertIn("interval=0.18", lite_app)
         self.assertIn("markReady", lite_app)
         self.assertIn(".boot-screen", lite_style)
         self.assertNotIn("takeover-panel", lite_html)
