@@ -48,6 +48,8 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("sortMessagesChronologically", lite_app)
         self.assertIn("filesFromClipboard", lite_app)
         self.assertIn('addEventListener("paste", handlePasteFiles)', lite_app)
+        self.assertIn("handleChatInputKeydown", lite_app)
+        self.assertIn('requestSubmit()', lite_app)
         self.assertIn("interval=0.18", lite_app)
         self.assertIn("markReady", lite_app)
         self.assertIn(".boot-screen", lite_style)

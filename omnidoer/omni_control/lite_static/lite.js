@@ -551,6 +551,12 @@ function handlePasteFiles(event) {
   setStatus("已添加附件");
 }
 
+function handleChatInputKeydown(event) {
+  if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+  event.preventDefault();
+  $("#chat-form").requestSubmit();
+}
+
 async function startChatStream() {
   if (streamAbort) streamAbort.abort();
   streamAbort = new AbortController();
@@ -580,6 +586,7 @@ $("#chat-files").onchange = () => {
   renderSelectedFiles();
 };
 $("#chat-input").addEventListener("paste", handlePasteFiles);
+$("#chat-input").addEventListener("keydown", handleChatInputKeydown);
 $("#messages").addEventListener("paste", handlePasteFiles);
 $("#messages").addEventListener("scroll", () => {
   const root = $("#messages");

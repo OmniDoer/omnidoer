@@ -274,7 +274,7 @@ def tmux_chat_terminal_snapshot(session_id: str | None, *, line_count: int = 80)
 
 def inject_text_into_tmux_pane(pane_id: str, text: str) -> None:
     buffer_name = f"omnidoer-control-{os.getpid()}"
-    payload = str(text or "").rstrip("\n") + "\n"
+    payload = str(text or "").rstrip("\n")
     subprocess.run(
         ["tmux", "load-buffer", "-b", buffer_name, "-"],
         input=payload,
@@ -284,7 +284,8 @@ def inject_text_into_tmux_pane(pane_id: str, text: str) -> None:
     )
     try:
         subprocess.run(["tmux", "paste-buffer", "-b", buffer_name, "-t", pane_id], check=True, timeout=5)
-        subprocess.run(["tmux", "send-keys", "-t", pane_id, "C-m"], check=True, timeout=5)
+        time.sleep(0.12)
+        subprocess.run(["tmux", "send-keys", "-t", pane_id, "Enter"], check=True, timeout=5)
     finally:
         subprocess.run(["tmux", "delete-buffer", "-b", buffer_name], check=False, timeout=5)
 

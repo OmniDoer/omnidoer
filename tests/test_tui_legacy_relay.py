@@ -40,7 +40,7 @@ class TuiLegacyRelayTest(unittest.TestCase):
             sessions = list_tmux_chat_sessions(limit=5)
         self.assertEqual([session["pane_id"] for session in sessions], ["%2", "%3"])
 
-    def test_inject_text_submits_with_double_carriage_return(self) -> None:
+    def test_inject_text_submits_with_keyboard_enter_after_paste(self) -> None:
         commands: list[list[str]] = []
         inputs: list[str | None] = []
 
@@ -55,9 +55,9 @@ class TuiLegacyRelayTest(unittest.TestCase):
             inject_text_into_tmux_pane("%1", "hello")
 
         self.assertEqual(commands[0][:4], ["tmux", "load-buffer", "-b", "omnidoer-control-123"])
-        self.assertEqual(inputs[0], "hello\n")
+        self.assertEqual(inputs[0], "hello")
         self.assertEqual(commands[1], ["tmux", "paste-buffer", "-b", "omnidoer-control-123", "-t", "%1"])
-        self.assertEqual(commands[2], ["tmux", "send-keys", "-t", "%1", "C-m"])
+        self.assertEqual(commands[2], ["tmux", "send-keys", "-t", "%1", "Enter"])
         self.assertEqual(commands[3], ["tmux", "delete-buffer", "-b", "omnidoer-control-123"])
 
     def test_finds_tmux_pane_for_live_tui_thread(self) -> None:
