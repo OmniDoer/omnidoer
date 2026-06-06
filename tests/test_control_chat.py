@@ -1002,6 +1002,13 @@ class ControlChatApiTest(unittest.TestCase):
                 self.assertIn("size: 7 bytes", message["text"])
                 self.assertEqual(message["attachments"][0]["filename"], "demo.png")
 
+                with urllib_request.urlopen(
+                    f"{base}/api/chat/attachments/{attachment['upload_id']}/{attachment['filename']}",
+                    timeout=5,
+                ) as response:
+                    self.assertEqual(response.status, 200)
+                    self.assertEqual(response.read(), b"PNGDATA")
+
                 bad = urllib_request.Request(
                     f"{base}/api/chat/messages",
                     data=json.dumps(

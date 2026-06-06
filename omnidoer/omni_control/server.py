@@ -5,6 +5,7 @@ from __future__ import annotations
 from email import policy
 from email.parser import BytesParser
 import json
+import mimetypes
 import re
 import socket
 import ssl
@@ -2151,6 +2152,35 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 self._send_json(HTTPStatus.NOT_FOUND, {"error": "request not found"})
             except PermissionError:
                 self._send_json(HTTPStatus.FORBIDDEN, {"error": "forbidden"})
+            return
+        if path.startswith("/api/chat/attachments/"):
+            try:
+                self._require_access()
+                upload_id = parts[3] if len(parts) >= 4 else ""
+                if not re.fullmatch(r"upl_[A-Fa-f0-9]{32}", upload_id):
+                    raise FileNotFoundError("attachment not found")
+                upload_store = ChatUploadStore()
+                upload_store.cleanup_expired(ttl_seconds=self._chat_upload_ttl_seconds())
+                matches = list(upload_store.directory.glob(f"{upload_id}_*"))
+                if not matches:
+                    raise FileNotFoundError("attachment not found")
+                file_path = matches[0].resolve()
+                file_path.relative_to(upload_store.directory.resolve())
+                if not file_path.is_file():
+                    raise FileNotFoundError("attachment not found")
+                filename = file_path.name.removeprefix(f"{upload_id}_")
+                data = file_path.read_bytes()
+                self.send_response(HTTPStatus.OK)
+                self.send_header("content-type", mimetypes.guess_type(filename)[0] or "application/octet-stream")
+                self.send_header("content-disposition", f'inline; filename="{filename.replace(chr(34), "_")}"')
+                self.send_header("cache-control", "private, max-age=60")
+                self.send_header("content-length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+            except PermissionError:
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+            except Exception:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "attachment not found"})
             return
         super().do_GET()
 

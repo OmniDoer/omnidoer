@@ -10,6 +10,7 @@ let pendingChatPayload = null;
 let chatRenderFrame = 0;
 const renderedMessageNodes = new Map();
 let renderedTerminalTail = "";
+let selectedFiles = [];
 
 function setStatus(text) {
   $("#status").textContent = text;
@@ -261,9 +262,11 @@ function createMessageNode(message) {
   const item = document.createElement("article");
   const meta = document.createElement("div");
   const text = document.createElement("div");
+  const attachments = document.createElement("div");
   meta.className = "meta";
   text.className = "text";
-  item.append(meta, text);
+  attachments.className = "attachment-list";
+  item.append(meta, text, attachments);
   updateMessageNode(item, message);
   return item;
 }
@@ -273,11 +276,51 @@ function updateMessageNode(item, message) {
   const className = `message ${message.role || ""} ${pending ? "pending" : ""}`;
   if (item.className !== className) item.className = className;
   const meta = item.firstChild;
-  const text = item.lastChild;
+  const text = item.children[1];
+  const attachments = item.children[2];
   const metaText = `${message.role === "user" ? "你" : "OmniDoer"} · ${message.status || ""}`;
   if (meta.textContent !== metaText) meta.textContent = metaText;
-  const body = message.text || "";
+  const rawBody = message.text || "";
+  const body = (message.attachments || []).length
+    ? (rawBody.replace(/\n\n\[Attachments\][\s\S]*$/m, "").trim() || "附件")
+    : rawBody;
   if (text.textContent !== body) text.textContent = body;
+  renderAttachmentList(attachments, message.attachments || []);
+}
+
+function attachmentUrl(attachment) {
+  const uploadId = encodeURIComponent(attachment.upload_id || "");
+  const filename = encodeURIComponent(attachment.filename || "download");
+  return `/api/chat/attachments/${uploadId}/${filename}`;
+}
+
+function renderAttachmentList(root, attachments = []) {
+  const fp = JSON.stringify(attachments.map((item) => [item.upload_id, item.filename, item.size, item.content_type]));
+  if (root.dataset.fp === fp) return;
+  root.dataset.fp = fp;
+  root.textContent = "";
+  root.hidden = !attachments.length;
+  attachments.forEach((attachment) => {
+    const item = document.createElement("div");
+    const link = document.createElement("a");
+    const meta = document.createElement("span");
+    const url = attachmentUrl(attachment);
+    item.className = "attachment";
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = attachment.filename || "download";
+    meta.className = "meta";
+    meta.textContent = `${Math.ceil(Number(attachment.size || 0) / 1024)} KB${attachment.expires_at ? " · 临时文件" : ""}`;
+    if (String(attachment.content_type || "").startsWith("image/")) {
+      const image = document.createElement("img");
+      image.src = url;
+      image.alt = attachment.filename || "";
+      item.append(image);
+    }
+    item.append(link, meta);
+    root.append(item);
+  });
 }
 
 function renderChatNow(chat = {}) {
@@ -398,14 +441,45 @@ async function sendMessage(event) {
   event.preventDefault();
   const input = $("#chat-input");
   const text = input.value.trim();
-  if (!text) return;
+  const files = selectedFiles;
+  if (!text && !files.length) return;
+  const clientMessageId = `lite_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   input.value = "";
+  selectedFiles = [];
+  $("#chat-files").value = "";
+  renderSelectedFiles();
+  let attachments = [];
+  if (files.length) {
+    setStatus("上传中");
+    attachments = await uploadChatAttachments(files);
+  }
   await signedFetch("/api/chat/messages", {
     method: "POST",
     headers: { "content-type": "application/json", ...csrfHeaders() },
-    body: JSON.stringify({ text, session_id: activeSessionId, client_message_id: `lite_${Date.now()}_${Math.random().toString(16).slice(2)}` })
+    body: JSON.stringify({ text, attachments, session_id: activeSessionId, client_message_id: clientMessageId })
   });
+  setStatus("已发送");
   await loadState();
+}
+
+async function uploadChatAttachments(files) {
+  if (!files.length) return [];
+  const form = new FormData();
+  files.forEach((file) => form.append("files", file, file.name));
+  const response = await signedFetch("/api/chat/attachments", {
+    method: "POST",
+    headers: csrfHeaders(),
+    body: form
+  });
+  if (!response.ok) throw new Error("upload failed");
+  const payload = await response.json();
+  return payload.attachments || [];
+}
+
+function renderSelectedFiles() {
+  const root = $("#selected-files");
+  root.hidden = !selectedFiles.length;
+  root.textContent = selectedFiles.map((file) => `${file.name} (${Math.ceil(file.size / 1024)} KB)`).join(" · ");
 }
 
 async function startChatStream() {
@@ -432,6 +506,10 @@ function sleep(ms) {
 $("#pair-button").onclick = pair;
 $("#refresh-button").onclick = loadState;
 $("#chat-form").onsubmit = sendMessage;
+$("#chat-files").onchange = () => {
+  selectedFiles = Array.from($("#chat-files").files || []);
+  renderSelectedFiles();
+};
 $("#session-select").onchange = () => {
   activeSessionId = $("#session-select").value || "default";
   localStorage.setItem("omnidoer_lite_active_session", activeSessionId);

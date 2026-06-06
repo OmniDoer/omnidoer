@@ -52,8 +52,13 @@
       <pre id="terminal" class="terminal" hidden></pre>
       <form id="chat-form" class="composer">
         <textarea id="chat-input" rows="1" placeholder="发送给 OmniDoer"></textarea>
+        <label class="attach-button" title="添加文件">
+          <input id="chat-files" type="file" multiple accept="image/*,.pdf,.txt,.md,.json,.zip,.log">
+          <span>+</span>
+        </label>
         <button id="send-button" type="submit">发送</button>
       </form>
+      <div id="selected-files" class="selected-files" hidden></div>
     </section>
   </main>
   <script src="/lite.js?v=20260606-lite2"></script>

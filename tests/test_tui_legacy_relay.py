@@ -42,9 +42,11 @@ class TuiLegacyRelayTest(unittest.TestCase):
 
     def test_inject_text_submits_with_double_carriage_return(self) -> None:
         commands: list[list[str]] = []
+        inputs: list[str | None] = []
 
         def fake_run(command, **_kwargs):
             commands.append(command)
+            inputs.append(_kwargs.get("input"))
 
         with patch("omnidoer.omni_control.tui_legacy_relay.os.getpid", return_value=123), patch(
             "omnidoer.omni_control.tui_legacy_relay.subprocess.run",
@@ -53,10 +55,10 @@ class TuiLegacyRelayTest(unittest.TestCase):
             inject_text_into_tmux_pane("%1", "hello")
 
         self.assertEqual(commands[0][:4], ["tmux", "load-buffer", "-b", "omnidoer-control-123"])
+        self.assertEqual(inputs[0], "hello\n")
         self.assertEqual(commands[1], ["tmux", "paste-buffer", "-b", "omnidoer-control-123", "-t", "%1"])
         self.assertEqual(commands[2], ["tmux", "send-keys", "-t", "%1", "C-m"])
-        self.assertEqual(commands[3], ["tmux", "send-keys", "-t", "%1", "C-m"])
-        self.assertEqual(commands[4], ["tmux", "delete-buffer", "-b", "omnidoer-control-123"])
+        self.assertEqual(commands[3], ["tmux", "delete-buffer", "-b", "omnidoer-control-123"])
 
     def test_finds_tmux_pane_for_live_tui_thread(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
