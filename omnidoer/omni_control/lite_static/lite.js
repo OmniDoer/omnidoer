@@ -15,6 +15,10 @@ function setStatus(text) {
   $("#status").textContent = text;
 }
 
+function markReady() {
+  document.body.classList.add("ready");
+}
+
 function b64url(bytes) {
   return btoa(String.fromCharCode(...new Uint8Array(bytes))).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 }
@@ -441,6 +445,9 @@ $("#session-select").onchange = () => {
 };
 
 loadState().finally(() => {
+  markReady();
   startStateLoop();
   startChatStream();
 });
+
+setTimeout(markReady, 1800);

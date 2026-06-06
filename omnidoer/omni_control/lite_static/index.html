@@ -3,12 +3,25 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07111f">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="OmniDoer Lite">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="/manifest.json?v=20260606-lite2">
+  <link rel="icon" href="/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="/icon-192.png">
   <title>OmniDoer Lite</title>
-  <link rel="stylesheet" href="/lite.css?v=20260606-lite1">
+  <link rel="stylesheet" href="/lite.css?v=20260606-lite2">
 </head>
 <body>
+  <div id="boot-screen" class="boot-screen" aria-hidden="true">
+    <img src="/icon-192.png" alt="" width="72" height="72">
+    <strong>OmniDoer Lite</strong>
+    <span>连接控制服务</span>
+  </div>
   <header class="topbar">
-    <div class="brand"><span class="mark">OD</span><strong>OmniDoer Lite</strong></div>
+    <div class="brand"><img src="/icon-192.png" alt="" width="32" height="32"><strong>OmniDoer Lite</strong></div>
     <div id="status" class="status">启动中</div>
   </header>
   <main>
@@ -43,6 +56,6 @@
       </form>
     </section>
   </main>
-  <script src="/lite.js?v=20260606-lite1"></script>
+  <script src="/lite.js?v=20260606-lite2"></script>
 </body>
 </html>
