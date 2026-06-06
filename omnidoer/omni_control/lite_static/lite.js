@@ -260,20 +260,55 @@ function messageKey(message) {
   return message.message_id || message.client_message_id || `${message.role}_${message.sequence}`;
 }
 
-function liveTerminalMessage(chat = {}) {
+function cleanedMessageText(message) {
+  const rawBody = message.text || "";
+  return (message.attachments || []).length
+    ? (rawBody.replace(/\n\n\[Attachments\][\s\S]*$/m, "").trim() || "附件")
+    : rawBody;
+}
+
+function messageSortValue(message) {
+  const sequence = Number(message.sequence);
+  if (Number.isFinite(sequence)) return sequence;
+  const timestamp = Number(message.created_at || message.updated_at || 0);
+  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp * 1000 : Number.MAX_SAFE_INTEGER;
+}
+
+function sortMessagesChronologically(messages = []) {
+  return [...messages].sort((a, b) => {
+    const sortA = messageSortValue(a);
+    const sortB = messageSortValue(b);
+    if (sortA !== sortB) return sortA - sortB;
+    return Number(a.created_at || 0) - Number(b.created_at || 0);
+  });
+}
+
+function liveTerminalMessage(chat = {}, storedMessages = []) {
   const terminal = chat.terminal || {};
-  const text = String(terminal.text || "").trim();
-  if (!text || !terminal.active) return null;
+  const terminalText = String(terminal.text || "");
+  if (!terminalText.trim() || !terminal.active) return null;
   const paneId = terminal.pane_id || "terminal";
-  const tail = text.split("\n").slice(-48).join("\n").trim();
+  const latestUser = [...storedMessages].reverse().find((message) => message.role === "user");
+  let liveText = terminalText;
+  if (latestUser) {
+    const anchor = cleanedMessageText(latestUser).trim();
+    const index = anchor ? terminalText.lastIndexOf(anchor) : -1;
+    if (index < 0) return null;
+    liveText = terminalText.slice(index + anchor.length);
+  } else if (storedMessages.length) {
+    return null;
+  }
+  const tail = liveText.split("\n").slice(-48).join("\n").trim();
   if (!tail) return null;
+  const baseSequence = Number(latestUser?.sequence);
   return {
     message_id: `live_terminal_${paneId}`,
-    sequence: Number.MAX_SAFE_INTEGER,
+    sequence: Number.isFinite(baseSequence) ? baseSequence + 0.5 : Number.MAX_SAFE_INTEGER,
     role: "assistant",
     status: "实时",
     text: tail,
     attachments: [],
+    created_at: Number(latestUser?.created_at || 0) + 0.001,
     updated_at: Date.now() / 1000
   };
 }
@@ -300,10 +335,7 @@ function updateMessageNode(item, message) {
   const attachments = item.children[2];
   const metaText = `${message.role === "user" ? "你" : "OmniDoer"} · ${message.status || ""}`;
   if (meta.textContent !== metaText) meta.textContent = metaText;
-  const rawBody = message.text || "";
-  const body = (message.attachments || []).length
-    ? (rawBody.replace(/\n\n\[Attachments\][\s\S]*$/m, "").trim() || "附件")
-    : rawBody;
+  const body = cleanedMessageText(message);
   if (text.textContent !== body) text.textContent = body;
   renderAttachmentList(attachments, message.attachments || []);
 }
@@ -345,9 +377,11 @@ function renderAttachmentList(root, attachments = []) {
 
 function renderChatNow(chat = {}) {
   const root = $("#messages");
-  const storedMessages = (chat.messages || []).filter((message) => !String(message.client_message_id || "").startsWith("omnidoer_auto_status_"));
-  const terminalMessage = liveTerminalMessage(chat);
-  const messages = terminalMessage ? [...storedMessages, terminalMessage] : storedMessages;
+  const storedMessages = sortMessagesChronologically(
+    (chat.messages || []).filter((message) => !String(message.client_message_id || "").startsWith("omnidoer_auto_status_"))
+  );
+  const terminalMessage = liveTerminalMessage(chat, storedMessages);
+  const messages = sortMessagesChronologically(terminalMessage ? [...storedMessages, terminalMessage] : storedMessages);
   const fp = JSON.stringify([messages.length, messages.at(-1)?.message_id, messages.at(-1)?.updated_at, terminalMessage?.text?.slice(-300)]);
   if (fp === lastFingerprint) return;
   lastFingerprint = fp;
@@ -496,6 +530,27 @@ function renderSelectedFiles() {
   root.textContent = selectedFiles.map((file) => `${file.name} (${Math.ceil(file.size / 1024)} KB)`).join(" · ");
 }
 
+function filesFromClipboard(event) {
+  const clipboard = event.clipboardData;
+  if (!clipboard) return [];
+  const files = Array.from(clipboard.files || []);
+  if (files.length) return files;
+  return Array.from(clipboard.items || [])
+    .filter((item) => item.kind === "file")
+    .map((item) => item.getAsFile())
+    .filter(Boolean)
+    .map((file, index) => file.name ? file : new File([file], `pasted-${Date.now()}-${index}.png`, { type: file.type || "image/png" }));
+}
+
+function handlePasteFiles(event) {
+  const files = filesFromClipboard(event);
+  if (!files.length) return;
+  event.preventDefault();
+  selectedFiles = [...selectedFiles, ...files];
+  renderSelectedFiles();
+  setStatus("已添加附件");
+}
+
 async function startChatStream() {
   if (streamAbort) streamAbort.abort();
   streamAbort = new AbortController();
@@ -524,6 +579,8 @@ $("#chat-files").onchange = () => {
   selectedFiles = Array.from($("#chat-files").files || []);
   renderSelectedFiles();
 };
+$("#chat-input").addEventListener("paste", handlePasteFiles);
+$("#messages").addEventListener("paste", handlePasteFiles);
 $("#messages").addEventListener("scroll", () => {
   const root = $("#messages");
   const nearBottom = root.scrollHeight - root.scrollTop - root.clientHeight < 80;
