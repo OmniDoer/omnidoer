@@ -12,6 +12,7 @@ const renderedMessageNodes = new Map();
 let renderedTerminalTail = "";
 let renderedLiveTerminalKey = "";
 let selectedFiles = [];
+let manualScrollPauseUntil = 0;
 
 function setStatus(text) {
   $("#status").textContent = text;
@@ -350,7 +351,8 @@ function renderChatNow(chat = {}) {
   const fp = JSON.stringify([messages.length, messages.at(-1)?.message_id, messages.at(-1)?.updated_at, terminalMessage?.text?.slice(-300)]);
   if (fp === lastFingerprint) return;
   lastFingerprint = fp;
-  const stick = root.scrollHeight - root.scrollTop - root.clientHeight < 80;
+  const nearBottom = root.scrollHeight - root.scrollTop - root.clientHeight < 80;
+  const stick = nearBottom && Date.now() > manualScrollPauseUntil;
   const visible = messages.slice(-24);
   const visibleKeys = new Set(visible.map(messageKey));
   Array.from(renderedMessageNodes.entries()).forEach(([key, node]) => {
@@ -522,6 +524,11 @@ $("#chat-files").onchange = () => {
   selectedFiles = Array.from($("#chat-files").files || []);
   renderSelectedFiles();
 };
+$("#messages").addEventListener("scroll", () => {
+  const root = $("#messages");
+  const nearBottom = root.scrollHeight - root.scrollTop - root.clientHeight < 80;
+  if (!nearBottom) manualScrollPauseUntil = Date.now() + 2200;
+}, { passive: true });
 $("#session-select").onchange = () => {
   activeSessionId = $("#session-select").value || "default";
   localStorage.setItem("omnidoer_lite_active_session", activeSessionId);

@@ -196,13 +196,19 @@ textarea {
   overflow-wrap: anywhere;
 }
 .chat-panel {
-  min-height: min(62vh, 720px);
+  height: calc(100dvh - 154px - env(safe-area-inset-bottom));
+  min-height: 360px;
+  max-height: 760px;
   display: grid;
   grid-template-rows: auto minmax(180px, 1fr) auto auto auto;
+  overflow: hidden;
 }
 .messages {
+  min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   padding-bottom: 4px;
 }
 .terminal {
@@ -243,5 +249,5 @@ textarea {
 [hidden] { display: none !important; }
 @media (min-width: 820px) {
   main { grid-template-columns: minmax(260px, 380px) minmax(360px, 1fr); align-items: start; }
-  .chat-panel { grid-column: 2; grid-row: 1 / span 2; min-height: calc(100vh - 92px); }
+  .chat-panel { grid-column: 2; grid-row: 1 / span 2; height: calc(100dvh - 92px); max-height: none; }
 }
