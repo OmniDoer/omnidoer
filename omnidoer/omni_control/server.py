@@ -1202,7 +1202,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
             raise PermissionError("envelope associated data mismatch")
         if envelope.get("device_id") != session.device_id:
             raise PermissionError("envelope device mismatch")
-        if float(envelope.get("expires_at", "nan")) != float(request.expires_at):
+        if abs(float(envelope.get("expires_at", "nan")) - float(request.expires_at)) > 0.001:
             raise PermissionError("envelope expiry mismatch")
 
     def _try_deliver_chat_to_live_console(self, message_id: str, *, session_id: str | None = None) -> dict:
@@ -2759,10 +2759,10 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 if agent_continue_result is not None:
                     payload["agent_continue"] = agent_continue_result
                 self._send_json(HTTPStatus.OK, payload)
-            except PermissionError:
-                self._send_json(HTTPStatus.FORBIDDEN, {"error": "forbidden"})
+            except PermissionError as exc:
+                self._send_json(HTTPStatus.FORBIDDEN, {"error": "forbidden", "reason": str(exc)})
             except Exception as exc:
-                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__, "reason": str(exc)})
             return
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "not found"})
 

@@ -127,15 +127,21 @@ function stableAssociatedData(request) {
 }
 
 async function encryptForBroker(payload, request) {
+  const requestForAad = {
+    ...request,
+    device_id: localStorage.getItem("omnidoer_device_id") || undefined,
+    expires_at: request.expires_at
+  };
   const broker = await signedFetch("/api/broker-key", { cache: "no-store" }).then((r) => r.json());
   const brokerKey = await crypto.subtle.importKey("jwk", broker.web_public_jwk, { name: "ECDH", namedCurve: "P-256" }, false, []);
   const ephemeral = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
   const sharedBits = await crypto.subtle.deriveBits({ name: "ECDH", public: brokerKey }, ephemeral.privateKey, 256);
   const baseKey = await crypto.subtle.importKey("raw", sharedBits, "HKDF", false, ["deriveKey"]);
-  const salt = await crypto.subtle.digest("SHA-256", stableAssociatedData(request));
+  const salt = await crypto.subtle.digest("SHA-256", stableAssociatedData(requestForAad));
   const key = await crypto.subtle.deriveKey({ name: "HKDF", hash: "SHA-256", salt, info: encoder.encode("omnidoer-control-web-v1") }, baseKey, { name: "AES-GCM", length: 256 }, false, ["encrypt"]);
   const nonce = crypto.getRandomValues(new Uint8Array(12));
-  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce, additionalData: stableAssociatedData(request) }, key, encoder.encode(JSON.stringify(payload)));
+  const aad = stableAssociatedData(requestForAad);
+  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce, additionalData: aad }, key, encoder.encode(JSON.stringify(payload)));
   return {
     version: "web-p256-v1",
     ephemeral_public_jwk: await crypto.subtle.exportKey("jwk", ephemeral.publicKey),
@@ -144,8 +150,8 @@ async function encryptForBroker(payload, request) {
     request_id: request.request_id,
     origin: request.origin,
     request_type: request.request_type,
-    device_id: localStorage.getItem("omnidoer_device_id") || undefined,
-    expires_at: request.expires_at
+    device_id: requestForAad.device_id,
+    expires_at: requestForAad.expires_at
   };
 }
 
@@ -230,8 +236,14 @@ function renderRequests(requests = []) {
           method: "POST",
           headers: { "content-type": "application/json", ...csrfHeaders() },
           body: JSON.stringify({ envelope })
+        }).then(async (response) => {
+          if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.reason || error.error || "submit_failed");
+          }
         });
         secretFields(request).forEach((field) => requestDrafts.delete(requestDraftKey(request, field)));
+        setStatus("已提交保险柜");
         await loadState();
       });
       actions.append(submit);
@@ -252,7 +264,13 @@ function button(text, onClick, className = "") {
   if (className) node.className = className;
   node.onclick = async () => {
     node.disabled = true;
-    try { await onClick(); } finally { node.disabled = false; }
+    try {
+      await onClick();
+    } catch (error) {
+      setStatus(error?.message || "操作失败");
+    } finally {
+      node.disabled = false;
+    }
   };
   return node;
 }

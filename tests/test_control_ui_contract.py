@@ -43,6 +43,8 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("/api/chat/attachments", lite_app)
         self.assertIn("uploadChatAttachments", lite_app)
         self.assertIn("renderAttachmentList", lite_app)
+        self.assertIn("requestForAad", lite_app)
+        self.assertIn("throw new Error(error.reason || error.error || \"submit_failed\")", lite_app)
         self.assertIn("streamChatOnce", lite_app)
         self.assertIn("liveTerminalMessage", lite_app)
         self.assertIn("sortMessagesChronologically", lite_app)
