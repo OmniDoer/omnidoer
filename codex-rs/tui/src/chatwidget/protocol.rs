@@ -6,12 +6,15 @@ impl ChatWidget {
         notification: ServerNotification,
         replay_kind: Option<ReplayKind>,
     ) {
-        if self.active_side_conversation
-            && replay_kind.is_none()
-            && matches!(notification, ServerNotification::McpServerStatusUpdated(_))
+        // Reject misrouted child updates before shared notification handling mutates parent state.
+        if let ServerNotification::McpServerStatusUpdated(notification) = &notification
+            && let (Some(notification_thread_id), Some(thread_id)) =
+                (notification.thread_id.as_deref(), self.thread_id())
+            && notification_thread_id != thread_id.to_string()
         {
             return;
         }
+
         let from_replay = replay_kind.is_some();
         if !from_replay {
             crate::omnidoer_chat_bridge::publish_server_notification(&notification);
@@ -336,6 +339,7 @@ impl ChatWidget {
                 reasoning_effort,
                 agents_states,
             }),
+            item @ ThreadItem::SubAgentActivity { .. } => self.on_sub_agent_activity(item),
             ThreadItem::EnteredReviewMode { review, .. } if !from_replay => {
                 self.enter_review_mode_with_hint(review, /*from_replay*/ false);
             }

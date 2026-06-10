@@ -37,8 +37,8 @@ use crate::tools::handlers::multi_agents_common::MAX_WAIT_TIMEOUT_MS;
 use crate::tools::handlers::multi_agents_common::MIN_WAIT_TIMEOUT_MS;
 use crate::tools::handlers::multi_agents_spec::SpawnAgentToolOptions;
 use crate::tools::handlers::multi_agents_spec::WaitAgentTimeoutOptions;
-use crate::tools::handlers::multi_agents_v2::CloseAgentHandler as CloseAgentHandlerV2;
 use crate::tools::handlers::multi_agents_v2::FollowupTaskHandler as FollowupTaskHandlerV2;
+use crate::tools::handlers::multi_agents_v2::InterruptAgentHandler;
 use crate::tools::handlers::multi_agents_v2::ListAgentsHandler as ListAgentsHandlerV2;
 use crate::tools::handlers::multi_agents_v2::SendMessageHandler as SendMessageHandlerV2;
 use crate::tools::handlers::multi_agents_v2::SpawnAgentHandler as SpawnAgentHandlerV2;
@@ -86,6 +86,7 @@ use codex_tools::shell_type_for_model_and_features;
 use std::collections::BTreeMap;
 use std::collections::HashSet;
 use std::sync::Arc;
+use tracing::instrument;
 use tracing::warn;
 
 const MULTI_AGENT_V2_NAMESPACE_DESCRIPTION: &str = "Tools for spawning and managing sub-agents.";
@@ -148,6 +149,7 @@ struct CoreToolPlanContext<'a> {
     wait_agent_timeouts: WaitAgentTimeoutOptions,
 }
 
+#[instrument(level = "trace", skip_all)]
 pub(crate) fn build_tool_router(
     turn_context: &TurnContext,
     params: ToolRouterParams<'_>,
@@ -156,6 +158,7 @@ pub(crate) fn build_tool_router(
     ToolRouter::from_parts(registry, model_visible_specs)
 }
 
+#[instrument(level = "trace", skip_all)]
 fn build_tool_specs_and_registry(
     turn_context: &TurnContext,
     params: ToolRouterParams<'_>,
@@ -186,6 +189,7 @@ fn build_tool_specs_and_registry(
     build_model_visible_specs_and_registry(turn_context, planned_tools)
 }
 
+#[instrument(level = "trace", skip_all)]
 fn build_model_visible_specs_and_registry(
     turn_context: &TurnContext,
     planned_tools: PlannedTools,
@@ -557,6 +561,7 @@ fn code_mode_namespace_descriptions(
     namespace_descriptions
 }
 
+#[instrument(level = "trace", skip_all)]
 fn add_tool_sources(context: &CoreToolPlanContext<'_>, planned_tools: &mut PlannedTools) {
     add_shell_tools(context, planned_tools);
     add_mcp_resource_tools(context, planned_tools);
@@ -742,7 +747,7 @@ fn add_collaboration_tools(context: &CoreToolPlanContext<'_>, planned_tools: &mu
                 exposure,
             ));
             planned_tools.add_arc(override_tool_exposure(
-                multi_agent_v2_handler(CloseAgentHandlerV2, tool_namespace),
+                multi_agent_v2_handler(InterruptAgentHandler, tool_namespace),
                 exposure,
             ));
             planned_tools.add_arc(override_tool_exposure(
@@ -837,6 +842,7 @@ fn add_extension_tools(context: &CoreToolPlanContext<'_>, planned_tools: &mut Pl
     );
 }
 
+#[instrument(level = "trace", skip_all)]
 fn append_tool_search_executor(
     context: &CoreToolPlanContext<'_>,
     planned_tools: &mut PlannedTools,

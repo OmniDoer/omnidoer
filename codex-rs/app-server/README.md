@@ -130,7 +130,7 @@ Example with notification opt-out:
 
 ## API Overview
 
-- `thread/start` — create a new thread; emits `thread/started` (including the current `thread.status`) and auto-subscribes you to turn/item events for that thread. When the request includes a `cwd` and the resolved sandbox is `workspace-write` or full access, app-server also marks that project as trusted in the user `config.toml`. Pass `sessionStartSource: "clear"` when starting a replacement thread after clearing the current session so `SessionStart` hooks receive `source: "clear"` instead of the default `"startup"`. Experimental `runtimeWorkspaceRoots` replaces the thread-scoped runtime workspace roots used to materialize `:workspace_roots`; paths must be absolute. For permissions, prefer experimental `permissions` profile selection by id; the legacy `sandbox` shorthand is still accepted but cannot be combined with `permissions`. Experimental `environments` selects the sticky execution environments for turns on the thread; omit it to use the server default, pass `[]` to disable environments, or pass explicit environment ids with per-environment `cwd`.
+- `thread/start` — create a new thread; emits `thread/started` (including the current `thread.status`) and auto-subscribes you to turn/item events for that thread. When the request includes a `cwd` and the resolved sandbox is `workspace-write` or full access, app-server also marks that project as trusted in the user `config.toml`. Pass `sessionStartSource: "clear"` when starting a replacement thread after clearing the current session so `SessionStart` hooks receive `source: "clear"` instead of the default `"startup"`. Experimental `runtimeWorkspaceRoots` replaces the thread-scoped runtime workspace roots used to materialize `:workspace_roots`; paths must be absolute. For permissions, prefer experimental `permissions` profile selection by id; the legacy `sandbox` shorthand is still accepted but cannot be combined with `permissions`. Experimental `environments` selects the sticky execution environments for turns on the thread; omit it to use the server default, pass `[]` to disable environments, or pass explicit environment ids with per-environment `cwd`. Experimental `selectedCapabilityRoots` selects environment-owned plugin or standalone-skill roots. Skills found below those roots are listed and read through the owning environment; other plugin capabilities are not activated yet.
 - `thread/resume` — reopen an existing thread by id so subsequent `turn/start` calls append to it. Accepts the same permission override rules as `thread/start`.
 - `thread/fork` — fork an existing thread into a new thread id by copying the stored history; if the source thread is currently mid-turn, the fork records the same interruption marker as `turn/interrupt` instead of inheriting an unmarked partial turn suffix. The returned `thread.forkedFromId` points at the source thread when known. Accepts `ephemeral: true` for an in-memory temporary fork, emits `thread/started` (including the current `thread.status`), and auto-subscribes you to turn/item events for the new thread. Experimental clients can pass `excludeTurns: true` when they plan to page fork history via `thread/turns/list` instead of receiving the full turn array immediately. Accepts the same permission override rules as `thread/start`.
 - `thread/start`, `thread/resume`, and `thread/fork` responses include the legacy `sandbox` compatibility projection. Experimental clients can read `runtimeWorkspaceRoots` for the thread-scoped runtime roots and `activePermissionProfile` for the named or implicit built-in profile identity/provenance when known.
@@ -162,7 +162,7 @@ Example with notification opt-out:
 - `thread/inject_items` — append raw Responses API items to a loaded thread’s model-visible history without starting a user turn; returns `{}` on success.
 - `turn/steer` — add user input to an already in-flight regular turn without starting a new turn; returns the active `turnId` that accepted the input. `clientUserMessageId` is optional; when supplied, the corresponding `userMessage` item echoes it as `clientId`. Review and manual compaction turns reject `turn/steer`.
 - `turn/interrupt` — request cancellation of an in-flight turn by `(thread_id, turn_id)`; success is an empty `{}` response and the turn finishes with `status: "interrupted"`.
-- `thread/realtime/start` — start a thread-scoped realtime session (experimental); pass `outputModality: "text"` or `outputModality: "audio"` to choose model output, returns `{}` and streams `thread/realtime/*` notifications. Omit `transport` for the websocket transport, or pass `{ "type": "webrtc", "sdp": "..." }` to create a WebRTC session from a browser-generated SDP offer; the remote answer SDP is emitted as `thread/realtime/sdp`.
+- `thread/realtime/start` — start a thread-scoped realtime session (experimental); pass `outputModality: "text"` or `outputModality: "audio"` to choose model output, and optionally pass `model` and `version` to override configured realtime selection for this session only. Returns `{}` and streams `thread/realtime/*` notifications. Omit `transport` for the websocket transport, or pass `{ "type": "webrtc", "sdp": "..." }` to create a WebRTC session from a browser-generated SDP offer; the remote answer SDP is emitted as `thread/realtime/sdp`.
 - `thread/realtime/appendAudio` — append an input audio chunk to the active realtime session (experimental); returns `{}`.
 - `thread/realtime/appendText` — append text input to the active realtime session (experimental); returns `{}`.
 - `thread/realtime/stop` — stop the active realtime session for the thread (experimental); returns `{}`.
@@ -249,6 +249,18 @@ Start a fresh thread when you need a new Codex conversation.
     // "permissions": ":workspace"
     // Experimental runtime roots for :workspace_roots materialization:
     // "runtimeWorkspaceRoots": ["/Users/me/project", "/Users/me/openai"],
+    // Experimental capability roots selected by the hosting platform:
+    "selectedCapabilityRoots": [
+        {
+            "id": "github@openai",
+            "location": {
+                "type": "environment",
+                "environmentId": "workspace",
+                // Opaque to app-server; interpreted in the selected environment.
+                "path": "/opt/cca/plugins/github"
+            }
+        }
+    ],
     // Do not send both "sandbox" and "permissions".
     "personality": "friendly",
     "serviceName": "my_app_server_client", // optional metrics tag (`service_name`)
@@ -825,6 +837,8 @@ Then send `offer.sdp` to app-server. Core uses `experimental_realtime_ws_backend
 
 Omit `prompt` to use Codex's default realtime backend prompt. Send `prompt: null` or
 `prompt: ""` when the session should start without that default backend prompt.
+Clients may also pass `model` and `version` on `thread/realtime/start` to select a
+different realtime session configuration without changing thread or user config.
 
 ```javascript
 await pc.setRemoteDescription({
@@ -1233,7 +1247,7 @@ Because audio is intentionally separate from `ThreadItem`, clients can opt out o
 
 ### MCP server startup events
 
-- `mcpServer/startupStatus/updated` — `{ name, status, error }` when app-server observes an MCP server startup transition. `status` is one of `starting`, `ready`, `failed`, or `cancelled`. `error` is `null` except for `failed`.
+- `mcpServer/startupStatus/updated` — `{ threadId, name, status, error }` when app-server observes an MCP server startup transition. `threadId` identifies the owning thread when startup is thread-scoped and is `null` when startup is app-scoped. `status` is one of `starting`, `ready`, `failed`, or `cancelled`. `error` is `null` except for `failed`.
 
 ### Turn events
 
@@ -1785,7 +1799,7 @@ Codex supports these authentication modes. The current mode is surfaced in `acco
 - `account/rateLimits/updated` (notify) — emitted whenever a user's ChatGPT rate limits change. This is a sparse rolling update; merge available values into the most recent `account/rateLimits/read` response or refetch that snapshot.
 - `account/sendAddCreditsNudgeEmail` — ask ChatGPT to email the workspace owner about depleted credits or a reached usage limit.
 - `mcpServer/oauthLogin/completed` (notify) — emitted after a `mcpServer/oauth/login` flow finishes for a server; payload includes `{ name, success, error? }`.
-- `mcpServer/startupStatus/updated` (notify) — emitted when a configured MCP server's startup status changes for a loaded thread; payload includes `{ name, status, error }` where `status` is `starting`, `ready`, `failed`, or `cancelled`.
+- `mcpServer/startupStatus/updated` (notify) — emitted when a configured MCP server's startup status changes; payload includes `{ threadId, name, status, error }`, where `threadId` is the owning thread when startup is thread-scoped and `null` when it is app-scoped, and `status` is `starting`, `ready`, `failed`, or `cancelled`.
 
 ### 1) Check auth state
 
