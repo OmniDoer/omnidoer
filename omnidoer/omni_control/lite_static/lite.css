@@ -1,19 +1,20 @@
 :root {
   color-scheme: light;
-  --bg: #eef7fb;
-  --panel: rgba(255, 255, 255, 0.92);
+  --bg: #f5f7fa;
+  --panel: #ffffff;
   --ink: #07111f;
   --muted: #586475;
   --line: #d8e5ee;
-  --accent: #00a8c8;
-  --accent-2: #7c3aed;
+  --accent: #0f7b85;
+  --accent-2: #365dd8;
   --danger: #dc2626;
+  --terminal: #081018;
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 body {
   margin: 0;
-  background: linear-gradient(180deg, #dff8ff 0, #f8fbff 210px, var(--bg) 100%);
+  background: var(--bg);
   color: var(--ink);
   font: 16px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   min-height: 100dvh;
@@ -87,13 +88,13 @@ body.ready .boot-screen {
 main {
   display: grid;
   gap: 10px;
-  padding: 0 10px calc(10px + env(safe-area-inset-bottom));
+  padding: 0 10px calc(72px + env(safe-area-inset-bottom));
 }
 .panel {
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--panel);
-  box-shadow: 0 12px 32px rgba(15, 35, 55, 0.08);
+  box-shadow: 0 8px 24px rgba(15, 35, 55, 0.06);
   padding: 12px;
 }
 h1, h2, p { margin: 0; }
@@ -123,6 +124,10 @@ button {
 button.secondary { background: #f8fafc; color: var(--ink); }
 button.danger { background: #fff1f2; color: var(--danger); border-color: #fecdd3; }
 input, select { min-height: 40px; padding: 0 10px; min-width: 0; }
+.search-input {
+  width: 100%;
+  margin-top: 10px;
+}
 textarea {
   resize: none;
   min-height: 46px;
@@ -130,17 +135,68 @@ textarea {
   padding: 10px 11px;
 }
 #pair-code { flex: 1; letter-spacing: 0.15em; font-weight: 750; }
-.request-list, .messages {
+.request-list, .messages, .credential-list, .file-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
   margin-top: 10px;
 }
-.request, .message {
+.request, .message, .credential, .file-item {
   border: 1px solid var(--line);
   border-radius: 9px;
   background: #fff;
   padding: 9px;
+}
+.compact {
+  gap: 6px;
+  margin-top: 8px;
+}
+.password-row { margin-top: 8px; }
+.password-row input { flex: 1; }
+.credential {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 10px;
+  align-items: center;
+}
+.credential strong, .file-item strong {
+  overflow-wrap: anywhere;
+}
+.credential .meta { grid-column: 1; }
+.credential .actions {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  margin-top: 0;
+  justify-content: flex-end;
+}
+.credential-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+.credential-form input { width: 100%; }
+.file-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  text-align: left;
+}
+.file-item button {
+  min-height: 32px;
+  padding: 0 9px;
+}
+.files-panel textarea {
+  width: 100%;
+  min-height: 220px;
+  margin-top: 10px;
+  font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, "Microsoft YaHei UI", monospace;
+}
+.file-path-row {
+  margin-top: 8px;
+}
+.file-path-row input {
+  flex: 1;
 }
 .request[data-risk="high"], .request[data-risk="critical"] { border-color: #fecaca; }
 .meta { color: var(--muted); font-size: 0.78rem; }
@@ -157,18 +213,24 @@ textarea {
 .field input {
   width: 100%;
 }
-.message.user { align-self: flex-end; max-width: 92%; background: #f7fbff; }
-.message.assistant, .message.system { align-self: flex-start; max-width: 96%; }
+.message.user { align-self: stretch; max-width: none; background: #0e1b26; color: #f2fbff; border-color: #203342; }
+.message.assistant, .message.system { align-self: stretch; max-width: none; }
 .message.assistant {
-  border-color: #b7eef6;
-  box-shadow: inset 4px 0 0 rgba(0, 168, 200, 0.45);
+  border-color: #203342;
+  background: #081018;
+  color: #d7fbff;
+  box-shadow: inset 3px 0 0 rgba(64, 211, 224, 0.65);
 }
 .message.pending {
   border-color: #c4b5fd;
   background: #faf5ff;
   box-shadow: inset 4px 0 0 var(--accent-2);
 }
-.message .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.message .text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, "Microsoft YaHei UI", monospace;
+}
 .attachment-list {
   display: grid;
   gap: 6px;
@@ -196,12 +258,21 @@ textarea {
   overflow-wrap: anywhere;
 }
 .chat-panel {
-  height: calc(100dvh - 154px - env(safe-area-inset-bottom));
+  height: calc(100dvh - 112px - env(safe-area-inset-bottom));
   min-height: 360px;
   max-height: 760px;
   display: grid;
   grid-template-rows: auto minmax(180px, 1fr) auto auto auto;
   overflow: hidden;
+  background: var(--terminal);
+  border-color: #1e3544;
+  color: #e9fbff;
+}
+.terminal-head h2 { color: #d7fbff; }
+.terminal-head select {
+  background: #0e1b26;
+  border-color: #203342;
+  color: #d7fbff;
 }
 .messages {
   min-height: 0;
@@ -217,7 +288,7 @@ textarea {
   overflow: auto;
   border: 1px solid #17313b;
   border-radius: 9px;
-  background: #07111f;
+  background: var(--terminal);
   color: #d7fbff;
   padding: 9px;
   font: 12px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -227,6 +298,12 @@ textarea {
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
   margin-top: 9px;
+}
+.composer textarea {
+  background: #0e1b26;
+  border-color: #203342;
+  color: #f2fbff;
+  font: 15px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, "Microsoft YaHei UI", monospace;
 }
 .attach-button {
   width: 40px;
@@ -239,6 +316,30 @@ textarea {
   color: var(--ink);
   font-weight: 850;
 }
+.tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 8;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(7, 17, 31, 0.1);
+  background: rgba(255, 255, 255, 0.93);
+  backdrop-filter: blur(16px);
+}
+.tabbar button {
+  min-height: 42px;
+  background: transparent;
+  color: var(--muted);
+  border-color: transparent;
+}
+.tabbar button.active {
+  background: #07111f;
+  color: #fff;
+}
 .attach-button input { display: none; }
 .selected-files {
   margin-top: 7px;
@@ -248,6 +349,12 @@ textarea {
 }
 [hidden] { display: none !important; }
 @media (min-width: 820px) {
-  main { grid-template-columns: minmax(260px, 380px) minmax(360px, 1fr); align-items: start; }
-  .chat-panel { grid-column: 2; grid-row: 1 / span 2; height: calc(100dvh - 92px); max-height: none; }
+  main {
+    grid-template-columns: minmax(260px, 380px) minmax(360px, 1fr);
+    align-items: start;
+    padding-bottom: 10px;
+  }
+  .chat-panel { grid-column: 2; grid-row: 1 / span 4; height: calc(100dvh - 92px); max-height: none; }
+  [data-view][hidden] { display: block !important; }
+  .tabbar { display: none; }
 }

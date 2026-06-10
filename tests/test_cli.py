@@ -438,6 +438,45 @@ class CliTest(unittest.TestCase):
                 restart_command="omnidoer console resume thread_active",
             )
 
+    def test_control_serve_forwards_lite_fixed_password_and_vault_options(self) -> None:
+        from omnidoer.omni_control.client_cli import handle_control_command
+
+        args = SimpleNamespace(
+            control_command="serve",
+            host="127.0.0.1",
+            port=8787,
+            public_url="https://control.example",
+            cloud_direct=True,
+            tls_cert=None,
+            tls_key=None,
+            tls_self_signed_dev=False,
+            behind_reverse_proxy=True,
+            insecure_dev_public=False,
+            chat_runner=False,
+            chat_runner_interval=1.0,
+            chat_runner_cwd="/srv/workspace",
+            chat_codex_bin=None,
+            chat_thread_id=None,
+            chat_codex_arg=[],
+            chat_upload_ttl=None,
+            chat_allow_detached_thread_resume=False,
+            lite=True,
+            fixed_password_env="OMNIDOER_FIXED_PASSWORD",
+            fixed_password_file=None,
+            vault="/srv/state/vault.json",
+            vault_passphrase_env="OMNIDOER_VAULT_PASSPHRASE",
+            vault_passphrase_file=None,
+        )
+        with patch("omnidoer.omni_control.client_cli.serve") as serve:
+            self.assertEqual(handle_control_command(args), 0)
+        serve.assert_called_once()
+        _, kwargs = serve.call_args
+        self.assertTrue(kwargs["lite"])
+        self.assertEqual(kwargs["fixed_password_env"], "OMNIDOER_FIXED_PASSWORD")
+        self.assertEqual(kwargs["vault_path"], "/srv/state/vault.json")
+        self.assertEqual(kwargs["vault_passphrase_env"], "OMNIDOER_VAULT_PASSPHRASE")
+        self.assertEqual(kwargs["chat_runner_cwd"], "/srv/workspace")
+
     def test_control_enable_sync_can_wait_until_native_bridge_is_verified(self) -> None:
         from contextlib import redirect_stdout
 

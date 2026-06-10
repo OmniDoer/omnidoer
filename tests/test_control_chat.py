@@ -1,4 +1,5 @@
 import json
+import hashlib
 import os
 import stat
 import tempfile
@@ -10,6 +11,9 @@ from threading import Thread
 from urllib import request as urllib_request
 from unittest.mock import patch
 
+from cryptography.hazmat.primitives.asymmetric import ec
+
+from tests.test_control_auth import public_jwk
 from omnidoer.omni_control.chat import (
     CHAT_ARCHIVE_DIR_NAME,
     CHAT_RETENTION_SECONDS,
@@ -36,6 +40,7 @@ from omnidoer.omni_control.server import (
 )
 from omnidoer.omni_control.tui_legacy_relay import TmuxPane
 from omnidoer.omni_control.tui_legacy_relay import tmux_chat_session_id_for_pane
+from omnidoer.omni_vault.vault import Vault
 
 
 class ControlChatStoreTest(unittest.TestCase):
@@ -324,11 +329,176 @@ class ControlChatApiTest(unittest.TestCase):
                 with urllib_request.urlopen(f"{base}/", timeout=5) as response:
                     html = response.read().decode()
                 self.assertIn("OmniDoer Lite", html)
+                self.assertIn("20260610-lite15", html)
+                with urllib_request.urlopen(f"{base}/lite.js?v=20260608-lite13", timeout=5) as response:
+                    lite_js = response.read().decode()
+                self.assertIn("switchView", lite_js)
+                with urllib_request.urlopen(f"{base}/lite.css?v=20260608-lite13", timeout=5) as response:
+                    lite_css = response.read().decode()
+                self.assertIn(".tabbar", lite_css)
                 with urllib_request.urlopen(f"{base}/api/lite/state", timeout=5) as response:
                     payload = json.loads(response.read().decode())
                 self.assertEqual([item["request_id"] for item in payload["requests"]], [credential.request_id])
                 self.assertIn("chat", payload)
                 self.assertIn("sessions", payload)
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_lite_fixed_password_login_creates_device_session(self) -> None:
+        old_home = os.environ.get("OMNIDOER_HOME")
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["OMNIDOER_HOME"] = tmp
+            server = ThreadingHTTPServer(("127.0.0.1", 0), LiteControlHandler)
+            server.omnidoer_fixed_password_hash = hashlib.sha256(b"admin-pass").hexdigest()
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                key = ec.generate_private_key(ec.SECP256R1())
+                request = urllib_request.Request(
+                    f"{base}/api/password-login",
+                    data=json.dumps(
+                        {
+                            "password": "admin-pass",
+                            "device_name": "Phone",
+                            "device_public_key": public_jwk(key),
+                        }
+                    ).encode(),
+                    headers={"content-type": "application/json"},
+                    method="POST",
+                )
+                with urllib_request.urlopen(request, timeout=5) as response:
+                    payload = json.loads(response.read().decode())
+                self.assertIn("csrf_token", payload)
+                self.assertEqual(payload["device"]["name"], "Phone")
+                self.assertIn("omnidoer_session=", response.headers.get("set-cookie", ""))
+                bad = urllib_request.Request(
+                    f"{base}/api/password-login",
+                    data=json.dumps(
+                        {
+                            "password": "wrong-pass",
+                            "device_name": "Phone",
+                            "device_public_key": public_jwk(key),
+                        }
+                    ).encode(),
+                    headers={"content-type": "application/json"},
+                    method="POST",
+                )
+                with self.assertRaises(urllib_request.HTTPError) as raised:
+                    urllib_request.urlopen(bad, timeout=5)
+                self.assertEqual(raised.exception.code, 401)
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_lite_credentials_api_can_add_reveal_update_and_delete(self) -> None:
+        old_home = os.environ.get("OMNIDOER_HOME")
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["OMNIDOER_HOME"] = tmp
+            vault_path = Path(tmp) / "vault.json"
+            server = ThreadingHTTPServer(("127.0.0.1", 0), LiteControlHandler)
+            server.omnidoer_vault_path = str(vault_path)
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                body = {
+                    "passphrase": "vault-pass",
+                    "allowed_origins": ["https://example.com"],
+                    "username": "alice@example.com",
+                    "password": "initial-secret",
+                    "create_vault": True,
+                }
+                create = urllib_request.Request(
+                    f"{base}/api/lite/credentials",
+                    data=json.dumps(body).encode(),
+                    headers={"content-type": "application/json"},
+                    method="POST",
+                )
+                with urllib_request.urlopen(create, timeout=5) as response:
+                    payload = json.loads(response.read().decode())
+                credential_id = payload["credential_id"]
+                self.assertEqual(len(payload["credentials"]), 1)
+                self.assertNotIn("initial-secret", vault_path.read_text())
+
+                reveal = urllib_request.Request(
+                    f"{base}/api/lite/credentials/{credential_id}/reveal",
+                    data=json.dumps({"passphrase": "vault-pass"}).encode(),
+                    headers={"content-type": "application/json"},
+                    method="POST",
+                )
+                with urllib_request.urlopen(reveal, timeout=5) as response:
+                    secret = json.loads(response.read().decode())
+                self.assertEqual(secret["password"], "initial-secret")
+
+                body["password"] = "updated-secret"
+                update = urllib_request.Request(
+                    f"{base}/api/lite/credentials/{credential_id}",
+                    data=json.dumps(body).encode(),
+                    headers={"content-type": "application/json"},
+                    method="PUT",
+                )
+                with urllib_request.urlopen(update, timeout=5) as response:
+                    self.assertEqual(response.status, 200)
+                updated = Vault.load(vault_path, "vault-pass").decrypt_credential(credential_id)
+                self.assertEqual(updated.password, "updated-secret")
+
+                delete = urllib_request.Request(f"{base}/api/lite/credentials/{credential_id}", method="DELETE")
+                with urllib_request.urlopen(delete, timeout=5) as response:
+                    payload = json.loads(response.read().decode())
+                self.assertEqual(payload["credentials"], [])
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_lite_file_api_is_workspace_scoped(self) -> None:
+        old_home = os.environ.get("OMNIDOER_HOME")
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["OMNIDOER_HOME"] = str(Path(tmp) / "home")
+            workspace = Path(tmp) / "workspace"
+            workspace.mkdir()
+            (workspace / "notes.txt").write_text("hello", encoding="utf-8")
+            server = ThreadingHTTPServer(("127.0.0.1", 0), LiteControlHandler)
+            server.omnidoer_workspace_root = str(workspace)
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                with urllib_request.urlopen(f"{base}/api/lite/files", timeout=5) as response:
+                    payload = json.loads(response.read().decode())
+                self.assertEqual(payload["path"], ".")
+                self.assertEqual(payload["entries"][0]["name"], "notes.txt")
+
+                with urllib_request.urlopen(f"{base}/api/lite/files/content?path=notes.txt", timeout=5) as response:
+                    payload = json.loads(response.read().decode())
+                self.assertEqual(payload["content"], "hello")
+
+                save = urllib_request.Request(
+                    f"{base}/api/lite/files/content",
+                    data=json.dumps({"path": "notes.txt", "content": "changed"}).encode(),
+                    headers={"content-type": "application/json"},
+                    method="PUT",
+                )
+                with urllib_request.urlopen(save, timeout=5) as response:
+                    self.assertEqual(response.status, 200)
+                self.assertEqual((workspace / "notes.txt").read_text(encoding="utf-8"), "changed")
+
+                with self.assertRaises(urllib_request.HTTPError) as raised:
+                    urllib_request.urlopen(f"{base}/api/lite/files?path=../outside", timeout=5)
+                self.assertEqual(raised.exception.code, 403)
             finally:
                 server.shutdown()
                 server.server_close()
@@ -858,6 +1028,102 @@ class ControlChatApiTest(unittest.TestCase):
                 self.assertEqual(message["live_console_delivery"]["reason"], "handled_by_control_service")
                 self.assertEqual(message["live_console_delivery"]["submitted_to_model"], False)
                 self.assertIn("mobile Control Client cannot render", message["cli_command_response"]["text"])
+                self.assertIsNone(ChatStore().next_user_message())
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_mobile_connect_password_slash_command_sets_password_file_without_model_queue(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            password_file = Path(tmp) / "control-password"
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_fixed_password_file = str(password_file)  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                create = urllib_request.Request(
+                    f"{base}/api/chat/messages",
+                    data=json.dumps({"text": "/connect-password set BetterPass123", "client_message_id": "control_cli_password"}).encode(),
+                    headers={"content-type": "application/json"},
+                    method="POST",
+                )
+                with urllib_request.urlopen(create, timeout=5) as response:
+                    self.assertEqual(response.status, 201)
+                    message = json.loads(response.read().decode())
+
+                self.assertEqual(password_file.read_text().strip(), "BetterPass123")
+                self.assertEqual(stat.S_IMODE(password_file.stat().st_mode), 0o600)
+                self.assertTrue(server.omnidoer_fixed_password_hash)  # type: ignore[attr-defined]
+                self.assertEqual(message["text"], "/connect-password set [redacted]")
+                self.assertEqual(message["live_console_delivery"]["reason"], "handled_by_control_service")
+                self.assertEqual(message["live_console_delivery"]["submitted_to_model"], False)
+                self.assertIn("Lite connection password updated", message["cli_command_response"]["text"])
+                self.assertNotIn("BetterPass123", json.dumps(message))
+                self.assertIsNone(ChatStore().next_user_message())
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_mobile_vault_slash_commands_add_and_list_without_storing_secret_text(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            vault_path = Path(tmp) / "vault.json"
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_vault_path = str(vault_path)  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                add = urllib_request.Request(
+                    f"{base}/api/chat/messages",
+                    data=json.dumps(
+                        {
+                            "text": "/vault add passphrase https://example.com alice SuperSecret123",
+                            "client_message_id": "control_cli_vault_add",
+                        }
+                    ).encode(),
+                    headers={"content-type": "application/json"},
+                    method="POST",
+                )
+                with urllib_request.urlopen(add, timeout=5) as response:
+                    self.assertEqual(response.status, 201)
+                    add_message = json.loads(response.read().decode())
+
+                self.assertEqual(add_message["text"], "/vault add [redacted]")
+                self.assertIn("Vault credential saved", add_message["cli_command_response"]["text"])
+                self.assertNotIn("SuperSecret123", json.dumps(add_message))
+                self.assertNotIn("passphrase", json.dumps(add_message))
+                self.assertIsNone(ChatStore().next_user_message())
+
+                credentials = Vault.load(vault_path, "passphrase").list_metadata()
+                self.assertEqual(len(credentials), 1)
+                credential_id = credentials[0].credential_id
+
+                list_req = urllib_request.Request(
+                    f"{base}/api/chat/messages",
+                    data=json.dumps({"text": "/vault list", "client_message_id": "control_cli_vault_list"}).encode(),
+                    headers={"content-type": "application/json"},
+                    method="POST",
+                )
+                with urllib_request.urlopen(list_req, timeout=5) as response:
+                    self.assertEqual(response.status, 201)
+                    list_message = json.loads(response.read().decode())
+
+                self.assertIn(credential_id, list_message["cli_command_response"]["text"])
+                self.assertIn("https://example.com", list_message["cli_command_response"]["text"])
+                self.assertNotIn("SuperSecret123", json.dumps(list_message))
                 self.assertIsNone(ChatStore().next_user_message())
             finally:
                 server.shutdown()

@@ -123,6 +123,40 @@ class Vault:
         self.save()
         return credential_id
 
+    def update_credential(
+        self,
+        credential_id: str,
+        *,
+        username: str,
+        password: str,
+        allowed_origins: list[str],
+        totp_seed: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        if self.key is None:
+            raise ValueError("vault is locked")
+        for item in self.data.get("credentials", []):
+            if item["credential_id"] == credential_id:
+                secret = {"username": username, "password": password, "totp_seed": totp_seed or ""}
+                nonce, ciphertext = encrypt_json_bytes(self.key, json.dumps(secret, sort_keys=True).encode(), credential_id.encode())
+                item["username_hint"] = username_hint(username)
+                item["allowed_origins"] = sorted(set(allowed_origins))
+                item["metadata"] = redact_dom_snapshot(metadata or item.get("metadata") or {})
+                item["secret_nonce"] = nonce
+                item["secret_ciphertext"] = ciphertext
+                item["updated_at"] = time.time()
+                self.save()
+                return
+        raise KeyError(f"credential not found: {credential_id}")
+
+    def delete_credential(self, credential_id: str) -> None:
+        credentials = self.data.get("credentials", [])
+        kept = [item for item in credentials if item.get("credential_id") != credential_id]
+        if len(kept) == len(credentials):
+            raise KeyError(f"credential not found: {credential_id}")
+        self.data["credentials"] = kept
+        self.save()
+
     def find_for_origin(self, origin: str) -> list[CredentialMetadata]:
         return [cred for cred in self.list_metadata() if origin in cred.allowed_origins]
 

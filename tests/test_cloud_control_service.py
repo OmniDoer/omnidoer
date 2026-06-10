@@ -1,5 +1,6 @@
 import unittest
 import base64
+import hashlib
 import json
 import os
 import socket
@@ -7,6 +8,7 @@ import tempfile
 from contextlib import redirect_stdout
 from io import StringIO
 from http.server import ThreadingHTTPServer
+from pathlib import Path
 from threading import Thread
 from unittest.mock import patch
 from urllib import error as urllib_error
@@ -638,6 +640,94 @@ class CloudControlServiceTest(unittest.TestCase):
                 )
                 with urllib_request.urlopen(events, timeout=5) as response:
                     self.assertEqual(response.headers["content-type"].split(";")[0], "text/event-stream")
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_cloud_direct_lite_fixed_password_login_allows_signed_lite_api(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            config = build_config(
+                host="127.0.0.1",
+                port=8787,
+                public_url="https://agent.example.com",
+                cloud_direct=True,
+                behind_reverse_proxy=True,
+            )
+            server = ThreadingHTTPServer(("127.0.0.1", 0), ControlHandler)
+            server.omnidoer_config = config  # type: ignore[attr-defined]
+            server.omnidoer_fixed_password_hash = hashlib.sha256(b"fixed-admin").hexdigest()  # type: ignore[attr-defined]
+            server.omnidoer_workspace_root = tmp  # type: ignore[attr-defined]
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                device_key = ec.generate_private_key(ec.SECP256R1())
+                login = urllib_request.Request(
+                    f"{base}/api/password-login",
+                    data=json.dumps(
+                        {
+                            "password": "fixed-admin",
+                            "device_name": "Phone",
+                            "device_public_key": public_jwk(device_key),
+                        }
+                    ).encode(),
+                    headers={"content-type": "application/json", "origin": config.public_origin, **PROXY_HEADERS},
+                    method="POST",
+                )
+                with urllib_request.urlopen(login, timeout=5) as response:
+                    self.assertEqual(response.status, 201)
+                    cookie = response.headers["set-cookie"]
+                    body = json.loads(response.read().decode())
+                csrf = body["csrf_token"]
+                device_id = body["device"]["device_id"]
+                session_id = body["session"]["session_id"]
+
+                path = "/api/lite/state"
+                signed = sign_request(device_key, device_id=device_id, session_id=session_id, method="GET", path=path, nonce="nonce-lite-state")
+                lite_state = urllib_request.Request(
+                    f"{base}{path}",
+                    headers={
+                        "cookie": cookie,
+                        **PROXY_HEADERS,
+                        DEVICE_ID_HEADER: device_id,
+                        DEVICE_TS_HEADER: signed["timestamp"],
+                        DEVICE_NONCE_HEADER: signed["nonce"],
+                        DEVICE_SIG_HEADER: signed["signature"],
+                    },
+                )
+                with urllib_request.urlopen(lite_state, timeout=5) as response:
+                    payload = json.loads(response.read().decode())
+                self.assertTrue(payload["authenticated"])
+                self.assertIn("chat", payload)
+                self.assertFalse(payload["secret_exposed_to_model"])
+
+                path = "/api/lite/files/content"
+                signed = sign_request(device_key, device_id=device_id, session_id=session_id, method="PUT", path=path, nonce="nonce-lite-file")
+                save = urllib_request.Request(
+                    f"{base}{path}",
+                    data=json.dumps({"path": "note.txt", "content": "hello"}).encode(),
+                    headers={
+                        "content-type": "application/json",
+                        "cookie": cookie,
+                        "origin": config.public_origin,
+                        CSRF_HEADER: csrf,
+                        **PROXY_HEADERS,
+                        DEVICE_ID_HEADER: device_id,
+                        DEVICE_TS_HEADER: signed["timestamp"],
+                        DEVICE_NONCE_HEADER: signed["nonce"],
+                        DEVICE_SIG_HEADER: signed["signature"],
+                    },
+                    method="PUT",
+                )
+                with urllib_request.urlopen(save, timeout=5) as response:
+                    self.assertEqual(response.status, 200)
+                self.assertEqual((Path(tmp) / "note.txt").read_text(), "hello")
             finally:
                 server.shutdown()
                 server.server_close()

@@ -171,6 +171,11 @@ def handle_control_command(args) -> int:
             chat_upload_ttl=args.chat_upload_ttl,
             chat_allow_detached_thread_resume=args.chat_allow_detached_thread_resume,
             lite=args.lite,
+            fixed_password_env=args.fixed_password_env,
+            fixed_password_file=args.fixed_password_file,
+            vault_path=args.vault,
+            vault_passphrase_env=args.vault_passphrase_env,
+            vault_passphrase_file=args.vault_passphrase_file,
         )
         return 0
     if command == "pair":

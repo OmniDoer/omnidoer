@@ -245,6 +245,8 @@ const I18N = {
     slashCommandResumeDesc: "Resume an existing conversation thread.",
     slashCommandPairDesc: "Create a short pairing code for another Control Client.",
     slashCommandCompactDesc: "Compact the current conversation context.",
+    slashCommandConnectPasswordDesc: "Set or inspect the Lite fixed connection password.",
+    slashCommandVaultDesc: "List, add, or delete Vault credentials locally.",
     slashCommandHelpDesc: "Show available OmniDoer CLI commands.",
     chatSessions: "Sessions",
     newChatSession: "New",
@@ -665,6 +667,8 @@ const I18N = {
     slashCommandResumeDesc: "恢复已有 conversation thread。",
     slashCommandPairDesc: "为另一个 Control Client 生成 6 位配对码。",
     slashCommandCompactDesc: "压缩当前对话上下文。",
+    slashCommandConnectPasswordDesc: "设置或查看 Lite 固定连接密码。",
+    slashCommandVaultDesc: "本地列出、新增或删除 Vault 凭证。",
     slashCommandHelpDesc: "查看可用的 OmniDoer CLI 指令。",
     chatSessions: "会话",
     newChatSession: "新建",
@@ -1911,9 +1915,11 @@ const AUTO_SYNC_REQUEST_COOLDOWN_MS = 60000;
 const CHAT_COMMANDS = [
   { command: "/status", descriptionKey: "slashCommandStatusDesc", aliases: ["quota", "usage"] },
   { command: "/model", descriptionKey: "slashCommandModelDesc", aliases: ["models"] },
-  { command: "/resume", descriptionKey: "slashCommandResumeDesc", aliases: ["thread"], requiresArgument: true },
+  { command: "/resume", descriptionKey: "slashCommandResumeDesc", aliases: ["thread"], requiresArgument: true, argumentLabel: "thread_id" },
   { command: "/pair", descriptionKey: "slashCommandPairDesc", aliases: ["pairing"] },
   { command: "/compact", descriptionKey: "slashCommandCompactDesc", aliases: ["compress"] },
+  { command: "/connect-password", descriptionKey: "slashCommandConnectPasswordDesc", aliases: ["connection-password", "lite-password"], requiresArgument: true, argumentLabel: "set|status" },
+  { command: "/vault", descriptionKey: "slashCommandVaultDesc", aliases: ["passwords", "credentials"], requiresArgument: true, argumentLabel: "list|add|delete" },
   { command: "/help", descriptionKey: "slashCommandHelpDesc", aliases: ["commands"] }
 ];
 let cachedRequests = [];
@@ -3581,7 +3587,7 @@ function formatFileSize(bytes) {
 }
 
 function chatCommandDisplay(command) {
-  return `${command.command}${command.requiresArgument ? " <thread_id>" : ""}`;
+  return `${command.command}${command.requiresArgument ? ` <${command.argumentLabel || "argument"}>` : ""}`;
 }
 
 function chatCommandCompletionText(command) {

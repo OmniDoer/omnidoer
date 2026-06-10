@@ -18,7 +18,9 @@ from omnidoer.paths import state_file
 CHAT_ROLES = {"user", "assistant", "system"}
 CHAT_STATUSES = {"queued", "claimed", "streaming", "completed", "cancelled"}
 CHAT_RECORD_TYPES = {"message", "delta", "status", "tool_call", "tool_output", "error", "note", "terminal"}
-MAX_CHAT_TEXT_LENGTH = 20000
+# Match Codex TUI's MAX_USER_INPUT_TEXT_CHARS so Control Client submissions
+# are not rejected before the active console can accept them.
+MAX_CHAT_TEXT_LENGTH = 1 << 20
 MAX_CHAT_MESSAGES = 80
 MAX_CHAT_RECORDS = 140
 MAX_CHAT_SESSIONS = 5

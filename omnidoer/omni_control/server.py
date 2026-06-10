@@ -4,9 +4,13 @@ from __future__ import annotations
 
 from email import policy
 from email.parser import BytesParser
+import hashlib
+import hmac
 import json
 import mimetypes
+import os
 import re
+import shlex
 import socket
 import ssl
 import tempfile
@@ -44,6 +48,7 @@ from omnidoer.omni_control.device_signing import (
     DEVICE_SESSION_ID_HEADER,
     DEVICE_SIG_HEADER,
     DEVICE_TS_HEADER,
+    load_ec_public_key,
 )
 from omnidoer.omni_control.rate_limit import RateLimiter
 from omnidoer.omni_control.security_headers import apply_security_headers
@@ -57,6 +62,8 @@ from omnidoer.omni_takeover.input_events import event_from_dict
 from omnidoer.omni_takeover.relay import apply_input_event, start_stream
 from omnidoer.omni_takeover.sessions import get_browser_context
 from omnidoer.omni_takeover.stream import normalize_frame_profile
+from omnidoer.omni_vault.vault import Vault
+from omnidoer.paths import default_vault_path
 
 
 def static_root() -> Path:
@@ -99,6 +106,7 @@ LITE_REQUEST_TYPES = {
     "two_factor_change",
     "console_restart",
 }
+CORE_SECRET_TYPES = {"credential", "totp", "one_time_code", "sms_code", "email_code"}
 CLIENT_DISCONNECT_EXCEPTIONS = (BrokenPipeError, ConnectionResetError, ssl.SSLEOFError)
 SENSITIVE_LOG_PATTERNS = [
     re.compile(r"(omnidoer_session=)[^;\s]+"),
@@ -653,6 +661,152 @@ class ControlHandler(SimpleHTTPRequestHandler):
             "server_time": time.time(),
             "secret_exposed_to_model": False,
             "control_client_calls_model": False,
+        }
+
+    def _fixed_password_hash(self) -> str:
+        return str(getattr(self.server, "omnidoer_fixed_password_hash", "") or "")
+
+    def _fixed_password_enabled(self) -> bool:
+        return bool(self._fixed_password_hash())
+
+    def _fixed_password_path(self) -> Path:
+        configured = getattr(self.server, "omnidoer_fixed_password_file", None)
+        if configured:
+            return Path(str(configured)).expanduser()
+        return default_vault_path().with_name("control-password")
+
+    def _set_fixed_password(self, password: str) -> Path:
+        value = str(password or "")
+        if len(value) < 8:
+            raise ValueError("password must be at least 8 characters")
+        path = self._fixed_password_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"{value}\n", encoding="utf-8")
+        path.chmod(0o600)
+        setattr(self.server, "omnidoer_fixed_password_hash", hashlib.sha256(value.encode("utf-8")).hexdigest())
+        setattr(self.server, "omnidoer_fixed_password_file", str(path))
+        return path
+
+    def _verify_fixed_password(self, password: str) -> None:
+        expected = self._fixed_password_hash()
+        if not expected:
+            raise PermissionError("fixed password login is not enabled")
+        supplied = hashlib.sha256(str(password or "").encode("utf-8")).hexdigest()
+        if not hmac.compare_digest(expected, supplied):
+            raise PermissionError("fixed password mismatch")
+
+    def _create_password_login_session(self, *, device_name: str, device_public_key: str):
+        load_ec_public_key(device_public_key)
+        device = DeviceStore().register(name=device_name or "OmniDoer Lite", public_key=device_public_key)
+        session, token = SessionStore().create(device_id=device.device_id)
+        return device, session, token
+
+    def _vault_passphrase(self, body: dict | None = None) -> str | None:
+        body = body or {}
+        if body.get("passphrase"):
+            return str(body["passphrase"])
+        configured = getattr(self.server, "omnidoer_vault_passphrase", None)
+        if configured:
+            return str(configured)
+        env_name = getattr(self.server, "omnidoer_vault_passphrase_env", None)
+        if env_name and os.environ.get(str(env_name)):
+            return str(os.environ[str(env_name)])
+        file_path = getattr(self.server, "omnidoer_vault_passphrase_file", None)
+        if file_path:
+            path = Path(str(file_path)).expanduser()
+            if path.exists():
+                return path.read_text().splitlines()[0]
+        default_file = default_vault_path().with_name("vault-passphrase")
+        if default_file.exists():
+            return default_file.read_text().splitlines()[0]
+        return None
+
+    def _vault_path(self) -> Path:
+        configured = getattr(self.server, "omnidoer_vault_path", None)
+        return Path(str(configured)).expanduser() if configured else default_vault_path()
+
+    def _load_vault(self, *, passphrase: str | None = None, create: bool = False) -> Vault:
+        path = self._vault_path()
+        if path.exists():
+            return Vault.load(path, passphrase)
+        if create and passphrase:
+            return Vault.create(path, passphrase)
+        raise FileNotFoundError("vault not found")
+
+    def _credential_payload(self, *, include_requests: bool = True) -> dict:
+        path = self._vault_path()
+        credentials = []
+        locked = True
+        if path.exists():
+            vault = Vault.load(path)
+            credentials = [item.__dict__ for item in vault.list_metadata()]
+            locked = self._vault_passphrase() is None
+        requests = []
+        if include_requests:
+            requests = [
+                request.to_public_dict()
+                for request in RequestStore().list(include_expired=True)
+                if request.request_type in CORE_SECRET_TYPES
+            ][:80]
+        return {
+            "vault_exists": path.exists(),
+            "vault_locked": locked,
+            "credentials": credentials,
+            "latest_requests": sorted(requests, key=lambda item: item.get("created_at", 0), reverse=True)[:24],
+            "secret_exposed_to_model": False,
+        }
+
+    def _workspace_root(self) -> Path:
+        configured = getattr(self.server, "omnidoer_workspace_root", None)
+        return Path(str(configured)).expanduser().resolve() if configured else Path.cwd().resolve()
+
+    def _workspace_path(self, raw_path: str | None = None) -> Path:
+        root = self._workspace_root()
+        clean = str(raw_path or ".").replace("\\", "/").lstrip("/")
+        target = (root / clean).resolve()
+        if target != root and root not in target.parents:
+            raise PermissionError("path escapes workspace")
+        return target
+
+    def _relative_workspace_path(self, path: Path) -> str:
+        root = self._workspace_root()
+        if path == root:
+            return "."
+        return path.relative_to(root).as_posix()
+
+    def _file_listing(self, raw_path: str | None = None) -> dict:
+        path = self._workspace_path(raw_path)
+        if not path.exists():
+            raise FileNotFoundError("path not found")
+        if path.is_file():
+            return {
+                "root": str(self._workspace_root()),
+                "path": self._relative_workspace_path(path),
+                "type": "file",
+                "name": path.name,
+                "size": path.stat().st_size,
+                "modified_at": path.stat().st_mtime,
+            }
+        entries = []
+        for child in sorted(path.iterdir(), key=lambda item: (not item.is_dir(), item.name.lower()))[:400]:
+            try:
+                stat = child.stat()
+            except OSError:
+                continue
+            entries.append(
+                {
+                    "name": child.name,
+                    "path": self._relative_workspace_path(child),
+                    "type": "directory" if child.is_dir() else "file",
+                    "size": stat.st_size,
+                    "modified_at": stat.st_mtime,
+                }
+            )
+        return {
+            "root": str(self._workspace_root()),
+            "path": self._relative_workspace_path(path),
+            "type": "directory",
+            "entries": entries,
         }
 
     def _plain_http_on_direct_tls_port(self) -> bool:
@@ -1398,10 +1552,109 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 "/status - show runtime, bridge, and safety status",
                 "/model - mobile model switching is not available yet; use the terminal console model picker",
                 "/quota or /usage - alias for /status in the mobile Control Client",
+                "/connect-password status - show whether Lite fixed-password login is enabled",
+                "/connect-password set <password> - set the Lite fixed connection password locally",
+                "/vault list - list saved credential metadata",
+                "/vault add <vault_passphrase> <origin> <username> <password> [totp_seed] - save a credential without sending it to the model",
+                "/vault delete <credential_id> - delete a saved credential",
                 "/help - show this command list",
                 "Other slash commands are delivered to the active OmniDoer console bridge, not to the model.",
             ]
         )
+
+    def _control_command_args(self, text: str) -> list[str]:
+        first_line = str(text or "").lstrip().splitlines()[0] if str(text or "").lstrip().splitlines() else ""
+        try:
+            return shlex.split(first_line)
+        except ValueError as exc:
+            raise ValueError(f"invalid command syntax: {exc}") from exc
+
+    def _redacted_control_command_text(self, text: str) -> str:
+        try:
+            args = self._control_command_args(text)
+        except ValueError:
+            return str(text or "").splitlines()[0][:80]
+        if not args:
+            return str(text or "")
+        command = args[0].lstrip("/").lower()
+        subcommand = args[1].lower() if len(args) > 1 else ""
+        if command in {"connect-password", "connection-password", "lite-password"} and subcommand == "set":
+            return "/connect-password set [redacted]"
+        if command == "vault" and subcommand in {"add", "update", "reveal"}:
+            return f"/vault {subcommand} [redacted]"
+        return str(text or "")
+
+    def _control_client_connect_password_text(self, args: list[str]) -> str:
+        subcommand = args[1].lower() if len(args) > 1 else "status"
+        if subcommand == "status":
+            path = self._fixed_password_path()
+            return "\n".join(
+                [
+                    "Lite connection password",
+                    f"Enabled: {'yes' if self._fixed_password_enabled() else 'no'}",
+                    f"Password file: {path}",
+                    "Secret exposure: false",
+                    "Model submission: false",
+                ]
+            )
+        if subcommand == "set":
+            if len(args) < 3:
+                return "Usage: /connect-password set <password>\nSecret exposure: false\nModel submission: false"
+            path = self._set_fixed_password(args[2])
+            return "\n".join(
+                [
+                    "Lite connection password updated.",
+                    f"Password file: {path}",
+                    "Permissions: 0600",
+                    "Secret exposure: false",
+                    "Model submission: false",
+                ]
+            )
+        return "Usage: /connect-password status | /connect-password set <password>\nSecret exposure: false\nModel submission: false"
+
+    def _control_client_vault_text(self, args: list[str]) -> str:
+        subcommand = args[1].lower() if len(args) > 1 else "list"
+        if subcommand == "list":
+            path = self._vault_path()
+            if not path.exists():
+                return "Vault not found. Use /vault add <vault_passphrase> <origin> <username> <password> [totp_seed] to create it.\nSecret exposure: false\nModel submission: false"
+            credentials = Vault.load(path).list_metadata()
+            lines = ["Vault credentials", f"Vault: {path}", f"Count: {len(credentials)}"]
+            for credential in credentials:
+                origins = ", ".join(credential.allowed_origins) or "(no origin)"
+                lines.append(f"- {credential.credential_id} · {credential.username} · {origins}")
+            lines.extend(["Secret exposure: false", "Model submission: false"])
+            return "\n".join(lines)
+        if subcommand == "add":
+            if len(args) < 6:
+                return "Usage: /vault add <vault_passphrase> <origin> <username> <password> [totp_seed]\nSecret exposure: false\nModel submission: false"
+            passphrase, origin, username, password = args[2], args[3], args[4], args[5]
+            totp_seed = args[6] if len(args) > 6 else None
+            vault = self._load_vault(passphrase=passphrase, create=True)
+            credential_id = vault.add_credential(
+                username=username,
+                password=password,
+                allowed_origins=[origin],
+                totp_seed=totp_seed,
+                metadata={"source": "control_slash_command"},
+            )
+            return "\n".join(
+                [
+                    "Vault credential saved.",
+                    f"Credential id: {credential_id}",
+                    f"Origin: {origin}",
+                    "Secret exposure: false",
+                    "Model submission: false",
+                ]
+            )
+        if subcommand == "delete":
+            if len(args) < 3:
+                return "Usage: /vault delete <credential_id>\nSecret exposure: false\nModel submission: false"
+            self._load_vault().delete_credential(args[2])
+            return f"Vault credential deleted: {args[2]}\nSecret exposure: false\nModel submission: false"
+        if subcommand in {"reveal", "show"}:
+            return "Use the Passwords tab to reveal credentials. Slash commands never print saved passwords into chat history.\nSecret exposure: false\nModel submission: false"
+        return "Usage: /vault list | /vault add <vault_passphrase> <origin> <username> <password> [totp_seed] | /vault delete <credential_id>\nSecret exposure: false\nModel submission: false"
 
     def _control_client_model_text(self) -> str:
         return "\n".join(
@@ -1485,6 +1738,45 @@ class ControlHandler(SimpleHTTPRequestHandler):
         if not (str(client_message_id or "").startswith("control_cli_") or chat_text_is_cli_command(text)):
             return None
         command = chat_cli_command_name(text)
+        try:
+            args = self._control_command_args(text)
+        except ValueError as exc:
+            return self._append_control_cli_response(
+                text=text,
+                client_message_id=client_message_id,
+                session=session,
+                command=command or "unknown",
+                response_text=f"{exc}\nSecret exposure: false\nModel submission: false",
+                delivery_reason="handled_by_control_service",
+            )
+        if command in {"connect-password", "connection-password", "lite-password"}:
+            try:
+                response_text = self._control_client_connect_password_text(args)
+            except Exception as exc:
+                response_text = f"Connection password command failed: {type(exc).__name__}: {exc}\nSecret exposure: false\nModel submission: false"
+            return self._append_control_cli_response(
+                text=self._redacted_control_command_text(text),
+                client_message_id=client_message_id,
+                session=session,
+                command="connect-password",
+                response_text=response_text,
+                delivery_reason="handled_by_control_service",
+            )
+        if command == "vault":
+            try:
+                response_text = self._control_client_vault_text(args)
+            except KeyError as exc:
+                response_text = f"Vault credential not found: {exc}\nSecret exposure: false\nModel submission: false"
+            except Exception as exc:
+                response_text = f"Vault command failed: {type(exc).__name__}: {exc}\nSecret exposure: false\nModel submission: false"
+            return self._append_control_cli_response(
+                text=self._redacted_control_command_text(text),
+                client_message_id=client_message_id,
+                session=session,
+                command="vault",
+                response_text=response_text,
+                delivery_reason="handled_by_control_service",
+            )
         if command == "model":
             return self._append_control_cli_response(
                 text=text,
@@ -1596,6 +1888,9 @@ class ControlHandler(SimpleHTTPRequestHandler):
         if "rate limit" in str(exc):
             self._send_json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "rate_limited"})
             return
+        if "workspace" in str(exc):
+            self._send_json(HTTPStatus.FORBIDDEN, {"error": "forbidden"})
+            return
         self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
 
     def _send_pairing_error(self, exc: Exception) -> None:
@@ -1641,6 +1936,61 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 self._send_json(HTTPStatus.UNAUTHORIZED, {"authenticated": False, "error": "unauthorized"})
             except ValueError:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid lite options"})
+            return
+        if path == "/api/lite/credentials":
+            try:
+                session = self._require_access()
+                self._send_json(HTTPStatus.OK, self._credential_payload())
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+            except FileNotFoundError:
+                self._send_json(HTTPStatus.OK, self._credential_payload(include_requests=True))
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
+        if path == "/api/lite/files":
+            try:
+                session = self._require_access()
+                query = parse_qs(parsed_url.query)
+                self._send_json(HTTPStatus.OK, self._file_listing(query.get("path", ["."])[0]))
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+            except FileNotFoundError:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
+        if path == "/api/lite/files/content":
+            try:
+                session = self._require_access()
+                query = parse_qs(parsed_url.query)
+                target = self._workspace_path(query.get("path", ["."])[0])
+                if not target.is_file():
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"error": "not_a_file"})
+                    return
+                data = target.read_bytes()
+                if len(data) > 512 * 1024:
+                    self._send_json(HTTPStatus.PAYLOAD_TOO_LARGE, {"error": "file_too_large"})
+                    return
+                text = data.decode("utf-8")
+                self._send_json(
+                    HTTPStatus.OK,
+                    {
+                        "path": self._relative_workspace_path(target),
+                        "name": target.name,
+                        "content": text,
+                        "size": len(data),
+                        "modified_at": target.stat().st_mtime,
+                    },
+                )
+            except UnicodeDecodeError:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "binary_file"})
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+            except FileNotFoundError:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
             return
         if path == "/api/status":
             config = getattr(self.server, "omnidoer_config", None)
@@ -2184,6 +2534,107 @@ class ControlHandler(SimpleHTTPRequestHandler):
             return
         super().do_GET()
 
+    def do_PUT(self) -> None:
+        if self._plain_http_on_direct_tls_port():
+            self._send_https_required()
+            return
+        path = urlparse(self.path).path
+        parts = path.strip("/").split("/")
+        if len(parts) == 4 and parts[:3] == ["api", "lite", "credentials"]:
+            try:
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+                body = self._read_json()
+                passphrase = self._vault_passphrase(body)
+                if not passphrase:
+                    self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "vault_passphrase_required"})
+                    return
+                origins = [str(item).strip() for item in body.get("allowed_origins", []) if str(item).strip()]
+                username = str(body.get("username") or "").strip()
+                password = str(body.get("password") or "")
+                if not username or not password or not origins:
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"error": "username_password_and_origin_required"})
+                    return
+                self._load_vault(passphrase=passphrase).update_credential(
+                    unquote(parts[3]),
+                    username=username,
+                    password=password,
+                    allowed_origins=origins,
+                    totp_seed=str(body.get("totp_seed") or "") or None,
+                    metadata={"source": "lite_control_client"},
+                )
+                self._send_json(HTTPStatus.OK, self._credential_payload())
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+            except KeyError:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "credential_not_found"})
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
+        if path == "/api/lite/files/content":
+            try:
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+                body = self._read_json()
+                target = self._workspace_path(str(body.get("path") or ""))
+                content = str(body.get("content") or "")
+                if len(content.encode("utf-8")) > 512 * 1024:
+                    self._send_json(HTTPStatus.PAYLOAD_TOO_LARGE, {"error": "file_too_large"})
+                    return
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(content, encoding="utf-8")
+                self._send_json(HTTPStatus.OK, {"status": "saved", **self._file_listing(str(body.get("path") or ""))})
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
+        self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
+
+    def do_DELETE(self) -> None:
+        if self._plain_http_on_direct_tls_port():
+            self._send_https_required(include_body=False)
+            return
+        parsed = urlparse(self.path)
+        path = parsed.path
+        parts = path.strip("/").split("/")
+        if len(parts) == 4 and parts[:3] == ["api", "lite", "credentials"]:
+            try:
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+                self._load_vault().delete_credential(unquote(parts[3]))
+                self._send_json(HTTPStatus.OK, self._credential_payload())
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+            except KeyError:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "credential_not_found"})
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
+        if path == "/api/lite/files":
+            try:
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+                query = parse_qs(parsed.query)
+                raw_path = query.get("path", [""])[0]
+                target = self._workspace_path(raw_path)
+                if target == self._workspace_root():
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"error": "cannot_delete_workspace_root"})
+                    return
+                if target.is_dir():
+                    target.rmdir()
+                else:
+                    target.unlink()
+                self._send_json(HTTPStatus.OK, {"status": "deleted", "path": raw_path})
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+            except FileNotFoundError:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
+            except OSError as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
+        self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
+
     def do_POST(self) -> None:
         if self._plain_http_on_direct_tls_port():
             self._send_https_required()
@@ -2224,6 +2675,101 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 PAIR_RATE_LIMIT.record_failure(remote_key)
                 AuditLog().append("control_pairing_failed", status=type(exc).__name__, reason=str(exc).strip())
                 self._send_pairing_error(exc)
+            return
+        if path == "/api/password-login":
+            remote_key = f"password-login:{self._remote_key()}"
+            try:
+                if not self._transport_allowed():
+                    raise PermissionError("https proxy header required")
+                if not self._origin_allowed():
+                    raise PermissionError("origin rejected")
+                PAIR_RATE_LIMIT.check(remote_key)
+                body = self._read_json()
+                self._verify_fixed_password(str(body.get("password") or ""))
+                device, session, token = self._create_password_login_session(
+                    device_name=str(body.get("device_name") or "OmniDoer Lite"),
+                    device_public_key=str(body.get("device_public_key") or ""),
+                )
+                data = json.dumps(
+                    {
+                        "device": device.to_public_dict(),
+                        "session": session.to_public_dict(),
+                        "csrf_token": session.csrf_token,
+                    },
+                    sort_keys=True,
+                ).encode()
+                self.send_response(HTTPStatus.CREATED)
+                self._set_session_cookie(session.session_id, token)
+                self.send_header("content-type", "application/json; charset=utf-8")
+                self.send_header("cache-control", "no-store")
+                self.send_header("content-length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                AuditLog().append("control_device_password_login", device_id=device.device_id, device_fingerprint=device.fingerprint, status="ok")
+                PAIR_RATE_LIMIT.clear(remote_key)
+            except PermissionError as exc:
+                PAIR_RATE_LIMIT.record_failure(remote_key)
+                self._send_permission_error(exc)
+            except Exception as exc:
+                PAIR_RATE_LIMIT.record_failure(remote_key)
+                AuditLog().append("control_password_login_failed", status=type(exc).__name__, reason=str(exc).strip())
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
+        if path == "/api/lite/credentials":
+            try:
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+                body = self._read_json()
+                passphrase = self._vault_passphrase(body)
+                if not passphrase:
+                    self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "vault_passphrase_required"})
+                    return
+                origins = [str(item).strip() for item in body.get("allowed_origins", []) if str(item).strip()]
+                username = str(body.get("username") or "").strip()
+                password = str(body.get("password") or "")
+                if not username or not password or not origins:
+                    self._send_json(HTTPStatus.BAD_REQUEST, {"error": "username_password_and_origin_required"})
+                    return
+                vault = self._load_vault(passphrase=passphrase, create=bool(body.get("create_vault", True)))
+                credential_id = vault.add_credential(
+                    username=username,
+                    password=password,
+                    allowed_origins=origins,
+                    totp_seed=str(body.get("totp_seed") or "") or None,
+                    metadata={"source": "lite_control_client"},
+                )
+                self._send_json(HTTPStatus.CREATED, {"credential_id": credential_id, **self._credential_payload()})
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
+        if len(parts) == 5 and parts[:3] == ["api", "lite", "credentials"] and parts[4] == "reveal":
+            try:
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+                body = self._read_json()
+                passphrase = self._vault_passphrase(body)
+                if not passphrase:
+                    self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "vault_passphrase_required"})
+                    return
+                secret = self._load_vault(passphrase=passphrase).decrypt_credential(unquote(parts[3]))
+                self._send_json(
+                    HTTPStatus.OK,
+                    {
+                        "credential_id": unquote(parts[3]),
+                        "username": secret.username,
+                        "password": secret.password,
+                        "totp_seed": secret.totp_seed or "",
+                        "secret_exposed_to_model": False,
+                    },
+                )
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+            except KeyError:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "credential_not_found"})
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
             return
         if path == "/api/console/restart-bridge":
             try:
@@ -2807,6 +3353,11 @@ def serve(
     chat_upload_ttl: str | int | None = None,
     chat_allow_detached_thread_resume: bool = False,
     lite: bool = False,
+    fixed_password_env: str | None = None,
+    fixed_password_file: str | None = None,
+    vault_path: str | None = None,
+    vault_passphrase_env: str | None = None,
+    vault_passphrase_file: str | None = None,
 ) -> None:
     try:
         config = build_config(
@@ -2834,6 +3385,21 @@ def serve(
     server.omnidoer_direct_tls = tls_context is not None  # type: ignore[attr-defined]
     server.omnidoer_chat_thread_id = chat_thread_id  # type: ignore[attr-defined]
     server.omnidoer_chat_allow_detached_thread_resume = chat_allow_detached_thread_resume  # type: ignore[attr-defined]
+    server.omnidoer_workspace_root = chat_runner_cwd or os.getcwd()  # type: ignore[attr-defined]
+    server.omnidoer_vault_path = vault_path  # type: ignore[attr-defined]
+    server.omnidoer_vault_passphrase_env = vault_passphrase_env  # type: ignore[attr-defined]
+    server.omnidoer_vault_passphrase_file = vault_passphrase_file  # type: ignore[attr-defined]
+    server.omnidoer_fixed_password_file = fixed_password_file  # type: ignore[attr-defined]
+    if fixed_password_env and fixed_password_file:
+        raise SystemExit("use either --fixed-password-env or --fixed-password-file, not both")
+    fixed_password = ""
+    if fixed_password_env:
+        fixed_password = os.environ.get(fixed_password_env) or ""
+        if not fixed_password:
+            raise SystemExit(f"fixed password environment variable is not set: {fixed_password_env}")
+    elif fixed_password_file:
+        fixed_password = Path(fixed_password_file).expanduser().read_text().splitlines()[0]
+    server.omnidoer_fixed_password_hash = hashlib.sha256(fixed_password.encode("utf-8")).hexdigest() if fixed_password else ""  # type: ignore[attr-defined]
     upload_ttl_seconds = chat_upload_ttl_seconds(chat_upload_ttl)
     server.omnidoer_chat_upload_ttl_seconds = upload_ttl_seconds  # type: ignore[attr-defined]
     ChatUploadStore().cleanup_expired(ttl_seconds=upload_ttl_seconds)
