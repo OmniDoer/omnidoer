@@ -11,6 +11,7 @@ use crate::session_state::MessageHistoryMetadata;
 use crate::session_state::ThreadSessionState;
 use crate::status::StatusAccountDisplay;
 use crate::status::plan_type_display_name;
+use crate::terminal_visualization_instructions::with_terminal_visualization_instructions;
 use codex_app_server_client::AppServerClient;
 use codex_app_server_client::AppServerEvent;
 use codex_app_server_client::AppServerRequestHandle;
@@ -129,6 +130,8 @@ use color_eyre::eyre::Result;
 use color_eyre::eyre::WrapErr;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::time::Duration;
+use std::time::Instant;
 use uuid::Uuid;
 
 const JSONRPC_INVALID_REQUEST: i64 = -32600;
@@ -152,6 +155,7 @@ fn is_thread_settings_update_unsupported(source: &JSONRPCErrorError) -> bool {
 /// fetched asynchronously after bootstrap returns so that the TUI can render
 /// its first frame without waiting for the rate-limit round-trip.
 pub(crate) struct AppServerBootstrap {
+    pub(crate) duration: Duration,
     pub(crate) account_email: Option<String>,
     pub(crate) auth_mode: Option<TelemetryAuthMode>,
     pub(crate) status_account_display: Option<StatusAccountDisplay>,
@@ -241,6 +245,7 @@ impl AppServerSession {
     }
 
     pub(crate) async fn bootstrap(&mut self, config: &Config) -> Result<AppServerBootstrap> {
+        let started_at = Instant::now();
         let account = self.read_account().await?;
         let model_request_id = self.next_request_id();
         let models: ModelListResponse = self
@@ -316,6 +321,7 @@ impl AppServerSession {
             None => (None, None, None, None, FeedbackAudience::External, false),
         };
         Ok(AppServerBootstrap {
+            duration: started_at.elapsed(),
             account_email,
             auth_mode,
             status_account_display,
@@ -710,12 +716,7 @@ impl AppServerSession {
                     additional_context: None,
                     environments: None,
                     cwd: Some(cwd),
-                    runtime_workspace_roots: Some(
-                        workspace_roots
-                            .iter()
-                            .map(AbsolutePathBuf::to_path_buf)
-                            .collect(),
-                    ),
+                    runtime_workspace_roots: Some(workspace_roots.to_vec()),
                     approval_policy: Some(approval_policy),
                     approvals_reviewer: Some(approvals_reviewer.into()),
                     sandbox_policy,
@@ -1207,7 +1208,8 @@ pub(crate) fn status_account_display_from_auth_mode(
         Some(AuthMode::ApiKey) => Some(StatusAccountDisplay::ApiKey),
         Some(AuthMode::Chatgpt)
         | Some(AuthMode::ChatgptAuthTokens)
-        | Some(AuthMode::AgentIdentity) => Some(StatusAccountDisplay::ChatGpt {
+        | Some(AuthMode::AgentIdentity)
+        | Some(AuthMode::PersonalAccessToken) => Some(StatusAccountDisplay::ChatGpt {
             email: None,
             plan: plan_type.map(plan_type_display_name),
         }),
@@ -1220,7 +1222,6 @@ fn model_preset_from_api_model(model: ApiModel) -> ModelPreset {
         let upgrade_info = model.upgrade_info.clone();
         ModelUpgrade {
             id: upgrade_id,
-            reasoning_effort_mapping: None,
             migration_config_key: model.model.clone(),
             model_link: upgrade_info
                 .as_ref()
@@ -1289,7 +1290,8 @@ fn config_request_overrides_from_config(
         "model_reasoning_effort",
         config
             .model_reasoning_effort
-            .map(|effort| effort.to_string()),
+            .as_ref()
+            .map(std::string::ToString::to_string),
     );
     insert(
         "model_reasoning_summary",
@@ -1419,13 +1421,7 @@ fn thread_start_params_from_config(
         model_provider: thread_params_mode.model_provider_from_config(config),
         service_tier: service_tier_override_from_config(config),
         cwd: thread_cwd_from_config(config, thread_params_mode, remote_cwd_override),
-        runtime_workspace_roots: Some(
-            config
-                .workspace_roots
-                .iter()
-                .map(AbsolutePathBuf::to_path_buf)
-                .collect(),
-        ),
+        runtime_workspace_roots: Some(config.workspace_roots.clone()),
         approval_policy: Some(config.permissions.approval_policy.value().into()),
         approvals_reviewer: approvals_reviewer_override_from_config(config),
         sandbox,
@@ -1434,7 +1430,9 @@ fn thread_start_params_from_config(
         ephemeral: Some(config.ephemeral),
         session_start_source,
         thread_source: Some(ThreadSource::User),
-        persist_extended_history: false,
+        developer_instructions: with_terminal_visualization_instructions(
+            config, /*control_instructions*/ None,
+        ),
         ..ThreadStartParams::default()
     }
 }
@@ -1461,19 +1459,15 @@ fn thread_resume_params_from_config(
         model_provider: thread_params_mode.model_provider_from_config(&config),
         service_tier: service_tier_override_from_config(&config),
         cwd: thread_cwd_from_config(&config, thread_params_mode, remote_cwd_override),
-        runtime_workspace_roots: Some(
-            config
-                .workspace_roots
-                .iter()
-                .map(AbsolutePathBuf::to_path_buf)
-                .collect(),
-        ),
+        runtime_workspace_roots: Some(config.workspace_roots.clone()),
         approval_policy: Some(config.permissions.approval_policy.value().into()),
         approvals_reviewer: approvals_reviewer_override_from_config(&config),
         sandbox,
         permissions,
         config: config_request_overrides_from_config(&config),
-        persist_extended_history: false,
+        developer_instructions: with_terminal_visualization_instructions(
+            &config, /*control_instructions*/ None,
+        ),
         ..ThreadResumeParams::default()
     }
 }
@@ -1500,23 +1494,19 @@ fn thread_fork_params_from_config(
         model_provider: thread_params_mode.model_provider_from_config(&config),
         service_tier: service_tier_override_from_config(&config),
         cwd: thread_cwd_from_config(&config, thread_params_mode, remote_cwd_override),
-        runtime_workspace_roots: Some(
-            config
-                .workspace_roots
-                .iter()
-                .map(AbsolutePathBuf::to_path_buf)
-                .collect(),
-        ),
+        runtime_workspace_roots: Some(config.workspace_roots.clone()),
         approval_policy: Some(config.permissions.approval_policy.value().into()),
         approvals_reviewer: approvals_reviewer_override_from_config(&config),
         sandbox,
         permissions,
         config: config_request_overrides_from_config(&config),
         base_instructions: config.base_instructions.clone(),
-        developer_instructions: config.developer_instructions.clone(),
+        developer_instructions: with_terminal_visualization_instructions(
+            &config,
+            config.developer_instructions.clone(),
+        ),
         ephemeral: config.ephemeral,
         thread_source: Some(ThreadSource::User),
-        persist_extended_history: false,
         ..ThreadForkParams::default()
     }
 }
@@ -1605,7 +1595,7 @@ async fn thread_session_state_from_thread_start_response(
         response.cwd.clone(),
         response.runtime_workspace_roots.clone(),
         response.instruction_sources.clone(),
-        response.reasoning_effort,
+        response.reasoning_effort.clone(),
         config,
     )
     .await
@@ -1646,7 +1636,7 @@ async fn thread_session_state_from_thread_resume_response(
         response.cwd.clone(),
         response.runtime_workspace_roots.clone(),
         response.instruction_sources.clone(),
-        response.reasoning_effort,
+        response.reasoning_effort.clone(),
         config,
     )
     .await
@@ -1678,7 +1668,7 @@ async fn thread_session_state_from_thread_fork_response(
         response.cwd.clone(),
         response.runtime_workspace_roots.clone(),
         response.instruction_sources.clone(),
-        response.reasoning_effort,
+        response.reasoning_effort.clone(),
         config,
     )
     .await
@@ -1785,6 +1775,7 @@ mod tests {
     use codex_app_server_protocol::ThreadStatus;
     use codex_app_server_protocol::Turn;
     use codex_app_server_protocol::TurnStatus;
+    use codex_features::Feature;
     use codex_protocol::config_types::Personality;
     use codex_protocol::config_types::ReasoningSummary;
     use codex_protocol::config_types::ServiceTier;
@@ -1823,6 +1814,7 @@ mod tests {
             }),
             secondary: None,
             credits: None,
+            individual_limit: None,
             plan_type: None,
             rate_limit_reached_type: None,
         }
@@ -1903,13 +1895,7 @@ mod tests {
         assert_eq!(params.cwd, Some(config.cwd.to_string_lossy().to_string()));
         assert_eq!(
             params.runtime_workspace_roots,
-            Some(
-                config
-                    .workspace_roots
-                    .iter()
-                    .map(AbsolutePathBuf::to_path_buf)
-                    .collect()
-            )
+            Some(config.workspace_roots.clone())
         );
         assert_eq!(params.sandbox, None);
         assert_eq!(
@@ -2027,13 +2013,7 @@ mod tests {
             &config.permissions.effective_permission_profile(),
             config.cwd.as_path(),
         );
-        let expected_runtime_workspace_roots = Some(
-            config
-                .workspace_roots
-                .iter()
-                .map(AbsolutePathBuf::to_path_buf)
-                .collect::<Vec<_>>(),
-        );
+        let expected_runtime_workspace_roots = Some(config.workspace_roots.clone());
 
         let start = thread_start_params_from_config(
             &config,
@@ -2284,6 +2264,79 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn terminal_visualization_instructions_are_gated_for_all_tui_thread_flows() {
+        let temp_dir = tempfile::tempdir().expect("tempdir");
+        let mut config = build_config(&temp_dir).await;
+        config.developer_instructions = Some("Developer override.".to_string());
+        let thread_id = ThreadId::new();
+
+        let control_start = thread_start_params_from_config(
+            &config,
+            ThreadParamsMode::Embedded,
+            /*remote_cwd_override*/ None,
+            /*session_start_source*/ None,
+        );
+        let control_resume = thread_resume_params_from_config(
+            config.clone(),
+            thread_id,
+            ThreadParamsMode::Embedded,
+            /*remote_cwd_override*/ None,
+        );
+        let control_fork = thread_fork_params_from_config(
+            config.clone(),
+            thread_id,
+            ThreadParamsMode::Embedded,
+            /*remote_cwd_override*/ None,
+        );
+
+        assert_eq!(control_start.developer_instructions, None);
+        assert_eq!(control_resume.developer_instructions, None);
+        assert_eq!(
+            control_fork.developer_instructions.as_deref(),
+            Some("Developer override.")
+        );
+
+        let _ = config
+            .features
+            .enable(Feature::TerminalVisualizationInstructions);
+        let treatment_start = thread_start_params_from_config(
+            &config,
+            ThreadParamsMode::Embedded,
+            /*remote_cwd_override*/ None,
+            /*session_start_source*/ None,
+        );
+        let treatment_resume = thread_resume_params_from_config(
+            config.clone(),
+            thread_id,
+            ThreadParamsMode::Embedded,
+            /*remote_cwd_override*/ None,
+        );
+        let treatment_fork = thread_fork_params_from_config(
+            config,
+            thread_id,
+            ThreadParamsMode::Embedded,
+            /*remote_cwd_override*/ None,
+        );
+        let expected = format!(
+            "Developer override.\n\n{}",
+            crate::terminal_visualization_instructions::TERMINAL_VISUALIZATION_INSTRUCTIONS
+        );
+
+        assert_eq!(
+            treatment_start.developer_instructions.as_deref(),
+            Some(expected.as_str())
+        );
+        assert_eq!(
+            treatment_resume.developer_instructions.as_deref(),
+            Some(expected.as_str())
+        );
+        assert_eq!(
+            treatment_fork.developer_instructions.as_deref(),
+            Some(expected.as_str())
+        );
+    }
+
+    #[tokio::test]
     async fn resume_response_restores_turns_from_thread_items() {
         let temp_dir = tempfile::tempdir().expect("tempdir");
         let config = build_config(&temp_dir).await;
@@ -2295,6 +2348,7 @@ mod tests {
                 id: thread_id.to_string(),
                 session_id: ThreadId::new().to_string(),
                 forked_from_id: Some(forked_from_id.to_string()),
+                parent_thread_id: None,
                 preview: "hello".to_string(),
                 ephemeral: false,
                 model_provider: "openai".to_string(),

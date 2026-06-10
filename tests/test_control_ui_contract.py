@@ -1,7 +1,27 @@
 import unittest
+from html.parser import HTMLParser
 from pathlib import Path
 
 from omnidoer.omni_control.server import lite_static_root, static_root
+
+
+class LiteHtmlParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.view_sections: list[dict[str, str]] = []
+        self.tabs: list[str] = []
+        self.assets: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        data = {key: value or "" for key, value in attrs}
+        if tag == "section" and "data-view" in data:
+            self.view_sections.append(data)
+        if tag == "button" and "data-tab" in data:
+            self.tabs.append(data["data-tab"])
+        if tag == "link" and data.get("rel") in {"stylesheet", "manifest"}:
+            self.assets.append(data.get("href", ""))
+        if tag == "script" and data.get("src"):
+            self.assets.append(data["src"])
 
 
 class ControlUiContractTest(unittest.TestCase):
@@ -29,12 +49,24 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("apple-touch-icon", lite_html)
         self.assertIn("boot-screen", lite_html)
         self.assertIn("pair-code", lite_html)
+        self.assertIn("fixed-password", lite_html)
         self.assertIn("chat-files", lite_html)
         self.assertIn("selected-files", lite_html)
         self.assertIn("核心审批", lite_html)
-        self.assertIn("消息", lite_html)
+        self.assertIn("root shell", lite_html)
+        self.assertIn("credential-search", lite_html)
+        self.assertIn("new-file-path", lite_html)
+        self.assertIn("file-search", lite_html)
+        self.assertIn("file-actions", lite_html)
+        self.assertIn('id="file-editor" rows="10" placeholder="选择文本文件" hidden', lite_html)
+        self.assertIn("data-tab=\"terminal\"", lite_html)
+        self.assertIn("data-tab=\"passwords\"", lite_html)
+        self.assertIn("data-tab=\"files\"", lite_html)
         self.assertIn("/api/lite/state", lite_app)
         self.assertIn("/api/pair", lite_app)
+        self.assertIn("/api/password-login", lite_app)
+        self.assertIn("/api/lite/credentials", lite_app)
+        self.assertIn("/api/lite/files", lite_app)
         self.assertIn("/api/broker-key", lite_app)
         self.assertIn("encryptForBroker", lite_app)
         self.assertIn("CORE_SECRET_TYPES", lite_app)
@@ -43,6 +75,8 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("/api/chat/attachments", lite_app)
         self.assertIn("uploadChatAttachments", lite_app)
         self.assertIn("renderAttachmentList", lite_app)
+        self.assertIn("responseErrorText", lite_app)
+        self.assertIn("input.value = originalText", lite_app)
         self.assertIn("requestForAad", lite_app)
         self.assertIn("throw new Error(error.reason || error.error || \"submit_failed\")", lite_app)
         self.assertIn("streamChatOnce", lite_app)
@@ -54,12 +88,23 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn('requestSubmit()', lite_app)
         self.assertIn("interval=0.18", lite_app)
         self.assertIn("markReady", lite_app)
+        self.assertIn("switchView", lite_app)
+        self.assertIn("credentialPayloadCache", lite_app)
+        self.assertIn("filePayloadCache", lite_app)
+        self.assertIn("chatTextIsCliCommand", lite_app)
+        self.assertIn("control_cli_", lite_app)
+        self.assertIn("/connect-password", lite_html)
+        self.assertIn("/vault", lite_html)
+        self.assertIn("newFile", lite_app)
+        self.assertIn("没有匹配的文件", lite_app)
         self.assertIn(".boot-screen", lite_style)
+        self.assertIn(".tabbar", lite_style)
+        self.assertIn(".search-input", lite_style)
         self.assertNotIn("takeover-panel", lite_html)
         self.assertNotIn("devices-list", lite_html)
         self.assertNotIn("security-status", lite_html)
         self.assertIn(".chat-panel", lite_style)
-        self.assertIn("height: calc(100dvh - 154px", lite_style)
+        self.assertIn("height: calc(100dvh - 112px", lite_style)
         self.assertIn("-webkit-overflow-scrolling: touch", lite_style)
         self.assertIn("manualScrollPauseUntil", lite_app)
         self.assertIn("requestDrafts", lite_app)
@@ -73,6 +118,19 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn('serve.add_argument("--lite"', cli_main)
         self.assertIn('("--lite", args.lite)', cli_main)
         self.assertIn("lite=args.lite", client_cli)
+
+    def test_lite_mobile_workspace_structure_is_stable(self) -> None:
+        parser = LiteHtmlParser()
+        parser.feed((lite_static_root() / "index.html").read_text())
+        views = {section["data-view"]: section for section in parser.view_sections}
+        self.assertEqual(set(views), {"terminal", "passwords", "requests", "files"})
+        self.assertNotIn("hidden", views["terminal"])
+        self.assertIn("hidden", views["passwords"])
+        self.assertIn("hidden", views["requests"])
+        self.assertIn("hidden", views["files"])
+        self.assertEqual(parser.tabs, ["terminal", "passwords", "requests", "files"])
+        for asset in parser.assets:
+            self.assertIn("20260610-lite15", asset)
 
     def test_password_inputs_are_password_type(self) -> None:
         self.assertIn('id="password"', self.app)
@@ -527,6 +585,8 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("const CHAT_COMMANDS", self.app)
         self.assertIn('command: "/status"', self.app)
         self.assertIn('command: "/resume"', self.app)
+        self.assertIn('command: "/connect-password"', self.app)
+        self.assertIn('command: "/vault"', self.app)
         self.assertIn("chatCommandContext", self.app)
         self.assertIn("chatTextIsCliCommand", self.app)
         self.assertIn("matchingChatCommands", self.app)

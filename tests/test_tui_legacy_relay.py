@@ -58,7 +58,7 @@ class TuiLegacyRelayTest(unittest.TestCase):
         self.assertIn("OmniDoer control capability", inputs[0] or "")
         self.assertIn("omnidoer cred request", inputs[0] or "")
         self.assertIn("User request:\nhello", inputs[0] or "")
-        self.assertEqual(commands[1], ["tmux", "paste-buffer", "-b", "omnidoer-control-123", "-t", "%1"])
+        self.assertEqual(commands[1], ["tmux", "paste-buffer", "-pr", "-b", "omnidoer-control-123", "-t", "%1"])
         self.assertEqual(commands[2], ["tmux", "send-keys", "-t", "%1", "Enter"])
         self.assertEqual(commands[3], ["tmux", "delete-buffer", "-b", "omnidoer-control-123"])
 

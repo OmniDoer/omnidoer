@@ -8,11 +8,11 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="OmniDoer Lite">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="/manifest.json?v=20260606-lite11">
+  <link rel="manifest" href="/manifest.json?v=20260610-lite15">
   <link rel="icon" href="/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <title>OmniDoer Lite</title>
-  <link rel="stylesheet" href="/lite.css?v=20260606-lite11">
+  <link rel="stylesheet" href="/lite.css?v=20260610-lite15">
 </head>
 <body>
   <div id="boot-screen" class="boot-screen" aria-hidden="true">
@@ -26,32 +26,27 @@
   </header>
   <main>
     <section id="pair-card" class="panel">
-      <h1>配对</h1>
-      <p>输入当前服务器生成的 6 位配对码。设备密钥只保存在此浏览器。</p>
+      <h1>连接</h1>
       <div class="row">
         <input id="pair-code" inputmode="numeric" autocomplete="one-time-code" maxlength="12" placeholder="123456">
         <button id="pair-button" type="button">配对</button>
       </div>
+      <div class="row password-row">
+        <input id="fixed-password" type="password" autocomplete="current-password" placeholder="固定连接密码">
+        <button id="password-login-button" type="button">连接</button>
+      </div>
       <small id="pair-note"></small>
     </section>
 
-    <section class="panel">
-      <div class="section-head">
-        <h2>核心审批</h2>
-        <button id="refresh-button" type="button">刷新</button>
-      </div>
-      <div id="requests" class="request-list"></div>
-    </section>
-
-    <section class="panel chat-panel">
-      <div class="section-head">
-        <h2>消息</h2>
+    <section class="panel chat-panel" data-view="terminal">
+      <div class="section-head terminal-head">
+        <h2>root shell</h2>
         <select id="session-select" aria-label="会话"></select>
       </div>
       <div id="messages" class="messages"></div>
       <pre id="terminal" class="terminal" hidden></pre>
       <form id="chat-form" class="composer">
-        <textarea id="chat-input" rows="1" placeholder="发送给 OmniDoer"></textarea>
+        <textarea id="chat-input" rows="1" placeholder="/help · /connect-password · /vault"></textarea>
         <label class="attach-button" title="添加文件">
           <input id="chat-files" type="file" multiple accept="image/*,.pdf,.txt,.md,.json,.zip,.log">
           <span>+</span>
@@ -60,7 +55,62 @@
       </form>
       <div id="selected-files" class="selected-files" hidden></div>
     </section>
+
+    <section class="panel credentials-panel" data-view="passwords" hidden>
+      <div class="section-head">
+        <h2>密码</h2>
+        <button id="credentials-refresh-button" type="button">刷新</button>
+      </div>
+      <input id="credential-search" class="search-input" autocomplete="off" placeholder="搜索网站或账号">
+      <div id="credential-requests" class="request-list compact"></div>
+      <div id="credentials" class="credential-list"></div>
+      <form id="credential-form" class="credential-form">
+        <input id="credential-id" type="hidden">
+        <input id="vault-passphrase" type="password" autocomplete="current-password" placeholder="Vault 密码">
+        <input id="credential-origin" autocomplete="url" placeholder="https://example.com">
+        <input id="credential-username" autocomplete="username" placeholder="用户名">
+        <input id="credential-password" type="password" autocomplete="new-password" placeholder="密码">
+        <input id="credential-totp" type="password" autocomplete="off" placeholder="TOTP seed">
+        <div class="row">
+          <button id="credential-save-button" type="submit">保存</button>
+          <button id="credential-clear-button" type="button" class="secondary">清空</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel" data-view="requests" hidden>
+      <div class="section-head">
+        <h2>核心审批</h2>
+        <button id="refresh-button" type="button">刷新</button>
+      </div>
+      <div id="requests" class="request-list"></div>
+    </section>
+
+    <section class="panel files-panel" data-view="files" hidden>
+      <div class="section-head">
+        <h2>文件</h2>
+        <button id="files-refresh-button" type="button">刷新</button>
+      </div>
+      <div id="file-path" class="meta">.</div>
+      <div class="row file-path-row">
+        <input id="new-file-path" autocomplete="off" placeholder="relative/path.txt">
+        <button id="new-file-button" type="button" class="secondary">新建</button>
+      </div>
+      <input id="file-search" class="search-input" autocomplete="off" placeholder="过滤当前目录">
+      <div id="files" class="file-list"></div>
+      <textarea id="file-editor" rows="10" placeholder="选择文本文件" hidden></textarea>
+      <div id="file-actions" class="row" hidden>
+        <button id="file-save-button" type="button">保存文件</button>
+        <button id="file-delete-button" type="button" class="danger">删除</button>
+      </div>
+    </section>
   </main>
-  <script src="/lite.js?v=20260606-lite11"></script>
+  <nav class="tabbar" aria-label="Lite navigation">
+    <button type="button" data-tab="terminal" class="active">终端</button>
+    <button type="button" data-tab="passwords">密码</button>
+    <button type="button" data-tab="requests">请求</button>
+    <button type="button" data-tab="files">文件</button>
+  </nav>
+  <script src="/lite.js?v=20260610-lite15"></script>
 </body>
 </html>

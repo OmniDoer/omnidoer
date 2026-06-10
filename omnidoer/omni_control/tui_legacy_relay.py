@@ -21,6 +21,7 @@ from omnidoer.omni_control.chat_runner import live_tui_bridge_active, prompt_wit
 
 TERMINAL_CAPTURE_LINES = 120
 TERMINAL_RECORD_LIMIT = 6000
+REMOTE_PASTE_SUBMIT_DELAY_SECONDS = 0.25
 
 
 @dataclass(frozen=True)
@@ -283,8 +284,8 @@ def inject_text_into_tmux_pane(pane_id: str, text: str) -> None:
         timeout=5,
     )
     try:
-        subprocess.run(["tmux", "paste-buffer", "-b", buffer_name, "-t", pane_id], check=True, timeout=5)
-        time.sleep(0.12)
+        subprocess.run(["tmux", "paste-buffer", "-pr", "-b", buffer_name, "-t", pane_id], check=True, timeout=5)
+        time.sleep(REMOTE_PASTE_SUBMIT_DELAY_SECONDS)
         subprocess.run(["tmux", "send-keys", "-t", pane_id, "Enter"], check=True, timeout=5)
     finally:
         subprocess.run(["tmux", "delete-buffer", "-b", buffer_name], check=False, timeout=5)

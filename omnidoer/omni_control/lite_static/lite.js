@@ -14,6 +14,10 @@ let renderedLiveTerminalKey = "";
 let selectedFiles = [];
 let manualScrollPauseUntil = 0;
 const requestDrafts = new Map();
+let currentFilePath = ".";
+let credentialPayloadCache = null;
+let filePayloadCache = null;
+let activeView = localStorage.getItem("omnidoer_lite_view") || "terminal";
 
 function setStatus(text) {
   $("#status").textContent = text;
@@ -21,6 +25,21 @@ function setStatus(text) {
 
 function markReady() {
   document.body.classList.add("ready");
+}
+
+function switchView(view) {
+  activeView = view || "terminal";
+  localStorage.setItem("omnidoer_lite_view", activeView);
+  document.querySelectorAll("[data-view]").forEach((panel) => {
+    panel.hidden = panel.dataset.view !== activeView;
+  });
+  document.querySelectorAll("[data-tab]").forEach((tab) => {
+    tab.classList.toggle("active", tab.dataset.tab === activeView);
+  });
+  if (activeView === "passwords") loadCredentials();
+  if (activeView === "files") loadFiles(currentFilePath);
+  if (activeView === "requests") loadState();
+  if (activeView === "terminal") $("#chat-input").focus({ preventScroll: true });
 }
 
 function b64url(bytes) {
@@ -111,6 +130,37 @@ async function pair() {
   $("#pair-note").textContent = `已配对 ${payload.device.device_id}`;
   setStatus("已配对");
   await loadState();
+  startChatStream();
+}
+
+async function passwordLogin() {
+  const password = $("#fixed-password").value;
+  if (!password) {
+    $("#pair-note").textContent = "请输入固定连接密码";
+    return;
+  }
+  setStatus("连接中");
+  const { publicJwk } = await deviceKeyPair();
+  const response = await fetch("/api/password-login", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ password, device_name: "OmniDoer Lite", device_public_key: JSON.stringify(publicJwk) })
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    $("#pair-note").textContent = payload.reason || payload.error || "连接失败";
+    setStatus("未连接");
+    return;
+  }
+  localStorage.setItem("omnidoer_device_id", payload.device.device_id);
+  localStorage.setItem("omnidoer_session_id", payload.session.session_id);
+  localStorage.setItem("omnidoer_csrf_token", payload.csrf_token);
+  $("#fixed-password").value = "";
+  $("#pair-note").textContent = `已连接 ${payload.device.device_id}`;
+  setStatus("已连接");
+  await loadState();
+  await loadCredentials();
+  await loadFiles(currentFilePath);
   startChatStream();
 }
 
@@ -255,6 +305,274 @@ function renderRequests(requests = []) {
     item.append(actions);
     root.append(item);
   });
+}
+
+function renderCredentialRequests(requests = []) {
+  const root = $("#credential-requests");
+  root.textContent = "";
+  const active = requests.filter((request) => ["pending", "user_control"].includes(request.status));
+  if (!active.length) {
+    root.innerHTML = '<p class="meta">暂无新的密码请求。</p>';
+    return;
+  }
+  active.slice(0, 4).forEach((request) => {
+    const item = document.createElement("article");
+    item.className = "request";
+    item.innerHTML = `<strong>${requestLabel(request)}</strong><div>${escapeHtml(request.action_summary || request.origin || "")}</div><div class="meta">${escapeHtml(request.origin || "")}</div>`;
+    root.append(item);
+  });
+}
+
+function credentialOriginsText(credential) {
+  return (credential.allowed_origins || []).join(", ");
+}
+
+function credentialMetadata(credential) {
+  return credential.metadata && typeof credential.metadata === "object" ? credential.metadata : {};
+}
+
+function credentialDisplayName(credential) {
+  const metadata = credentialMetadata(credential);
+  return metadata.name || metadata.label || credentialOriginsText(credential) || credential.credential_id;
+}
+
+function credentialSecondaryText(credential) {
+  const metadata = credentialMetadata(credential);
+  return [metadata.kind, metadata.source, metadata.notes].filter(Boolean).join(" · ");
+}
+
+function credentialSearchText(credential) {
+  const metadata = credentialMetadata(credential);
+  return [
+    credential.username,
+    credential.credential_id,
+    credentialOriginsText(credential),
+    metadata.name,
+    metadata.label,
+    metadata.kind,
+    metadata.source,
+    metadata.notes
+  ].filter(Boolean).join(" ").toLowerCase();
+}
+
+function renderCredentials(payload = {}) {
+  credentialPayloadCache = payload;
+  renderCredentialRequests(payload.latest_requests || []);
+  const root = $("#credentials");
+  root.textContent = "";
+  const query = ($("#credential-search")?.value || "").trim().toLowerCase();
+  const credentials = (payload.credentials || []).filter((credential) => {
+    if (!query) return true;
+    return credentialSearchText(credential).includes(query);
+  });
+  if (!credentials.length) {
+    root.innerHTML = `<p class="meta">${query ? "没有匹配的密码。" : payload.vault_exists ? "暂无已保存凭证。" : "Vault 尚未创建，保存第一条密码时会创建。"}</p>`;
+    return;
+  }
+  const summary = document.createElement("p");
+  summary.className = "meta";
+  summary.textContent = query ? `匹配 ${credentials.length} / ${(payload.credentials || []).length} 条` : `已保存 ${credentials.length} 条`;
+  root.append(summary);
+  credentials.forEach((credential) => {
+    const item = document.createElement("article");
+    item.className = "credential";
+    item.dataset.credentialId = credential.credential_id || "";
+    item.dataset.origins = credentialOriginsText(credential);
+    const title = document.createElement("strong");
+    const origin = document.createElement("div");
+    const meta = document.createElement("div");
+    const actions = document.createElement("div");
+    const secondary = credentialSecondaryText(credential);
+    title.textContent = credentialDisplayName(credential);
+    origin.className = "meta";
+    origin.textContent = credentialOriginsText(credential) || "(no origin)";
+    meta.className = "meta";
+    meta.textContent = `${credential.username || "账号"} · ${credential.credential_id}`;
+    actions.className = "actions";
+    actions.append(
+      button("查看/编辑", () => revealCredential(credential.credential_id), "secondary"),
+      button("删除", () => deleteCredential(credential.credential_id), "danger")
+    );
+    if (secondary) {
+      const note = document.createElement("div");
+      note.className = "meta";
+      note.textContent = secondary;
+      item.append(title, origin, meta, note, actions);
+    } else {
+      item.append(title, origin, meta, actions);
+    }
+    root.append(item);
+  });
+}
+
+function credentialBody() {
+  return {
+    passphrase: $("#vault-passphrase").value,
+    allowed_origins: $("#credential-origin").value.split(",").map((item) => item.trim()).filter(Boolean),
+    username: $("#credential-username").value.trim(),
+    password: $("#credential-password").value,
+    totp_seed: $("#credential-totp").value,
+    create_vault: true
+  };
+}
+
+function clearCredentialForm() {
+  $("#credential-id").value = "";
+  $("#credential-origin").value = "";
+  $("#credential-username").value = "";
+  $("#credential-password").value = "";
+  $("#credential-totp").value = "";
+}
+
+async function loadCredentials() {
+  const response = await signedFetch("/api/lite/credentials", { cache: "no-store" });
+  if (!response.ok) return;
+  renderCredentials(await response.json());
+}
+
+async function revealCredential(credentialId) {
+  const passphrase = $("#vault-passphrase").value;
+  if (!passphrase) {
+    setStatus("需要 Vault 密码");
+    $("#vault-passphrase").focus();
+    return;
+  }
+  const response = await signedFetch(`/api/lite/credentials/${encodeURIComponent(credentialId)}/reveal`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...csrfHeaders() },
+    body: JSON.stringify({ passphrase })
+  });
+  if (!response.ok) throw new Error("凭证解锁失败");
+  const secret = await response.json();
+  const current = Array.from($("#credentials").querySelectorAll(".credential")).find((item) => item.dataset.credentialId === credentialId);
+  $("#credential-id").value = credentialId;
+  $("#credential-origin").value = current?.dataset.origins || "";
+  $("#credential-username").value = secret.username || "";
+  $("#credential-password").value = secret.password || "";
+  $("#credential-totp").value = secret.totp_seed || "";
+  setStatus("凭证已载入");
+}
+
+async function saveCredential(event) {
+  event.preventDefault();
+  const credentialId = $("#credential-id").value;
+  const response = await signedFetch(credentialId ? `/api/lite/credentials/${encodeURIComponent(credentialId)}` : "/api/lite/credentials", {
+    method: credentialId ? "PUT" : "POST",
+    headers: { "content-type": "application/json", ...csrfHeaders() },
+    body: JSON.stringify(credentialBody())
+  });
+  if (!response.ok) throw new Error("凭证保存失败");
+  renderCredentials(await response.json());
+  clearCredentialForm();
+  setStatus("凭证已保存");
+}
+
+async function deleteCredential(credentialId) {
+  if (!confirm("删除这条密码凭证？")) return;
+  const response = await signedFetch(`/api/lite/credentials/${encodeURIComponent(credentialId)}`, {
+    method: "DELETE",
+    headers: csrfHeaders()
+  });
+  if (!response.ok) throw new Error("凭证删除失败");
+  renderCredentials(await response.json());
+  clearCredentialForm();
+  setStatus("凭证已删除");
+}
+
+function renderFiles(payload = {}) {
+  filePayloadCache = payload;
+  currentFilePath = payload.path || ".";
+  $("#file-path").textContent = `${payload.root || ""} / ${currentFilePath}`;
+  if (payload.type === "directory") {
+    $("#file-editor").hidden = true;
+    $("#file-actions").hidden = true;
+  }
+  const root = $("#files");
+  root.textContent = "";
+  const query = ($("#file-search")?.value || "").trim().toLowerCase();
+  if (currentFilePath !== ".") {
+    const parent = currentFilePath.split("/").slice(0, -1).join("/") || ".";
+    root.append(fileItem({ name: "..", path: parent, type: "directory" }));
+  }
+  const entries = (payload.entries || []).filter((entry) => !query || [entry.name, entry.path, entry.type].join(" ").toLowerCase().includes(query));
+  if (!entries.length && query) {
+    root.innerHTML = '<p class="meta">没有匹配的文件。</p>';
+    return;
+  }
+  entries.forEach((entry) => root.append(fileItem(entry)));
+}
+
+function fileItem(entry) {
+  const item = document.createElement("div");
+  const label = document.createElement("strong");
+  const open = button(entry.type === "directory" ? "打开" : "编辑", () => entry.type === "directory" ? loadFiles(entry.path) : openFile(entry.path), "secondary");
+  item.className = "file-item";
+  label.textContent = `${entry.type === "directory" ? "[dir]" : "[file]"} ${entry.name}`;
+  item.append(label, open);
+  return item;
+}
+
+async function loadFiles(path = ".") {
+  const response = await signedFetch(`/api/lite/files?path=${encodeURIComponent(path)}`, { cache: "no-store" });
+  if (!response.ok) return;
+  renderFiles(await response.json());
+}
+
+async function openFile(path) {
+  const response = await signedFetch(`/api/lite/files/content?path=${encodeURIComponent(path)}`, { cache: "no-store" });
+  if (!response.ok) throw new Error("文件不可编辑");
+  const payload = await response.json();
+  currentFilePath = payload.path;
+  $("#file-path").textContent = payload.path;
+  $("#file-editor").value = payload.content || "";
+  $("#file-editor").hidden = false;
+  $("#file-actions").hidden = false;
+  setStatus("文件已打开");
+}
+
+async function saveFile() {
+  if (!currentFilePath || currentFilePath === ".") {
+    setStatus("请选择文件");
+    return;
+  }
+  const response = await signedFetch("/api/lite/files/content", {
+    method: "PUT",
+    headers: { "content-type": "application/json", ...csrfHeaders() },
+    body: JSON.stringify({ path: currentFilePath, content: $("#file-editor").value })
+  });
+  if (!response.ok) throw new Error("文件保存失败");
+  setStatus("文件已保存");
+}
+
+async function newFile() {
+  const path = $("#new-file-path").value.trim();
+  if (!path) {
+    setStatus("请输入文件路径");
+    return;
+  }
+  currentFilePath = path;
+  $("#file-editor").value = "";
+  await saveFile();
+  $("#new-file-path").value = "";
+  $("#file-search").value = "";
+  await openFile(path);
+}
+
+async function deleteFile() {
+  if (!currentFilePath || currentFilePath === ".") return;
+  if (!confirm(`删除 ${currentFilePath}？`)) return;
+  const response = await signedFetch(`/api/lite/files?path=${encodeURIComponent(currentFilePath)}`, {
+    method: "DELETE",
+    headers: csrfHeaders()
+  });
+  if (!response.ok) throw new Error("删除失败");
+  $("#file-editor").value = "";
+  $("#file-editor").hidden = true;
+  $("#file-actions").hidden = true;
+  const parent = currentFilePath.split("/").slice(0, -1).join("/") || ".";
+  currentFilePath = parent;
+  await loadFiles(parent);
+  setStatus("已删除");
 }
 
 function button(text, onClick, className = "") {
@@ -534,26 +852,42 @@ async function startStateLoop() {
 async function sendMessage(event) {
   event.preventDefault();
   const input = $("#chat-input");
-  const text = input.value.trim();
-  const files = selectedFiles;
+  const originalText = input.value;
+  const text = originalText.trim();
+  const files = [...selectedFiles];
   if (!text && !files.length) return;
-  const clientMessageId = `lite_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  input.value = "";
-  selectedFiles = [];
-  $("#chat-files").value = "";
-  renderSelectedFiles();
-  let attachments = [];
-  if (files.length) {
-    setStatus("上传中");
-    attachments = await uploadChatAttachments(files);
+  const clientMessageId = chatTextIsCliCommand(text)
+    ? `control_cli_${Date.now()}_${Math.random().toString(16).slice(2)}`
+    : `lite_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  try {
+    let attachments = [];
+    if (files.length) {
+      setStatus("上传中");
+      attachments = await uploadChatAttachments(files);
+    } else {
+      setStatus("发送中");
+    }
+    const response = await signedFetch("/api/chat/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...csrfHeaders() },
+      body: JSON.stringify({ text, attachments, session_id: activeSessionId, client_message_id: clientMessageId })
+    });
+    if (!response.ok) {
+      throw new Error(await responseErrorText(response, "发送失败"));
+    }
+    input.value = "";
+    selectedFiles = [];
+    $("#chat-files").value = "";
+    renderSelectedFiles();
+    setStatus("已发送");
+    await loadState();
+  } catch (error) {
+    input.value = originalText;
+    selectedFiles = files;
+    renderSelectedFiles();
+    setStatus(`发送失败：${error?.message || "网络错误"}`);
+    input.focus({ preventScroll: true });
   }
-  await signedFetch("/api/chat/messages", {
-    method: "POST",
-    headers: { "content-type": "application/json", ...csrfHeaders() },
-    body: JSON.stringify({ text, attachments, session_id: activeSessionId, client_message_id: clientMessageId })
-  });
-  setStatus("已发送");
-  await loadState();
 }
 
 async function uploadChatAttachments(files) {
@@ -565,9 +899,18 @@ async function uploadChatAttachments(files) {
     headers: csrfHeaders(),
     body: form
   });
-  if (!response.ok) throw new Error("upload failed");
+  if (!response.ok) throw new Error(await responseErrorText(response, "上传失败"));
   const payload = await response.json();
   return payload.attachments || [];
+}
+
+async function responseErrorText(response, fallback) {
+  try {
+    const payload = await response.json();
+    return payload.reason || payload.error || fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 function renderSelectedFiles() {
@@ -603,6 +946,11 @@ function handleChatInputKeydown(event) {
   $("#chat-form").requestSubmit();
 }
 
+function chatTextIsCliCommand(text) {
+  const firstLine = String(text || "").trimStart().split(/\r?\n/, 1)[0].trim();
+  return /^\/[A-Za-z][A-Za-z0-9-]*(?:\s|$)/.test(firstLine);
+}
+
 async function startChatStream() {
   if (streamAbort) streamAbort.abort();
   streamAbort = new AbortController();
@@ -625,7 +973,20 @@ function sleep(ms) {
 }
 
 $("#pair-button").onclick = pair;
+$("#password-login-button").onclick = passwordLogin;
 $("#refresh-button").onclick = loadState;
+$("#credentials-refresh-button").onclick = loadCredentials;
+$("#credential-form").onsubmit = saveCredential;
+$("#credential-clear-button").onclick = clearCredentialForm;
+$("#files-refresh-button").onclick = () => loadFiles(currentFilePath);
+$("#new-file-button").onclick = newFile;
+$("#file-save-button").onclick = saveFile;
+$("#file-delete-button").onclick = deleteFile;
+$("#credential-search").oninput = () => renderCredentials(credentialPayloadCache || {});
+$("#file-search").oninput = () => renderFiles(filePayloadCache || {});
+document.querySelectorAll("[data-tab]").forEach((tab) => {
+  tab.onclick = () => switchView(tab.dataset.tab);
+});
 $("#chat-form").onsubmit = sendMessage;
 $("#chat-files").onchange = () => {
   selectedFiles = Array.from($("#chat-files").files || []);
@@ -654,6 +1015,9 @@ $("#session-select").onchange = () => {
 
 loadState().finally(() => {
   markReady();
+  switchView(activeView);
+  loadCredentials();
+  loadFiles(currentFilePath);
   startStateLoop();
   startChatStream();
 });
