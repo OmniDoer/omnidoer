@@ -245,6 +245,22 @@ fn metadata_from_auth(auth: &AuthDotJson) -> AuthUserMetadata {
                 updated_at,
             }
         }
+        AuthMode::PersonalAccessToken => {
+            let personal_access_token = auth.personal_access_token.as_deref().unwrap_or_default();
+            let id = hash_id(&["personal-access-token", personal_access_token]);
+            AuthUserMetadata {
+                id,
+                label: format!(
+                    "Personal access token {}",
+                    secret_tail(personal_access_token)
+                ),
+                auth_mode,
+                email: None,
+                account_id: None,
+                plan_type: None,
+                updated_at,
+            }
+        }
     }
 }
 
@@ -421,6 +437,7 @@ mod tests {
             }),
             last_refresh: Some(Utc::now()),
             agent_identity: None,
+            personal_access_token: None,
         }
     }
 

@@ -170,7 +170,7 @@ def handle_control_command(args) -> int:
             chat_codex_args=args.chat_codex_arg,
             chat_upload_ttl=args.chat_upload_ttl,
             chat_allow_detached_thread_resume=args.chat_allow_detached_thread_resume,
-            heartbeat_poll_interval=args.heartbeat_poll_interval,
+            heartbeat_poll_interval=getattr(args, "heartbeat_poll_interval", 30.0),
             lite=args.lite,
             fixed_password_env=args.fixed_password_env,
             fixed_password_file=args.fixed_password_file,
