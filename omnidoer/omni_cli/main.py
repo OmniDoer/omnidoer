@@ -101,6 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--chat-codex-arg", action="append", default=[])
     serve.add_argument("--chat-upload-ttl", default=None)
     serve.add_argument("--chat-allow-detached-thread-resume", action="store_true")
+    serve.add_argument("--heartbeat-poll-interval", type=float, default=30.0)
     serve.add_argument("--lite", action="store_true")
     serve.add_argument("--fixed-password-env")
     serve.add_argument("--fixed-password-file")
@@ -179,6 +180,18 @@ def build_parser() -> argparse.ArgumentParser:
     chat_runner.add_argument("--codex-arg", action="append", default=[])
     chat_runner.add_argument("--interval", type=float, default=1.0)
     chat_runner.add_argument("--allow-detached-thread-resume", action="store_true")
+    heartbeat = control_sub.add_parser("heartbeat")
+    heartbeat_sub = heartbeat.add_subparsers(dest="heartbeat_command")
+    heartbeat_sub.add_parser("status")
+    heartbeat_enable = heartbeat_sub.add_parser("enable")
+    heartbeat_enable.add_argument("--interval", default=None)
+    heartbeat_enable.add_argument("--min-idle", default=None)
+    heartbeat_enable.add_argument("--file")
+    heartbeat_enable.add_argument("--session-id")
+    heartbeat_disable = heartbeat_sub.add_parser("disable")
+    heartbeat_disable.add_argument("--session-id")
+    heartbeat_run = heartbeat_sub.add_parser("run-once")
+    heartbeat_run.add_argument("--force", action="store_true")
     for name in ("approve", "deny", "input-secret", "challenge", "takeover", "release"):
         p = control_sub.add_parser(name)
         p.add_argument("request_id")
@@ -407,6 +420,8 @@ def main(argv: list[str] | None = None) -> int:
                     background_args.extend([flag, value])
             if args.chat_runner_interval != 1.0:
                 background_args.extend(["--chat-runner-interval", str(args.chat_runner_interval)])
+            if args.heartbeat_poll_interval != 30.0:
+                background_args.extend(["--heartbeat-poll-interval", str(args.heartbeat_poll_interval)])
             for value in args.chat_codex_arg:
                 background_args.extend(["--chat-codex-arg", value])
             for flag, enabled in (

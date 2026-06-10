@@ -1557,6 +1557,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 "/vault list - list saved credential metadata",
                 "/vault add <vault_passphrase> <origin> <username> <password> [totp_seed] - save a credential without sending it to the model",
                 "/vault delete <credential_id> - delete a saved credential",
+                "/heartbeat status|enable|disable|run - manage idle HEARTBEAT.md task execution",
                 "/help - show this command list",
                 "Other slash commands are delivered to the active OmniDoer console bridge, not to the model.",
             ]
@@ -1786,6 +1787,24 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 response_text=self._control_client_model_text(),
                 delivery_reason="handled_by_control_service",
             )
+        if command == "heartbeat":
+            try:
+                from omnidoer.omni_control.heartbeat import heartbeat_command_text
+
+                response_text = heartbeat_command_text(
+                    args,
+                    cwd=getattr(self.server, "omnidoer_workspace_root", None),
+                )
+            except Exception as exc:
+                response_text = f"Heartbeat command failed: {type(exc).__name__}: {exc}\nSecret exposure: false\nModel submission: false"
+            return self._append_control_cli_response(
+                text=text,
+                client_message_id=client_message_id,
+                session=session,
+                command=command,
+                response_text=response_text,
+                delivery_reason="handled_by_control_service",
+            )
         if command not in {"status", "quota", "usage", "help"}:
             bridge_ready, reason = self._active_cli_accepts_remote_slash_commands()
             if bridge_ready:
@@ -2007,6 +2026,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 tui_bridge_heartbeat_status,
                 tui_restart_command,
             )
+            from omnidoer.omni_control.heartbeat import HeartbeatRunner
             from omnidoer.omni_control.tui_legacy_relay import legacy_tui_relay_status
 
             bridge_heartbeat = tui_bridge_heartbeat_status(chat_thread_id)
@@ -2066,6 +2086,9 @@ class ControlHandler(SimpleHTTPRequestHandler):
                             mcp_sidecar=mcp_sidecar,
                         ),
                     },
+                    "heartbeat": HeartbeatRunner(
+                        cwd=getattr(self.server, "omnidoer_workspace_root", None),
+                    ).status(),
                 },
             )
             return
@@ -3352,6 +3375,7 @@ def serve(
     chat_codex_args: list[str] | None = None,
     chat_upload_ttl: str | int | None = None,
     chat_allow_detached_thread_resume: bool = False,
+    heartbeat_poll_interval: float = 30.0,
     lite: bool = False,
     fixed_password_env: str | None = None,
     fixed_password_file: str | None = None,
@@ -3411,6 +3435,12 @@ def serve(
             ChatUploadStore().cleanup_expired(ttl_seconds=upload_ttl_seconds)
 
     threading.Thread(target=cleanup_chat_uploads, name="omnidoer-chat-upload-cleanup", daemon=True).start()
+    from omnidoer.omni_control.heartbeat import start_heartbeat_thread
+
+    start_heartbeat_thread(
+        cwd=chat_runner_cwd or os.getcwd(),
+        poll_interval=heartbeat_poll_interval,
+    )
     record_control_service_runtime(config)
     if chat_thread_id:
         start_current_session_sync_request_maintainer(

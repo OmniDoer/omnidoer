@@ -245,6 +245,7 @@ const I18N = {
     slashCommandResumeDesc: "Resume an existing conversation thread.",
     slashCommandPairDesc: "Create a short pairing code for another Control Client.",
     slashCommandCompactDesc: "Compact the current conversation context.",
+    slashCommandHeartbeatDesc: "Manage idle HEARTBEAT.md task execution.",
     slashCommandConnectPasswordDesc: "Set or inspect the Lite fixed connection password.",
     slashCommandVaultDesc: "List, add, or delete Vault credentials locally.",
     slashCommandHelpDesc: "Show available OmniDoer CLI commands.",
@@ -667,6 +668,7 @@ const I18N = {
     slashCommandResumeDesc: "恢复已有 conversation thread。",
     slashCommandPairDesc: "为另一个 Control Client 生成 6 位配对码。",
     slashCommandCompactDesc: "压缩当前对话上下文。",
+    slashCommandHeartbeatDesc: "管理空闲 HEARTBEAT.md 心跳任务。",
     slashCommandConnectPasswordDesc: "设置或查看 Lite 固定连接密码。",
     slashCommandVaultDesc: "本地列出、新增或删除 Vault 凭证。",
     slashCommandHelpDesc: "查看可用的 OmniDoer CLI 指令。",
@@ -1918,6 +1920,7 @@ const CHAT_COMMANDS = [
   { command: "/resume", descriptionKey: "slashCommandResumeDesc", aliases: ["thread"], requiresArgument: true, argumentLabel: "thread_id" },
   { command: "/pair", descriptionKey: "slashCommandPairDesc", aliases: ["pairing"] },
   { command: "/compact", descriptionKey: "slashCommandCompactDesc", aliases: ["compress"] },
+  { command: "/heartbeat", descriptionKey: "slashCommandHeartbeatDesc", aliases: ["heart"], argumentLabel: "status|enable|disable|run" },
   { command: "/connect-password", descriptionKey: "slashCommandConnectPasswordDesc", aliases: ["connection-password", "lite-password"], requiresArgument: true, argumentLabel: "set|status" },
   { command: "/vault", descriptionKey: "slashCommandVaultDesc", aliases: ["passwords", "credentials"], requiresArgument: true, argumentLabel: "list|add|delete" },
   { command: "/help", descriptionKey: "slashCommandHelpDesc", aliases: ["commands"] }

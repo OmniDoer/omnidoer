@@ -94,6 +94,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("chatTextIsCliCommand", lite_app)
         self.assertIn("control_cli_", lite_app)
         self.assertIn("/connect-password", lite_html)
+        self.assertIn("/heartbeat", lite_html)
         self.assertIn("/vault", lite_html)
         self.assertIn("newFile", lite_app)
         self.assertIn("没有匹配的文件", lite_app)

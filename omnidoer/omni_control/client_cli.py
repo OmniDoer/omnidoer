@@ -170,6 +170,7 @@ def handle_control_command(args) -> int:
             chat_codex_args=args.chat_codex_arg,
             chat_upload_ttl=args.chat_upload_ttl,
             chat_allow_detached_thread_resume=args.chat_allow_detached_thread_resume,
+            heartbeat_poll_interval=args.heartbeat_poll_interval,
             lite=args.lite,
             fixed_password_env=args.fixed_password_env,
             fixed_password_file=args.fixed_password_file,
@@ -405,6 +406,34 @@ def handle_control_command(args) -> int:
             allow_detached_thread_resume=args.allow_detached_thread_resume,
         ).run_forever()
         return 0
+    if command == "heartbeat":
+        from omnidoer.omni_control.heartbeat import (
+            HeartbeatRunner,
+            configure_heartbeat,
+            format_heartbeat_status_text,
+        )
+
+        subcommand = args.heartbeat_command or "status"
+        if subcommand == "status":
+            print(json.dumps(HeartbeatRunner().status(), indent=2, sort_keys=True))
+            return 0
+        if subcommand == "enable":
+            configure_heartbeat(
+                enabled=True,
+                interval=args.interval,
+                min_idle=args.min_idle,
+                heartbeat_file=args.file,
+                session_id=args.session_id,
+            )
+            print(format_heartbeat_status_text(HeartbeatRunner().status()))
+            return 0
+        if subcommand == "disable":
+            configure_heartbeat(enabled=False, session_id=args.session_id)
+            print(format_heartbeat_status_text(HeartbeatRunner().status()))
+            return 0
+        if subcommand == "run-once":
+            print(json.dumps(HeartbeatRunner().run_once(force=args.force), indent=2, sort_keys=True))
+            return 0
     if command == "complete-task":
         TaskStore().complete(args.task_id)
         print(f"completed {args.task_id}")
