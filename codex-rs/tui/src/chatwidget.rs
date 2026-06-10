@@ -1513,6 +1513,17 @@ impl ChatWidget {
         self.request_redraw();
     }
 
+    pub(crate) fn add_compaction_summary_message(&mut self, summary: Option<String>) {
+        let summary = summary
+            .filter(|summary| !summary.trim().is_empty())
+            .unwrap_or_else(|| "Context compacted.".to_string());
+        let cwd = self.config.cwd.clone();
+        self.transcript = TranscriptState::new(None);
+        self.record_agent_markdown(&summary);
+        self.add_to_history(history_cell::AgentMarkdownCell::new(summary, &cwd));
+        self.request_redraw();
+    }
+
     pub(crate) fn add_memories_enable_notice(&mut self) {
         self.add_to_history(history_cell::new_warning_event(
             MEMORIES_ENABLE_NOTICE.to_string(),

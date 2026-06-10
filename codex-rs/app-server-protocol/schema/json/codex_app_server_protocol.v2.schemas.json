@@ -2756,6 +2756,30 @@
             },
             "method": {
               "enum": [
+                "account/user/switch"
+              ],
+              "title": "Account/user/switchRequestMethod",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/definitions/SwitchAccountUserParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "title": "Account/user/switchRequest",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/definitions/RequestId"
+            },
+            "method": {
+              "enum": [
                 "account/rateLimits/read"
               ],
               "title": "Account/rateLimits/readRequestMethod",
@@ -4769,6 +4793,12 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "description": "Deprecated: Use `ContextCompaction` item type instead.",
       "properties": {
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "threadId": {
           "type": "string"
         },
@@ -7488,32 +7518,6 @@
     "LogoutAccountResponse": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "LogoutAccountResponse",
-      "type": "object"
-    },
-    "SwitchAccountUserParams": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "properties": {
-        "userId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "userId"
-      ],
-      "title": "SwitchAccountUserParams",
-      "type": "object"
-    },
-    "SwitchAccountUserResponse": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "properties": {
-        "userId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "userId"
-      ],
-      "title": "SwitchAccountUserResponse",
       "type": "object"
     },
     "ManagedHooksRequirements": {
@@ -13570,6 +13574,32 @@
       ],
       "type": "object"
     },
+    "SwitchAccountUserParams": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "userId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "userId"
+      ],
+      "title": "SwitchAccountUserParams",
+      "type": "object"
+    },
+    "SwitchAccountUserResponse": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "userId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "userId"
+      ],
+      "title": "SwitchAccountUserResponse",
+      "type": "object"
+    },
     "TerminalInteractionNotification": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "properties": {
@@ -14981,6 +15011,12 @@
           "properties": {
             "id": {
               "type": "string"
+            },
+            "summary": {
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "type": {
               "enum": [

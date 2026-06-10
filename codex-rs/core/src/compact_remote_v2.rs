@@ -8,6 +8,7 @@ use crate::compact::CompactionAnalyticsAttempt;
 use crate::compact::CompactionAnalyticsDetails;
 use crate::compact::InitialContextInjection;
 use crate::compact::compaction_status_from_result;
+use crate::compact::display_summary_from_compaction;
 use crate::compact_remote::process_compacted_history;
 use crate::compact_remote::should_keep_compacted_history_item;
 use crate::compact_remote::trim_function_call_history_to_fit_context_window;
@@ -189,7 +190,7 @@ async fn run_remote_compact_task_inner_impl(
         turn_context.model_info.slug.as_str(),
         turn_context.provider.info().name.as_str(),
     );
-    let compaction_item = TurnItem::ContextCompaction(context_compaction_item);
+    let compaction_item = TurnItem::ContextCompaction(context_compaction_item.clone());
     sess.emit_turn_item_started(turn_context, &compaction_item)
         .await;
 
@@ -296,8 +297,9 @@ async fn run_remote_compact_task_inner_impl(
         InitialContextInjection::DoNotInject => None,
         InitialContextInjection::BeforeLastUserMessage => Some(turn_context.to_turn_context_item()),
     };
+    let summary = display_summary_from_compaction("", &new_history);
     let compacted_item = CompactedItem {
-        message: String::new(),
+        message: summary.clone(),
         replacement_history: Some(new_history.clone()),
     };
     compaction_trace.record_installed(&CompactionCheckpointTracePayload {
@@ -308,7 +310,9 @@ async fn run_remote_compact_task_inner_impl(
         .await;
     sess.recompute_token_usage(turn_context).await;
 
-    sess.emit_turn_item_completed(turn_context, compaction_item)
+    let completed_compaction_item =
+        TurnItem::ContextCompaction(context_compaction_item.with_summary(summary));
+    sess.emit_turn_item_completed(turn_context, completed_compaction_item)
         .await;
     Ok(())
 }

@@ -372,7 +372,12 @@ pub enum ThreadItem {
     ExitedReviewMode { id: String, review: String },
     #[serde(rename_all = "camelCase")]
     #[ts(rename_all = "camelCase")]
-    ContextCompaction { id: String },
+    ContextCompaction {
+        id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        summary: Option<String>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
@@ -868,9 +873,10 @@ impl From<CoreTurnItem> for ThreadItem {
                     duration_ms,
                 }
             }
-            CoreTurnItem::ContextCompaction(compaction) => {
-                ThreadItem::ContextCompaction { id: compaction.id }
-            }
+            CoreTurnItem::ContextCompaction(compaction) => ThreadItem::ContextCompaction {
+                id: compaction.id,
+                summary: compaction.summary,
+            },
         }
     }
 }

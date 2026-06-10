@@ -6,7 +6,9 @@ use crate::compact::CompactionAnalyticsAttempt;
 use crate::compact::CompactionAnalyticsDetails;
 use crate::compact::InitialContextInjection;
 use crate::compact::compaction_status_from_result;
+use crate::compact::display_summary_from_compaction;
 use crate::compact::insert_initial_context_before_last_real_user_or_summary;
+use crate::compact::is_summary_message;
 use crate::context_manager::ContextManager;
 use crate::hook_runtime::PostCompactHookOutcome;
 use crate::hook_runtime::PreCompactHookOutcome;
@@ -175,7 +177,7 @@ async fn run_remote_compact_task_inner_impl(
         turn_context.model_info.slug.as_str(),
         turn_context.provider.info().name.as_str(),
     );
-    let compaction_item = TurnItem::ContextCompaction(context_compaction_item);
+    let compaction_item = TurnItem::ContextCompaction(context_compaction_item.clone());
     sess.emit_turn_item_started(turn_context, &compaction_item)
         .await;
     let mut history = sess.clone_history().await;
@@ -260,8 +262,9 @@ async fn run_remote_compact_task_inner_impl(
         InitialContextInjection::DoNotInject => None,
         InitialContextInjection::BeforeLastUserMessage => Some(turn_context.to_turn_context_item()),
     };
+    let summary = display_summary_from_compaction("", &new_history);
     let compacted_item = CompactedItem {
-        message: String::new(),
+        message: summary.clone(),
         replacement_history: Some(new_history.clone()),
     };
     // Install is the semantic boundary where the compact endpoint's output becomes live
@@ -275,7 +278,9 @@ async fn run_remote_compact_task_inner_impl(
         .await;
     sess.recompute_token_usage(turn_context).await;
 
-    sess.emit_turn_item_completed(turn_context, compaction_item)
+    let completed_compaction_item =
+        TurnItem::ContextCompaction(context_compaction_item.with_summary(summary));
+    sess.emit_turn_item_completed(turn_context, completed_compaction_item)
         .await;
     Ok(())
 }
@@ -310,22 +315,19 @@ pub(crate) async fn process_compacted_history(
 /// We drop:
 /// - `developer` messages because remote output can include stale/duplicated
 ///   instruction content.
-/// - non-user-content `user` messages (session prefix/instruction wrappers),
-///   while preserving real user messages and persisted hook prompts.
+/// - all non-summary `user` messages. Compact installation should leave only
+///   the model-visible summary plus canonical context injected by the next turn.
 ///
 /// This intentionally keeps:
 /// - `assistant` messages (future remote compaction models may emit them)
-/// - `user`-role warnings that parse as `TurnItem::UserMessage` and compaction-generated summary
-///   messages. Legacy warning fragments are filtered by `parse_turn_item` before they reach this
-///   check.
+/// - compaction-generated summary messages. Legacy warning fragments and ordinary user messages
+///   are removed so the installed history is bounded to the summary plus canonical context.
 pub(crate) fn should_keep_compacted_history_item(item: &ResponseItem) -> bool {
     match item {
         ResponseItem::Message { role, .. } if role == "developer" => false,
-        ResponseItem::Message { role, .. } if role == "user" => {
-            matches!(
-                crate::event_mapping::parse_turn_item(item),
-                Some(TurnItem::UserMessage(_) | TurnItem::HookPrompt(_))
-            )
+        ResponseItem::Message { role, content, .. } if role == "user" => {
+            crate::compact::content_items_to_text(content)
+                .is_some_and(|text| is_summary_message(&text))
         }
         ResponseItem::Message { role, .. } if role == "assistant" => true,
         ResponseItem::Message { .. } => false,

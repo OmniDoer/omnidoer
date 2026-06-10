@@ -46,7 +46,9 @@ use codex_model_provider_info::ModelProviderInfo;
 
 pub use codex_prompts::SUMMARIZATION_PROMPT;
 pub use codex_prompts::SUMMARY_PREFIX;
-const COMPACT_USER_MESSAGE_MAX_TOKENS: usize = 20_000;
+const COMPACT_USER_MESSAGE_MAX_TOKENS: usize = 0;
+pub(crate) const REMOTE_COMPACTION_SUMMARY_PLACEHOLDER: &str =
+    "Context compacted. Summary is stored in the compacted model context.";
 
 /// Controls whether compaction replacement history must include initial context.
 ///
@@ -198,7 +200,8 @@ async fn run_compact_task_inner_impl(
     initial_context_injection: InitialContextInjection,
     compaction_metadata: CompactionTurnMetadata,
 ) -> CodexResult<String> {
-    let compaction_item = TurnItem::ContextCompaction(ContextCompactionItem::new());
+    let context_compaction_item = ContextCompactionItem::new();
+    let compaction_item = TurnItem::ContextCompaction(context_compaction_item.clone());
     sess.emit_turn_item_started(&turn_context, &compaction_item)
         .await;
     let initial_input_for_turn: ResponseInputItem = ResponseInputItem::from(input);
@@ -314,7 +317,9 @@ async fn run_compact_task_inner_impl(
         .await;
     sess.recompute_token_usage(&turn_context).await;
 
-    sess.emit_turn_item_completed(&turn_context, compaction_item)
+    let completed_compaction_item =
+        TurnItem::ContextCompaction(context_compaction_item.with_summary(summary_text.clone()));
+    sess.emit_turn_item_completed(&turn_context, completed_compaction_item)
         .await;
     let warning = EventMsg::Warning(WarningEvent {
         message: "Heads up: Long threads and multiple compactions can cause the model to be less accurate. Start a new thread when possible to keep threads small and targeted.".to_string(),
@@ -430,6 +435,25 @@ pub fn content_items_to_text(content: &[ContentItem]) -> Option<String> {
     } else {
         Some(pieces.join("\n"))
     }
+}
+
+pub(crate) fn display_summary_from_compaction(
+    persisted_message: &str,
+    replacement_history: &[ResponseItem],
+) -> String {
+    if !persisted_message.trim().is_empty() {
+        return persisted_message.to_string();
+    }
+    compacted_history_summary_text(replacement_history)
+        .filter(|text| !text.trim().is_empty())
+        .unwrap_or_else(|| REMOTE_COMPACTION_SUMMARY_PLACEHOLDER.to_string())
+}
+
+fn compacted_history_summary_text(items: &[ResponseItem]) -> Option<String> {
+    items.iter().rev().find_map(|item| match item {
+        ResponseItem::Message { content, .. } => content_items_to_text(content),
+        _ => None,
+    })
 }
 
 pub(crate) fn collect_user_messages(items: &[ResponseItem]) -> Vec<String> {

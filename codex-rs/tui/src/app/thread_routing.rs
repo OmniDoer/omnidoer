@@ -1252,7 +1252,10 @@ impl App {
         let mut disconnected = false;
         loop {
             match rx.try_recv() {
-                Ok(event) => self.handle_thread_event_now(event),
+                Ok(event) => {
+                    self.maybe_clear_visible_history_for_compaction_summary(tui, &event)?;
+                    self.handle_thread_event_now(event);
+                }
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => {
                     disconnected = true;
@@ -1475,6 +1478,19 @@ impl App {
         }
     }
 
+    fn maybe_clear_visible_history_for_compaction_summary(
+        &mut self,
+        tui: &mut tui::Tui,
+        event: &ThreadBufferedEvent,
+    ) -> Result<()> {
+        if !thread_event_is_compaction_summary(event) {
+            return Ok(());
+        }
+        self.clear_terminal_ui(tui, /*redraw_header*/ false)?;
+        self.reset_app_ui_state_after_clear();
+        Ok(())
+    }
+
     /// Handles an event emitted by the currently active thread.
     ///
     /// This function enforces shutdown intent routing: unexpected non-primary
@@ -1536,11 +1552,27 @@ impl App {
             // thread, so unrelated shutdowns cannot consume this marker.
             self.pending_shutdown_exit_thread_id = None;
         }
+        self.maybe_clear_visible_history_for_compaction_summary(tui, &event)?;
         self.handle_thread_event_now(event);
         if self.backtrack_render_pending {
             tui.frame_requester().schedule_frame();
         }
         Ok(())
+    }
+}
+
+fn thread_event_is_compaction_summary(event: &ThreadBufferedEvent) -> bool {
+    match event {
+        ThreadBufferedEvent::Notification(ServerNotification::ContextCompacted(_)) => true,
+        ThreadBufferedEvent::Notification(ServerNotification::ItemCompleted(notification)) => {
+            matches!(
+                notification.item,
+                codex_app_server_protocol::ThreadItem::ContextCompaction { .. }
+            )
+        }
+        ThreadBufferedEvent::Request(_)
+        | ThreadBufferedEvent::HistoryEntryResponse(_)
+        | ThreadBufferedEvent::FeedbackSubmission(_) => false,
     }
 }
 

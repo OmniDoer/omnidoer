@@ -216,17 +216,28 @@ pub struct McpToolCallError {
 #[derive(Debug, Clone, Deserialize, Serialize, TS, JsonSchema)]
 pub struct ContextCompactionItem {
     pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub summary: Option<String>,
 }
 
 impl ContextCompactionItem {
     pub fn new() -> Self {
         Self {
             id: uuid::Uuid::new_v4().to_string(),
+            summary: None,
         }
     }
 
+    pub fn with_summary(mut self, summary: String) -> Self {
+        self.summary = Some(summary);
+        self
+    }
+
     pub fn as_legacy_event(&self) -> EventMsg {
-        EventMsg::ContextCompacted(ContextCompactedEvent {})
+        EventMsg::ContextCompacted(ContextCompactedEvent {
+            message: self.summary.clone(),
+        })
     }
 }
 

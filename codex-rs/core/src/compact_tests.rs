@@ -200,9 +200,10 @@ fn build_token_limited_compacted_history_appends_summary_message() {
     let summary_text = "summary text";
 
     let history = build_compacted_history(initial_context, &user_messages, summary_text);
-    assert!(
-        !history.is_empty(),
-        "expected compacted history to include summary"
+    assert_eq!(
+        history.len(),
+        1,
+        "expected compacted history to include only summary"
     );
 
     let last = history.last().expect("history should have a summary entry");
@@ -254,7 +255,7 @@ async fn process_compacted_history_replaces_developer_messages() {
             id: None,
             role: "user".to_string(),
             content: vec![ContentItem::InputText {
-                text: "summary".to_string(),
+                text: format!("{SUMMARY_PREFIX}\nsummary"),
             }],
             phase: None,
         },
@@ -276,7 +277,7 @@ async fn process_compacted_history_replaces_developer_messages() {
         id: None,
         role: "user".to_string(),
         content: vec![ContentItem::InputText {
-            text: "summary".to_string(),
+            text: format!("{SUMMARY_PREFIX}\nsummary"),
         }],
         phase: None,
     });
@@ -289,7 +290,7 @@ async fn process_compacted_history_reinjects_full_initial_context() {
         id: None,
         role: "user".to_string(),
         content: vec![ContentItem::InputText {
-            text: "summary".to_string(),
+            text: format!("{SUMMARY_PREFIX}\nsummary"),
         }],
         phase: None,
     }];
@@ -302,7 +303,7 @@ async fn process_compacted_history_reinjects_full_initial_context() {
         id: None,
         role: "user".to_string(),
         content: vec![ContentItem::InputText {
-            text: "summary".to_string(),
+            text: format!("{SUMMARY_PREFIX}\nsummary"),
         }],
         phase: None,
     });
@@ -353,7 +354,7 @@ keep me updated
             id: None,
             role: "user".to_string(),
             content: vec![ContentItem::InputText {
-                text: "summary".to_string(),
+                text: format!("{SUMMARY_PREFIX}\nsummary"),
             }],
             phase: None,
         },
@@ -375,7 +376,7 @@ keep me updated
         id: None,
         role: "user".to_string(),
         content: vec![ContentItem::InputText {
-            text: "summary".to_string(),
+            text: format!("{SUMMARY_PREFIX}\nsummary"),
         }],
         phase: None,
     });
@@ -384,7 +385,6 @@ keep me updated
 
 #[tokio::test]
 async fn process_compacted_history_drops_legacy_warnings() {
-    let latest_user = user_message("latest user");
     let compacted_history = vec![
         user_message(
             "Warning: The maximum number of unified exec processes you can keep open is 60 and you currently have 61 processes open. Reuse older processes or close them to prevent automatic pruning of old processes",
@@ -395,20 +395,18 @@ async fn process_compacted_history_drops_legacy_warnings() {
         user_message(
             "Warning: Your account was flagged for potentially high-risk cyber activity and this request was routed to gpt-5.2 as a fallback. To regain access to gpt-5.3-codex, apply for trusted access: https://chatgpt.com/cyber or learn more: https://developers.openai.com/codex/concepts/cyber-safety",
         ),
-        latest_user.clone(),
+        user_message("latest user"),
     ];
     let (refreshed, initial_context) = process_compacted_history_with_test_session(
         compacted_history,
         /*previous_turn_settings*/ None,
     )
     .await;
-    let mut expected = initial_context;
-    expected.push(latest_user);
-    assert_eq!(refreshed, expected);
+    assert_eq!(refreshed, initial_context);
 }
 
 #[tokio::test]
-async fn process_compacted_history_inserts_context_before_last_real_user_message_only() {
+async fn process_compacted_history_inserts_context_before_summary_after_clearing_user_messages() {
     let compacted_history = vec![
         ResponseItem::Message {
             id: None,
@@ -441,30 +439,12 @@ async fn process_compacted_history_inserts_context_before_last_real_user_message
         /*previous_turn_settings*/ None,
     )
     .await;
-    let mut expected = vec![
-        ResponseItem::Message {
-            id: None,
-            role: "user".to_string(),
-            content: vec![ContentItem::InputText {
-                text: "older user".to_string(),
-            }],
-            phase: None,
-        },
-        ResponseItem::Message {
-            id: None,
-            role: "user".to_string(),
-            content: vec![ContentItem::InputText {
-                text: format!("{SUMMARY_PREFIX}\nsummary text"),
-            }],
-            phase: None,
-        },
-    ];
-    expected.extend(initial_context);
+    let mut expected = initial_context;
     expected.push(ResponseItem::Message {
         id: None,
         role: "user".to_string(),
         content: vec![ContentItem::InputText {
-            text: "latest user".to_string(),
+            text: format!("{SUMMARY_PREFIX}\nsummary text"),
         }],
         phase: None,
     });
@@ -477,7 +457,7 @@ async fn process_compacted_history_reinjects_model_switch_message() {
         id: None,
         role: "user".to_string(),
         content: vec![ContentItem::InputText {
-            text: "summary".to_string(),
+            text: format!("{SUMMARY_PREFIX}\nsummary"),
         }],
         phase: None,
     }];
@@ -506,7 +486,7 @@ async fn process_compacted_history_reinjects_model_switch_message() {
         id: None,
         role: "user".to_string(),
         content: vec![ContentItem::InputText {
-            text: "summary".to_string(),
+            text: format!("{SUMMARY_PREFIX}\nsummary"),
         }],
         phase: None,
     });

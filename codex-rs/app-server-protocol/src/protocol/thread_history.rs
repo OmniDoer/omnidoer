@@ -357,6 +357,12 @@ impl ThreadHistoryBuilder {
                     ThreadItem::from(payload.item.clone()),
                 );
             }
+            codex_protocol::items::TurnItem::ContextCompaction(_) => {
+                self.upsert_item_in_turn_id(
+                    &payload.turn_id,
+                    ThreadItem::from(payload.item.clone()),
+                );
+            }
             codex_protocol::items::TurnItem::UserMessage(_)
             | codex_protocol::items::TurnItem::HookPrompt(_)
             | codex_protocol::items::TurnItem::AgentMessage(_)
@@ -365,8 +371,7 @@ impl ThreadHistoryBuilder {
             | codex_protocol::items::TurnItem::ImageView(_)
             | codex_protocol::items::TurnItem::ImageGeneration(_)
             | codex_protocol::items::TurnItem::FileChange(_)
-            | codex_protocol::items::TurnItem::McpToolCall(_)
-            | codex_protocol::items::TurnItem::ContextCompaction(_) => {}
+            | codex_protocol::items::TurnItem::McpToolCall(_) => {}
         }
     }
 
@@ -860,11 +865,8 @@ impl ThreadHistoryBuilder {
         });
     }
 
-    fn handle_context_compacted(&mut self, _payload: &ContextCompactedEvent) {
-        let id = self.next_item_id();
-        self.ensure_turn()
-            .items
-            .push(ThreadItem::ContextCompaction { id });
+    fn handle_context_compacted(&mut self, payload: &ContextCompactedEvent) {
+        self.upsert_context_compaction_marker(payload.message.clone());
     }
 
     fn handle_entered_review_mode(&mut self, payload: &codex_protocol::protocol::ReviewRequest) {
@@ -990,8 +992,34 @@ impl ThreadHistoryBuilder {
     /// This keeps compaction-only legacy turns from being dropped by
     /// `finish_current_turn` when they have no renderable items and were not
     /// explicitly opened.
-    fn handle_compacted(&mut self, _payload: &CompactedItem) {
-        self.ensure_turn().saw_compaction = true;
+    fn handle_compacted(&mut self, payload: &CompactedItem) {
+        self.upsert_context_compaction_marker(
+            (!payload.message.is_empty()).then_some(payload.message.clone()),
+        );
+    }
+
+    fn upsert_context_compaction_marker(&mut self, mut summary: Option<String>) {
+        let turn = self.ensure_turn();
+        turn.saw_compaction = true;
+        if let Some(ThreadItem::ContextCompaction {
+            summary: existing_summary,
+            ..
+        }) = turn
+            .items
+            .iter_mut()
+            .rev()
+            .find(|item| matches!(item, ThreadItem::ContextCompaction { .. }))
+        {
+            if existing_summary.is_none() && summary.is_some() {
+                *existing_summary = summary.take();
+            }
+            return;
+        }
+
+        let id = self.next_item_id();
+        self.ensure_turn()
+            .items
+            .push(ThreadItem::ContextCompaction { id, summary });
     }
 
     fn handle_thread_rollback(&mut self, payload: &ThreadRolledBackEvent) {
@@ -2960,7 +2988,10 @@ mod tests {
                 completed_at: None,
                 duration_ms: None,
                 items_view: TurnItemsView::Full,
-                items: Vec::new(),
+                items: vec![ThreadItem::ContextCompaction {
+                    id: "item_1".into(),
+                    summary: None,
+                }],
             }]
         );
     }

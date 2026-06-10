@@ -180,17 +180,6 @@
       ],
       "type": "object"
     },
-    "SwitchAccountUserParams": {
-      "properties": {
-        "userId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "userId"
-      ],
-      "type": "object"
-    },
     "CapabilityRootLocation": {
       "description": "Location used to resolve a selected capability root.",
       "oneOf": [
@@ -3151,6 +3140,17 @@
       },
       "required": [
         "name"
+      ],
+      "type": "object"
+    },
+    "SwitchAccountUserParams": {
+      "properties": {
+        "userId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "userId"
       ],
       "type": "object"
     },
