@@ -48,6 +48,7 @@ fn auth_mode_label(mode: codex_app_server_protocol::AuthMode) -> &'static str {
         codex_app_server_protocol::AuthMode::Chatgpt => "ChatGPT",
         codex_app_server_protocol::AuthMode::ChatgptAuthTokens => "ChatGPT token",
         codex_app_server_protocol::AuthMode::AgentIdentity => "Agent identity",
+        codex_app_server_protocol::AuthMode::PersonalAccessToken => "Personal access token",
     }
 }
 
