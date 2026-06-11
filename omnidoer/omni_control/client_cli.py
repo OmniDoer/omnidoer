@@ -409,6 +409,7 @@ def handle_control_command(args) -> int:
     if command == "heartbeat":
         from omnidoer.omni_control.heartbeat import (
             HeartbeatRunner,
+            HeartbeatTaskStore,
             configure_heartbeat,
             format_heartbeat_status_text,
         )
@@ -416,6 +417,23 @@ def handle_control_command(args) -> int:
         subcommand = args.heartbeat_command or "status"
         if subcommand == "status":
             print(json.dumps(HeartbeatRunner().status(), indent=2, sort_keys=True))
+            return 0
+        if subcommand == "tasks":
+            print(json.dumps([task.to_public_dict() for task in HeartbeatTaskStore().list(include_disabled=True)], indent=2, sort_keys=True))
+            return 0
+        if subcommand == "add-task":
+            task = HeartbeatTaskStore().create(
+                args.task,
+                title=args.title,
+                source="control_cli",
+                weight=args.weight,
+                position=args.position,
+            )
+            print(json.dumps(task.to_public_dict(), indent=2, sort_keys=True))
+            return 0
+        if subcommand == "remove-task":
+            task = HeartbeatTaskStore().remove(args.task_id)
+            print(json.dumps(task.to_public_dict(), indent=2, sort_keys=True))
             return 0
         if subcommand == "enable":
             configure_heartbeat(

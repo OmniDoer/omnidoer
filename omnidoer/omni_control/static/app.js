@@ -1921,7 +1921,7 @@ const CHAT_COMMANDS = [
   { command: "/resume", descriptionKey: "slashCommandResumeDesc", aliases: ["thread"], requiresArgument: true, argumentLabel: "thread_id" },
   { command: "/pair", descriptionKey: "slashCommandPairDesc", aliases: ["pairing"] },
   { command: "/compact", descriptionKey: "slashCommandCompactDesc", aliases: ["compress"] },
-  { command: "/heartbeat", descriptionKey: "slashCommandHeartbeatDesc", aliases: ["heart"], argumentLabel: "status|enable|disable|run" },
+  { command: "/heartbeat", descriptionKey: "slashCommandHeartbeatDesc", aliases: ["heart"], argumentLabel: "status|tasks|add|remove|enable|disable|run" },
   { command: "/connect-password", descriptionKey: "slashCommandConnectPasswordDesc", aliases: ["connection-password", "lite-password"], requiresArgument: true, argumentLabel: "set|status" },
   { command: "/vault", descriptionKey: "slashCommandVaultDesc", aliases: ["passwords", "credentials"], requiresArgument: true, argumentLabel: "list|add|delete" },
   { command: "/help", descriptionKey: "slashCommandHelpDesc", aliases: ["commands"] }

@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import argparse
-import os
 import socket
 import subprocess
 import sys
 import time
-from pathlib import Path
 
 from omnidoer.paths import ensure_home
 from omnidoer.version import __version__
@@ -183,6 +181,14 @@ def build_parser() -> argparse.ArgumentParser:
     heartbeat = control_sub.add_parser("heartbeat")
     heartbeat_sub = heartbeat.add_subparsers(dest="heartbeat_command")
     heartbeat_sub.add_parser("status")
+    heartbeat_sub.add_parser("tasks")
+    heartbeat_add_task = heartbeat_sub.add_parser("add-task")
+    heartbeat_add_task.add_argument("task")
+    heartbeat_add_task.add_argument("--title")
+    heartbeat_add_task.add_argument("--weight", type=int, default=1)
+    heartbeat_add_task.add_argument("--position", choices=["random", "front", "back"], default="random")
+    heartbeat_remove_task = heartbeat_sub.add_parser("remove-task")
+    heartbeat_remove_task.add_argument("task_id")
     heartbeat_enable = heartbeat_sub.add_parser("enable")
     heartbeat_enable.add_argument("--interval", default=None)
     heartbeat_enable.add_argument("--min-idle", default=None)

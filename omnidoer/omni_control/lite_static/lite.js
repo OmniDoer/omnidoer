@@ -6,7 +6,7 @@ const HIGH_RISK_TYPES = new Set(["payment_approval", "oauth_approval", "account_
 const LITE_CHAT_COMMANDS = [
   { command: "/status", description: "查看运行状态" },
   { command: "/compact", description: "压缩当前上下文" },
-  { command: "/heartbeat", description: "管理空闲 HEARTBEAT.md 任务", argument: "status|enable|disable|run" },
+  { command: "/heartbeat", description: "管理空闲 heartbeat 多任务队列", argument: "status|tasks|add|remove|enable|disable|run" },
   { command: "/connect-password", description: "查看或设置固定连接密码", argument: "status|set" },
   { command: "/vault", description: "管理 Vault 凭证", argument: "list|add|delete" },
   { command: "/help", description: "显示可用指令" }
