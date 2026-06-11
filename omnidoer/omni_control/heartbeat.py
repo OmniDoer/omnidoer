@@ -26,6 +26,7 @@ DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 60 * 60
 DEFAULT_HEARTBEAT_MIN_IDLE_SECONDS = 5 * 60
 DEFAULT_HEARTBEAT_POLL_SECONDS = 30.0
 ACTIVE_CHAT_STATUSES = {"queued", "claimed", "streaming"}
+STALE_NON_USER_ACTIVE_SECONDS = 30 * 60
 SKIP_STATE_WRITE_MIN_SECONDS = 5 * 60
 
 
@@ -176,11 +177,14 @@ def chat_session_idle(
     store: ChatStore,
     min_idle_seconds: float,
     now: float | None = None,
+    stale_non_user_active_seconds: float = STALE_NON_USER_ACTIVE_SECONDS,
 ) -> tuple[bool, str, float | None]:
     current = now or time.time()
     for message in store.list(limit=1000):
         if message.status in ACTIVE_CHAT_STATUSES:
             age = current - float(message.updated_at or message.created_at or current)
+            if message.role != "user" and age >= stale_non_user_active_seconds:
+                continue
             return False, f"active_{message.status}_message", age
     latest = _latest_chat_activity(store)
     if latest is not None and current - latest < min_idle_seconds:

@@ -8,11 +8,11 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="OmniDoer Lite">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="/manifest.json?v=20260610-lite15">
+  <link rel="manifest" href="/manifest.json?v=20260610-lite16">
   <link rel="icon" href="/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <title>OmniDoer Lite</title>
-  <link rel="stylesheet" href="/lite.css?v=20260610-lite15">
+  <link rel="stylesheet" href="/lite.css?v=20260610-lite16">
 </head>
 <body>
   <div id="boot-screen" class="boot-screen" aria-hidden="true">
@@ -47,6 +47,7 @@
       <pre id="terminal" class="terminal" hidden></pre>
       <form id="chat-form" class="composer">
         <textarea id="chat-input" rows="1" placeholder="/help · /connect-password · /heartbeat · /vault"></textarea>
+        <div id="chat-command-menu" class="chat-command-menu" hidden></div>
         <label class="attach-button" title="添加文件">
           <input id="chat-files" type="file" multiple accept="image/*,.pdf,.txt,.md,.json,.zip,.log">
           <span>+</span>
@@ -111,6 +112,6 @@
     <button type="button" data-tab="requests">请求</button>
     <button type="button" data-tab="files">文件</button>
   </nav>
-  <script src="/lite.js?v=20260610-lite15"></script>
+  <script src="/lite.js?v=20260610-lite16"></script>
 </body>
 </html>

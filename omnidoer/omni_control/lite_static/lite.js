@@ -3,6 +3,14 @@ const encoder = new TextEncoder();
 const API_TIMEOUT_MS = 9000;
 const CORE_SECRET_TYPES = new Set(["credential", "totp", "one_time_code", "sms_code", "email_code"]);
 const HIGH_RISK_TYPES = new Set(["payment_approval", "oauth_approval", "account_delete", "password_change", "two_factor_change", "console_restart"]);
+const LITE_CHAT_COMMANDS = [
+  { command: "/status", description: "查看运行状态" },
+  { command: "/compact", description: "压缩当前上下文" },
+  { command: "/heartbeat", description: "管理空闲 HEARTBEAT.md 任务", argument: "status|enable|disable|run" },
+  { command: "/connect-password", description: "查看或设置固定连接密码", argument: "status|set" },
+  { command: "/vault", description: "管理 Vault 凭证", argument: "list|add|delete" },
+  { command: "/help", description: "显示可用指令" }
+];
 let activeSessionId = localStorage.getItem("omnidoer_lite_active_session") || "default";
 let lastFingerprint = "";
 let streamAbort = null;
@@ -18,6 +26,7 @@ let currentFilePath = ".";
 let credentialPayloadCache = null;
 let filePayloadCache = null;
 let activeView = localStorage.getItem("omnidoer_lite_view") || "terminal";
+let commandMenuIndex = 0;
 
 function setStatus(text) {
   $("#status").textContent = text;
@@ -876,6 +885,7 @@ async function sendMessage(event) {
       throw new Error(await responseErrorText(response, "发送失败"));
     }
     input.value = "";
+    hideChatCommandMenu();
     selectedFiles = [];
     $("#chat-files").value = "";
     renderSelectedFiles();
@@ -941,9 +951,92 @@ function handlePasteFiles(event) {
 }
 
 function handleChatInputKeydown(event) {
+  if (handleCommandMenuKeydown(event)) return;
   if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
   event.preventDefault();
   $("#chat-form").requestSubmit();
+}
+
+function matchingLiteCommands(value) {
+  const text = String(value || "");
+  if (!text.startsWith("/") || /\s/.test(text) || text.includes("\n")) return [];
+  const query = text.toLowerCase();
+  return LITE_CHAT_COMMANDS.filter((item) => item.command.toLowerCase().startsWith(query));
+}
+
+function hideChatCommandMenu() {
+  const menu = $("#chat-command-menu");
+  if (!menu) return;
+  menu.hidden = true;
+  menu.textContent = "";
+  commandMenuIndex = 0;
+}
+
+function completeLiteCommand(item) {
+  if (!item) return;
+  const input = $("#chat-input");
+  input.value = `${item.command}${item.argument ? " " : ""}`;
+  hideChatCommandMenu();
+  input.focus({ preventScroll: true });
+}
+
+function renderChatCommandMenu() {
+  const input = $("#chat-input");
+  const menu = $("#chat-command-menu");
+  if (!input || !menu) return;
+  const matches = matchingLiteCommands(input.value);
+  if (!matches.length) {
+    hideChatCommandMenu();
+    return;
+  }
+  commandMenuIndex = Math.min(commandMenuIndex, matches.length - 1);
+  menu.textContent = "";
+  matches.forEach((item, index) => {
+    const button = document.createElement("button");
+    const title = document.createElement("strong");
+    const detail = document.createElement("span");
+    button.type = "button";
+    button.className = index === commandMenuIndex ? "active" : "";
+    title.textContent = item.command;
+    detail.textContent = item.argument ? `${item.argument} · ${item.description}` : item.description;
+    button.append(title, detail);
+    button.onpointerdown = (event) => {
+      event.preventDefault();
+      completeLiteCommand(item);
+    };
+    menu.append(button);
+  });
+  menu.hidden = false;
+}
+
+function handleCommandMenuKeydown(event) {
+  const menu = $("#chat-command-menu");
+  if (!menu || menu.hidden) return false;
+  const matches = matchingLiteCommands($("#chat-input").value);
+  if (!matches.length) return false;
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    commandMenuIndex = (commandMenuIndex + 1) % matches.length;
+    renderChatCommandMenu();
+    return true;
+  }
+  if (event.key === "ArrowUp") {
+    event.preventDefault();
+    commandMenuIndex = (commandMenuIndex - 1 + matches.length) % matches.length;
+    renderChatCommandMenu();
+    return true;
+  }
+  if (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) {
+    event.preventDefault();
+    completeLiteCommand(matches[commandMenuIndex]);
+    return true;
+  }
+  if (event.key === "Escape") {
+    event.preventDefault();
+    hideChatCommandMenu();
+    return true;
+  }
+  return false;
 }
 
 function chatTextIsCliCommand(text) {
@@ -993,7 +1086,9 @@ $("#chat-files").onchange = () => {
   renderSelectedFiles();
 };
 $("#chat-input").addEventListener("paste", handlePasteFiles);
+$("#chat-input").addEventListener("input", renderChatCommandMenu);
 $("#chat-input").addEventListener("keydown", handleChatInputKeydown);
+$("#chat-input").addEventListener("blur", () => setTimeout(hideChatCommandMenu, 120));
 $("#messages").addEventListener("paste", handlePasteFiles);
 $("#messages").addEventListener("scroll", () => {
   const root = $("#messages");

@@ -92,9 +92,12 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("credentialPayloadCache", lite_app)
         self.assertIn("filePayloadCache", lite_app)
         self.assertIn("chatTextIsCliCommand", lite_app)
+        self.assertIn("LITE_CHAT_COMMANDS", lite_app)
+        self.assertIn("renderChatCommandMenu", lite_app)
         self.assertIn("control_cli_", lite_app)
+        self.assertIn("chat-command-menu", lite_html)
         self.assertIn("/connect-password", lite_html)
-        self.assertIn("/heartbeat", lite_html)
+        self.assertIn("/heartbeat", lite_app)
         self.assertIn("/vault", lite_html)
         self.assertIn("newFile", lite_app)
         self.assertIn("没有匹配的文件", lite_app)
@@ -105,6 +108,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertNotIn("devices-list", lite_html)
         self.assertNotIn("security-status", lite_html)
         self.assertIn(".chat-panel", lite_style)
+        self.assertIn(".chat-command-menu", lite_style)
         self.assertIn("height: calc(100dvh - 112px", lite_style)
         self.assertIn("-webkit-overflow-scrolling: touch", lite_style)
         self.assertIn("manualScrollPauseUntil", lite_app)
@@ -131,7 +135,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("hidden", views["files"])
         self.assertEqual(parser.tabs, ["terminal", "passwords", "requests", "files"])
         for asset in parser.assets:
-            self.assertIn("20260610-lite15", asset)
+            self.assertIn("20260610-lite16", asset)
 
     def test_password_inputs_are_password_type(self) -> None:
         self.assertIn('id="password"', self.app)

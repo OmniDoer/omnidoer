@@ -6,6 +6,7 @@ from pathlib import Path
 from omnidoer.omni_control.chat import ChatStore
 from omnidoer.omni_control.heartbeat import (
     HeartbeatRunner,
+    chat_session_idle,
     configure_heartbeat,
     heartbeat_command_text,
 )
@@ -60,6 +61,35 @@ class ControlHeartbeatTest(unittest.TestCase):
                 self.assertEqual(result["status"], "skipped")
                 self.assertEqual(result["reason"], "active_queued_message")
                 self.assertEqual(len(ChatStore().list(limit=1000)), 1)
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_heartbeat_ignores_stale_non_user_streaming_messages(self) -> None:
+        old_home = os.environ.get("OMNIDOER_HOME")
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                store = ChatStore()
+                message = store.append(
+                    role="assistant",
+                    text="stale output",
+                    status="streaming",
+                    source="tui_bridge",
+                )
+                now = message.updated_at + 3600
+
+                idle, reason, _ = chat_session_idle(
+                    store=store,
+                    min_idle_seconds=0,
+                    now=now,
+                    stale_non_user_active_seconds=1800,
+                )
+
+                self.assertTrue(idle)
+                self.assertEqual(reason, "idle")
             finally:
                 if old_home is None:
                     os.environ.pop("OMNIDOER_HOME", None)

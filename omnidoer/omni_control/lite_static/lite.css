@@ -298,12 +298,53 @@ textarea {
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
   margin-top: 9px;
+  position: relative;
 }
 .composer textarea {
   background: #0e1b26;
   border-color: #203342;
   color: #f2fbff;
   font: 15px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, "Microsoft YaHei UI", monospace;
+}
+.chat-command-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 12;
+  display: grid;
+  gap: 4px;
+  max-height: min(48vh, 310px);
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid #203342;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 18px 48px rgba(7, 17, 31, 0.24);
+}
+.chat-command-menu[hidden] {
+  display: none;
+}
+.chat-command-menu button {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  min-height: 44px;
+  padding: 7px 9px;
+  border-color: transparent;
+  background: #fff;
+  color: var(--ink);
+  text-align: left;
+}
+.chat-command-menu button.active,
+.chat-command-menu button:focus-visible {
+  border-color: #bfeaf1;
+  background: #e8fbff;
+  outline: none;
+}
+.chat-command-menu span {
+  color: var(--muted);
+  font-size: 0.78rem;
 }
 .attach-button {
   width: 40px;
