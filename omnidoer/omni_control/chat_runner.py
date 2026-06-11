@@ -895,11 +895,11 @@ class ChatRunner:
             command = [
                 codex,
                 "exec",
-                "resume",
-                "--json",
                 "--cd",
                 str(self.cwd),
                 "--skip-git-repo-check",
+                "resume",
+                "--json",
                 *image_args,
                 *self.extra_args,
                 self.thread_id,

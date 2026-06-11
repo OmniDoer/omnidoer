@@ -223,6 +223,46 @@ fn create_pairing_invite(raw_args: &str) -> Result<String, String> {
     Err(failures.join("; "))
 }
 
+#[cfg(test)]
+fn run_heartbeat_command(raw_args: &str) -> Result<String, String> {
+    let args = raw_args.trim();
+    Ok(if args.is_empty() {
+        "OmniDoer heartbeat\nEnabled: yes\nLast message id: none".to_string()
+    } else {
+        format!("OmniDoer heartbeat test args: {args}")
+    })
+}
+
+#[cfg(not(test))]
+fn run_heartbeat_command(raw_args: &str) -> Result<String, String> {
+    let mut command_args = vec!["control".to_string(), "heartbeat".to_string()];
+    let trimmed = raw_args.trim();
+    if trimmed.is_empty() {
+        command_args.push("status".to_string());
+    } else {
+        command_args.extend(trimmed.split_whitespace().map(str::to_string));
+    }
+
+    let output = Command::new("omnidoer")
+        .args(&command_args)
+        .output()
+        .map_err(|err| format!("omnidoer: {err}"))?;
+    if output.status.success() {
+        return Ok(String::from_utf8_lossy(&output.stdout).into_owned());
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    Err(format!(
+        "{}{}",
+        stderr.trim(),
+        if stdout.trim().is_empty() {
+            String::new()
+        } else {
+            format!("\n{}", stdout.trim())
+        }
+    ))
+}
+
 impl ChatWidget {
     /// Dispatch a bare slash command and record its staged local-history entry.
     ///
@@ -322,6 +362,18 @@ impl ChatWidget {
         match create_pairing_invite(args) {
             Ok(output) => self.add_plain_history_lines(pair_invite_lines(&output)),
             Err(err) => self.add_error_message(format!("Failed to create pairing QR: {err}")),
+        }
+    }
+
+    fn handle_heartbeat_command(&mut self, args: &str) {
+        match run_heartbeat_command(args) {
+            Ok(output) => self.add_plain_history_lines(
+                output
+                    .lines()
+                    .map(|line| Line::from(line.to_string()))
+                    .collect(),
+            ),
+            Err(err) => self.add_error_message(format!("Failed to run heartbeat command: {err}")),
         }
     }
 
@@ -677,6 +729,9 @@ impl ChatWidget {
                     );
                 }
             }
+            SlashCommand::Heartbeat => {
+                self.handle_heartbeat_command("");
+            }
             SlashCommand::Users => {
                 self.open_users_picker();
             }
@@ -892,6 +947,9 @@ impl ChatWidget {
             },
             SlashCommand::Pair => {
                 self.handle_pair_command(trimmed);
+            }
+            SlashCommand::Heartbeat => {
+                self.handle_heartbeat_command(trimmed);
             }
             SlashCommand::Keymap => match trimmed.to_ascii_lowercase().as_str() {
                 "" => self.open_keymap_picker(),
@@ -1242,6 +1300,7 @@ impl ChatWidget {
             | SlashCommand::Apps
             | SlashCommand::Plugins
             | SlashCommand::Rollout
+            | SlashCommand::Heartbeat
             | SlashCommand::Copy
             | SlashCommand::Pair
             | SlashCommand::Raw

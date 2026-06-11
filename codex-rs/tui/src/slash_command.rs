@@ -46,6 +46,7 @@ pub enum SlashCommand {
     Diff,
     Mention,
     Status,
+    Heartbeat,
     Users,
     #[strum(to_string = "pair", serialize = "pari")]
     Pair,
@@ -103,6 +104,7 @@ impl SlashCommand {
             SlashCommand::Skills => "use skills to improve how Codex performs specific tasks",
             SlashCommand::Hooks => "view and manage lifecycle hooks",
             SlashCommand::Status => "show current session configuration and token usage",
+            SlashCommand::Heartbeat => "manage idle HEARTBEAT.md tasks",
             SlashCommand::Users => "switch between saved OmniDoer users",
             SlashCommand::Pair => "create an OmniDoer Control Client pairing QR code",
             SlashCommand::DebugConfig => "show config layers and requirement sources for debugging",
@@ -164,6 +166,7 @@ impl SlashCommand {
                 | SlashCommand::Keymap
                 | SlashCommand::Mcp
                 | SlashCommand::Pair
+                | SlashCommand::Heartbeat
                 | SlashCommand::Raw
                 | SlashCommand::Pets
                 | SlashCommand::Side
@@ -219,6 +222,7 @@ impl SlashCommand {
             | SlashCommand::Skills
             | SlashCommand::Hooks
             | SlashCommand::Status
+            | SlashCommand::Heartbeat
             | SlashCommand::DebugConfig
             | SlashCommand::Ps
             | SlashCommand::Stop
@@ -303,6 +307,8 @@ mod tests {
         assert!(SlashCommand::Ide.available_during_task());
         assert!(SlashCommand::Title.available_during_task());
         assert!(SlashCommand::Statusline.available_during_task());
+        assert!(SlashCommand::Heartbeat.available_during_task());
+        assert!(SlashCommand::Heartbeat.supports_inline_args());
         assert!(SlashCommand::Raw.available_during_task());
         assert!(SlashCommand::Raw.available_in_side_conversation());
         assert!(SlashCommand::Raw.supports_inline_args());

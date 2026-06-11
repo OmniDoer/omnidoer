@@ -570,7 +570,8 @@ class ControlChatRunnerTest(unittest.TestCase):
                 ).run_once()
 
                 argv = json.loads(argv_path.read_text())
-                self.assertEqual(argv[:2], ["exec", "resume"])
+                self.assertEqual(argv[:2], ["exec", "--cd"])
+                self.assertEqual(argv[3:5], ["--skip-git-repo-check", "resume"])
                 self.assertIn("--json", argv)
                 self.assertIn("thread_active", argv)
                 self.assertIn("OmniDoer control capability", argv[-1])
