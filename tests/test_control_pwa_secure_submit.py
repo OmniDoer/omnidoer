@@ -7,10 +7,59 @@ from pathlib import Path
 
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.secure_channel import decrypt_control_envelope
-from omnidoer.omni_control.server import ControlHandler
+from omnidoer.omni_control.server import ControlHandler, LiteControlHandler
 
 
 class ControlPwaSecureSubmitTest(unittest.TestCase):
+    def test_lite_request_poll_does_not_replace_focused_secret_input(self) -> None:
+        try:
+            from playwright.sync_api import sync_playwright
+        except Exception:
+            self.skipTest("playwright is not installed")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old_home = os.environ.get("OMNIDOER_HOME")
+            os.environ["OMNIDOER_HOME"] = tmp
+            server = ThreadingHTTPServer(("127.0.0.1", 0), LiteControlHandler)
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                request = {
+                    "request_id": "req-lite-draft",
+                    "request_type": "credential",
+                    "status": "pending",
+                    "origin": "https://www.kaggle.com",
+                    "action_summary": "Kaggle Legacy API Credentials",
+                    "requested_fields": ["username", "password"],
+                    "risk_level": "low",
+                    "save_to_vault": True,
+                }
+                url = f"http://127.0.0.1:{server.server_address[1]}"
+                try:
+                    with sync_playwright() as playwright:
+                        browser = playwright.chromium.launch(headless=True)
+                        page = browser.new_page()
+                        page.goto(url, wait_until="domcontentloaded")
+                        page.evaluate("(request) => renderRequests([request], { force: true })", request)
+                        page.fill("[data-secret-field='password']", "draft-secret")
+                        page.evaluate("window.__litePasswordInputBeforeRerender = document.querySelector(\"[data-secret-field='password']\")")
+                        page.evaluate("(request) => renderRequests([request])", request)
+                        self.assertTrue(
+                            page.evaluate("window.__litePasswordInputBeforeRerender === document.querySelector(\"[data-secret-field='password']\")")
+                        )
+                        self.assertEqual(page.locator("[data-secret-field='password']").input_value(), "draft-secret")
+                        self.assertEqual(page.evaluate("document.activeElement?.dataset.secretField"), "password")
+                        browser.close()
+                except Exception as exc:
+                    self.skipTest(f"playwright chromium unavailable: {type(exc).__name__}")
+            finally:
+                server.shutdown()
+                server.server_close()
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
     def test_pwa_preserves_credential_draft_during_request_rerender(self) -> None:
         try:
             from playwright.sync_api import sync_playwright
@@ -40,7 +89,9 @@ class ControlPwaSecureSubmitTest(unittest.TestCase):
                         page.wait_for_selector("#username")
                         page.fill("#username", "demo")
                         page.fill("#password", "draft-secret")
+                        page.evaluate("window.__passwordInputBeforeRerender = document.querySelector('#password')")
                         page.evaluate("renderRequestList(cachedRequests)")
+                        self.assertTrue(page.evaluate("window.__passwordInputBeforeRerender === document.querySelector('#password')"))
                         self.assertEqual(page.locator("#username").input_value(), "demo")
                         self.assertEqual(page.locator("#password").input_value(), "draft-secret")
                         self.assertEqual(page.evaluate("document.activeElement?.dataset.secretField"), "password")

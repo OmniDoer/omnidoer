@@ -1550,7 +1550,7 @@ function runOverviewAction(action) {
     if (!openPendingSyncRequest()) {
       setRequestFilter("open");
       activatePanel("requests-panel");
-      renderRequestList(cachedRequests, "open");
+      renderRequestList(cachedRequests, "open", { force: true });
     }
   } else if (action === "pause-browser") {
     requestTakeoverPause();
@@ -1628,7 +1628,7 @@ if (attentionReviewButton) {
     const requestId = document.querySelector("#attention-strip")?.dataset.requestId || "";
     setRequestFilter("open");
     activatePanel("requests-panel");
-    renderRequestList(cachedRequests, "open");
+    renderRequestList(cachedRequests, "open", { force: true });
     setTimeout(() => focusRequestCard(requestId), 50);
   };
 }
@@ -1883,7 +1883,7 @@ if (languageSelect) {
     currentLanguage = languageSelect.value;
     localStorage.setItem("omnidoer_language", currentLanguage);
     applyLanguage();
-    renderRequestList(cachedRequests);
+    renderRequestList(cachedRequests, activeFilter(), { force: true });
     renderChatTimeline(cachedChatMessages, cachedChatRecords, cachedChatTerminal);
   };
 }
@@ -1891,9 +1891,10 @@ if (languageSelect) {
 document.querySelectorAll("[data-filter]").forEach((button) => {
   button.onclick = () => {
     setRequestFilter(button.dataset.filter);
-    renderRequestList(cachedRequests, button.dataset.filter);
+    renderRequestList(cachedRequests, button.dataset.filter, { force: true });
   };
 });
+document.querySelector("#requests-list")?.addEventListener("focusout", () => setTimeout(flushPendingRequestListRender, 120));
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -1946,6 +1947,8 @@ let runtimeStatusLoadPromise = null;
 let chatMessagesLoadPromise = null;
 let chatSessionsLoadPromise = null;
 let requestsLoadPromise = null;
+let renderedRequestListSignature = "";
+let pendingRequestListRender = null;
 let browserContextsLoadPromise = null;
 let devicesSessionsLoadPromise = null;
 let foregroundRealtimeRecovery = false;
@@ -2271,7 +2274,7 @@ function openPendingSyncRequest() {
   if (!request) return false;
   setRequestFilter("open");
   activatePanel("requests-panel");
-  renderRequestList(cachedRequests, "open");
+  renderRequestList(cachedRequests, "open", { force: true });
   setTimeout(() => focusRequestCard(request.request_id), 50);
   return true;
 }
@@ -2353,6 +2356,43 @@ function restoreRequestDrafts(list, captured) {
       if (start !== null && end !== null) activeInput.setSelectionRange(start, end);
     }
   }
+}
+
+function requestListSignature(requests = [], filter = activeFilter()) {
+  return JSON.stringify({
+    filter,
+    requests: requests.map((request) => ({
+      id: request.request_id,
+      type: request.request_type,
+      status: request.status,
+      origin: request.origin,
+      summary: request.action_summary,
+      risk: request.risk_level,
+      fields: request.requested_fields || [],
+      save: Boolean(request.save_to_vault),
+      expires: request.expires_at
+    }))
+  });
+}
+
+function requestListInputEditing(list = document.querySelector("#requests-list")) {
+  const active = document.activeElement;
+  return Boolean(active && list?.contains(active) && active.matches?.("[data-secret-field], [data-challenge-field], [data-takeover-text], input, textarea"));
+}
+
+function requestDraftHasText(captured) {
+  if (!captured?.drafts) return false;
+  return Object.values(captured.drafts).some((draft) => !draft.isCheckbox && String(draft.value || "").length > 0);
+}
+
+function flushPendingRequestListRender() {
+  if (!pendingRequestListRender) return;
+  const list = document.querySelector("#requests-list");
+  const capturedDrafts = list ? captureRequestDrafts(list) : null;
+  if (requestListInputEditing(list) || requestDraftHasText(capturedDrafts)) return;
+  const pending = pendingRequestListRender;
+  pendingRequestListRender = null;
+  renderRequestList(pending.requests, pending.filter, { force: true });
 }
 
 function setStatus(
@@ -3093,7 +3133,7 @@ async function releaseActiveTakeover() {
     if (!actionResponse?.ok) throw new Error("release failed");
     const payload = await actionResponse.json().catch(() => ({}));
     upsertCachedRequest(payload);
-    renderRequestList(cachedRequests);
+    renderRequestList(cachedRequests, activeFilter(), { force: true });
     refreshRequestDependentUi();
     stopTakeoverFramePolling(request.request_id);
     await loadBrowserContexts();
@@ -3415,7 +3455,7 @@ function forgetLocalPairing() {
     "omnidoer_device_public_jwk"
   ].forEach((key) => localStorage.removeItem(key));
   cachedRequests = [];
-  renderRequestList([]);
+  renderRequestList([], activeFilter(), { force: true });
   setPairingUiState({
     state: "unpaired",
     message: t("localPairingRemoved")
@@ -3507,7 +3547,7 @@ async function submitEncrypted(request, payload) {
   } else {
     clearApprovalDraftsForRequest(request.request_id);
   }
-  await loadRequests();
+  await loadRequests({ forceRender: true });
 }
 
 async function postAction(request, action, payload = null) {
@@ -3526,7 +3566,7 @@ async function postAction(request, action, payload = null) {
     bridgeActivationDeadline = Date.now() + 30000;
     bridgeActivationMonitor = setTimeout(monitorBridgeActivation, 1200);
   }
-  await loadRequests();
+  await loadRequests({ forceRender: true });
   return response;
 }
 
@@ -5901,9 +5941,17 @@ function renderRequest(request) {
   return item;
 }
 
-function renderRequestList(requests, filter = activeFilter()) {
+function renderRequestList(requests, filter = activeFilter(), options = {}) {
   const list = document.querySelector("#requests-list");
   const capturedDrafts = captureRequestDrafts(list);
+  const signature = requestListSignature(requests, filter);
+  if (!options.force && signature === renderedRequestListSignature) return;
+  if (!options.force && (requestListInputEditing(list) || requestDraftHasText(capturedDrafts))) {
+    pendingRequestListRender = { requests, filter };
+    return;
+  }
+  pendingRequestListRender = null;
+  renderedRequestListSignature = signature;
   list.innerHTML = "";
   const openRequests = requests.filter(isOpenRequest);
   const visible = requests.filter((request) => requestMatchesFilter(request, filter));
@@ -6033,7 +6081,7 @@ function scheduleRealtimeRefreshFromChat() {
   }, 1500);
 }
 
-async function loadRequests() {
+async function loadRequests(options = {}) {
   if (requestsLoadPromise) return requestsLoadPromise;
   requestsLoadPromise = (async () => {
     const requests = await signedFetch("/api/requests", { cache: "no-store" }).then((r) => {
@@ -6042,7 +6090,7 @@ async function loadRequests() {
     });
     cachedRequests = requests;
     pruneApprovalDrafts(requests);
-    renderRequestList(requests);
+    renderRequestList(requests, activeFilter(), { force: Boolean(options.forceRender) });
     refreshRequestDependentUi();
   })();
   try {

@@ -115,6 +115,9 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("requestDrafts", lite_app)
         self.assertIn("captureRequestDrafts", lite_app)
         self.assertIn("pruneRequestDrafts", lite_app)
+        self.assertIn("requestSignature", lite_app)
+        self.assertIn("pendingRequestPayload", lite_app)
+        self.assertIn("forceRequests", lite_app)
         self.assertIn('["pending", "user_control"].includes(request.status)', lite_app)
         self.assertNotIn('"fulfilled", "approved"].includes(request.status)', lite_app)
         self.assertIn("data-secret-field", lite_app)
@@ -135,7 +138,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("hidden", views["files"])
         self.assertEqual(parser.tabs, ["terminal", "passwords", "requests", "files"])
         for asset in parser.assets:
-            self.assertIn("20260610-lite16", asset)
+            self.assertIn("20260611-request-inputs", asset)
 
     def test_password_inputs_are_password_type(self) -> None:
         self.assertIn('id="password"', self.app)
@@ -405,7 +408,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("formatChatTimestamp", app)
         self.assertIn("CHAT_RETENTION_MS", app)
         self.assertIn("pruneChatTimelineForRetention", app)
-        self.assertIn("20260605-tmuxfix", self.html)
+        self.assertIn("20260611-request-inputs", self.html)
         self.assertIn("<title>OmniDoer</title>", self.html)
         self.assertIn("markdown-copy-button", app)
         self.assertIn("chatSendInFlight", app)

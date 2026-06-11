@@ -22,6 +22,8 @@ let renderedLiveTerminalKey = "";
 let selectedFiles = [];
 let manualScrollPauseUntil = 0;
 const requestDrafts = new Map();
+let renderedRequestSignature = "";
+let pendingRequestPayload = null;
 let currentFilePath = ".";
 let credentialPayloadCache = null;
 let filePayloadCache = null;
@@ -47,7 +49,7 @@ function switchView(view) {
   });
   if (activeView === "passwords") loadCredentials();
   if (activeView === "files") loadFiles(currentFilePath);
-  if (activeView === "requests") loadState();
+  if (activeView === "requests") loadState({ forceRequests: true });
   if (activeView === "terminal") $("#chat-input").focus({ preventScroll: true });
 }
 
@@ -138,7 +140,7 @@ async function pair() {
   localStorage.setItem("omnidoer_csrf_token", payload.csrf_token);
   $("#pair-note").textContent = `已配对 ${payload.device.device_id}`;
   setStatus("已配对");
-  await loadState();
+  await loadState({ forceRequests: true });
   startChatStream();
 }
 
@@ -167,7 +169,7 @@ async function passwordLogin() {
   $("#fixed-password").value = "";
   $("#pair-note").textContent = `已连接 ${payload.device.device_id}`;
   setStatus("已连接");
-  await loadState();
+  await loadState({ forceRequests: true });
   await loadCredentials();
   await loadFiles(currentFilePath);
   startChatStream();
@@ -252,12 +254,52 @@ function pruneRequestDrafts(activeRequests = []) {
   });
 }
 
-function renderRequests(requests = []) {
+function activeLiteRequests(requests = []) {
+  return requests.filter((request) => ["pending", "user_control"].includes(request.status));
+}
+
+function requestSignature(requests = []) {
+  return JSON.stringify(requests.map((request) => ({
+    id: request.request_id,
+    type: request.request_type,
+    status: request.status,
+    origin: request.origin,
+    summary: request.action_summary,
+    risk: request.risk_level,
+    fields: request.requested_fields || [],
+    save: Boolean(request.save_to_vault)
+  })));
+}
+
+function requestDraftHasValue() {
+  return Array.from(requestDrafts.values()).some((value) => String(value || "").length > 0);
+}
+
+function requestInputEditing() {
+  const active = document.activeElement;
+  return Boolean(active && active.closest?.("#requests") && active.matches?.("[data-secret-field], input, textarea"));
+}
+
+function flushPendingRequestRender() {
+  if (!pendingRequestPayload || requestInputEditing() || requestDraftHasValue()) return;
+  const pending = pendingRequestPayload;
+  pendingRequestPayload = null;
+  renderRequests(pending.requests, { force: true });
+}
+
+function renderRequests(requests = [], options = {}) {
   captureRequestDrafts();
   const root = $("#requests");
+  const active = activeLiteRequests(requests);
+  const signature = requestSignature(active);
+  if (!options.force && (signature === renderedRequestSignature || requestInputEditing() || requestDraftHasValue())) {
+    if (signature !== renderedRequestSignature) pendingRequestPayload = { requests };
+    return;
+  }
+  pendingRequestPayload = null;
   root.textContent = "";
-  const active = requests.filter((request) => ["pending", "user_control"].includes(request.status));
   pruneRequestDrafts(active);
+  renderedRequestSignature = signature;
   if (!active.length) {
     root.innerHTML = '<p class="meta">暂无核心审批请求。</p>';
     return;
@@ -302,8 +344,9 @@ function renderRequests(requests = []) {
           }
         });
         secretFields(request).forEach((field) => requestDrafts.delete(requestDraftKey(request, field)));
+        pendingRequestPayload = null;
         setStatus("已提交保险柜");
-        await loadState();
+        await loadState({ forceRequests: true });
       });
       actions.append(submit);
     }
@@ -611,7 +654,7 @@ async function postRequestAction(request, action) {
     headers: { "content-type": "application/json", ...csrfHeaders() },
     body: JSON.stringify(body)
   });
-  await loadState();
+  await loadState({ forceRequests: true });
 }
 
 function renderSessions(payload = {}) {
@@ -799,7 +842,7 @@ function renderChat(chat = {}) {
   });
 }
 
-async function loadState() {
+async function loadState(options = {}) {
   const response = await signedFetch(`/api/lite/state?session_id=${encodeURIComponent(activeSessionId)}`, { cache: "no-store" });
   if (response.status === 401) {
     setStatus("未配对");
@@ -810,7 +853,7 @@ async function loadState() {
   $("#pair-card").hidden = true;
   setStatus("已连接");
   renderSessions(payload.sessions);
-  renderRequests(payload.requests);
+  renderRequests(payload.requests, { force: Boolean(options.forceRequests) });
   renderChat(payload.chat);
 }
 
@@ -1067,7 +1110,7 @@ function sleep(ms) {
 
 $("#pair-button").onclick = pair;
 $("#password-login-button").onclick = passwordLogin;
-$("#refresh-button").onclick = loadState;
+$("#refresh-button").onclick = () => loadState({ forceRequests: true });
 $("#credentials-refresh-button").onclick = loadCredentials;
 $("#credential-form").onsubmit = saveCredential;
 $("#credential-clear-button").onclick = clearCredentialForm;
@@ -1095,6 +1138,7 @@ $("#messages").addEventListener("scroll", () => {
   const nearBottom = root.scrollHeight - root.scrollTop - root.clientHeight < 80;
   if (!nearBottom) manualScrollPauseUntil = Date.now() + 2200;
 }, { passive: true });
+$("#requests").addEventListener("focusout", () => setTimeout(flushPendingRequestRender, 120));
 $("#session-select").onchange = () => {
   activeSessionId = $("#session-select").value || "default";
   localStorage.setItem("omnidoer_lite_active_session", activeSessionId);
@@ -1104,11 +1148,11 @@ $("#session-select").onchange = () => {
   renderedTerminalTail = "";
   renderedLiveTerminalKey = "";
   $("#terminal").hidden = true;
-  loadState();
+  loadState({ forceRequests: true });
   startChatStream();
 };
 
-loadState().finally(() => {
+loadState({ forceRequests: true }).finally(() => {
   markReady();
   switchView(activeView);
   loadCredentials();
