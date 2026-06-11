@@ -237,6 +237,14 @@ function secretFields(request) {
   return fields.slice(0, 4);
 }
 
+function secretFieldLabel(request, field) {
+  return request.structured_details?.credential_labels?.[field] || field;
+}
+
+function secretFieldType(field) {
+  return /password|key|secret|token/i.test(String(field || "")) ? "password" : "text";
+}
+
 function requestDraftKey(request, field) {
   return `${request.request_id}:${field}`;
 }
@@ -315,9 +323,9 @@ function renderRequests(requests = [], options = {}) {
       secretFields(request).forEach((field) => {
         const wrap = document.createElement("label");
         wrap.className = "field";
-        wrap.textContent = field;
+        wrap.textContent = secretFieldLabel(request, field);
         const input = document.createElement("input");
-        input.type = field.toLowerCase().includes("password") ? "password" : "text";
+        input.type = secretFieldType(field);
         input.autocomplete = "off";
         input.dataset.requestId = request.request_id;
         input.dataset.secretField = field;

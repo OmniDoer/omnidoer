@@ -118,6 +118,8 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("requestSignature", lite_app)
         self.assertIn("pendingRequestPayload", lite_app)
         self.assertIn("forceRequests", lite_app)
+        self.assertIn("secretFieldLabel", lite_app)
+        self.assertIn("secretFieldType", lite_app)
         self.assertIn('["pending", "user_control"].includes(request.status)', lite_app)
         self.assertNotIn('"fulfilled", "approved"].includes(request.status)', lite_app)
         self.assertIn("data-secret-field", lite_app)
@@ -138,7 +140,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("hidden", views["files"])
         self.assertEqual(parser.tabs, ["terminal", "passwords", "requests", "files"])
         for asset in parser.assets:
-            self.assertIn("20260611-request-inputs", asset)
+            self.assertIn("20260611-secret-labels", asset)
 
     def test_password_inputs_are_password_type(self) -> None:
         self.assertIn('id="password"', self.app)
