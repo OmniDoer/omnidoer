@@ -422,12 +422,25 @@ def handle_control_command(args) -> int:
             print(json.dumps([task.to_public_dict() for task in HeartbeatTaskStore().list(include_disabled=True)], indent=2, sort_keys=True))
             return 0
         if subcommand == "add-task":
+            min_interval_seconds = (
+                None
+                if args.min_interval is None
+                else parse_duration_seconds(str(args.min_interval))
+            )
             task = HeartbeatTaskStore().create(
                 args.task,
                 title=args.title,
                 source="control_cli",
                 weight=args.weight,
                 position=args.position,
+                priority=args.priority,
+                quota=args.quota,
+                repo_path=args.repo_path,
+                remote_url=args.remote_url,
+                target=args.target,
+                deadline_utc=args.deadline_utc,
+                min_interval_seconds=min_interval_seconds,
+                interrupt_active=not args.no_interrupt_active,
             )
             print(json.dumps(task.to_public_dict(), indent=2, sort_keys=True))
             return 0

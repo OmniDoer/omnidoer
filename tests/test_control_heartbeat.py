@@ -10,6 +10,7 @@ from omnidoer.omni_control.heartbeat import (
     HeartbeatTaskStore,
     chat_session_idle,
     configure_heartbeat,
+    effective_task_weight,
     heartbeat_command_text,
 )
 
@@ -144,6 +145,86 @@ class ControlHeartbeatTest(unittest.TestCase):
                 self.assertEqual(result["status"], "skipped")
                 self.assertEqual(result["reason"], "active_queued_message")
                 self.assertEqual(len(ChatStore().list(limit=1000)), 1)
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_queued_task_interrupts_active_chat(self) -> None:
+        old_home = os.environ.get("OMNIDOER_HOME")
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                configure_heartbeat(enabled=True, interval="1s", min_idle="5m")
+                task = HeartbeatTaskStore().create(
+                    "执行周期性 Kaggle 轮询",
+                    title="kaggle",
+                    position="back",
+                )
+                ChatStore().append(role="assistant", text="long running", status="streaming")
+
+                result = HeartbeatRunner().run_once()
+
+                self.assertEqual(result["status"], "queued")
+                self.assertEqual(result["heartbeat_task_id"], task.task_id)
+                self.assertEqual(len(ChatStore().list(limit=1000)), 2)
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_fixed_interval_task_waits_until_due_then_takes_priority(self) -> None:
+        old_home = os.environ.get("OMNIDOER_HOME")
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                configure_heartbeat(enabled=True, interval="1s", min_idle="0s")
+                store = HeartbeatTaskStore()
+                kaggle = store.create("Kaggle work", title="kaggle", position="back")
+                vuln = store.create(
+                    "漏洞扫描",
+                    title="crypto-vulnerability-scan",
+                    min_interval_seconds=4 * 60 * 60,
+                    position="back",
+                )
+                now = 1_000_000.0
+
+                first = HeartbeatTaskStore().next_task(now=now)
+                second = HeartbeatTaskStore().next_task(now=now + 60)
+                third = HeartbeatTaskStore().next_task(now=now + 4 * 60 * 60 + 1)
+
+                self.assertEqual(first.task_id, vuln.task_id)
+                self.assertEqual(second.task_id, kaggle.task_id)
+                self.assertEqual(third.task_id, vuln.task_id)
+            finally:
+                if old_home is None:
+                    os.environ.pop("OMNIDOER_HOME", None)
+                else:
+                    os.environ["OMNIDOER_HOME"] = old_home
+
+    def test_deadline_increases_effective_weight(self) -> None:
+        old_home = os.environ.get("OMNIDOER_HOME")
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["OMNIDOER_HOME"] = tmp
+            try:
+                store = HeartbeatTaskStore()
+                near = store.create(
+                    "near",
+                    deadline_utc="2026-06-23T23:59:00Z",
+                    position="back",
+                    weight=1,
+                )
+                far = store.create(
+                    "far",
+                    deadline_utc="2026-11-02T23:59:00Z",
+                    position="back",
+                    weight=1,
+                )
+                now = 1_781_222_400.0  # 2026-06-12T00:00:00Z
+
+                self.assertGreater(effective_task_weight(near, now), effective_task_weight(far, now))
             finally:
                 if old_home is None:
                     os.environ.pop("OMNIDOER_HOME", None)

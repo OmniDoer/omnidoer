@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import datetime as dt
 import os
 import random
 import threading
@@ -33,6 +34,7 @@ SKIP_STATE_WRITE_MIN_SECONDS = 5 * 60
 MAX_HEARTBEAT_TASK_TEXT_LENGTH = 8000
 MAX_HEARTBEAT_TASK_TITLE_LENGTH = 120
 HEARTBEAT_TASK_POSITIONS = {"random", "front", "back"}
+SECONDS_PER_DAY = 24 * 60 * 60
 
 
 @dataclass
@@ -43,13 +45,26 @@ class HeartbeatTask:
     source: str = "control_client"
     enabled: bool = True
     weight: int = 1
+    priority: str = ""
+    quota: str = ""
+    repo_path: str = ""
+    remote_url: str = ""
+    target: str = ""
+    deadline_utc: str = ""
+    min_interval_seconds: float | None = None
+    interrupt_active: bool = True
     created_at: float = 0.0
     updated_at: float = 0.0
     last_triggered_at: float | None = None
     trigger_count: int = 0
 
-    def to_public_dict(self) -> dict[str, Any]:
+    def to_public_dict(self, *, now: float | None = None) -> dict[str, Any]:
         payload = asdict(self)
+        current = time.time() if now is None else now
+        payload["effective_weight"] = effective_task_weight(self, current)
+        payload["due_at"] = task_due_at(self)
+        payload["seconds_until_due"] = seconds_until_due(self, current)
+        payload["deadline_seconds_remaining"] = deadline_seconds_remaining(self, current)
         payload["secret_fields_allowed"] = False
         payload["control_client_calls_model"] = False
         payload["submitted_to_openai_api_by_control_client"] = False
@@ -65,7 +80,8 @@ class HeartbeatTaskQueue:
     updated_at: float = 0.0
 
     def to_public_dict(self) -> dict[str, Any]:
-        tasks = [self.tasks[task_id].to_public_dict() for task_id in self.order if task_id in self.tasks]
+        now = time.time()
+        tasks = [self.tasks[task_id].to_public_dict(now=now) for task_id in self.order if task_id in self.tasks]
         return {
             "order": list(self.order),
             "cursor": self.cursor,
@@ -107,6 +123,89 @@ def heartbeat_state_path(path: Path | None = None) -> Path:
 
 def heartbeat_tasks_path(path: Path | None = None) -> Path:
     return path or state_file(HEARTBEAT_TASKS_FILE)
+
+
+def _task_from_payload(payload: dict[str, Any]) -> HeartbeatTask:
+    fields = HeartbeatTask.__dataclass_fields__
+    return HeartbeatTask(**{key: value for key, value in payload.items() if key in fields})
+
+
+def parse_deadline_timestamp(value: str | None) -> float | None:
+    if not value:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        if text.endswith("Z"):
+            parsed = dt.datetime.fromisoformat(text[:-1] + "+00:00")
+        else:
+            parsed = dt.datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt.timezone.utc)
+    return parsed.astimezone(dt.timezone.utc).timestamp()
+
+
+def deadline_seconds_remaining(task: HeartbeatTask, now: float | None = None) -> float | None:
+    deadline = parse_deadline_timestamp(task.deadline_utc)
+    if deadline is None:
+        return None
+    return deadline - (time.time() if now is None else now)
+
+
+def deadline_weight_bonus(task: HeartbeatTask, now: float | None = None) -> int:
+    remaining = deadline_seconds_remaining(task, now)
+    if remaining is None:
+        return 0
+    if remaining <= 0:
+        return 100
+    days = remaining / SECONDS_PER_DAY
+    if days <= 3:
+        return 24
+    if days <= 7:
+        return 16
+    if days <= 14:
+        return 10
+    if days <= 30:
+        return 7
+    if days <= 60:
+        return 4
+    if days <= 120:
+        return 2
+    return 1
+
+
+def effective_task_weight(task: HeartbeatTask, now: float | None = None) -> int:
+    return max(1, int(task.weight)) + deadline_weight_bonus(task, now)
+
+
+def task_due_at(task: HeartbeatTask) -> float | None:
+    if task.min_interval_seconds is None:
+        return None
+    if task.last_triggered_at is None:
+        return 0.0
+    return float(task.last_triggered_at) + max(1.0, float(task.min_interval_seconds))
+
+
+def seconds_until_due(task: HeartbeatTask, now: float | None = None) -> float | None:
+    due_at = task_due_at(task)
+    if due_at is None:
+        return None
+    return max(0.0, due_at - (time.time() if now is None else now))
+
+
+def task_is_due(task: HeartbeatTask, now: float | None = None) -> bool:
+    wait = seconds_until_due(task, now)
+    return wait is None or wait <= 0.0
+
+
+def task_overdue_seconds(task: HeartbeatTask, now: float | None = None) -> float:
+    due_at = task_due_at(task)
+    if due_at is None:
+        return 0.0
+    return max(0.0, (time.time() if now is None else now) - due_at)
 
 
 def default_heartbeat_file(*, cwd: str | Path | None = None) -> Path:
@@ -211,10 +310,10 @@ class HeartbeatTaskStore:
         if isinstance(raw, dict) and "tasks" in raw:
             raw_tasks = raw.get("tasks") or {}
             if isinstance(raw_tasks, list):
-                tasks = {item["task_id"]: HeartbeatTask(**item) for item in raw_tasks}
+                tasks = {item["task_id"]: _task_from_payload(item) for item in raw_tasks}
             else:
                 tasks = {
-                    key: HeartbeatTask(**value)
+                    key: _task_from_payload(value)
                     for key, value in raw_tasks.items()
                 }
             order = [
@@ -232,7 +331,7 @@ class HeartbeatTaskStore:
                 created_at=float(raw.get("created_at") or 0.0),
                 updated_at=float(raw.get("updated_at") or 0.0),
             )
-        tasks = {key: HeartbeatTask(**value) for key, value in raw.items()}
+        tasks = {key: _task_from_payload(value) for key, value in raw.items()}
         order = [task.task_id for task in sorted(tasks.values(), key=lambda item: item.created_at)]
         return HeartbeatTaskQueue(order=order, tasks=tasks)
 
@@ -277,6 +376,14 @@ class HeartbeatTaskStore:
         source: str = "control_client",
         weight: int = 1,
         position: str = "random",
+        priority: str = "",
+        quota: str = "",
+        repo_path: str = "",
+        remote_url: str = "",
+        target: str = "",
+        deadline_utc: str = "",
+        min_interval_seconds: float | None = None,
+        interrupt_active: bool = True,
     ) -> HeartbeatTask:
         cleaned = str(text or "").strip()
         if not cleaned:
@@ -293,6 +400,18 @@ class HeartbeatTaskStore:
                 title=str(title or "").strip()[:MAX_HEARTBEAT_TASK_TITLE_LENGTH],
                 source=source,
                 weight=max(1, int(weight)),
+                priority=str(priority or "").strip(),
+                quota=str(quota or "").strip(),
+                repo_path=str(repo_path or "").strip(),
+                remote_url=str(remote_url or "").strip(),
+                target=str(target or "").strip(),
+                deadline_utc=str(deadline_utc or "").strip(),
+                min_interval_seconds=(
+                    None
+                    if min_interval_seconds is None
+                    else max(1.0, float(min_interval_seconds))
+                ),
+                interrupt_active=bool(interrupt_active),
                 created_at=now,
                 updated_at=now,
             )
@@ -334,26 +453,54 @@ class HeartbeatTaskStore:
             self._save_payload(queue)
             return task
 
-    def next_task(self, *, now: float | None = None) -> HeartbeatTask | None:
+    def next_task(self, *, now: float | None = None, consume: bool = True) -> HeartbeatTask | None:
         with locked_state_file(self.path):
             queue = self._load_payload()
+            current = now or time.time()
+            fixed_due = [
+                task
+                for task_id in queue.order
+                if (task := queue.tasks.get(task_id))
+                and task.enabled
+                and task.min_interval_seconds is not None
+                and task_is_due(task, current)
+            ]
+            if fixed_due:
+                task = max(
+                    fixed_due,
+                    key=lambda item: (
+                        task_overdue_seconds(item, current),
+                        effective_task_weight(item, current),
+                        -queue.order.index(item.task_id),
+                    ),
+                )
+                if consume:
+                    task.last_triggered_at = current
+                    task.trigger_count += 1
+                    task.updated_at = current
+                    queue.tasks[task.task_id] = task
+                    self._save_payload(queue)
+                return task
+
             ring: list[str] = []
             for task_id in queue.order:
                 task = queue.tasks.get(task_id)
                 if not task or not task.enabled:
                     continue
-                ring.extend([task_id] * max(1, int(task.weight)))
+                if not task_is_due(task, current):
+                    continue
+                ring.extend([task_id] * effective_task_weight(task, current))
             if not ring:
                 return None
             index = int(queue.cursor or 0) % len(ring)
             task = queue.tasks[ring[index]]
-            current = now or time.time()
-            task.last_triggered_at = current
-            task.trigger_count += 1
-            task.updated_at = current
-            queue.tasks[task.task_id] = task
-            queue.cursor = (index + 1) % len(ring)
-            self._save_payload(queue)
+            if consume:
+                task.last_triggered_at = current
+                task.trigger_count += 1
+                task.updated_at = current
+                queue.tasks[task.task_id] = task
+                queue.cursor = (index + 1) % len(ring)
+                self._save_payload(queue)
             return task
 
 
@@ -377,12 +524,24 @@ def _format_heartbeat_prompt(
         f"触发时间: {stamp}",
     ]
     if task is not None:
+        metadata_lines = [
+            f"任务优先级: {task.priority}",
+            f"任务配额: {task.quota}",
+            f"任务仓库: {task.repo_path}",
+            f"任务远端: {task.remote_url}",
+            f"任务目标: {task.target}",
+            f"任务截止时间: {task.deadline_utc}",
+            f"任务最小触发间隔秒: {task.min_interval_seconds}",
+        ]
+        metadata_lines = [line for line in metadata_lines if not line.endswith(": ") and not line.endswith(": None")]
         lines.extend(
             [
                 "任务来源: heartbeat queue",
                 f"任务ID: {task.task_id}",
                 f"任务标题: {task.title or '(untitled)'}",
                 f"任务权重: {task.weight}",
+                f"任务有效权重: {effective_task_weight(task, now)}",
+                *metadata_lines,
                 "",
                 "请执行这个由持久 heartbeat 队列轮询选出的任务。完成后在回复中说明本轮处理的任务ID、关键证据、下一步以及是否需要继续排队；不要依赖聊天记忆来判断还有哪些长期任务。",
                 "",
@@ -479,17 +638,25 @@ class HeartbeatRunner:
         ):
             return self._record_skip(state, "interval_not_elapsed", now)
         store = ChatStore(session_id=state.session_id)
-        idle, reason, idle_seconds = chat_session_idle(
-            store=store,
-            min_idle_seconds=state.min_idle_seconds,
-            now=now,
-        )
-        if not idle and not force:
-            return self._record_skip(state, reason, now, idle_seconds=idle_seconds)
+        task_store = HeartbeatTaskStore(Path(state.task_queue_file))
         try:
-            task = HeartbeatTaskStore(Path(state.task_queue_file)).next_task(now=now)
+            pending_task = task_store.next_task(now=now, consume=False)
+        except Exception:
+            pending_task = None
+        if pending_task is None or (not pending_task.interrupt_active and not force):
+            idle, reason, idle_seconds = chat_session_idle(
+                store=store,
+                min_idle_seconds=state.min_idle_seconds,
+                now=now,
+            )
+            if not idle and not force:
+                return self._record_skip(state, reason, now, idle_seconds=idle_seconds)
+        try:
+            task = task_store.next_task(now=now)
         except Exception:
             task = None
+        if pending_task is not None and task is None:
+            return self._record_skip(state, "no_due_heartbeat_task", now)
         if task is None:
             try:
                 instructions = _read_heartbeat_file(state.heartbeat_file)
