@@ -342,7 +342,11 @@ pub fn save_current_auth_user(
         return Ok(None);
     }
 
-    match load_stored_auth(codex_home, auth_credentials_store_mode, keyring_backend_kind)? {
+    match load_stored_auth(
+        codex_home,
+        auth_credentials_store_mode,
+        keyring_backend_kind,
+    )? {
         Some(auth) => save_auth_user(
             codex_home,
             &auth,
@@ -373,7 +377,11 @@ pub fn remove_auth_user(
     save_index(codex_home, &index)?;
 
     let auth_home = user_auth_home(codex_home, &metadata.id);
-    let deleted = delete_stored_auth(&auth_home, auth_credentials_store_mode, keyring_backend_kind)?;
+    let deleted = delete_stored_auth(
+        &auth_home,
+        auth_credentials_store_mode,
+        keyring_backend_kind,
+    )?;
     let _ = std::fs::remove_dir_all(auth_home);
     Ok(deleted || index.users.len() != original_len)
 }
@@ -391,13 +399,17 @@ pub fn list_auth_users(
         )?;
     }
 
-    let current_id = load_stored_auth(codex_home, auth_credentials_store_mode, keyring_backend_kind)?
-        .map(|auth| metadata_from_auth(&auth).id)
-        .or_else(|| {
-            load_index(codex_home)
-                .ok()
-                .and_then(|index| index.active_user_id)
-        });
+    let current_id = load_stored_auth(
+        codex_home,
+        auth_credentials_store_mode,
+        keyring_backend_kind,
+    )?
+    .map(|auth| metadata_from_auth(&auth).id)
+    .or_else(|| {
+        load_index(codex_home)
+            .ok()
+            .and_then(|index| index.active_user_id)
+    });
     let mut users = load_index(codex_home)?
         .users
         .into_iter()
@@ -436,16 +448,23 @@ pub fn switch_auth_user(
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "user not found"))?;
 
     let auth_home = user_auth_home(codex_home, &metadata.id);
-    let auth =
-        load_stored_auth(&auth_home, auth_credentials_store_mode, keyring_backend_kind)?.ok_or_else(
-            || {
-                std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "stored credentials for user were not found",
-                )
-            },
-        )?;
-    save_stored_auth(codex_home, &auth, auth_credentials_store_mode, keyring_backend_kind)?;
+    let auth = load_stored_auth(
+        &auth_home,
+        auth_credentials_store_mode,
+        keyring_backend_kind,
+    )?
+    .ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "stored credentials for user were not found",
+        )
+    })?;
+    save_stored_auth(
+        codex_home,
+        &auth,
+        auth_credentials_store_mode,
+        keyring_backend_kind,
+    )?;
     let metadata = upsert_index_metadata(codex_home, metadata, /*make_active*/ true)?;
     Ok(summary_from_metadata(metadata, Some(user_id)))
 }

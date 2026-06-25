@@ -24,8 +24,8 @@ use std::sync::LazyLock;
 use std::thread;
 use std::time::Duration;
 
-use crate::auth::AuthKeyringBackendKind;
 use crate::auth::AuthDotJson;
+use crate::auth::AuthKeyringBackendKind;
 use crate::auth::load_auth_dot_json;
 use crate::auth::revoke_auth_tokens;
 use crate::auth::same_auth_user;
@@ -1238,14 +1238,6 @@ mod tests {
     use wiremock::matchers::method;
     use wiremock::matchers::path;
 
-    use crate::auth::AuthDotJson;
-    use crate::auth::AuthKeyringBackendKind;
-    use crate::auth::REVOKE_TOKEN_URL_OVERRIDE_ENV_VAR;
-    use crate::auth::load_auth_dot_json;
-    use crate::auth::save_auth;
-    use crate::token_data::TokenData;
-    use crate::token_data::parse_chatgpt_jwt_claims;
-    use core_test_support::skip_if_no_network;
     use super::DEFAULT_ISSUER;
     use super::TokenEndpointErrorDetail;
     use super::compose_success_url;
@@ -1257,6 +1249,14 @@ mod tests {
     use super::redact_sensitive_url_parts;
     use super::render_login_error_page;
     use super::sanitize_url_for_logging;
+    use crate::auth::AuthDotJson;
+    use crate::auth::AuthKeyringBackendKind;
+    use crate::auth::REVOKE_TOKEN_URL_OVERRIDE_ENV_VAR;
+    use crate::auth::load_auth_dot_json;
+    use crate::auth::save_auth;
+    use crate::token_data::TokenData;
+    use crate::token_data::parse_chatgpt_jwt_claims;
+    use core_test_support::skip_if_no_network;
 
     #[serial_test::serial(logout_revoke)]
     #[tokio::test]
@@ -1304,7 +1304,7 @@ mod tests {
             AuthCredentialsStoreMode::File,
             AuthKeyringBackendKind::default(),
         )?
-            .context("auth.json should exist after login")?;
+        .context("auth.json should exist after login")?;
         assert_eq!(
             auth.tokens.context("new tokens should be persisted")?,
             TokenData {
