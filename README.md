@@ -341,6 +341,13 @@ sidecar runtime for web action. The fork keeps Codex auth, model selection, and
 billing behavior intact while adding the execution system Codex needs in order
 to operate websites safely.
 
+Sync note, June 25, 2026: `main` is merged through upstream
+`openai/codex` commit `c38b2e9ba6`. This imports the upstream `gpt-5.5`
+model catalog entry and the current cyber-safety trusted-access flow. The
+upstream code does not define a separate literal `gpt5.5-cyber` model slug, so
+OmniDoer keeps Codex's upstream model naming while preserving OmniDoer sidecar
+features.
+
 The project is still early, but the target is intentionally ambitious: an
 omni-capable web runtime with real browser control, secure credential storage,
 automatic login, 2FA and anti-bot handoff, registration handoff, file download,

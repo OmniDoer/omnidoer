@@ -3376,6 +3376,7 @@ def serve(
     chat_upload_ttl: str | int | None = None,
     chat_allow_detached_thread_resume: bool = False,
     heartbeat_poll_interval: float = 30.0,
+    heartbeat_enabled: bool = True,
     lite: bool = False,
     fixed_password_env: str | None = None,
     fixed_password_file: str | None = None,
@@ -3435,12 +3436,13 @@ def serve(
             ChatUploadStore().cleanup_expired(ttl_seconds=upload_ttl_seconds)
 
     threading.Thread(target=cleanup_chat_uploads, name="omnidoer-chat-upload-cleanup", daemon=True).start()
-    from omnidoer.omni_control.heartbeat import start_heartbeat_thread
+    if heartbeat_enabled:
+        from omnidoer.omni_control.heartbeat import start_heartbeat_thread
 
-    start_heartbeat_thread(
-        cwd=chat_runner_cwd or os.getcwd(),
-        poll_interval=heartbeat_poll_interval,
-    )
+        start_heartbeat_thread(
+            cwd=chat_runner_cwd or os.getcwd(),
+            poll_interval=heartbeat_poll_interval,
+        )
     record_control_service_runtime(config)
     if chat_thread_id:
         start_current_session_sync_request_maintainer(

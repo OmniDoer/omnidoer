@@ -15,6 +15,12 @@ OmniDoer 品牌原生控制台、移动端 Control Client、一键安装、Cloud
 安全斜杠指令处理、Secret Broker、加密 Vault、挑战接管、审批门、审计链，以及
 让 `codex` 与 `omnidoer` 可以在同一台机器上安全共存和回退的 Codex shim 路径。
 
+**上游同步说明，2026 年 6 月 25 日：** `main` 已合并到 upstream
+`openai/codex` 的 `c38b2e9ba6`。这次同步带入了 upstream 的 `gpt-5.5`
+模型清单项和当前 cyber safety trusted-access 流程。upstream 代码里没有单独的
+字面 `gpt5.5-cyber` 模型 slug，因此 OmniDoer 保持 Codex 上游模型命名，同时
+保留 OmniDoer sidecar 特性。
+
 OmniDoer 把这个发现转化为产品架构。Codex 保留为推理大脑，继续使用原有登录、模型选择和额度路径；OmniDoer 提供受控的执行双手：真实浏览器、Secret Broker、加密 Vault、审批门、Challenge Relay、审计链和 Control Client，把敏感动作挡在模型可见状态之外。
 
 OmniDoer 目标是把“人类能在网页上完成的动作”安全地交给智能体延续执行：如果用户有权限在网页上完成一个流程，OmniDoer 在不越界的前提下把该流程接上去。关键规则是：模型负责推理与决策，执行在用户自己控制的 Linux 服务器里完成，任何密钥、验证码、支付决策都不允许离开安全边界。

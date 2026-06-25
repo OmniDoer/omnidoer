@@ -100,6 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--chat-upload-ttl", default=None)
     serve.add_argument("--chat-allow-detached-thread-resume", action="store_true")
     serve.add_argument("--heartbeat-poll-interval", type=float, default=30.0)
+    serve.add_argument("--no-heartbeat", action="store_true")
     serve.add_argument("--lite", action="store_true")
     serve.add_argument("--fixed-password-env")
     serve.add_argument("--fixed-password-file")
@@ -445,6 +446,7 @@ def main(argv: list[str] | None = None) -> int:
                 ("--insecure-dev-public", args.insecure_dev_public),
                 ("--chat-runner", args.chat_runner),
                 ("--chat-allow-detached-thread-resume", args.chat_allow_detached_thread_resume),
+                ("--no-heartbeat", args.no_heartbeat),
                 ("--lite", args.lite),
             ):
                 if enabled:

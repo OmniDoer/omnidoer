@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from omnidoer.omni_cli.main import build_parser
 from omnidoer.omni_control.chat import ChatStore
 from omnidoer.omni_control.heartbeat import (
     HeartbeatRunner,
@@ -16,6 +17,15 @@ from omnidoer.omni_control.heartbeat import (
 
 
 class ControlHeartbeatTest(unittest.TestCase):
+    def test_control_serve_no_heartbeat_flag_defaults_off(self) -> None:
+        parser = build_parser()
+
+        default_args = parser.parse_args(["control", "serve"])
+        disabled_args = parser.parse_args(["control", "serve", "--no-heartbeat"])
+
+        self.assertFalse(default_args.no_heartbeat)
+        self.assertTrue(disabled_args.no_heartbeat)
+
     def test_heartbeat_queues_task_when_enabled_and_idle(self) -> None:
         old_home = os.environ.get("OMNIDOER_HOME")
         with tempfile.TemporaryDirectory() as tmp:
