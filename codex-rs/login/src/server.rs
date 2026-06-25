@@ -24,6 +24,7 @@ use std::sync::LazyLock;
 use std::thread;
 use std::time::Duration;
 
+use crate::auth::AuthKeyringBackendKind;
 use crate::auth::AuthDotJson;
 use crate::auth::load_auth_dot_json;
 use crate::auth::revoke_auth_tokens;
@@ -31,16 +32,17 @@ use crate::auth::same_auth_user;
 use crate::auth::save_auth;
 use crate::auth::save_auth_user;
 use crate::auth::should_revoke_auth_tokens;
+use crate::default_client::build_raw_auth_reqwest_client;
 use crate::default_client::originator;
+use crate::outbound_proxy::AuthRouteConfig;
 use crate::pkce::PkceCodes;
 use crate::pkce::generate_pkce;
 use crate::token_data::TokenData;
 use crate::token_data::parse_chatgpt_jwt_claims;
 use base64::Engine;
 use chrono::Utc;
-use codex_app_server_protocol::AuthMode;
-use codex_client::build_reqwest_client_with_custom_ca;
 use codex_config::types::AuthCredentialsStoreMode;
+use codex_protocol::auth::AuthMode;
 use codex_utils_template::Template;
 use rand::RngCore;
 use serde_json::Value as JsonValue;
@@ -74,6 +76,8 @@ pub struct ServerOptions {
     pub forced_chatgpt_workspace_id: Option<Vec<String>>,
     pub codex_streamlined_login: bool,
     pub cli_auth_credentials_store_mode: AuthCredentialsStoreMode,
+    pub auth_keyring_backend_kind: AuthKeyringBackendKind,
+    pub auth_route_config: Option<AuthRouteConfig>,
 }
 
 impl ServerOptions {
@@ -83,6 +87,8 @@ impl ServerOptions {
         client_id: String,
         forced_chatgpt_workspace_id: Option<Vec<String>>,
         cli_auth_credentials_store_mode: AuthCredentialsStoreMode,
+        auth_keyring_backend_kind: AuthKeyringBackendKind,
+        auth_route_config: Option<AuthRouteConfig>,
     ) -> Self {
         Self {
             codex_home,
@@ -94,6 +100,8 @@ impl ServerOptions {
             forced_chatgpt_workspace_id,
             codex_streamlined_login: false,
             cli_auth_credentials_store_mode,
+            auth_keyring_backend_kind,
+            auth_route_config,
         }
     }
 }
@@ -337,8 +345,15 @@ async fn process_request(
                 }
             };
 
-            match exchange_code_for_tokens(&opts.issuer, &opts.client_id, redirect_uri, pkce, &code)
-                .await
+            match exchange_code_for_tokens(
+                &opts.issuer,
+                &opts.client_id,
+                redirect_uri,
+                pkce,
+                &code,
+                opts.auth_route_config.as_ref(),
+            )
+            .await
             {
                 Ok(tokens) => {
                     if let Err(message) = ensure_workspace_allowed(
@@ -354,9 +369,14 @@ async fn process_request(
                         );
                     }
                     // Obtain API key via token-exchange and persist
-                    let api_key = obtain_api_key(&opts.issuer, &opts.client_id, &tokens.id_token)
-                        .await
-                        .ok();
+                    let api_key = obtain_api_key(
+                        &opts.issuer,
+                        &opts.client_id,
+                        &tokens.id_token,
+                        opts.auth_route_config.as_ref(),
+                    )
+                    .await
+                    .ok();
                     if let Err(err) = persist_tokens_async(
                         &opts.codex_home,
                         api_key.clone(),
@@ -364,6 +384,7 @@ async fn process_request(
                         tokens.access_token.clone(),
                         tokens.refresh_token.clone(),
                         opts.cli_auth_credentials_store_mode,
+                        opts.auth_keyring_backend_kind,
                     )
                     .await
                     {
@@ -719,6 +740,7 @@ pub(crate) async fn exchange_code_for_tokens(
     redirect_uri: &str,
     pkce: &PkceCodes,
     code: &str,
+    auth_route_config: Option<&AuthRouteConfig>,
 ) -> io::Result<ExchangedTokens> {
     #[derive(serde::Deserialize)]
     struct TokenResponse {
@@ -727,7 +749,9 @@ pub(crate) async fn exchange_code_for_tokens(
         refresh_token: String,
     }
 
-    let client = build_reqwest_client_with_custom_ca(reqwest::Client::builder())?;
+    // The route selected for the issuer is reused for token exchange; the token endpoint path is
+    // not resolved separately.
+    let client = build_raw_auth_reqwest_client(issuer.trim_end_matches('/'), auth_route_config)?;
     let token_endpoint = format!("{}/oauth/token", issuer.trim_end_matches('/'));
     info!(
         issuer = %sanitize_url_for_logging(issuer),
@@ -786,8 +810,7 @@ pub(crate) async fn exchange_code_for_tokens(
     })
 }
 
-/// Persists exchanged credentials using the configured local auth store, then
-/// best-effort revokes any superseded managed ChatGPT tokens.
+/// Persists exchanged credentials using the configured local auth store.
 pub(crate) async fn persist_tokens_async(
     codex_home: &Path,
     api_key: Option<String>,
@@ -795,11 +818,16 @@ pub(crate) async fn persist_tokens_async(
     access_token: String,
     refresh_token: String,
     auth_credentials_store_mode: AuthCredentialsStoreMode,
+    keyring_backend_kind: AuthKeyringBackendKind,
 ) -> io::Result<()> {
     // Reuse existing synchronous logic but run it off the async runtime.
     let codex_home = codex_home.to_path_buf();
     let (previous_auth, auth) = tokio::task::spawn_blocking(move || {
-        let previous_auth = match load_auth_dot_json(&codex_home, auth_credentials_store_mode) {
+        let previous_auth = match load_auth_dot_json(
+            &codex_home,
+            auth_credentials_store_mode,
+            keyring_backend_kind,
+        ) {
             Ok(auth) => auth,
             Err(err) => {
                 warn!("failed to load previous auth before saving new login: {err}");
@@ -825,12 +853,28 @@ pub(crate) async fn persist_tokens_async(
             last_refresh: Some(Utc::now()),
             agent_identity: None,
             personal_access_token: None,
+            bedrock_api_key: None,
         };
         if let Some(previous_auth) = previous_auth.as_ref() {
-            let _ = save_auth_user(&codex_home, previous_auth, auth_credentials_store_mode)?;
+            let _ = save_auth_user(
+                &codex_home,
+                previous_auth,
+                auth_credentials_store_mode,
+                keyring_backend_kind,
+            )?;
         }
-        save_auth(&codex_home, &auth, auth_credentials_store_mode)?;
-        let _ = save_auth_user(&codex_home, &auth, auth_credentials_store_mode)?;
+        save_auth(
+            &codex_home,
+            &auth,
+            auth_credentials_store_mode,
+            keyring_backend_kind,
+        )?;
+        let _ = save_auth_user(
+            &codex_home,
+            &auth,
+            auth_credentials_store_mode,
+            keyring_backend_kind,
+        )?;
         Ok::<_, io::Error>((previous_auth, auth))
     })
     .await
@@ -840,7 +884,7 @@ pub(crate) async fn persist_tokens_async(
         .as_ref()
         .is_some_and(|previous_auth| same_auth_user(previous_auth, &auth))
         && should_revoke_auth_tokens(previous_auth.as_ref(), &auth)
-        && let Err(err) = revoke_auth_tokens(previous_auth.as_ref()).await
+        && let Err(err) = revoke_auth_tokens(previous_auth.as_ref(), None).await
     {
         warn!("failed to revoke superseded auth tokens after login: {err}");
     }
@@ -1146,14 +1190,15 @@ pub(crate) async fn obtain_api_key(
     issuer: &str,
     client_id: &str,
     id_token: &str,
+    auth_route_config: Option<&AuthRouteConfig>,
 ) -> io::Result<String> {
     // Token exchange for an API key access token
     #[derive(serde::Deserialize)]
     struct ExchangeResp {
         access_token: String,
     }
-    let client = build_reqwest_client_with_custom_ca(reqwest::Client::builder())?;
     let token_endpoint = format!("{}/oauth/token", issuer.trim_end_matches('/'));
+    let client = build_raw_auth_reqwest_client(&token_endpoint, auth_route_config)?;
     let resp = client
         .post(token_endpoint)
         .header("Content-Type", "application/x-www-form-urlencoded")
@@ -1183,8 +1228,7 @@ mod tests {
 
     use anyhow::Context;
     use base64::Engine;
-    use codex_app_server_protocol::AuthMode;
-    use codex_config::types::AuthCredentialsStoreMode;
+    use pretty_assertions::assert_eq;
     use serde_json::Value;
     use serde_json::json;
     use tempfile::tempdir;
@@ -1195,14 +1239,13 @@ mod tests {
     use wiremock::matchers::path;
 
     use crate::auth::AuthDotJson;
+    use crate::auth::AuthKeyringBackendKind;
     use crate::auth::REVOKE_TOKEN_URL_OVERRIDE_ENV_VAR;
     use crate::auth::load_auth_dot_json;
     use crate::auth::save_auth;
     use crate::token_data::TokenData;
     use crate::token_data::parse_chatgpt_jwt_claims;
     use core_test_support::skip_if_no_network;
-    use pretty_assertions::assert_eq;
-
     use super::DEFAULT_ISSUER;
     use super::TokenEndpointErrorDetail;
     use super::compose_success_url;
@@ -1242,6 +1285,7 @@ mod tests {
             codex_home.path(),
             &chatgpt_auth("old-access", "old-refresh", "new-account"),
             AuthCredentialsStoreMode::File,
+            AuthKeyringBackendKind::default(),
         )?;
 
         persist_tokens_async(
@@ -1251,10 +1295,15 @@ mod tests {
             "new-access".to_string(),
             "new-refresh".to_string(),
             AuthCredentialsStoreMode::File,
+            AuthKeyringBackendKind::default(),
         )
         .await?;
 
-        let auth = load_auth_dot_json(codex_home.path(), AuthCredentialsStoreMode::File)?
+        let auth = load_auth_dot_json(
+            codex_home.path(),
+            AuthCredentialsStoreMode::File,
+            AuthKeyringBackendKind::default(),
+        )?
             .context("auth.json should exist after login")?;
         assert_eq!(
             auth.tokens.context("new tokens should be persisted")?,
@@ -1302,6 +1351,7 @@ mod tests {
             codex_home.path(),
             &chatgpt_auth("old-access", "shared-refresh", "old-account"),
             AuthCredentialsStoreMode::File,
+            AuthKeyringBackendKind::default(),
         )?;
 
         persist_tokens_async(
@@ -1311,6 +1361,7 @@ mod tests {
             "new-access".to_string(),
             "shared-refresh".to_string(),
             AuthCredentialsStoreMode::File,
+            AuthKeyringBackendKind::default(),
         )
         .await?;
 
@@ -1336,6 +1387,7 @@ mod tests {
             last_refresh: None,
             agent_identity: None,
             personal_access_token: None,
+            bedrock_api_key: None,
         }
     }
 

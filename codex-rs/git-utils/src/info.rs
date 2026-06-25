@@ -5,7 +5,10 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use codex_file_system::ExecutorFileSystem;
+use codex_file_system::FindUpErrorPolicy;
+use codex_file_system::find_nearest_native_ancestor_with_markers;
 use codex_utils_absolute_path::AbsolutePathBuf;
+use codex_utils_path_uri::PathUri;
 use futures::future::join_all;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -46,13 +49,20 @@ pub async fn get_git_repo_root_with_fs(
     fs: &dyn ExecutorFileSystem,
     cwd: &AbsolutePathBuf,
 ) -> Option<AbsolutePathBuf> {
-    let base = match fs.get_metadata(cwd, /*sandbox*/ None).await {
+    let cwd_uri = PathUri::from_abs_path(cwd);
+    let base = match fs.get_metadata(&cwd_uri, /*sandbox*/ None).await {
         Ok(metadata) if metadata.is_directory => cwd.clone(),
         _ => cwd.parent()?,
     };
-    find_ancestor_git_entry_with_fs(fs, &base)
-        .await
-        .map(|(repo_root, _)| repo_root)
+    find_nearest_native_ancestor_with_markers(
+        fs,
+        &base,
+        vec![".git".to_string()],
+        FindUpErrorPolicy::Ignore,
+        /*sandbox*/ None,
+    )
+    .await
+    .ok()?
 }
 
 /// Timeout for git commands to prevent freezing on large repositories
@@ -803,8 +813,9 @@ pub async fn resolve_root_git_project_for_trust(
 ) -> Option<AbsolutePathBuf> {
     let repo_root = get_git_repo_root_with_fs(fs, cwd).await?;
     let dot_git = repo_root.join(".git");
+    let dot_git_uri = PathUri::from_abs_path(&dot_git);
     if fs
-        .get_metadata(&dot_git, /*sandbox*/ None)
+        .get_metadata(&dot_git_uri, /*sandbox*/ None)
         .await
         .ok()?
         .is_directory
@@ -812,7 +823,10 @@ pub async fn resolve_root_git_project_for_trust(
         return Some(repo_root);
     }
 
-    let git_dir_s = fs.read_file_text(&dot_git, /*sandbox*/ None).await.ok()?;
+    let git_dir_s = fs
+        .read_file_text(&dot_git_uri, /*sandbox*/ None)
+        .await
+        .ok()?;
     let git_dir_rel = git_dir_s.trim().strip_prefix("gitdir:")?.trim();
     if git_dir_rel.is_empty() {
         return None;
@@ -844,19 +858,6 @@ fn find_ancestor_git_entry(base_dir: &Path) -> Option<(PathBuf, PathBuf)> {
         }
     }
 
-    None
-}
-
-async fn find_ancestor_git_entry_with_fs(
-    fs: &dyn ExecutorFileSystem,
-    base_dir: &AbsolutePathBuf,
-) -> Option<(AbsolutePathBuf, AbsolutePathBuf)> {
-    for dir in base_dir.ancestors() {
-        let dot_git = dir.join(".git");
-        if fs.get_metadata(&dot_git, /*sandbox*/ None).await.is_ok() {
-            return Some((dir, dot_git));
-        }
-    }
     None
 }
 

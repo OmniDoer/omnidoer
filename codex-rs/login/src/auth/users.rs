@@ -16,6 +16,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use super::storage::AuthDotJson;
+use super::storage::AuthKeyringBackendKind;
 use super::storage::create_auth_storage;
 
 const AUTH_USERS_INDEX_FILE: &str = "auth-users.json";
@@ -111,8 +112,13 @@ fn save_index(codex_home: &Path, index: &AuthUsersIndex) -> std::io::Result<()> 
 fn load_stored_auth(
     codex_home: &Path,
     auth_credentials_store_mode: AuthCredentialsStoreMode,
+    keyring_backend_kind: AuthKeyringBackendKind,
 ) -> std::io::Result<Option<AuthDotJson>> {
-    let storage = create_auth_storage(codex_home.to_path_buf(), auth_credentials_store_mode);
+    let storage = create_auth_storage(
+        codex_home.to_path_buf(),
+        auth_credentials_store_mode,
+        keyring_backend_kind,
+    );
     storage.load()
 }
 
@@ -120,16 +126,26 @@ fn save_stored_auth(
     codex_home: &Path,
     auth: &AuthDotJson,
     auth_credentials_store_mode: AuthCredentialsStoreMode,
+    keyring_backend_kind: AuthKeyringBackendKind,
 ) -> std::io::Result<()> {
-    let storage = create_auth_storage(codex_home.to_path_buf(), auth_credentials_store_mode);
+    let storage = create_auth_storage(
+        codex_home.to_path_buf(),
+        auth_credentials_store_mode,
+        keyring_backend_kind,
+    );
     storage.save(auth)
 }
 
 fn delete_stored_auth(
     codex_home: &Path,
     auth_credentials_store_mode: AuthCredentialsStoreMode,
+    keyring_backend_kind: AuthKeyringBackendKind,
 ) -> std::io::Result<bool> {
-    let storage = create_auth_storage(codex_home.to_path_buf(), auth_credentials_store_mode);
+    let storage = create_auth_storage(
+        codex_home.to_path_buf(),
+        auth_credentials_store_mode,
+        keyring_backend_kind,
+    );
     storage.delete()
 }
 
@@ -299,6 +315,7 @@ pub fn save_auth_user(
     codex_home: &Path,
     auth: &AuthDotJson,
     auth_credentials_store_mode: AuthCredentialsStoreMode,
+    keyring_backend_kind: AuthKeyringBackendKind,
 ) -> std::io::Result<Option<AuthUserSummary>> {
     if auth_credentials_store_mode == AuthCredentialsStoreMode::Ephemeral {
         return Ok(None);
@@ -306,7 +323,12 @@ pub fn save_auth_user(
 
     let metadata = metadata_from_auth(auth);
     let auth_home = user_auth_home(codex_home, &metadata.id);
-    save_stored_auth(&auth_home, auth, auth_credentials_store_mode)?;
+    save_stored_auth(
+        &auth_home,
+        auth,
+        auth_credentials_store_mode,
+        keyring_backend_kind,
+    )?;
     let metadata = upsert_index_metadata(codex_home, metadata, /*make_active*/ true)?;
     Ok(Some(summary_from_metadata(metadata, None)))
 }
@@ -314,13 +336,19 @@ pub fn save_auth_user(
 pub fn save_current_auth_user(
     codex_home: &Path,
     auth_credentials_store_mode: AuthCredentialsStoreMode,
+    keyring_backend_kind: AuthKeyringBackendKind,
 ) -> std::io::Result<Option<AuthUserSummary>> {
     if auth_credentials_store_mode == AuthCredentialsStoreMode::Ephemeral {
         return Ok(None);
     }
 
-    match load_stored_auth(codex_home, auth_credentials_store_mode)? {
-        Some(auth) => save_auth_user(codex_home, &auth, auth_credentials_store_mode),
+    match load_stored_auth(codex_home, auth_credentials_store_mode, keyring_backend_kind)? {
+        Some(auth) => save_auth_user(
+            codex_home,
+            &auth,
+            auth_credentials_store_mode,
+            keyring_backend_kind,
+        ),
         None => Ok(None),
     }
 }
@@ -329,6 +357,7 @@ pub fn remove_auth_user(
     codex_home: &Path,
     auth: &AuthDotJson,
     auth_credentials_store_mode: AuthCredentialsStoreMode,
+    keyring_backend_kind: AuthKeyringBackendKind,
 ) -> std::io::Result<bool> {
     if auth_credentials_store_mode == AuthCredentialsStoreMode::Ephemeral {
         return Ok(false);
@@ -344,7 +373,7 @@ pub fn remove_auth_user(
     save_index(codex_home, &index)?;
 
     let auth_home = user_auth_home(codex_home, &metadata.id);
-    let deleted = delete_stored_auth(&auth_home, auth_credentials_store_mode)?;
+    let deleted = delete_stored_auth(&auth_home, auth_credentials_store_mode, keyring_backend_kind)?;
     let _ = std::fs::remove_dir_all(auth_home);
     Ok(deleted || index.users.len() != original_len)
 }
@@ -352,12 +381,17 @@ pub fn remove_auth_user(
 pub fn list_auth_users(
     codex_home: &Path,
     auth_credentials_store_mode: AuthCredentialsStoreMode,
+    keyring_backend_kind: AuthKeyringBackendKind,
 ) -> std::io::Result<Vec<AuthUserSummary>> {
     if auth_credentials_store_mode != AuthCredentialsStoreMode::Ephemeral {
-        let _ = save_current_auth_user(codex_home, auth_credentials_store_mode)?;
+        let _ = save_current_auth_user(
+            codex_home,
+            auth_credentials_store_mode,
+            keyring_backend_kind,
+        )?;
     }
 
-    let current_id = load_stored_auth(codex_home, auth_credentials_store_mode)?
+    let current_id = load_stored_auth(codex_home, auth_credentials_store_mode, keyring_backend_kind)?
         .map(|auth| metadata_from_auth(&auth).id)
         .or_else(|| {
             load_index(codex_home)
@@ -381,6 +415,7 @@ pub fn switch_auth_user(
     codex_home: &Path,
     user_id: &str,
     auth_credentials_store_mode: AuthCredentialsStoreMode,
+    keyring_backend_kind: AuthKeyringBackendKind,
 ) -> std::io::Result<AuthUserSummary> {
     if auth_credentials_store_mode == AuthCredentialsStoreMode::Ephemeral {
         return Err(std::io::Error::other(
@@ -388,7 +423,11 @@ pub fn switch_auth_user(
         ));
     }
 
-    let _ = save_current_auth_user(codex_home, auth_credentials_store_mode)?;
+    let _ = save_current_auth_user(
+        codex_home,
+        auth_credentials_store_mode,
+        keyring_backend_kind,
+    )?;
     let index = load_index(codex_home)?;
     let metadata = index
         .users
@@ -397,13 +436,16 @@ pub fn switch_auth_user(
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "user not found"))?;
 
     let auth_home = user_auth_home(codex_home, &metadata.id);
-    let auth = load_stored_auth(&auth_home, auth_credentials_store_mode)?.ok_or_else(|| {
-        std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "stored credentials for user were not found",
-        )
-    })?;
-    save_stored_auth(codex_home, &auth, auth_credentials_store_mode)?;
+    let auth =
+        load_stored_auth(&auth_home, auth_credentials_store_mode, keyring_backend_kind)?.ok_or_else(
+            || {
+                std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "stored credentials for user were not found",
+                )
+            },
+        )?;
+    save_stored_auth(codex_home, &auth, auth_credentials_store_mode, keyring_backend_kind)?;
     let metadata = upsert_index_metadata(codex_home, metadata, /*make_active*/ true)?;
     Ok(summary_from_metadata(metadata, Some(user_id)))
 }
@@ -438,6 +480,7 @@ mod tests {
             last_refresh: Some(Utc::now()),
             agent_identity: None,
             personal_access_token: None,
+            bedrock_api_key: None,
         }
     }
 
@@ -447,25 +490,53 @@ mod tests {
         let first = chatgpt_auth("first@example.com", "account-first");
         let second = chatgpt_auth("second@example.com", "account-second");
 
-        save_auth_user(codex_home.path(), &first, AuthCredentialsStoreMode::File)
-            .expect("save first user");
-        save_stored_auth(codex_home.path(), &second, AuthCredentialsStoreMode::File)
-            .expect("save active second auth");
-        save_auth_user(codex_home.path(), &second, AuthCredentialsStoreMode::File)
-            .expect("save second user");
+        save_auth_user(
+            codex_home.path(),
+            &first,
+            AuthCredentialsStoreMode::File,
+            AuthKeyringBackendKind::default(),
+        )
+        .expect("save first user");
+        save_stored_auth(
+            codex_home.path(),
+            &second,
+            AuthCredentialsStoreMode::File,
+            AuthKeyringBackendKind::default(),
+        )
+        .expect("save active second auth");
+        save_auth_user(
+            codex_home.path(),
+            &second,
+            AuthCredentialsStoreMode::File,
+            AuthKeyringBackendKind::default(),
+        )
+        .expect("save second user");
 
-        let users = list_auth_users(codex_home.path(), AuthCredentialsStoreMode::File)
-            .expect("list auth users");
+        let users = list_auth_users(
+            codex_home.path(),
+            AuthCredentialsStoreMode::File,
+            AuthKeyringBackendKind::default(),
+        )
+        .expect("list auth users");
         assert_eq!(users.len(), 2);
         assert!(users.iter().any(|user| user.label == "first@example.com"));
         assert!(users.iter().any(|user| user.label == "second@example.com"));
 
         let first_id = metadata_from_auth(&first).id;
-        switch_auth_user(codex_home.path(), &first_id, AuthCredentialsStoreMode::File)
-            .expect("switch to first user");
-        let active = load_stored_auth(codex_home.path(), AuthCredentialsStoreMode::File)
-            .expect("load active auth")
-            .expect("active auth");
+        switch_auth_user(
+            codex_home.path(),
+            &first_id,
+            AuthCredentialsStoreMode::File,
+            AuthKeyringBackendKind::default(),
+        )
+        .expect("switch to first user");
+        let active = load_stored_auth(
+            codex_home.path(),
+            AuthCredentialsStoreMode::File,
+            AuthKeyringBackendKind::default(),
+        )
+        .expect("load active auth")
+        .expect("active auth");
         assert_eq!(metadata_from_auth(&active).id, first_id);
 
         let index_contents =

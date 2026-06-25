@@ -21,7 +21,14 @@ use crate::events::CodexImageGenerationEventParams;
 use crate::events::CodexImageGenerationEventRequest;
 use crate::events::CodexMcpToolCallEventParams;
 use crate::events::CodexMcpToolCallEventRequest;
+use crate::events::CodexOnboardingExternalAgentImportCompleteEventRequest;
+use crate::events::CodexOnboardingExternalAgentImportCompleteMetadata;
+use crate::events::CodexOnboardingExternalAgentImportFailureEventRequest;
+use crate::events::CodexOnboardingExternalAgentImportFailureMetadata;
 use crate::events::CodexPluginEventRequest;
+use crate::events::CodexPluginInstallFailedEventRequest;
+use crate::events::CodexPluginInstallFailedMetadata;
+use crate::events::CodexPluginInstallRequestedEventRequest;
 use crate::events::CodexPluginUsedEventRequest;
 use crate::events::CodexReviewEventParams;
 use crate::events::CodexReviewEventRequest;
@@ -54,6 +61,7 @@ use crate::events::codex_app_metadata;
 use crate::events::codex_compaction_event_params;
 use crate::events::codex_goal_event_params;
 use crate::events::codex_hook_run_metadata;
+use crate::events::codex_plugin_install_requested_metadata;
 use crate::events::codex_plugin_metadata;
 use crate::events::codex_plugin_used_metadata;
 use crate::events::plugin_state_event_type;
@@ -66,7 +74,11 @@ use crate::facts::AppUsedInput;
 use crate::facts::CodexCompactionEvent;
 use crate::facts::CodexGoalEvent;
 use crate::facts::CustomAnalyticsFact;
+use crate::facts::ExternalAgentConfigImportCompletedInput;
+use crate::facts::ExternalAgentConfigImportFailureInput;
 use crate::facts::HookRunInput;
+use crate::facts::PluginInstallFailedInput;
+use crate::facts::PluginInstallRequestedInput;
 use crate::facts::PluginState;
 use crate::facts::PluginStateChangedInput;
 use crate::facts::PluginUsedInput;
@@ -384,6 +396,7 @@ impl TurnToolCounts {
             | ThreadItem::Plan { .. }
             | ThreadItem::Reasoning { .. }
             | ThreadItem::ImageView { .. }
+            | ThreadItem::Sleep { .. }
             | ThreadItem::EnteredReviewMode { .. }
             | ThreadItem::ExitedReviewMode { .. }
             | ThreadItem::ContextCompaction { .. } => return,
@@ -507,8 +520,20 @@ impl AnalyticsReducer {
                 CustomAnalyticsFact::PluginUsed(input) => {
                     self.ingest_plugin_used(input, out);
                 }
+                CustomAnalyticsFact::PluginInstallRequested(input) => {
+                    self.ingest_plugin_install_requested(input, out);
+                }
                 CustomAnalyticsFact::PluginStateChanged(input) => {
                     self.ingest_plugin_state_changed(input, out);
+                }
+                CustomAnalyticsFact::PluginInstallFailed(input) => {
+                    self.ingest_plugin_install_failed(input, out);
+                }
+                CustomAnalyticsFact::ExternalAgentConfigImportCompleted(input) => {
+                    self.ingest_external_agent_config_import_completed(input, out);
+                }
+                CustomAnalyticsFact::ExternalAgentConfigImportFailure(input) => {
+                    self.ingest_external_agent_config_import_failure(input, out);
                 }
             },
         }
@@ -710,7 +735,7 @@ impl AnalyticsReducer {
                         turn_id: Some(tracking.turn_id.clone()),
                         invoke_type: Some(invocation.invocation_type),
                         model_slug: Some(tracking.model_slug.clone()),
-                        product_client_id: Some(originator().value),
+                        product_client_id: Some(tracking.product_client_id.clone()),
                         repo_url,
                         skill_scope: Some(skill_scope.to_string()),
                         plugin_id: invocation.plugin_id,
@@ -756,6 +781,20 @@ impl AnalyticsReducer {
         }));
     }
 
+    fn ingest_plugin_install_requested(
+        &mut self,
+        input: PluginInstallRequestedInput,
+        out: &mut Vec<TrackEventRequest>,
+    ) {
+        let PluginInstallRequestedInput { tracking, request } = input;
+        out.push(TrackEventRequest::PluginInstallRequested(
+            CodexPluginInstallRequestedEventRequest {
+                event_type: "codex_plugin_install_requested",
+                event_params: codex_plugin_install_requested_metadata(&tracking, request),
+            },
+        ));
+    }
+
     fn ingest_plugin_state_changed(
         &mut self,
         input: PluginStateChangedInput,
@@ -772,6 +811,63 @@ impl AnalyticsReducer {
             PluginState::Enabled => TrackEventRequest::PluginEnabled(event),
             PluginState::Disabled => TrackEventRequest::PluginDisabled(event),
         });
+    }
+
+    fn ingest_plugin_install_failed(
+        &mut self,
+        input: PluginInstallFailedInput,
+        out: &mut Vec<TrackEventRequest>,
+    ) {
+        let PluginInstallFailedInput { plugin, error_type } = input;
+        out.push(TrackEventRequest::PluginInstallFailed(
+            CodexPluginInstallFailedEventRequest {
+                event_type: "codex_plugin_install_failed",
+                event_params: CodexPluginInstallFailedMetadata {
+                    plugin: codex_plugin_metadata(plugin),
+                    error_type,
+                },
+            },
+        ));
+    }
+
+    fn ingest_external_agent_config_import_completed(
+        &mut self,
+        input: ExternalAgentConfigImportCompletedInput,
+        out: &mut Vec<TrackEventRequest>,
+    ) {
+        out.push(TrackEventRequest::ExternalAgentConfigImportCompleted(
+            CodexOnboardingExternalAgentImportCompleteEventRequest {
+                event_type: "codex_onboarding_external_agent_import_complete",
+                event_params: CodexOnboardingExternalAgentImportCompleteMetadata {
+                    import_id: input.import_id,
+                    source: input.source,
+                    item_type: input.item_type,
+                    success_count: input.success_count,
+                    failed_count: input.failed_count,
+                    product_client_id: Some(originator().value),
+                },
+            },
+        ));
+    }
+
+    fn ingest_external_agent_config_import_failure(
+        &mut self,
+        input: ExternalAgentConfigImportFailureInput,
+        out: &mut Vec<TrackEventRequest>,
+    ) {
+        out.push(TrackEventRequest::ExternalAgentConfigImportFailure(
+            CodexOnboardingExternalAgentImportFailureEventRequest {
+                event_type: "codex_onboarding_external_agent_import_failure",
+                event_params: CodexOnboardingExternalAgentImportFailureMetadata {
+                    import_id: input.import_id,
+                    source: input.source,
+                    item_type: input.item_type,
+                    failure_stage: input.failure_stage,
+                    error_type: input.error_type,
+                    product_client_id: Some(originator().value),
+                },
+            },
+        ));
     }
 
     async fn ingest_response(
@@ -1497,17 +1593,23 @@ impl AnalyticsReducer {
         let Some(thread_id) = turn_state.thread_id.as_ref() else {
             return;
         };
-        let Some(connection_id) = turn_state.connection_id else {
+        let drop_site = AnalyticsDropSite::turn(thread_id, turn_id);
+        let connection_id = turn_state.connection_id.or_else(|| {
+            self.threads
+                .get(drop_site.thread_id)
+                .and_then(|thread| thread.connection_id)
+        });
+        let Some(connection_id) = connection_id else {
+            warn_missing_analytics_context(&drop_site, MissingAnalyticsContext::ThreadConnection);
             return;
         };
         let Some(connection_state) = self.connections.get(&connection_id) else {
             warn_missing_analytics_context(
-                &AnalyticsDropSite::turn(thread_id, turn_id),
+                &drop_site,
                 MissingAnalyticsContext::Connection { connection_id },
             );
             return;
         };
-        let drop_site = AnalyticsDropSite::turn(thread_id, turn_id);
         let Some(thread_metadata) = self
             .threads
             .get(drop_site.thread_id)
@@ -1614,6 +1716,7 @@ fn tracked_tool_item_id(item: &ThreadItem) -> Option<&str> {
         | ThreadItem::Reasoning { .. }
         | ThreadItem::SubAgentActivity { .. }
         | ThreadItem::ImageView { .. }
+        | ThreadItem::Sleep { .. }
         | ThreadItem::EnteredReviewMode { .. }
         | ThreadItem::ExitedReviewMode { .. }
         | ThreadItem::ContextCompaction { .. } => None,
@@ -1745,6 +1848,7 @@ fn tool_item_event(input: ToolItemEventInput<'_>) -> Option<TrackEventRequest> {
             status,
             error,
             duration_ms,
+            plugin_id,
             ..
         } => {
             let (terminal_status, failure_kind) = mcp_tool_call_outcome(status)?;
@@ -1774,6 +1878,7 @@ fn tool_item_event(input: ToolItemEventInput<'_>) -> Option<TrackEventRequest> {
                         mcp_server_name: server.clone(),
                         mcp_tool_name: tool.clone(),
                         mcp_error_present: error.is_some(),
+                        plugin_id: plugin_id.clone(),
                     },
                 },
             ))

@@ -195,9 +195,16 @@ impl UnifiedExecProcess {
         }
     }
 
-    pub(super) fn terminate(&self) {
+    fn finish_termination(&self) {
         self.output_closed.store(true, Ordering::Release);
         self.output_closed_notify.notify_waiters();
+        self.cancellation_token.cancel();
+        if let Some(output_task) = &self.output_task {
+            output_task.abort();
+        }
+    }
+
+    pub(super) fn terminate(&self) {
         match &self.process_handle {
             ProcessHandle::Local(process_handle) => process_handle.terminate(),
             ProcessHandle::ExecServer(process_handle) => {
@@ -207,10 +214,22 @@ impl UnifiedExecProcess {
                 });
             }
         }
-        self.cancellation_token.cancel();
-        if let Some(output_task) = &self.output_task {
-            output_task.abort();
+        self.finish_termination();
+    }
+
+    pub(super) async fn terminate_confirmed(&self) -> Result<(), UnifiedExecError> {
+        match &self.process_handle {
+            ProcessHandle::Local(process_handle) => process_handle.terminate(),
+            ProcessHandle::ExecServer(process_handle) => {
+                process_handle
+                    .terminate()
+                    .await
+                    .map_err(|err| UnifiedExecError::process_failed(err.to_string()))?;
+            }
         }
+        self.signal_exit(self.exit_code());
+        self.finish_termination();
+        Ok(())
     }
 
     pub(super) async fn interrupt(&self) -> Result<(), UnifiedExecError> {
@@ -266,8 +285,9 @@ impl UnifiedExecProcess {
         &self,
         text: &str,
     ) -> Result<(), UnifiedExecError> {
+        let executor_reported_denial = self.state_rx.borrow().sandbox_denied;
         let sandbox_type = self.sandbox_type();
-        if sandbox_type == SandboxType::None || !self.has_exited() {
+        if !self.has_exited() || (!executor_reported_denial && sandbox_type == SandboxType::None) {
             return Ok(());
         }
 
@@ -278,7 +298,7 @@ impl UnifiedExecProcess {
             aggregated_output: StreamOutput::new(text.to_string()),
             ..Default::default()
         };
-        if is_likely_sandbox_denied(sandbox_type, &exec_output) {
+        if executor_reported_denial || is_likely_sandbox_denied(sandbox_type, &exec_output) {
             let snippet = formatted_truncate_text(
                 text,
                 TruncationPolicy::Tokens(UNIFIED_EXEC_OUTPUT_MAX_TOKENS),
@@ -355,10 +375,13 @@ impl UnifiedExecProcess {
 
     pub(super) async fn from_exec_server_started(
         started: StartedExecProcess,
-        sandbox_type: SandboxType,
     ) -> Result<Self, UnifiedExecError> {
         let process_handle = ProcessHandle::ExecServer(Arc::clone(&started.process));
-        let mut managed = Self::new(process_handle, sandbox_type, /*spawn_lifecycle*/ None);
+        let mut managed = Self::new(
+            process_handle,
+            SandboxType::None,
+            /*spawn_lifecycle*/ None,
+        );
         let output_handles = managed.output_handles();
         managed.output_task = Some(Self::spawn_exec_server_output_task(
             started,
@@ -418,6 +441,7 @@ impl UnifiedExecProcess {
                             exit_code,
                             closed,
                             failure,
+                            sandbox_denied,
                         } = response;
 
                         for chunk in chunks {
@@ -436,6 +460,12 @@ impl UnifiedExecProcess {
                             output_closed_notify.notify_waiters();
                             cancellation_token.cancel();
                             break;
+                        }
+
+                        if sandbox_denied {
+                            let mut state = state_tx.borrow().clone();
+                            state.sandbox_denied = true;
+                            let _ = state_tx.send_replace(state);
                         }
 
                         if exited {
