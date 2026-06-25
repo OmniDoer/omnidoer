@@ -311,7 +311,9 @@ fn metadata_from_auth(auth: &AuthDotJson) -> AuthUserMetadata {
         }
         AuthMode::BedrockApiKey => {
             let bedrock = auth.bedrock_api_key.as_ref();
-            let api_key = bedrock.map(|auth| auth.api_key.as_str()).unwrap_or_default();
+            let api_key = bedrock
+                .map(|auth| auth.api_key.as_str())
+                .unwrap_or_default();
             let region = bedrock.map(|auth| auth.region.as_str()).unwrap_or_default();
             let id = hash_id(&["bedrock-api-key", region, api_key]);
             AuthUserMetadata {
