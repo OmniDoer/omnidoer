@@ -634,11 +634,13 @@ class McpToolsTest(unittest.TestCase):
 
                 worker = Thread(target=submit_later)
                 worker.start()
-                result = call_tool(
-                    "control.wait_request",
-                    {"request_id": request.request_id, "timeout": "2s", "require_ciphertext": True},
-                )
-                worker.join(timeout=2)
+                try:
+                    result = call_tool(
+                        "control.wait_request",
+                        {"request_id": request.request_id, "timeout": "2s", "require_ciphertext": True},
+                    )
+                finally:
+                    worker.join()
                 self.assertEqual(result["status"], "ok")
                 self.assertTrue(result["completed_by_user"])
                 self.assertTrue(result["has_ciphertext"])
