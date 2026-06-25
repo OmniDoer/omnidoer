@@ -1,3 +1,3 @@
 """OmniDoer release version."""
 
-__version__ = "v20260531090948"
+__version__ = "v20260625124107"
