@@ -230,7 +230,7 @@ impl ChatWidget {
             Vec::new(),
         ) {
             if user_message.text.trim_start().starts_with('/') {
-                self.submit_queued_slash_prompt(user_message);
+                self.submit_queued_slash_prompt(user_message.into());
                 return;
             }
             let should_interrupt = interrupt_turn

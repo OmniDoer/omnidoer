@@ -44,13 +44,14 @@ const PAIR_DEFAULT_EXPIRES: &str = "60m";
 const RAW_USAGE: &str = "Usage: /raw [on|off]";
 const USAGE_CHATGPT_LOGIN_REQUIRED: &str = "Sign in with ChatGPT to use /usage.";
 
-fn auth_mode_label(mode: codex_app_server_protocol::AuthMode) -> &'static str {
+fn auth_mode_label(mode: codex_protocol::auth::AuthMode) -> &'static str {
     match mode {
-        codex_app_server_protocol::AuthMode::ApiKey => "API key",
-        codex_app_server_protocol::AuthMode::Chatgpt => "ChatGPT",
-        codex_app_server_protocol::AuthMode::ChatgptAuthTokens => "ChatGPT token",
-        codex_app_server_protocol::AuthMode::AgentIdentity => "Agent identity",
-        codex_app_server_protocol::AuthMode::PersonalAccessToken => "Personal access token",
+        codex_protocol::auth::AuthMode::ApiKey => "API key",
+        codex_protocol::auth::AuthMode::Chatgpt => "ChatGPT",
+        codex_protocol::auth::AuthMode::ChatgptAuthTokens => "ChatGPT token",
+        codex_protocol::auth::AuthMode::AgentIdentity => "Agent identity",
+        codex_protocol::auth::AuthMode::PersonalAccessToken => "Personal access token",
+        codex_protocol::auth::AuthMode::BedrockApiKey => "Bedrock API key",
     }
 }
 

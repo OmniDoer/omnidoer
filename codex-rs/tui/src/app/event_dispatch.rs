@@ -337,8 +337,12 @@ impl App {
                             format!("Switched to {label}. The current conversation context is preserved."),
                             None,
                         );
+                        let reset_hint_request_id =
+                            self.chat_widget.start_rate_limit_reset_startup_check();
                         self.app_event_tx.send(AppEvent::RefreshRateLimits {
-                            origin: RateLimitRefreshOrigin::StartupPrefetch,
+                            origin: RateLimitRefreshOrigin::StartupPrefetch {
+                                reset_hint_request_id,
+                            },
                         });
                     }
                     Err(err) => {
