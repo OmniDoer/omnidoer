@@ -323,8 +323,10 @@ class TLSAwareThreadingHTTPServer(ThreadingHTTPServer):
             if not first:
                 raise OSError("client closed before TLS sniff")
             if first[0] == 0x16:
+                conn.settimeout(previous_timeout)
                 conn = context.wrap_socket(conn, server_side=True)
-            conn.settimeout(previous_timeout)
+            else:
+                conn.settimeout(previous_timeout)
         except (OSError, ssl.SSLError):
             conn.close()
             raise
