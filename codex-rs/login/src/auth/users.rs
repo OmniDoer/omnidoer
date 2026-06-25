@@ -1,8 +1,8 @@
 use chrono::DateTime;
 use chrono::Utc;
-use codex_app_server_protocol::AuthMode;
 use codex_config::types::AuthCredentialsStoreMode;
 use codex_protocol::account::PlanType as AccountPlanType;
+use codex_protocol::auth::AuthMode;
 use serde::Deserialize;
 use serde::Serialize;
 use sha2::Digest;
@@ -15,6 +15,7 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 use std::path::PathBuf;
 
+use super::storage::AgentIdentityStorage;
 use super::storage::AuthDotJson;
 use super::storage::AuthKeyringBackendKind;
 use super::storage::create_auth_storage;
@@ -249,15 +250,46 @@ fn metadata_from_auth(auth: &AuthDotJson) -> AuthUserMetadata {
             }
         }
         AuthMode::AgentIdentity => {
-            let agent_identity = auth.agent_identity.as_deref().unwrap_or_default();
-            let id = hash_id(&["agent-identity", agent_identity]);
+            let (id, label, email, account_id, plan_type) = match auth.agent_identity.as_ref() {
+                Some(AgentIdentityStorage::Jwt(jwt)) => (
+                    hash_id(&["agent-identity-jwt", jwt]),
+                    "Agent identity".to_string(),
+                    None,
+                    None,
+                    None,
+                ),
+                Some(AgentIdentityStorage::Record(record)) => {
+                    let id_source = if record.account_id.is_empty() {
+                        record.agent_runtime_id.as_str()
+                    } else {
+                        record.account_id.as_str()
+                    };
+                    (
+                        hash_id(&["agent-identity-record", id_source]),
+                        record
+                            .email
+                            .clone()
+                            .unwrap_or_else(|| "Agent identity".to_string()),
+                        record.email.clone(),
+                        (!record.account_id.is_empty()).then(|| record.account_id.clone()),
+                        Some(record.plan_type.clone()),
+                    )
+                }
+                None => (
+                    hash_id(&["agent-identity", ""]),
+                    "Agent identity".to_string(),
+                    None,
+                    None,
+                    None,
+                ),
+            };
             AuthUserMetadata {
                 id,
-                label: "Agent identity".to_string(),
+                label,
                 auth_mode,
-                email: None,
-                account_id: None,
-                plan_type: None,
+                email,
+                account_id,
+                plan_type,
                 updated_at,
             }
         }
@@ -270,6 +302,25 @@ fn metadata_from_auth(auth: &AuthDotJson) -> AuthUserMetadata {
                     "Personal access token {}",
                     secret_tail(personal_access_token)
                 ),
+                auth_mode,
+                email: None,
+                account_id: None,
+                plan_type: None,
+                updated_at,
+            }
+        }
+        AuthMode::BedrockApiKey => {
+            let bedrock = auth.bedrock_api_key.as_ref();
+            let api_key = bedrock.map(|auth| auth.api_key.as_str()).unwrap_or_default();
+            let region = bedrock.map(|auth| auth.region.as_str()).unwrap_or_default();
+            let id = hash_id(&["bedrock-api-key", region, api_key]);
+            AuthUserMetadata {
+                id,
+                label: if region.is_empty() {
+                    format!("Bedrock API key {}", secret_tail(api_key))
+                } else {
+                    format!("Bedrock API key {region} {}", secret_tail(api_key))
+                },
                 auth_mode,
                 email: None,
                 account_id: None,

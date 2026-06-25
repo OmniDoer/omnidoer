@@ -39,7 +39,6 @@ use super::agent_identity::verified_record_from_jwt;
 use super::external_bearer::BearerTokenRefresher;
 use super::revoke::revoke_auth_tokens;
 use super::users::remove_auth_user;
-use super::users::same_auth_user;
 use super::users::save_auth_user;
 pub use crate::auth::agent_identity::AgentIdentityAuth;
 pub use crate::auth::agent_identity::AgentIdentityAuthError;
