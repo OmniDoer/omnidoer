@@ -51,6 +51,7 @@ fn auth_mode_label(mode: codex_protocol::auth::AuthMode) -> &'static str {
         codex_protocol::auth::AuthMode::ChatgptAuthTokens => "ChatGPT token",
         codex_protocol::auth::AuthMode::AgentIdentity => "Agent identity",
         codex_protocol::auth::AuthMode::PersonalAccessToken => "Personal access token",
+        codex_protocol::auth::AuthMode::Headers => "HTTP headers",
         codex_protocol::auth::AuthMode::BedrockApiKey => "Bedrock API key",
     }
 }

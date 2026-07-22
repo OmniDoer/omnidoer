@@ -246,10 +246,10 @@ fn item_started_record_text(item: &ThreadItem) -> Option<String> {
             arguments,
             ..
         } => Some(format!("{server}.{tool} {arguments}")),
-        ThreadItem::WebSearch { query, .. } => Some(format!("Web search: {query}")),
+        ThreadItem::WebSearch(item) => Some(format!("Web search: {}", item.query)),
         ThreadItem::FileChange { changes, .. } => Some(format!("File changes: {changes:?}")),
-        ThreadItem::ImageGeneration { status, .. } => {
-            Some(format!("Image generation started: {status}"))
+        ThreadItem::ImageGeneration(item) => {
+            Some(format!("Image generation started: {}", item.status))
         }
         _ => None,
     }
@@ -262,6 +262,8 @@ fn user_input_record_text(content: &[UserInput]) -> String {
             UserInput::Text { text, .. } => text.clone(),
             UserInput::Image { url, .. } => format!("[image] {url}"),
             UserInput::LocalImage { path, .. } => format!("[local image] {}", path.display()),
+            UserInput::Audio { url } => format!("[audio] {url}"),
+            UserInput::LocalAudio { path } => format!("[local audio] {}", path.display()),
             UserInput::Skill { name, path } => format!("[skill] {name}: {}", path.display()),
             UserInput::Mention { name, path } => format!("[mention] {name}: {path}"),
         })
