@@ -1477,9 +1477,21 @@ impl ChatWidget {
             .filter(|summary| !summary.trim().is_empty())
             .unwrap_or_else(|| "Context compacted.".to_string());
         let cwd = self.config.cwd.clone();
+        let inline_visualization_context = self.thread_id.and_then(|thread_id| {
+            crate::inline_visualization::InlineVisualizationContext::from_config(
+                &self.config,
+                thread_id,
+            )
+        });
         self.transcript = TranscriptState::new(None);
         self.record_agent_markdown(&summary);
-        self.add_to_history(history_cell::AgentMarkdownCell::new(summary, &cwd));
+        self.add_to_history(
+            history_cell::AgentMarkdownCell::new_with_inline_visualizations(
+                summary,
+                &cwd,
+                inline_visualization_context,
+            ),
+        );
         self.request_redraw();
     }
 
