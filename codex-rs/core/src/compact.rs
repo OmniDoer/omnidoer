@@ -374,7 +374,7 @@ async fn run_compact_task_inner_impl(
         reference_context_item,
         world_state_baseline,
         CompactedHistoryMetadata {
-            message: summary_text,
+            message: summary_text.clone(),
             window_number,
             window_ids,
         },
