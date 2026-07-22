@@ -73,11 +73,42 @@ runtime, and launches the OmniDoer console while preserving your existing Codex
 login, model selection, quota, and billing path. Set `OMNIDOER_INSTALL_DIR` if
 you want the npm launcher to use an existing checkout.
 
-Direct source install:
+Direct source install on Mac or Linux:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/OmniDoer/omnidoer/main/omnidoer/scripts/install-cloud-direct.sh | sh
 ```
+
+### Upstream Codex CLI installation and documentation
+
+OmniDoer preserves the upstream Codex CLI authentication, model, quota, and
+billing path. If you want a standalone upstream Codex CLI installation—or a
+separate fallback binary—use OpenAI's current official installers.
+
+Mac or Linux:
+
+```shell
+curl -fsSL https://chatgpt.com/codex/install.sh | sh
+```
+
+Windows:
+
+```shell
+powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"
+```
+
+Package-manager alternatives:
+
+```shell
+npm install -g @openai/codex
+brew install --cask codex
+```
+
+See the [Codex documentation](https://developers.openai.com/codex), the local
+[contributing guide](./docs/contributing.md), the
+[installing and building guide](./docs/install.md), and the
+[open source fund](./docs/open-source-fund.md). Upstream Codex and this fork are
+licensed under the [Apache-2.0 License](LICENSE).
 
 Cloud Direct server install behind your own HTTPS reverse proxy:
 
@@ -341,12 +372,11 @@ sidecar runtime for web action. The fork keeps Codex auth, model selection, and
 billing behavior intact while adding the execution system Codex needs in order
 to operate websites safely.
 
-Sync note, June 25, 2026: `main` is merged through upstream
-`openai/codex` commit `c38b2e9ba6`. This imports the upstream `gpt-5.5`
-model catalog entry and the current cyber-safety trusted-access flow. The
-upstream code does not define a separate literal `gpt5.5-cyber` model slug, so
-OmniDoer keeps Codex's upstream model naming while preserving OmniDoer sidecar
-features.
+Sync note, July 22, 2026: `main` is merged through upstream
+`openai/codex` commit `bd9a28a839`. This imports the current Codex CLI,
+app-server protocol, installer, release, TUI, and documentation changes while
+preserving upstream model naming, authentication, billing, and quota behavior
+alongside OmniDoer's branding and sidecar security features.
 
 The project is still early, but the target is intentionally ambitious: an
 omni-capable web runtime with real browser control, secure credential storage,

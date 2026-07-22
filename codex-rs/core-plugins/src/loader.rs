@@ -1,5 +1,6 @@
 use crate::app_mcp_routing::apply_app_mcp_routing_policy;
 use crate::app_mcp_routing::apps_route_available;
+use crate::command_migration::migrated_command_skills_root;
 use crate::is_openai_curated_marketplace_name;
 use crate::manifest::PluginManifest;
 use crate::manifest::PluginManifestHooks;
@@ -8,8 +9,10 @@ use crate::manifest::PluginManifestPaths;
 use crate::manifest::load_plugin_manifest;
 use crate::marketplace::MarketplacePluginSource;
 use crate::marketplace::find_marketplace_plugin;
-use crate::marketplace::list_marketplaces;
+use crate::marketplace::list_marketplaces_with_home;
 use crate::marketplace::load_marketplace;
+use crate::marketplace_policy::configured_plugins_from_stack;
+use crate::npm_source::materialize_npm_plugin_source;
 use crate::remote::REMOTE_GLOBAL_MARKETPLACE_NAME;
 use crate::remote::RemoteInstalledPlugin;
 use crate::store::PluginStore;
@@ -23,8 +26,6 @@ use codex_config::types::PluginMcpServerConfig;
 use codex_connectors::parse_plugin_app_config;
 use codex_connectors::parse_plugin_app_config_value;
 use codex_core_skills::PluginSkillSnapshots;
-use codex_core_skills::SkillMetadata;
-use codex_core_skills::config_rules::SkillConfigRules;
 use codex_core_skills::config_rules::resolve_disabled_skill_paths;
 use codex_core_skills::config_rules::skill_config_rules_from_stack;
 use codex_core_skills::loader::SkillRoot;
@@ -41,6 +42,8 @@ use codex_plugin::app_connector_ids_from_declarations;
 use codex_protocol::auth::AuthMode;
 use codex_protocol::protocol::Product;
 use codex_protocol::protocol::SkillScope;
+use codex_skills::SkillConfigRules;
+use codex_skills::SkillMetadata;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_plugins::find_plugin_manifest_path;
 use serde_json::Value as JsonValue;
@@ -51,6 +54,7 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
 use tempfile::TempDir;
+use tokio::sync::Semaphore;
 use tracing::instrument;
 use tracing::warn;
 
@@ -73,6 +77,7 @@ enum PluginLoadScope<'a> {
         restriction_product: Option<Product>,
         skill_config_rules: &'a SkillConfigRules,
         plugin_skill_snapshots: Option<&'a PluginSkillSnapshots>,
+        root_scan_slots: Arc<Semaphore>,
     },
     HooksOnly,
 }
@@ -81,6 +86,18 @@ enum PluginLoadScope<'a> {
 enum NonCuratedCacheRefreshMode {
     IfVersionChanged,
     ForceReinstall,
+}
+
+#[derive(Debug)]
+pub(crate) struct NonCuratedCacheRefreshOutcome {
+    pub(crate) cache_refreshed: bool,
+    pub(crate) errors: Vec<NonCuratedCacheRefreshError>,
+}
+
+#[derive(Debug)]
+pub(crate) struct NonCuratedCacheRefreshError {
+    pub(crate) marketplace_name: String,
+    pub(crate) message: String,
 }
 
 pub(crate) fn log_plugin_load_errors(plugins: &[LoadedPlugin<McpServerConfig>]) {
@@ -104,6 +121,7 @@ pub(crate) async fn load_plugins_from_layer_stack(
     plugin_skill_snapshots: Option<&PluginSkillSnapshots>,
     restriction_product: Option<Product>,
     remote_global_catalog_active: bool,
+    root_scan_slots: Arc<Semaphore>,
 ) -> Vec<LoadedPlugin<McpServerConfig>> {
     let skill_config_rules = skill_config_rules_from_stack(config_layer_stack);
     load_plugins_from_layer_stack_with_scope(
@@ -115,6 +133,7 @@ pub(crate) async fn load_plugins_from_layer_stack(
             restriction_product,
             skill_config_rules: &skill_config_rules,
             plugin_skill_snapshots,
+            root_scan_slots,
         },
     )
     .await
@@ -128,7 +147,7 @@ async fn load_plugins_from_layer_stack_with_scope(
     scope: PluginLoadScope<'_>,
 ) -> Vec<LoadedPlugin<McpServerConfig>> {
     let configured_plugins = merge_configured_plugins_with_remote_installed(
-        configured_plugins_from_stack(config_layer_stack),
+        configured_plugins_from_stack(config_layer_stack, store.codex_home().as_path()),
         extra_plugins,
         store,
         remote_global_catalog_active,
@@ -409,24 +428,54 @@ pub fn curated_plugin_cache_version(plugin_version: &str) -> String {
     }
 }
 
-pub fn refresh_non_curated_plugin_cache(
+#[cfg(test)]
+pub(crate) fn refresh_non_curated_plugin_cache(
     codex_home: &Path,
     additional_roots: &[AbsolutePathBuf],
+    configured_plugin_keys: &[String],
 ) -> Result<bool, String> {
+    collapse_non_curated_cache_refresh(refresh_non_curated_plugin_cache_detailed(
+        codex_home,
+        additional_roots,
+        configured_plugin_keys,
+    ))
+}
+
+pub(crate) fn refresh_non_curated_plugin_cache_detailed(
+    codex_home: &Path,
+    additional_roots: &[AbsolutePathBuf],
+    configured_plugin_keys: &[String],
+) -> Result<NonCuratedCacheRefreshOutcome, String> {
     refresh_non_curated_plugin_cache_with_mode(
         codex_home,
         additional_roots,
+        configured_plugin_keys,
         NonCuratedCacheRefreshMode::IfVersionChanged,
     )
 }
 
-pub fn refresh_non_curated_plugin_cache_force_reinstall(
+#[cfg(test)]
+pub(crate) fn refresh_non_curated_plugin_cache_force_reinstall(
     codex_home: &Path,
     additional_roots: &[AbsolutePathBuf],
+    configured_plugin_keys: &[String],
 ) -> Result<bool, String> {
+    collapse_non_curated_cache_refresh(refresh_non_curated_plugin_cache_force_reinstall_detailed(
+        codex_home,
+        additional_roots,
+        configured_plugin_keys,
+    ))
+}
+
+pub(crate) fn refresh_non_curated_plugin_cache_force_reinstall_detailed(
+    codex_home: &Path,
+    additional_roots: &[AbsolutePathBuf],
+    configured_plugin_keys: &[String],
+) -> Result<NonCuratedCacheRefreshOutcome, String> {
     refresh_non_curated_plugin_cache_with_mode(
         codex_home,
         additional_roots,
+        configured_plugin_keys,
         NonCuratedCacheRefreshMode::ForceReinstall,
     )
 }
@@ -434,16 +483,32 @@ pub fn refresh_non_curated_plugin_cache_force_reinstall(
 fn refresh_non_curated_plugin_cache_with_mode(
     codex_home: &Path,
     additional_roots: &[AbsolutePathBuf],
+    configured_plugin_keys: &[String],
     mode: NonCuratedCacheRefreshMode,
-) -> Result<bool, String> {
-    let configured_non_curated_plugin_ids =
-        non_curated_plugin_ids_from_config_keys(configured_plugins_from_codex_home(
-            codex_home,
-            "failed to read user config while refreshing non-curated plugin cache",
-            "failed to parse user config while refreshing non-curated plugin cache",
-        ));
+) -> Result<NonCuratedCacheRefreshOutcome, String> {
+    let mut configured_non_curated_plugin_ids = configured_plugin_keys
+        .iter()
+        .filter_map(|plugin_key| match PluginId::parse(plugin_key) {
+            Ok(plugin_id) if !is_openai_curated_marketplace_name(&plugin_id.marketplace_name) => {
+                Some(plugin_id)
+            }
+            Ok(_) => None,
+            Err(err) => {
+                warn!(
+                    plugin_key,
+                    error = %err,
+                    "ignoring invalid plugin key during non-curated cache refresh setup"
+                );
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    configured_non_curated_plugin_ids.sort_unstable_by_key(PluginId::as_key);
     if configured_non_curated_plugin_ids.is_empty() {
-        return Ok(false);
+        return Ok(NonCuratedCacheRefreshOutcome {
+            cache_refreshed: false,
+            errors: Vec::new(),
+        });
     }
     let configured_non_curated_plugin_keys = configured_non_curated_plugin_ids
         .iter()
@@ -451,7 +516,7 @@ fn refresh_non_curated_plugin_cache_with_mode(
         .collect::<HashSet<_>>();
 
     let store = PluginStore::try_new(codex_home.to_path_buf()).map_err(|err| err.to_string())?;
-    let marketplace_outcome = list_marketplaces(additional_roots)
+    let marketplace_outcome = list_marketplaces_with_home(additional_roots, /*home_dir*/ None)
         .map_err(|err| format!("failed to discover marketplaces for cache refresh: {err}"))?;
     let mut plugin_sources = HashMap::<String, (MarketplacePluginSource, Option<String>)>::new();
 
@@ -461,14 +526,18 @@ fn refresh_non_curated_plugin_cache_with_mode(
         }
 
         for plugin in marketplace.plugins {
-            let plugin_id =
-                PluginId::new(plugin.name.clone(), marketplace.name.clone()).map_err(|err| {
-                    match err {
-                        PluginIdError::Invalid(message) => {
-                            format!("failed to prepare non-curated plugin cache refresh: {message}")
-                        }
-                    }
-                })?;
+            let plugin_id = match PluginId::new(plugin.name.clone(), marketplace.name.clone()) {
+                Ok(plugin_id) => plugin_id,
+                Err(PluginIdError::Invalid(message)) => {
+                    warn!(
+                        plugin = plugin.name,
+                        marketplace = marketplace.name,
+                        error = %message,
+                        "ignoring invalid plugin entry during cache refresh"
+                    );
+                    continue;
+                }
+            };
             let plugin_key = plugin_id.as_key();
             if !configured_non_curated_plugin_keys.contains(&plugin_key) {
                 continue;
@@ -503,6 +572,7 @@ fn refresh_non_curated_plugin_cache_with_mode(
     }
 
     let mut cache_refreshed = false;
+    let mut refresh_errors = Vec::new();
     for plugin_id in configured_non_curated_plugin_ids {
         let plugin_key = plugin_id.as_key();
         let Some((source, manifest_fallback_contents)) = plugin_sources.get(&plugin_key).cloned()
@@ -514,49 +584,70 @@ fn refresh_non_curated_plugin_cache_with_mode(
             );
             continue;
         };
-        let materialized =
-            materialize_marketplace_plugin_source(codex_home, &source).map_err(|err| {
-                format!("failed to materialize plugin source for {plugin_key}: {err}")
-            })?;
-        let source_path = materialized.path.clone();
-        let plugin_version = match manifest_fallback_contents.as_deref() {
-            Some(manifest_contents) => plugin_version_for_source_with_fallback_manifest(
-                source_path.as_path(),
-                manifest_contents,
-            ),
-            None => plugin_version_for_source(source_path.as_path()),
-        }
-        .map_err(|err| format!("failed to read plugin version for {plugin_key}: {err}"))?;
+        let refresh_result = (|| -> Result<bool, String> {
+            let materialized =
+                materialize_marketplace_plugin_source(codex_home, &source).map_err(|err| {
+                    format!("failed to materialize plugin source for {plugin_key}: {err}")
+                })?;
+            let source_path = materialized.path;
+            let plugin_version = match manifest_fallback_contents.as_deref() {
+                Some(manifest_contents) => plugin_version_for_source_with_fallback_manifest(
+                    source_path.as_path(),
+                    manifest_contents,
+                ),
+                None => plugin_version_for_source(source_path.as_path()),
+            }
+            .map_err(|err| format!("failed to read plugin version for {plugin_key}: {err}"))?;
 
-        if mode == NonCuratedCacheRefreshMode::IfVersionChanged
-            && store.active_plugin_version(&plugin_id).as_deref() == Some(plugin_version.as_str())
-        {
-            continue;
-        }
+            if mode == NonCuratedCacheRefreshMode::IfVersionChanged
+                && store.active_plugin_version(&plugin_id).as_deref()
+                    == Some(plugin_version.as_str())
+            {
+                return Ok(false);
+            }
 
-        match manifest_fallback_contents.as_deref() {
-            Some(manifest_contents) => store.install_with_version_and_fallback_manifest(
-                source_path,
-                plugin_id.clone(),
-                plugin_version,
-                manifest_contents,
-            ),
-            None => store.install_with_version(source_path, plugin_id.clone(), plugin_version),
+            match manifest_fallback_contents.as_deref() {
+                Some(manifest_contents) => store.install_with_version_and_fallback_manifest(
+                    source_path,
+                    plugin_id.clone(),
+                    plugin_version,
+                    manifest_contents,
+                ),
+                None => store.install_with_version(source_path, plugin_id.clone(), plugin_version),
+            }
+            .map_err(|err| format!("failed to refresh plugin cache for {plugin_key}: {err}"))?;
+            Ok(true)
+        })();
+        match refresh_result {
+            Ok(refreshed) => cache_refreshed |= refreshed,
+            Err(message) => refresh_errors.push(NonCuratedCacheRefreshError {
+                marketplace_name: plugin_id.marketplace_name,
+                message,
+            }),
         }
-        .map_err(|err| format!("failed to refresh plugin cache for {plugin_key}: {err}"))?;
-        cache_refreshed = true;
     }
 
-    Ok(cache_refreshed)
+    Ok(NonCuratedCacheRefreshOutcome {
+        cache_refreshed,
+        errors: refresh_errors,
+    })
 }
 
-fn configured_plugins_from_stack(
-    config_layer_stack: &ConfigLayerStack,
-) -> HashMap<String, PluginConfig> {
-    let Some(user_config) = config_layer_stack.effective_user_config() else {
-        return HashMap::new();
-    };
-    configured_plugins_from_user_config_value(&user_config)
+#[cfg(test)]
+fn collapse_non_curated_cache_refresh(
+    outcome: Result<NonCuratedCacheRefreshOutcome, String>,
+) -> Result<bool, String> {
+    let outcome = outcome?;
+    if outcome.errors.is_empty() {
+        Ok(outcome.cache_refreshed)
+    } else {
+        Err(outcome
+            .errors
+            .into_iter()
+            .map(|error| error.message)
+            .collect::<Vec<_>>()
+            .join("; "))
+    }
 }
 
 fn is_full_git_sha(value: &str) -> bool {
@@ -646,20 +737,6 @@ fn curated_plugin_ids_from_config_keys(
     configured_curated_plugin_ids
 }
 
-fn non_curated_plugin_ids_from_config_keys(
-    configured_plugins: HashMap<String, PluginConfig>,
-) -> Vec<PluginId> {
-    let mut configured_non_curated_plugin_ids = configured_plugin_ids(
-        configured_plugins,
-        "ignoring invalid plugin key during non-curated cache refresh setup",
-    )
-    .into_iter()
-    .filter(|plugin_id| !is_openai_curated_marketplace_name(&plugin_id.marketplace_name))
-    .collect::<Vec<_>>();
-    configured_non_curated_plugin_ids.sort_unstable_by_key(PluginId::as_key);
-    configured_non_curated_plugin_ids
-}
-
 pub fn configured_curated_plugin_ids_from_codex_home(codex_home: &Path) -> Vec<PluginId> {
     curated_plugin_ids_from_config_keys(configured_plugins_from_codex_home(
         codex_home,
@@ -737,6 +814,7 @@ async fn load_plugin(
             restriction_product,
             skill_config_rules,
             plugin_skill_snapshots,
+            root_scan_slots,
         } => {
             loaded_plugin.manifest_name = Some(manifest.display_name().to_string());
             loaded_plugin.manifest_description = manifest.description.clone();
@@ -748,6 +826,7 @@ async fn load_plugin(
                 *restriction_product,
                 skill_config_rules,
                 *plugin_skill_snapshots,
+                Arc::clone(root_scan_slots),
             )
             .await;
             let has_enabled_skills = resolved_skills.has_enabled_skills();
@@ -845,6 +924,7 @@ pub async fn load_plugin_skills(
     restriction_product: Option<Product>,
     skill_config_rules: &SkillConfigRules,
     plugin_skill_snapshots: Option<&PluginSkillSnapshots>,
+    root_scan_slots: Arc<Semaphore>,
 ) -> ResolvedPluginSkills {
     load_plugin_skill_inventory(
         plugin_root,
@@ -852,6 +932,7 @@ pub async fn load_plugin_skills(
         manifest,
         restriction_product,
         plugin_skill_snapshots,
+        root_scan_slots,
     )
     .await
     .resolve(skill_config_rules)
@@ -863,6 +944,7 @@ pub(crate) async fn load_plugin_skill_inventory(
     manifest: &PluginManifest,
     restriction_product: Option<Product>,
     plugin_skill_snapshots: Option<&PluginSkillSnapshots>,
+    root_scan_slots: Arc<Semaphore>,
 ) -> PluginSkillInventory {
     let roots = plugin_skill_roots(plugin_root, &manifest.paths)
         .into_iter()
@@ -875,12 +957,37 @@ pub(crate) async fn load_plugin_skill_inventory(
             plugin_root: Some(plugin_root.clone()),
         })
         .collect::<Vec<_>>();
-    let outcome = load_skills_from_roots(roots, plugin_skill_snapshots).await;
+    let outcome = load_skills_from_roots(roots, plugin_skill_snapshots, root_scan_slots).await;
     let had_errors = !outcome.errors.is_empty();
+    let migrated_command_skills = migrated_command_skills_root(plugin_root);
+    let migrated_command_skills = fs::canonicalize(migrated_command_skills.as_path())
+        .ok()
+        .and_then(|path| AbsolutePathBuf::from_absolute_path_checked(path).ok())
+        .unwrap_or(migrated_command_skills);
     let skills = outcome
         .skills
         .into_iter()
         .filter(|skill| skill.matches_product_restriction_for_product(restriction_product))
+        .collect::<Vec<_>>();
+    let native_skill_names = skills
+        .iter()
+        .filter(|skill| {
+            !skill
+                .path_to_skills_md
+                .as_path()
+                .starts_with(migrated_command_skills.as_path())
+        })
+        .map(|skill| skill.name.clone())
+        .collect::<HashSet<_>>();
+    let skills = skills
+        .into_iter()
+        .filter(|skill| {
+            !skill
+                .path_to_skills_md
+                .as_path()
+                .starts_with(migrated_command_skills.as_path())
+                || !native_skill_names.contains(&skill.name)
+        })
         .collect::<Vec<_>>();
 
     PluginSkillInventory { skills, had_errors }
@@ -895,6 +1002,10 @@ fn plugin_skill_roots(
     } else {
         manifest_paths.skills.clone()
     };
+    let migrated_command_skills = migrated_command_skills_root(plugin_root);
+    if migrated_command_skills.is_dir() {
+        paths.push(migrated_command_skills);
+    }
     paths.sort_unstable();
     paths.dedup();
     paths
@@ -1358,6 +1469,22 @@ pub fn materialize_marketplace_plugin_source(
                 _tempdir: Some(tempdir),
             })
         }
+        MarketplacePluginSource::Npm {
+            package,
+            version,
+            registry,
+        } => {
+            let (path, tempdir) = materialize_npm_plugin_source(
+                codex_home,
+                package,
+                version.as_deref(),
+                registry.as_deref(),
+            )?;
+            Ok(MaterializedMarketplacePluginSource {
+                path,
+                _tempdir: Some(tempdir),
+            })
+        }
     }
 }
 
@@ -1396,8 +1523,16 @@ fn clone_git_plugin_source(
             /*cwd*/ None,
         )?;
     }
-    if let Some(target) = sha.or(ref_name) {
-        run_git(&["checkout", target], Some(destination))?;
+    if let Some(sha) = sha {
+        run_git(&["checkout", sha], Some(destination))?;
+        let checked_out_sha = run_git_output(&["rev-parse", "HEAD"], Some(destination))?;
+        if !checked_out_sha.eq_ignore_ascii_case(sha) {
+            return Err(format!(
+                "checked out Git SHA {checked_out_sha} does not match requested SHA {sha}"
+            ));
+        }
+    } else if let Some(ref_name) = ref_name {
+        run_git(&["checkout", ref_name], Some(destination))?;
     } else if sparse_checkout_path.is_some() {
         run_git(&["checkout"], Some(destination))?;
     }
@@ -1405,6 +1540,10 @@ fn clone_git_plugin_source(
 }
 
 fn run_git(args: &[&str], cwd: Option<&Path>) -> Result<(), String> {
+    run_git_output(args, cwd).map(drop)
+}
+
+fn run_git_output(args: &[&str], cwd: Option<&Path>) -> Result<String, String> {
     let mut command = Command::new("git");
     command.args(args);
     command.env("GIT_TERMINAL_PROMPT", "0");
@@ -1416,7 +1555,7 @@ fn run_git(args: &[&str], cwd: Option<&Path>) -> Result<(), String> {
         .output()
         .map_err(|err| format!("failed to run git {}: {err}", args.join(" ")))?;
     if output.status.success() {
-        return Ok(());
+        return Ok(String::from_utf8_lossy(&output.stdout).trim().to_string());
     }
 
     Err(format!(

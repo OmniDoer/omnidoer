@@ -8,6 +8,7 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use codex_exec_server_protocol::JSONRPCErrorError;
+use codex_network_proxy::NetworkProxyHandle;
 use codex_protocol::config_types::EnvironmentVariablePattern;
 use codex_protocol::config_types::ShellEnvironmentPolicy;
 use codex_protocol::exec_output::ExecToolCallOutput;
@@ -17,7 +18,6 @@ use codex_sandboxing::SandboxType;
 use codex_sandboxing::is_likely_sandbox_denied;
 use codex_utils_pty::ExecCommandSession;
 use codex_utils_pty::ProcessSignal as PtyProcessSignal;
-use codex_utils_pty::TerminalSize;
 use tokio::sync::Mutex;
 use tokio::sync::Notify;
 use tokio::sync::mpsc;
@@ -59,8 +59,13 @@ use crate::rpc::RpcServerOutboundMessage;
 use crate::rpc::internal_error;
 use crate::rpc::invalid_params;
 use crate::rpc::invalid_request;
+use crate::telemetry::ExecServerTelemetry;
+use crate::telemetry::ProcessMetricGuard;
 
 const RETAINED_OUTPUT_BYTES_PER_PROCESS: usize = 1024 * 1024;
+// Each process/read chunk needs four JSON values. Keep retained replay below the
+// shared 256K-value JSON-RPC decoder budget even when output arrives in tiny chunks.
+const RETAINED_OUTPUT_CHUNKS_PER_PROCESS: usize = 50_000;
 const NOTIFICATION_CHANNEL_CAPACITY: usize = 256;
 const PROCESS_EVENT_CHANNEL_CAPACITY: usize = 256;
 const RETAINED_STDIN_WRITE_IDS_PER_PROCESS: usize = 4096;
@@ -91,8 +96,11 @@ struct RunningProcess {
     output_notify: Arc<Notify>,
     open_streams: usize,
     closed: bool,
+    metrics: Option<ProcessMetricGuard>,
+    termination_requested: bool,
     sandbox: SandboxType,
     sandbox_denied: bool,
+    network_proxy_handle: Option<NetworkProxyHandle>,
 }
 
 /// Bounded cache of stdin write ids that have already been accepted for one process.
@@ -136,6 +144,7 @@ enum ProcessEntry {
 struct Inner {
     notifications: std::sync::RwLock<Option<RpcNotificationSender>>,
     processes: Mutex<HashMap<ProcessId, ProcessEntry>>,
+    telemetry: ExecServerTelemetry,
 }
 
 #[derive(Clone)]
@@ -166,24 +175,31 @@ impl LocalProcess {
         let (outgoing_tx, mut outgoing_rx) =
             mpsc::channel::<RpcServerOutboundMessage>(NOTIFICATION_CHANNEL_CAPACITY);
         tokio::spawn(async move { while outgoing_rx.recv().await.is_some() {} });
-        Self::with_runtime_paths(RpcNotificationSender::new(outgoing_tx), runtime_paths)
+        Self::with_runtime_paths(
+            RpcNotificationSender::new(outgoing_tx),
+            ExecServerTelemetry::default(),
+            runtime_paths,
+        )
     }
 
     pub(crate) fn new(
         notifications: RpcNotificationSender,
+        telemetry: ExecServerTelemetry,
         runtime_paths: ExecServerRuntimePaths,
     ) -> Self {
-        Self::with_runtime_paths(notifications, Some(runtime_paths))
+        Self::with_runtime_paths(notifications, telemetry, Some(runtime_paths))
     }
 
     fn with_runtime_paths(
         notifications: RpcNotificationSender,
+        telemetry: ExecServerTelemetry,
         runtime_paths: Option<ExecServerRuntimePaths>,
     ) -> Self {
         Self {
             inner: Arc::new(Inner {
                 notifications: std::sync::RwLock::new(Some(notifications)),
                 processes: Mutex::new(HashMap::new()),
+                telemetry,
             }),
             runtime_paths,
         }
@@ -200,7 +216,10 @@ impl LocalProcess {
                 })
                 .collect::<Vec<_>>()
         };
-        for process in remaining {
+        for mut process in remaining {
+            if let Some(metrics) = process.metrics.take() {
+                metrics.finish("terminated");
+            }
             process.session.terminate();
         }
     }
@@ -220,11 +239,10 @@ impl LocalProcess {
     ) -> Result<(ExecResponse, watch::Sender<u64>, ExecProcessEventLog), JSONRPCErrorError> {
         let process_id = params.process_id.clone();
         let prepared =
-            prepare_exec_request(&params, child_env(&params), self.runtime_paths.as_ref())?;
-        let (program, args) = prepared
-            .command
-            .split_first()
-            .ok_or_else(|| invalid_params("argv must not be empty".to_string()))?;
+            prepare_exec_request(&params, child_env(&params), self.runtime_paths.as_ref()).await?;
+        if prepared.command.is_empty() {
+            return Err(invalid_params("argv must not be empty".to_string()));
+        }
 
         let start = Arc::new(ProcessStart);
         {
@@ -240,35 +258,18 @@ impl LocalProcess {
             );
         }
 
-        let spawned_result = if params.tty {
-            codex_utils_pty::spawn_pty_process(
-                program,
-                args,
-                prepared.cwd.as_path(),
-                &prepared.env,
-                &prepared.arg0,
-                TerminalSize::default(),
-            )
-            .await
-        } else if params.pipe_stdin {
-            codex_utils_pty::spawn_pipe_process(
-                program,
-                args,
-                prepared.cwd.as_path(),
-                &prepared.env,
-                &prepared.arg0,
-            )
-            .await
-        } else {
-            codex_utils_pty::spawn_pipe_process_no_stdin(
-                program,
-                args,
-                prepared.cwd.as_path(),
-                &prepared.env,
-                &prepared.arg0,
-            )
-            .await
-        };
+        let spawned_result = codex_sandboxing::spawn_process(codex_sandboxing::SpawnRequest {
+            command: &prepared.command,
+            cwd: prepared.cwd.as_path(),
+            env: &prepared.env,
+            arg0: &prepared.arg0,
+            sandbox: prepared.sandbox,
+            windows_sandbox: prepared.windows_sandbox_spawn_request(),
+            tty: params.tty,
+            stdin_open: params.tty || params.pipe_stdin,
+            inherited_fds: &[],
+        })
+        .await;
         let spawned = match spawned_result {
             Ok(spawned) => spawned,
             Err(err) => {
@@ -319,12 +320,14 @@ impl LocalProcess {
                     output_notify: Arc::clone(&output_notify),
                     open_streams: 2,
                     closed: false,
+                    metrics: Some(self.inner.telemetry.process_started()),
+                    termination_requested: false,
                     sandbox: prepared.sandbox,
                     sandbox_denied: false,
+                    network_proxy_handle: prepared.network_proxy_handle,
                 })),
             );
         }
-
         tokio::spawn(stream_output(
             process_id.clone(),
             if params.tty {
@@ -536,11 +539,12 @@ impl LocalProcess {
     ) -> Result<TerminateResponse, JSONRPCErrorError> {
         let running = {
             let mut process_map = self.inner.processes.lock().await;
-            match process_map.get(&params.process_id) {
+            match process_map.get_mut(&params.process_id) {
                 Some(ProcessEntry::Running(process)) => {
                     if process.exit_code.is_some() {
                         return Ok(TerminateResponse { running: false });
                     }
+                    process.termination_requested = true;
                     process.session.terminate();
                     true
                 }
@@ -766,7 +770,9 @@ async fn stream_output(
                 stream,
                 chunk: chunk.clone(),
             });
-            while process.retained_bytes > RETAINED_OUTPUT_BYTES_PER_PROCESS {
+            while process.retained_bytes > RETAINED_OUTPUT_BYTES_PER_PROCESS
+                || process.output.len() > RETAINED_OUTPUT_CHUNKS_PER_PROCESS
+            {
                 let Some(evicted) = process.output.pop_front() else {
                     break;
                 };
@@ -807,11 +813,23 @@ async fn watch_exit(
 ) {
     let exit_code = exit_rx.await.unwrap_or(-1);
     let sandboxed = {
-        let processes = inner.processes.lock().await;
-        matches!(
-            processes.get(&process_id),
-            Some(ProcessEntry::Running(process)) if process.sandbox != SandboxType::None
-        )
+        let mut processes = inner.processes.lock().await;
+        match processes.get_mut(&process_id) {
+            Some(ProcessEntry::Running(process)) => {
+                let sandboxed = process.sandbox != SandboxType::None;
+                if let Some(metrics) = process.metrics.take() {
+                    metrics.finish(if process.termination_requested {
+                        "terminated"
+                    } else if exit_code == 0 {
+                        "success"
+                    } else {
+                        "error"
+                    });
+                }
+                sandboxed
+            }
+            Some(ProcessEntry::Starting(_)) | None => false,
+        }
     };
     if sandboxed {
         let _ = tokio::time::timeout(Duration::from_millis(20), output_notify.notified()).await;
@@ -847,13 +865,16 @@ async fn watch_exit(
                 process.sandbox_denied = is_likely_sandbox_denied(process.sandbox, &exec_output);
             }
             let _ = process.wake_tx.send(seq);
-            process
-                .events
-                .publish(ExecProcessEvent::Exited { seq, exit_code });
+            process.events.publish(ExecProcessEvent::Exited {
+                seq,
+                exit_code,
+                sandbox_denied: Some(process.sandbox_denied),
+            });
             Some(ExecExitedNotification {
                 process_id: process_id.clone(),
                 seq,
                 exit_code,
+                sandbox_denied: Some(process.sandbox_denied),
             })
         } else {
             None
@@ -887,7 +908,7 @@ async fn finish_output_stream(process_id: ProcessId, inner: Arc<Inner>) {
 }
 
 async fn maybe_emit_closed(process_id: ProcessId, inner: Arc<Inner>) {
-    let (notification, output_notify) = {
+    let (notification, output_notify, network_proxy_handle) = {
         let mut processes = inner.processes.lock().await;
         let Some(ProcessEntry::Running(process)) = processes.get_mut(&process_id) else {
             return;
@@ -908,8 +929,15 @@ async fn maybe_emit_closed(process_id: ProcessId, inner: Arc<Inner>) {
                 seq,
             },
             Arc::clone(&process.output_notify),
+            process.network_proxy_handle.take(),
         )
     };
+
+    if let Some(network_proxy_handle) = network_proxy_handle
+        && let Err(err) = network_proxy_handle.shutdown().await
+    {
+        tracing::warn!("failed to shut down executor network proxy: {err}");
+    }
 
     output_notify.notify_waiters();
     let cleanup_process_id = process_id.clone();
@@ -945,9 +973,21 @@ fn notification_sender(inner: &Inner) -> Option<RpcNotificationSender> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use codex_exec_server_protocol::JSONRPCMessage;
+    use codex_exec_server_protocol::JSONRPCResponse;
+    use codex_exec_server_protocol::RequestId;
+    use codex_network_proxy::NetworkProxy;
+    use codex_network_proxy::NetworkProxyConfig;
+    use codex_network_proxy::NetworkProxyState;
+    use codex_network_proxy::RemoteNetworkProxyConfig;
+    use codex_network_proxy::RemoteNetworkProxyLaunchConfig;
+    use codex_otel::MetricsConfig;
     use codex_protocol::config_types::ShellEnvironmentPolicyInherit;
     use codex_utils_path_uri::PathUri;
     use codex_utils_pty::ProcessDriver;
+    use opentelemetry_sdk::metrics::InMemoryMetricExporter;
+    use opentelemetry_sdk::metrics::data::AggregatedMetrics;
+    use opentelemetry_sdk::metrics::data::MetricData;
     use pretty_assertions::assert_eq;
     use tokio::sync::oneshot;
     use tokio::time::timeout;
@@ -966,7 +1006,64 @@ mod tests {
             sandbox: None,
             enforce_managed_network: false,
             managed_network: None,
+            network_proxy: None,
         }
+    }
+
+    fn telemetry_backend() -> (
+        LocalProcess,
+        codex_otel::MetricsClient,
+        InMemoryMetricExporter,
+    ) {
+        let exporter = InMemoryMetricExporter::default();
+        let metrics = codex_otel::MetricsClient::new(MetricsConfig::in_memory(
+            "test",
+            "codex-exec-server",
+            env!("CARGO_PKG_VERSION"),
+            exporter.clone(),
+        ))
+        .expect("metrics");
+        let telemetry = ExecServerTelemetry::new(metrics.clone());
+        let (outgoing_tx, mut outgoing_rx) = mpsc::channel(NOTIFICATION_CHANNEL_CAPACITY);
+        tokio::spawn(async move { while outgoing_rx.recv().await.is_some() {} });
+        (
+            LocalProcess::with_runtime_paths(
+                RpcNotificationSender::new(outgoing_tx),
+                telemetry,
+                /*runtime_paths*/ None,
+            ),
+            metrics,
+            exporter,
+        )
+    }
+
+    fn assert_finished_process_result(
+        metrics: codex_otel::MetricsClient,
+        exporter: &InMemoryMetricExporter,
+        expected: &str,
+    ) {
+        metrics.shutdown().expect("shutdown metrics");
+        let resource_metrics = exporter
+            .get_finished_metrics()
+            .expect("finished metrics")
+            .into_iter()
+            .last()
+            .expect("metrics export");
+        let finished_processes = resource_metrics
+            .scope_metrics()
+            .flat_map(opentelemetry_sdk::metrics::data::ScopeMetrics::metrics)
+            .find(|metric| metric.name() == "exec_server_processes_finished_total")
+            .expect("finished process metric");
+        let AggregatedMetrics::U64(MetricData::Sum(sum)) = finished_processes.data() else {
+            panic!("finished process metric should be a u64 sum");
+        };
+        let results = sum
+            .data_points()
+            .flat_map(opentelemetry_sdk::metrics::data::SumDataPoint::attributes)
+            .filter(|attribute| attribute.key.as_str() == "result")
+            .map(|attribute| attribute.value.as_str().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(results, vec![expected.to_string()]);
     }
 
     #[tokio::test]
@@ -1029,6 +1126,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn exit_before_shutdown_records_success() {
+        let (backend, metrics, exporter) = telemetry_backend();
+        let mut process = spawn_test_process(&backend, "exit-before-shutdown").await;
+
+        process.exit(/*exit_code*/ 0);
+        let _ = read_process_until_change(&backend, &process.process_id, /*after_seq*/ None).await;
+        backend.shutdown().await;
+
+        assert_finished_process_result(metrics, &exporter, "success");
+    }
+
+    #[tokio::test]
+    async fn termination_request_before_exit_records_terminated() {
+        let (backend, metrics, exporter) = telemetry_backend();
+        let mut process = spawn_test_process(&backend, "terminate-before-exit").await;
+
+        assert_eq!(
+            backend
+                .terminate_process(TerminateParams {
+                    process_id: process.process_id.clone(),
+                })
+                .await
+                .expect("terminate process"),
+            TerminateResponse { running: true },
+        );
+        process.exit(/*exit_code*/ 0);
+        let _ = read_process_until_change(&backend, &process.process_id, /*after_seq*/ None).await;
+        backend.shutdown().await;
+
+        assert_finished_process_result(metrics, &exporter, "terminated");
+    }
+
+    #[tokio::test]
+    async fn shutdown_before_exit_records_terminated() {
+        let (backend, metrics, exporter) = telemetry_backend();
+        let mut process = spawn_test_process(&backend, "shutdown-before-exit").await;
+
+        backend.shutdown().await;
+        process.exit(/*exit_code*/ 0);
+
+        assert_finished_process_result(metrics, &exporter, "terminated");
+    }
+
+    #[tokio::test]
     async fn exited_process_retains_late_output_past_retention() {
         let backend = LocalProcess::default();
         let mut process = spawn_test_process(&backend, "proc-late-output").await;
@@ -1087,6 +1228,166 @@ mod tests {
             .await
             .expect("closed process should remain readable");
         assert_eq!(replay_after_exit.next_seq, 4);
+        backend.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn process_read_replay_is_bounded_by_chunk_count() {
+        let backend = LocalProcess::default();
+        let process = spawn_test_process(&backend, "proc-chunk-count").await;
+        let retained_chunk_count = RETAINED_OUTPUT_CHUNKS_PER_PROCESS as u64;
+
+        {
+            let mut processes = backend.inner.processes.lock().await;
+            let Some(ProcessEntry::Running(running)) = processes.get_mut(&process.process_id)
+            else {
+                panic!("process should be running");
+            };
+            running.output = (1..=retained_chunk_count)
+                .map(|seq| RetainedOutputChunk {
+                    seq,
+                    stream: ExecOutputStream::Stdout,
+                    chunk: vec![b'x'],
+                })
+                .collect();
+            running.retained_bytes = RETAINED_OUTPUT_CHUNKS_PER_PROCESS;
+            running.next_seq = retained_chunk_count + 1;
+        }
+
+        process
+            .stdout_tx
+            .send(vec![b'y'])
+            .await
+            .expect("send output beyond retained chunk limit");
+        timeout(Duration::from_secs(1), async {
+            loop {
+                let output_recorded = {
+                    let processes = backend.inner.processes.lock().await;
+                    let Some(ProcessEntry::Running(running)) = processes.get(&process.process_id)
+                    else {
+                        panic!("process should be running");
+                    };
+                    running.next_seq == retained_chunk_count + 2
+                };
+                if output_recorded {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("output should be retained");
+
+        let response = backend
+            .exec_read(ReadParams {
+                process_id: process.process_id.clone(),
+                after_seq: None,
+                max_bytes: None,
+                wait_ms: Some(0),
+            })
+            .await
+            .expect("read retained output");
+        let mut expected_chunks = (2..=retained_chunk_count)
+            .map(|seq| ProcessOutputChunk {
+                seq,
+                stream: ExecOutputStream::Stdout,
+                chunk: vec![b'x'].into(),
+            })
+            .collect::<Vec<_>>();
+        expected_chunks.push(ProcessOutputChunk {
+            seq: retained_chunk_count + 1,
+            stream: ExecOutputStream::Stdout,
+            chunk: vec![b'y'].into(),
+        });
+        assert_eq!(
+            response,
+            ReadResponse {
+                chunks: expected_chunks,
+                next_seq: retained_chunk_count + 2,
+                exited: false,
+                exit_code: None,
+                closed: false,
+                failure: None,
+                sandbox_denied: false,
+            }
+        );
+
+        let message = JSONRPCMessage::Response(JSONRPCResponse {
+            id: RequestId::Integer(1),
+            result: serde_json::to_value(response).expect("serialize process/read response"),
+        });
+        let encoded = serde_json::to_string(&message).expect("encode JSON-RPC response");
+        let decoded = serde_json::from_str::<JSONRPCMessage>(&encoded)
+            .expect("retained process/read response should fit the JSON value budget");
+        assert_eq!(decoded, message);
+
+        backend.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn exited_process_keeps_network_proxy_until_inherited_streams_close() {
+        let backend = LocalProcess::default();
+        let mut process = spawn_test_process(&backend, "proc-background-child").await;
+        let config = NetworkProxyConfig {
+            enabled: true,
+            ..Default::default()
+        };
+        let proxy_config = RemoteNetworkProxyConfig::from_effective_config(&config)
+            .expect("build remote network proxy config");
+        let state = NetworkProxyState::from_remote_launch_config(
+            RemoteNetworkProxyLaunchConfig::new(proxy_config),
+        )
+        .expect("build network proxy state");
+        let proxy = NetworkProxy::builder()
+            .state(Arc::new(state))
+            .build()
+            .await
+            .expect("build network proxy");
+        let handle = proxy.run().await.expect("start network proxy");
+        let prepared = proxy
+            .prepare_for_optional_environment(HashMap::new(), /*environment_id*/ None)
+            .expect("prepare network proxy environment");
+        let proxy_addr: std::net::SocketAddr = prepared
+            .env
+            .get("HTTP_PROXY")
+            .and_then(|value| value.strip_prefix("http://"))
+            .expect("HTTP proxy address")
+            .parse()
+            .expect("parse HTTP proxy address");
+
+        {
+            let mut processes = backend.inner.processes.lock().await;
+            let Some(ProcessEntry::Running(running)) = processes.get_mut(&process.process_id)
+            else {
+                panic!("test process should be running");
+            };
+            running.network_proxy_handle = Some(handle);
+        }
+
+        process.exit(/*exit_code*/ 0);
+        let exit_response =
+            read_process_until_change(&backend, &process.process_id, /*after_seq*/ None).await;
+        assert!(exit_response.exited);
+        assert!(!exit_response.closed);
+        tokio::net::TcpStream::connect(proxy_addr)
+            .await
+            .expect("proxy should remain available to a child holding inherited output streams");
+        #[cfg(target_os = "windows")]
+        assert!(proxy.network_proxy_restricting_sid(None).is_some());
+
+        drop(process.stdout_tx);
+        drop(process.stderr_tx);
+        let closed_response = timeout(
+            Duration::from_secs(1),
+            read_process_until_closed(&backend, &process.process_id),
+        )
+        .await
+        .expect("process should close");
+        assert!(closed_response.closed);
+        #[cfg(target_os = "windows")]
+        assert_eq!(proxy.network_proxy_restricting_sid(None), None);
+        #[cfg(not(target_os = "windows"))]
+        assert!(tokio::net::TcpStream::connect(proxy_addr).await.is_err());
         backend.shutdown().await;
     }
 
@@ -1170,8 +1471,11 @@ mod tests {
                 output_notify: Arc::clone(&output_notify),
                 open_streams: 2,
                 closed: false,
+                metrics: Some(backend.inner.telemetry.process_started()),
+                termination_requested: false,
                 sandbox: SandboxType::None,
                 sandbox_denied: false,
+                network_proxy_handle: None,
             })),
         );
         assert!(previous.is_none());

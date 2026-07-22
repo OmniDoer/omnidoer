@@ -4,6 +4,7 @@ Module: runtimes
 Concrete ToolRuntime implementations for specific tools. Each runtime stays
 small and focused and reuses the orchestrator for approvals + sandbox + retry.
 */
+use crate::exec_env::CODEX_PERMISSION_PROFILE_ENV_VAR;
 use crate::exec_env::CODEX_THREAD_ID_ENV_VAR;
 use crate::sandboxing::SandboxPermissions;
 use crate::shell::Shell;
@@ -18,7 +19,8 @@ use codex_network_proxy::PROXY_ACTIVE_ENV_KEY;
 use codex_network_proxy::PROXY_ENV_KEYS;
 #[cfg(target_os = "macos")]
 use codex_network_proxy::PROXY_GIT_SSH_COMMAND_ENV_KEY;
-use codex_network_proxy::is_managed_mitm_ca_trust_bundle_path;
+pub(crate) use codex_network_proxy::is_managed_proxy_env_var;
+pub(crate) use codex_network_proxy::strip_managed_proxy_env;
 use codex_protocol::config_types::WindowsSandboxLevel;
 use codex_protocol::models::AdditionalPermissionProfile;
 use codex_sandboxing::SandboxCommand;
@@ -66,28 +68,6 @@ pub(crate) fn exec_env_for_sandbox_permissions(
         strip_managed_proxy_env(&mut env);
     }
     env
-}
-
-pub(crate) fn is_managed_proxy_env_var(key: &str, value: &str) -> bool {
-    if PROXY_ENV_KEYS.contains(&key) {
-        return true;
-    }
-    if CUSTOM_CA_ENV_KEYS.contains(&key) {
-        return is_managed_mitm_ca_trust_bundle_path(value);
-    }
-    #[cfg(target_os = "macos")]
-    {
-        key == PROXY_GIT_SSH_COMMAND_ENV_KEY
-            && value.starts_with(CODEX_PROXY_GIT_SSH_COMMAND_MARKER)
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        false
-    }
-}
-
-pub(crate) fn strip_managed_proxy_env(env: &mut HashMap<String, String>) {
-    env.retain(|key, value| !is_managed_proxy_env_var(key, value));
 }
 
 /// Prepends `path_entry` to `PATH`, removing duplicate and empty existing
@@ -287,10 +267,14 @@ pub(crate) fn maybe_wrap_shell_lc_with_snapshot(
         .map(|arg| format!(" '{}'", shell_single_quote(arg)))
         .collect::<String>();
     let mut override_env = explicit_env_overrides.clone();
-    if let Some(thread_id) = env.get(CODEX_THREAD_ID_ENV_VAR) {
-        override_env.insert(CODEX_THREAD_ID_ENV_VAR.to_string(), thread_id.clone());
+    for key in [CODEX_THREAD_ID_ENV_VAR, CODEX_PERMISSION_PROFILE_ENV_VAR] {
+        if let Some(value) = env.get(key) {
+            override_env.insert(key.to_string(), value.clone());
+        }
     }
-    let (override_captures, override_exports) = build_override_exports(&override_env);
+    // Do not let a snapshot resurrect a stale profile when no named profile is active.
+    let (override_captures, override_exports) =
+        build_override_exports(&override_env, &[CODEX_PERMISSION_PROFILE_ENV_VAR]);
     let (proxy_captures, proxy_exports) = build_proxy_env_exports();
     let runtime_path_prepend_exports =
         runtime_path_prepends.shell_exports_after_snapshot(explicit_env_overrides);
@@ -313,13 +297,18 @@ pub(crate) fn maybe_wrap_shell_lc_with_snapshot(
     vec![shell_path.to_string(), "-c".to_string(), rewritten_script]
 }
 
-fn build_override_exports(explicit_env_overrides: &HashMap<String, String>) -> (String, String) {
+fn build_override_exports(
+    explicit_env_overrides: &HashMap<String, String>,
+    restore_even_when_absent: &[&str],
+) -> (String, String) {
     let mut keys = explicit_env_overrides
         .keys()
         .map(String::as_str)
+        .chain(restore_even_when_absent.iter().copied())
         .filter(|key| is_valid_shell_variable_name(key))
         .collect::<Vec<_>>();
     keys.sort_unstable();
+    keys.dedup();
 
     build_override_exports_for_keys("__CODEX_SNAPSHOT_OVERRIDE", &keys)
 }

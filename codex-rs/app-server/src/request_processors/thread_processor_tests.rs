@@ -483,6 +483,7 @@ mod thread_processor_behavior_tests {
             cwd: PathBuf::from("/tmp"),
             cli_version: "0.0.0".to_string(),
             source: SessionSource::Cli,
+            history_mode: Default::default(),
             thread_source: Some(codex_protocol::protocol::ThreadSource::User),
             agent_nickname: None,
             agent_role: None,
@@ -519,12 +520,14 @@ mod thread_processor_behavior_tests {
                     FileSystemSandboxEntry {
                         path: FileSystemPath::Path { path: cwd.clone() },
                         access: FileSystemAccessMode::Write,
+                        missing_path_behavior: None,
                     },
                     FileSystemSandboxEntry {
                         path: FileSystemPath::GlobPattern {
                             pattern: "/tmp/project/**/*.env".to_string(),
                         },
                         access: FileSystemAccessMode::Deny,
+                        missing_path_behavior: None,
                     },
                 ]),
                 NetworkSandboxPolicy::Restricted,
@@ -777,6 +780,7 @@ mod thread_processor_behavior_tests {
                 },
             },
             session_source: SessionSource::Cli,
+            history_mode: Default::default(),
             forked_from_thread_id: None,
             parent_thread_id: None,
             thread_source: None,
@@ -1013,6 +1017,7 @@ mod thread_processor_behavior_tests {
 
         let line = RolloutLine {
             timestamp: timestamp.clone(),
+            ordinal: None,
             item: RolloutItem::SessionMeta(SessionMetaLine {
                 meta: session_meta.clone(),
                 git: None,
@@ -1080,6 +1085,7 @@ mod thread_processor_behavior_tests {
 
         let line = RolloutLine {
             timestamp,
+            ordinal: None,
             item: RolloutItem::SessionMeta(SessionMetaLine {
                 meta: session_meta,
                 git: None,
@@ -1122,6 +1128,7 @@ mod thread_processor_behavior_tests {
 
         let line = RolloutLine {
             timestamp,
+            ordinal: None,
             item: RolloutItem::SessionMeta(SessionMetaLine {
                 meta: session_meta,
                 git: None,

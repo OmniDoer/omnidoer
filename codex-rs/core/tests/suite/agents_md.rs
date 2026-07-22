@@ -486,7 +486,9 @@ async fn loads_user_instructions_without_a_primary_environment() -> Result<()> {
         .thread_manager
         .start_thread_with_options(StartThreadOptions {
             config: test.config.clone(),
+            allow_provider_model_fallback: false,
             initial_history: InitialHistory::New,
+            history_mode: None,
             session_source: None,
             thread_source: None,
             dynamic_tools: Vec::new(),
@@ -691,7 +693,9 @@ async fn multi_environment_thread_loads_every_project_and_keeps_creation_snapsho
         .thread_manager
         .start_thread_with_options(StartThreadOptions {
             config: test.config.clone(),
+            allow_provider_model_fallback: false,
             initial_history: InitialHistory::New,
+            history_mode: None,
             session_source: None,
             thread_source: None,
             dynamic_tools: Vec::new(),
@@ -701,10 +705,12 @@ async fn multi_environment_thread_loads_every_project_and_keeps_creation_snapsho
                 TurnEnvironmentSelection {
                     environment_id: REMOTE_ENVIRONMENT_ID.to_string(),
                     cwd: PathUri::from_abs_path(&test.config.cwd),
+                    workspace_roots: vec![PathUri::from_abs_path(&test.config.cwd)],
                 },
                 TurnEnvironmentSelection {
                     environment_id: LOCAL_ENVIRONMENT_ID.to_string(),
                     cwd: PathUri::from_host_native_path(local_root.path())?,
+                    workspace_roots: vec![PathUri::from_host_native_path(local_root.path())?],
                 },
             ],
             thread_extension_init: Default::default(),

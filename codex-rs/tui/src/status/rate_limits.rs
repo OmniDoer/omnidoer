@@ -365,10 +365,10 @@ pub(crate) fn format_status_limit_summary(percent_remaining: f64) -> String {
     format!("{percent_remaining:.0}% left")
 }
 
-/// Builds a single `StatusRateLimitRow` for credits when the snapshot indicates
-/// that the account has credit tracking enabled. When credits are unlimited we
-/// show that fact explicitly; otherwise we render the rounded balance in
-/// credits. Accounts with credits = 0 skip this section entirely.
+/// Builds a single `StatusRateLimitRow` when workspace credits are available.
+/// Unlimited credits are shown explicitly; finite credits show their rounded
+/// balance or `Available` when the balance is hidden. OmniDoer-branded Codex
+/// limits keep their product-specific label.
 fn credit_status_row(
     credits: &CreditsSnapshotDisplay,
     label_prefix: Option<&str>,
@@ -376,20 +376,26 @@ fn credit_status_row(
     let label = label_prefix
         .map(|prefix| format!("{prefix} credits"))
         .unwrap_or_else(|| "Credits".to_string());
-    if !credits.has_credits {
-        return None;
-    }
     if credits.unlimited {
         return Some(StatusRateLimitRow {
             label,
             value: StatusRateLimitValue::Text("Unlimited".to_string()),
         });
     }
-    let balance = credits.balance.as_ref()?;
-    let display_balance = format_credit_balance(balance)?;
+    if !credits.has_credits {
+        return None;
+    }
+    let value = credits
+        .balance
+        .as_deref()
+        .and_then(format_credit_balance)
+        .map_or_else(
+            || "Available".to_string(),
+            |display_balance| format!("{display_balance} credits"),
+        );
     Some(StatusRateLimitRow {
         label,
-        value: StatusRateLimitValue::Text(format!("{display_balance} credits")),
+        value: StatusRateLimitValue::Text(value),
     })
 }
 
@@ -406,6 +412,7 @@ fn format_credit_balance(raw: &str) -> Option<String> {
     }
 
     if let Ok(value) = trimmed.parse::<f64>()
+        && value.is_finite()
         && value > 0.0
     {
         let rounded = value.round() as i64;

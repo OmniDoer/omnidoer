@@ -15,6 +15,7 @@ SELECT
     threads.updated_at_ms AS updated_at,
     threads.recency_at_ms AS recency_at,
     threads.source,
+    threads.history_mode,
     threads.thread_source,
     threads.agent_nickname,
     threads.agent_role,
@@ -25,6 +26,7 @@ SELECT
     threads.cwd,
     threads.cli_version,
     threads.title,
+    threads.name,
     threads.preview,
     threads.sandbox_policy,
     threads.approval_mode,
@@ -544,6 +546,7 @@ INSERT INTO threads (
     updated_at_ms,
     recency_at_ms,
     source,
+    history_mode,
     thread_source,
     agent_nickname,
     agent_role,
@@ -554,6 +557,7 @@ INSERT INTO threads (
     cwd,
     cli_version,
     title,
+    name,
     preview,
     sandbox_policy,
     approval_mode,
@@ -565,7 +569,7 @@ INSERT INTO threads (
     git_branch,
     git_origin_url,
     memory_mode
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO NOTHING
             "#,
         )
@@ -578,6 +582,7 @@ ON CONFLICT(id) DO NOTHING
         .bind(datetime_to_epoch_millis(updated_at))
         .bind(datetime_to_epoch_millis(recency_at))
         .bind(metadata.source.as_str())
+        .bind(metadata.history_mode.as_str())
         .bind(
             metadata
                 .thread_source
@@ -598,6 +603,7 @@ ON CONFLICT(id) DO NOTHING
         .bind(metadata.cwd.display().to_string())
         .bind(metadata.cli_version.as_str())
         .bind(metadata.title.as_str())
+        .bind(metadata.name.as_deref())
         .bind(preview)
         .bind(metadata.sandbox_policy.as_str())
         .bind(metadata.approval_mode.as_str())
@@ -636,6 +642,19 @@ ON CONFLICT(id) DO NOTHING
     ) -> anyhow::Result<bool> {
         let result = sqlx::query("UPDATE threads SET title = ? WHERE id = ?")
             .bind(title)
+            .bind(thread_id.to_string())
+            .execute(self.pool.as_ref())
+            .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn update_thread_name(
+        &self,
+        thread_id: ThreadId,
+        name: Option<&str>,
+    ) -> anyhow::Result<bool> {
+        let result = sqlx::query("UPDATE threads SET name = ? WHERE id = ?")
+            .bind(name)
             .bind(thread_id.to_string())
             .execute(self.pool.as_ref())
             .await?;
@@ -796,6 +815,7 @@ INSERT INTO threads (
     updated_at_ms,
     recency_at_ms,
     source,
+    history_mode,
     thread_source,
     agent_nickname,
     agent_role,
@@ -806,6 +826,7 @@ INSERT INTO threads (
     cwd,
     cli_version,
     title,
+    name,
     preview,
     sandbox_policy,
     approval_mode,
@@ -817,7 +838,7 @@ INSERT INTO threads (
     git_branch,
     git_origin_url,
     memory_mode
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
     rollout_path = excluded.rollout_path,
     created_at = excluded.created_at,
@@ -827,6 +848,7 @@ ON CONFLICT(id) DO UPDATE SET
     updated_at_ms = excluded.updated_at_ms,
     recency_at_ms = threads.recency_at_ms,
     source = excluded.source,
+    history_mode = excluded.history_mode,
     thread_source = excluded.thread_source,
     agent_nickname = excluded.agent_nickname,
     agent_role = excluded.agent_role,
@@ -858,6 +880,7 @@ ON CONFLICT(id) DO UPDATE SET
         .bind(datetime_to_epoch_millis(updated_at))
         .bind(datetime_to_epoch_millis(insert_recency_at))
         .bind(metadata.source.as_str())
+        .bind(metadata.history_mode.as_str())
         .bind(
             metadata
                 .thread_source
@@ -878,6 +901,7 @@ ON CONFLICT(id) DO UPDATE SET
         .bind(metadata.cwd.display().to_string())
         .bind(metadata.cli_version.as_str())
         .bind(metadata.title.as_str())
+        .bind(metadata.name.as_deref())
         .bind(preview)
         .bind(metadata.sandbox_policy.as_str())
         .bind(metadata.approval_mode.as_str())
@@ -1016,70 +1040,12 @@ ON CONFLICT(id) DO UPDATE SET
             self.thread_goals.delete_thread_goal(*thread_id).await?;
         }
 
-        let now = Utc::now().timestamp();
         let mut tx = self.pool.begin().await?;
         for thread_id_string in &thread_id_strings {
-            for parent_thread_id_string in &thread_id_strings {
-                // If both the job runner and worker are being deleted, requeueing
-                // the worker item would leave a running job with no loop to consume it.
-                sqlx::query(
-                    r#"
-UPDATE agent_jobs
-SET status = ?, updated_at = ?, completed_at = ?, last_error = ?
-WHERE status IN (?, ?)
-  AND id IN (
-    SELECT item.job_id
-    FROM agent_job_items AS item
-    JOIN thread_spawn_edges AS edge ON edge.child_thread_id = item.assigned_thread_id
-    WHERE item.status = ? AND item.assigned_thread_id = ? AND edge.parent_thread_id = ?
-  )
-                    "#,
-                )
-                .bind(AgentJobStatus::Cancelled.as_str())
-                .bind(now)
-                .bind(now)
-                .bind("agent job runner thread was deleted")
-                .bind(AgentJobStatus::Pending.as_str())
-                .bind(AgentJobStatus::Running.as_str())
-                .bind(AgentJobItemStatus::Running.as_str())
-                .bind(thread_id_string)
-                .bind(parent_thread_id_string)
-                .execute(&mut *tx)
-                .await?;
-            }
             sqlx::query("DELETE FROM thread_dynamic_tools WHERE thread_id = ?")
                 .bind(thread_id_string)
                 .execute(&mut *tx)
                 .await?;
-            sqlx::query(
-                r#"
-UPDATE agent_job_items
-SET
-    status = ?,
-    assigned_thread_id = NULL,
-    updated_at = ?,
-    last_error = ?
-WHERE assigned_thread_id = ? AND status = ?
-            "#,
-            )
-            .bind(AgentJobItemStatus::Pending.as_str())
-            .bind(now)
-            .bind("assigned thread was deleted")
-            .bind(thread_id_string)
-            .bind(AgentJobItemStatus::Running.as_str())
-            .execute(&mut *tx)
-            .await?;
-            sqlx::query(
-                r#"
-UPDATE agent_job_items
-SET assigned_thread_id = NULL, updated_at = ?
-WHERE assigned_thread_id = ?
-            "#,
-            )
-            .bind(now)
-            .bind(thread_id_string)
-            .execute(&mut *tx)
-            .await?;
         }
         for thread_id_string in &thread_id_strings {
             sqlx::query(
@@ -1206,6 +1172,7 @@ SELECT
     threads.updated_at_ms AS updated_at,
     threads.recency_at_ms AS recency_at,
     threads.source,
+    threads.history_mode,
     threads.thread_source,
     threads.agent_nickname,
     threads.agent_role,
@@ -1216,6 +1183,7 @@ SELECT
     threads.cwd,
     threads.cli_version,
     threads.title,
+    threads.name,
     threads.preview,
     threads.sandbox_policy,
     threads.approval_mode,
@@ -1315,7 +1283,9 @@ pub(super) fn push_thread_filters<'a>(
         None => {}
     }
     if let Some(search_term) = search_term {
-        builder.push(" AND (instr(threads.title, ");
+        builder.push(" AND (instr(COALESCE(threads.name, ''), ");
+        builder.push_bind(search_term);
+        builder.push(") > 0 OR instr(threads.title, ");
         builder.push_bind(search_term);
         builder.push(") > 0 OR instr(threads.preview, ");
         builder.push_bind(search_term);
@@ -1419,8 +1389,8 @@ mod tests {
     use codex_protocol::protocol::SessionMeta;
     use codex_protocol::protocol::SessionMetaLine;
     use codex_protocol::protocol::SessionSource;
+    use codex_protocol::protocol::ThreadHistoryMode;
     use pretty_assertions::assert_eq;
-    use serde_json::json;
     use std::path::PathBuf;
 
     #[tokio::test]
@@ -1462,6 +1432,30 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn thread_metadata_round_trips_history_mode() {
+        let codex_home = unique_temp_dir();
+        let runtime = StateRuntime::init(codex_home.clone(), "test-provider".to_string())
+            .await
+            .expect("state db should initialize");
+        let thread_id =
+            ThreadId::from_string("00000000-0000-0000-0000-000000000124").expect("valid thread id");
+        let mut metadata = test_thread_metadata(&codex_home, thread_id, codex_home.clone());
+        metadata.history_mode = ThreadHistoryMode::Paginated;
+
+        runtime
+            .upsert_thread(&metadata)
+            .await
+            .expect("upsert should succeed");
+
+        let metadata = runtime
+            .get_thread(thread_id)
+            .await
+            .expect("thread should load")
+            .expect("thread should exist");
+        assert_eq!(metadata.history_mode, ThreadHistoryMode::Paginated);
+    }
+
+    #[tokio::test]
     async fn delete_thread_cleans_associated_state() -> Result<()> {
         let codex_home = unique_temp_dir();
         let runtime = StateRuntime::init(codex_home.clone(), "test-provider".to_string()).await?;
@@ -1483,36 +1477,6 @@ mod tests {
         .bind("{}")
         .execute(runtime.pool.as_ref())
         .await?;
-        runtime
-            .create_agent_job(
-                &AgentJobCreateParams {
-                    id: "job-1".to_string(),
-                    name: "test-job".to_string(),
-                    instruction: "Return a result".to_string(),
-                    auto_export: true,
-                    max_runtime_seconds: None,
-                    output_schema_json: None,
-                    input_headers: vec!["path".to_string()],
-                    input_csv_path: "/tmp/in.csv".to_string(),
-                    output_csv_path: "/tmp/out.csv".to_string(),
-                },
-                &[AgentJobItemCreateParams {
-                    item_id: "item-1".to_string(),
-                    row_index: 0,
-                    source_id: None,
-                    row_json: json!({"path": "file-1"}),
-                }],
-            )
-            .await?;
-        runtime.mark_agent_job_running("job-1").await?;
-        runtime
-            .mark_agent_job_item_running_with_thread(
-                "job-1",
-                "item-1",
-                &child_thread_id.to_string(),
-            )
-            .await?;
-
         let rows = runtime
             .delete_threads_strict(&[thread_id, child_thread_id])
             .await?;
@@ -1526,21 +1490,6 @@ mod tests {
                 .await?;
         assert_eq!(dynamic_tool_count, 0);
         assert_thread_cleanup_state(&runtime, thread_id).await?;
-        let job_item = runtime
-            .get_agent_job_item("job-1", "item-1")
-            .await?
-            .expect("job item should exist");
-        assert_eq!(job_item.status, AgentJobItemStatus::Pending);
-        assert_eq!(job_item.assigned_thread_id, None);
-        assert_eq!(
-            job_item.last_error,
-            Some("assigned thread was deleted".to_string())
-        );
-        let job = runtime
-            .get_agent_job("job-1")
-            .await?
-            .expect("job should exist");
-        assert_eq!(job.status, AgentJobStatus::Cancelled);
 
         let missing_thread_id = ThreadId::from_string("00000000-0000-0000-0000-000000000403")?;
         let missing_child_thread_id =
@@ -2148,7 +2097,11 @@ mod tests {
                 model_provider: None,
                 base_instructions: None,
                 dynamic_tools: None,
+                selected_capability_roots: Vec::new(),
                 memory_mode: Some("polluted".to_string()),
+                history_mode: Default::default(),
+                history_base: None,
+                subagent_history_start_ordinal: None,
                 multi_agent_version: None,
                 context_window: None,
             },
@@ -2211,7 +2164,11 @@ mod tests {
                 model_provider: None,
                 base_instructions: None,
                 dynamic_tools: None,
+                selected_capability_roots: Vec::new(),
                 memory_mode: None,
+                history_mode: Default::default(),
+                history_base: None,
+                subagent_history_start_ordinal: None,
                 multi_agent_version: None,
                 context_window: None,
             },
@@ -2856,6 +2813,7 @@ mod tests {
                     total_token_usage: codex_protocol::protocol::TokenUsage {
                         input_tokens: 0,
                         cached_input_tokens: 0,
+                        cache_write_input_tokens: 0,
                         output_tokens: 0,
                         reasoning_output_tokens: 0,
                         total_tokens: 321,

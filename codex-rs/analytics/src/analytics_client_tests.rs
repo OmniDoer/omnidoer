@@ -66,6 +66,7 @@ use crate::facts::PluginInstallRequestSource;
 use crate::facts::PluginInstallRequested;
 use crate::facts::PluginInstallRequestedInput;
 use crate::facts::PluginInstallRequestedPlugin;
+use crate::facts::PluginInstallSource;
 use crate::facts::PluginState;
 use crate::facts::PluginStateChangedInput;
 use crate::facts::PluginUsedInput;
@@ -103,12 +104,14 @@ use codex_app_server_protocol::GuardianApprovalReview;
 use codex_app_server_protocol::GuardianApprovalReviewAction;
 use codex_app_server_protocol::GuardianApprovalReviewStatus;
 use codex_app_server_protocol::GuardianCommandSource as AppServerGuardianCommandSource;
+use codex_app_server_protocol::ImageGenerationItem;
 use codex_app_server_protocol::InitializeCapabilities;
 use codex_app_server_protocol::InitializeParams;
 use codex_app_server_protocol::ItemCompletedNotification;
 use codex_app_server_protocol::ItemGuardianApprovalReviewCompletedNotification;
 use codex_app_server_protocol::ItemStartedNotification;
 use codex_app_server_protocol::JSONRPCErrorError;
+use codex_app_server_protocol::McpToolCallAppContext;
 use codex_app_server_protocol::McpToolCallStatus;
 use codex_app_server_protocol::NonSteerableTurnKind;
 use codex_app_server_protocol::PatchApplyStatus;
@@ -139,6 +142,7 @@ use codex_app_server_protocol::TurnStatus as AppServerTurnStatus;
 use codex_app_server_protocol::TurnSteerParams;
 use codex_app_server_protocol::TurnSteerResponse;
 use codex_app_server_protocol::UserInput;
+use codex_app_server_protocol::WebSearchItem;
 use codex_login::default_client::DEFAULT_ORIGINATOR;
 use codex_login::default_client::originator;
 use codex_plugin::AppConnectorId;
@@ -198,6 +202,7 @@ fn sample_thread_with_metadata(
         parent_thread_id,
         preview: "first prompt".to_string(),
         ephemeral,
+        history_mode: Default::default(),
         model_provider: "openai".to_string(),
         created_at: 1,
         updated_at: 2,
@@ -207,6 +212,7 @@ fn sample_thread_with_metadata(
         cwd: test_path_buf("/tmp").abs(),
         cli_version: "0.0.0".to_string(),
         source,
+        can_accept_direct_input: None,
         thread_source,
         agent_nickname: None,
         agent_role: None,
@@ -307,6 +313,8 @@ fn sample_thread_resume_response_with_source(
         reasoning_effort: None,
         multi_agent_mode: Default::default(),
         initial_turns_page: None,
+        turns_backwards_cursor: None,
+        items_backwards_cursor: None,
     })
 }
 
@@ -370,6 +378,7 @@ fn sample_turn_token_usage_fact(thread_id: &str, turn_id: &str) -> TurnTokenUsag
             total_tokens: 321,
             input_tokens: 123,
             cached_input_tokens: 45,
+            cache_write_input_tokens: 7,
             output_tokens: 140,
             reasoning_output_tokens: 13,
         },
@@ -558,6 +567,7 @@ async fn ingest_rejected_turn_steer(
                 response: Box::new(sample_thread_resume_response(
                     "thread-2", /*ephemeral*/ false, "gpt-5",
                 )),
+                thread_originator: None,
             },
             out,
         )
@@ -631,6 +641,7 @@ async fn ingest_turn_prerequisites(
                     response: Box::new(sample_thread_start_response(
                         "thread-2", /*ephemeral*/ false, "gpt-5",
                     )),
+                    thread_originator: None,
                 },
                 out,
             )
@@ -654,6 +665,7 @@ async fn ingest_turn_prerequisites(
                 connection_id: 7,
                 request_id: RequestId::Integer(3),
                 response: Box::new(sample_turn_start_response("turn-2")),
+                thread_originator: None,
             },
             out,
         )
@@ -720,6 +732,7 @@ async fn ingest_review_prerequisites(
                 response: Box::new(sample_thread_start_response(
                     "thread-1", /*ephemeral*/ false, "gpt-5",
                 )),
+                thread_originator: None,
             },
             events,
         )
@@ -1306,6 +1319,7 @@ fn compaction_event_serializes_expected_shape() {
                 retained_image_count: None,
                 compaction_summary_tokens: None,
                 cached_input_tokens: None,
+                cache_write_input_tokens: Some(456),
                 started_at: 100,
                 completed_at: 106,
                 duration_ms: Some(6543),
@@ -1358,6 +1372,7 @@ fn compaction_event_serializes_expected_shape() {
                 "retained_image_count": null,
                 "compaction_summary_tokens": null,
                 "cached_input_tokens": null,
+                "cache_write_input_tokens": 456,
                 "started_at": 100,
                 "completed_at": 106,
                 "duration_ms": 6543
@@ -1469,6 +1484,7 @@ fn command_execution_event_serializes_expected_shape() {
         event_params: CodexCommandExecutionEventParams {
             base: CodexToolItemEventBase {
                 thread_id: "thread-1".to_string(),
+                session_id: "session-thread-1".to_string(),
                 turn_id: "turn-1".to_string(),
                 item_id: "item-1".to_string(),
                 app_server_client: CodexAppServerClientMetadata {
@@ -1518,6 +1534,7 @@ fn command_execution_event_serializes_expected_shape() {
             "event_type": "codex_command_execution_event",
             "event_params": {
                 "thread_id": "thread-1",
+                "session_id": "session-thread-1",
                 "turn_id": "turn-1",
                 "item_id": "item-1",
                 "app_server_client": {
@@ -1652,6 +1669,7 @@ async fn initialize_caches_client_and_thread_lifecycle_publishes_once_initialize
                     /*ephemeral*/ false,
                     "gpt-5",
                 )),
+                thread_originator: None,
             },
             &mut events,
         )
@@ -1697,6 +1715,7 @@ async fn initialize_caches_client_and_thread_lifecycle_publishes_once_initialize
                 response: Box::new(sample_thread_resume_response(
                     "thread-1", /*ephemeral*/ true, "gpt-5",
                 )),
+                thread_originator: None,
             },
             &mut events,
         )
@@ -1742,6 +1761,158 @@ async fn initialize_caches_client_and_thread_lifecycle_publishes_once_initialize
 }
 
 #[tokio::test]
+async fn thread_originator_overrides_shared_connection_across_thread_events() {
+    let mut reducer = AnalyticsReducer::default();
+    let mut events = Vec::new();
+
+    reducer
+        .ingest(sample_initialize_fact(/*connection_id*/ 7), &mut events)
+        .await;
+    for (request_id, thread_id, thread_originator) in [
+        (1, "thread-work", Some(TEST_PRODUCT_CLIENT_ID.to_string())),
+        (2, "thread-default", None),
+    ] {
+        reducer
+            .ingest(
+                AnalyticsFact::ClientResponse {
+                    connection_id: 7,
+                    request_id: RequestId::Integer(request_id),
+                    response: Box::new(sample_thread_start_response(
+                        thread_id, /*ephemeral*/ false, "gpt-5",
+                    )),
+                    thread_originator,
+                },
+                &mut events,
+            )
+            .await;
+    }
+
+    let initialized = serde_json::to_value(&events).expect("serialize thread events");
+    assert_eq!(
+        initialized
+            .as_array()
+            .expect("thread events")
+            .iter()
+            .map(|event| {
+                json!({
+                    "thread_id": event["event_params"]["thread_id"],
+                    "app_server_client": event["event_params"]["app_server_client"],
+                })
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            json!({
+                "thread_id": "thread-work",
+                "app_server_client": {
+                    "product_client_id": TEST_PRODUCT_CLIENT_ID,
+                    "client_name": "codex-tui",
+                    "client_version": "1.0.0",
+                    "rpc_transport": "websocket",
+                    "experimental_api_enabled": false,
+                },
+            }),
+            json!({
+                "thread_id": "thread-default",
+                "app_server_client": {
+                    "product_client_id": DEFAULT_ORIGINATOR,
+                    "client_name": "codex-tui",
+                    "client_version": "1.0.0",
+                    "rpc_transport": "websocket",
+                    "experimental_api_enabled": false,
+                },
+            }),
+        ]
+    );
+
+    events.clear();
+    reducer
+        .ingest(
+            AnalyticsFact::ClientRequest {
+                connection_id: 7,
+                request_id: RequestId::Integer(3),
+                request: Box::new(sample_turn_start_request(
+                    "thread-work",
+                    /*request_id*/ 3,
+                )),
+            },
+            &mut events,
+        )
+        .await;
+    reducer
+        .ingest(
+            AnalyticsFact::ClientResponse {
+                connection_id: 7,
+                request_id: RequestId::Integer(3),
+                response: Box::new(sample_turn_start_response("turn-1")),
+                thread_originator: None,
+            },
+            &mut events,
+        )
+        .await;
+    ingest_completed_command_execution_item(&mut reducer, &mut events, "thread-work", "item-work")
+        .await;
+    ingest_complete_child_turn(&mut reducer, &mut events, "thread-work", "turn-1").await;
+    reducer
+        .ingest(
+            AnalyticsFact::Custom(CustomAnalyticsFact::Compaction(Box::new(
+                CodexCompactionEvent {
+                    thread_id: "thread-work".to_string(),
+                    turn_id: "turn-compact".to_string(),
+                    trigger: CompactionTrigger::Manual,
+                    reason: CompactionReason::UserRequested,
+                    implementation: CompactionImplementation::Responses,
+                    phase: CompactionPhase::StandaloneTurn,
+                    strategy: CompactionStrategy::Memento,
+                    status: CompactionStatus::Completed,
+                    codex_error_kind: None,
+                    codex_error_http_status_code: None,
+                    active_context_tokens_before: 131_000,
+                    active_context_tokens_after: 64_000,
+                    retained_image_count: None,
+                    compaction_summary_tokens: None,
+                    cached_input_tokens: None,
+                    cache_write_input_tokens: None,
+                    started_at: 100,
+                    completed_at: 101,
+                    duration_ms: Some(1200),
+                },
+            ))),
+            &mut events,
+        )
+        .await;
+
+    let lifecycle = serde_json::to_value(&events).expect("serialize lifecycle events");
+    assert_eq!(
+        lifecycle
+            .as_array()
+            .expect("lifecycle events")
+            .iter()
+            .map(|event| {
+                json!({
+                    "event_type": event["event_type"],
+                    "product_client_id":
+                        event["event_params"]["app_server_client"]["product_client_id"],
+                })
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            json!({
+                "event_type": "codex_command_execution_event",
+                "product_client_id": TEST_PRODUCT_CLIENT_ID,
+            }),
+            json!({
+                "event_type": "codex_turn_event",
+                "product_client_id": TEST_PRODUCT_CLIENT_ID,
+            }),
+            json!({
+                "event_type": "codex_compaction_event",
+                "product_client_id": TEST_PRODUCT_CLIENT_ID,
+            }),
+        ]
+    );
+}
+
+#[tokio::test]
 async fn unrelated_client_requests_are_ignored_by_reducer() {
     let mut reducer = AnalyticsReducer::default();
     let mut events = Vec::new();
@@ -1767,6 +1938,7 @@ async fn unrelated_client_requests_are_ignored_by_reducer() {
                 connection_id: 7,
                 request_id: RequestId::Integer(3),
                 response: Box::new(sample_turn_start_response("turn-2")),
+                thread_originator: None,
             },
             &mut events,
         )
@@ -1792,6 +1964,7 @@ async fn unrelated_client_responses_are_ignored_by_reducer() {
                 response: Box::new(ClientResponsePayload::ThreadArchive(
                     ThreadArchiveResponse {},
                 )),
+                thread_originator: None,
             },
             &mut events,
         )
@@ -1851,6 +2024,7 @@ async fn compaction_event_ingests_custom_fact() {
                     Some(AppServerThreadSource::Subagent),
                     Some(parent_thread_id.to_string()),
                 )),
+                thread_originator: None,
             },
             &mut events,
         )
@@ -1876,6 +2050,7 @@ async fn compaction_event_ingests_custom_fact() {
                     retained_image_count: None,
                     compaction_summary_tokens: None,
                     cached_input_tokens: None,
+                    cache_write_input_tokens: None,
                     started_at: 100,
                     completed_at: 101,
                     duration_ms: Some(1200),
@@ -1971,6 +2146,7 @@ async fn guardian_review_event_ingests_custom_fact_with_optional_target_item() {
                     /*ephemeral*/ false,
                     "gpt-5",
                 )),
+                thread_originator: None,
             },
             &mut events,
         )
@@ -2016,6 +2192,7 @@ async fn guardian_review_event_ingests_custom_fact_with_optional_target_item() {
                     completed_at: Some(190),
                     input_tokens: None,
                     cached_input_tokens: None,
+                    cache_write_input_tokens: None,
                     output_tokens: None,
                     reasoning_output_tokens: None,
                     total_tokens: None,
@@ -2172,6 +2349,7 @@ async fn item_lifecycle_notifications_publish_command_execution_event() {
     assert_eq!(payload.as_array().expect("events array").len(), 1);
     assert_eq!(payload[0]["event_type"], "codex_command_execution_event");
     assert_eq!(payload[0]["event_params"]["thread_id"], "thread-1");
+    assert_eq!(payload[0]["event_params"]["session_id"], "session-thread-1");
     assert_eq!(payload[0]["event_params"]["turn_id"], "turn-1");
     assert_eq!(payload[0]["event_params"]["item_id"], "item-1");
     assert_eq!(payload[0]["event_params"]["tool_name"], "shell");
@@ -2499,6 +2677,7 @@ async fn item_review_summaries_do_not_cross_threads_with_reused_item_ids() {
                 response: Box::new(sample_thread_start_response(
                     "thread-2", /*ephemeral*/ false, "gpt-5",
                 )),
+                thread_originator: None,
             },
             &mut events,
         )
@@ -2749,7 +2928,7 @@ async fn subagent_thread_started_publishes_without_initialize() {
 }
 
 #[tokio::test]
-async fn subagent_events_use_inherited_connection_unless_turn_connection_is_explicit() {
+async fn subagent_events_keep_thread_originator_with_explicit_turn_connection() {
     let mut reducer = AnalyticsReducer::default();
     let mut events = Vec::new();
     let parent_thread_id =
@@ -2786,6 +2965,7 @@ async fn subagent_events_use_inherited_connection_unless_turn_connection_is_expl
                     /*ephemeral*/ false,
                     "gpt-5",
                 )),
+                thread_originator: None,
             },
             &mut events,
         )
@@ -2838,6 +3018,7 @@ async fn subagent_events_use_inherited_connection_unless_turn_connection_is_expl
                     retained_image_count: None,
                     compaction_summary_tokens: None,
                     cached_input_tokens: None,
+                    cache_write_input_tokens: None,
                     started_at: 100,
                     completed_at: 101,
                     duration_ms: Some(1200),
@@ -2908,6 +3089,7 @@ async fn subagent_events_use_inherited_connection_unless_turn_connection_is_expl
                 connection_id: 8,
                 request_id: RequestId::Integer(3),
                 response: Box::new(sample_turn_start_response("turn-explicit")),
+                thread_originator: None,
             },
             &mut events,
         )
@@ -2918,7 +3100,11 @@ async fn subagent_events_use_inherited_connection_unless_turn_connection_is_expl
     };
     assert_eq!(
         event.event_params.app_server_client.product_client_id,
-        DEFAULT_ORIGINATOR
+        "parent-client"
+    );
+    assert_eq!(
+        event.event_params.app_server_client.client_name.as_deref(),
+        Some("codex-tui")
     );
 }
 
@@ -2932,7 +3118,7 @@ async fn subagent_tool_items_inherit_parent_connection_metadata() {
         .ingest(
             AnalyticsFact::Custom(CustomAnalyticsFact::SubAgentThreadStarted(
                 SubAgentThreadStartedInput {
-                    session_id: "session-root".to_string(),
+                    session_id: "session-thread-1".to_string(),
                     thread_id: "thread-subagent".to_string(),
                     parent_thread_id: Some("thread-1".to_string()),
                     forked_from_thread_id: None,
@@ -2997,6 +3183,8 @@ async fn subagent_tool_items_inherit_parent_connection_metadata() {
     let payload = serde_json::to_value(&events).expect("serialize events");
     assert_eq!(payload.as_array().expect("events array").len(), 1);
     assert_eq!(payload[0]["event_type"], "codex_command_execution_event");
+    assert_eq!(payload[0]["event_params"]["thread_id"], "thread-subagent");
+    assert_eq!(payload[0]["event_params"]["session_id"], "session-thread-1");
     assert_eq!(payload[0]["event_params"]["thread_source"], "subagent");
     assert_eq!(payload[0]["event_params"]["subagent_source"], "review");
     assert_eq!(payload[0]["event_params"]["parent_thread_id"], "thread-1");
@@ -3071,7 +3259,9 @@ fn plugin_install_failed_event_serializes_expected_shape() {
         event_type: "codex_plugin_install_failed",
         event_params: CodexPluginInstallFailedMetadata {
             plugin: codex_plugin_metadata(sample_plugin_metadata()),
+            source: PluginInstallSource::Manual,
             error_type: "store_io".to_string(),
+            sub_error_type: Some("failed_to_copy_plugin_file".to_string()),
         },
     });
 
@@ -3090,7 +3280,9 @@ fn plugin_install_failed_event_serializes_expected_shape() {
                 "mcp_server_count": 2,
                 "connector_ids": ["calendar", "drive"],
                 "product_client_id": originator().value,
-                "error_type": "store_io"
+                "source": "manual",
+                "error_type": "store_io",
+                "sub_error_type": "failed_to_copy_plugin_file"
             }
         })
     );
@@ -3521,7 +3713,9 @@ async fn reducer_ingests_plugin_install_failed_fact() {
             AnalyticsFact::Custom(CustomAnalyticsFact::PluginInstallFailed(
                 PluginInstallFailedInput {
                     plugin: sample_plugin_metadata(),
+                    source: PluginInstallSource::ExternalAgentMigration,
                     error_type: "invalid_plugin".to_string(),
+                    sub_error_type: Some("failed_to_copy_plugin_file".to_string()),
                 },
             )),
             &mut events,
@@ -3542,7 +3736,9 @@ async fn reducer_ingests_plugin_install_failed_fact() {
                 "mcp_server_count": 2,
                 "connector_ids": ["calendar", "drive"],
                 "product_client_id": originator().value,
-                "error_type": "invalid_plugin"
+                "source": "external_agent_migration",
+                "error_type": "invalid_plugin",
+                "sub_error_type": "failed_to_copy_plugin_file"
             }
         }])
     );
@@ -3563,7 +3759,9 @@ async fn reducer_ingests_plugin_install_failed_fact_without_detail() {
             AnalyticsFact::Custom(CustomAnalyticsFact::PluginInstallFailed(
                 PluginInstallFailedInput {
                     plugin,
+                    source: PluginInstallSource::Manual,
                     error_type: "remote_catalog_unexpected_status".to_string(),
+                    sub_error_type: None,
                 },
             )),
             &mut events,
@@ -3584,7 +3782,9 @@ async fn reducer_ingests_plugin_install_failed_fact_without_detail() {
                 "mcp_server_count": null,
                 "connector_ids": null,
                 "product_client_id": originator().value,
-                "error_type": "remote_catalog_unexpected_status"
+                "source": "manual",
+                "error_type": "remote_catalog_unexpected_status",
+                "sub_error_type": null
             }
         }])
     );
@@ -3601,6 +3801,7 @@ async fn reducer_ingests_external_agent_config_import_completed_fact() {
                 ExternalAgentConfigImportCompletedInput {
                     import_id: "import-1".to_string(),
                     source: "app_server".to_string(),
+                    provider_id: "test-provider-42".to_string(),
                     item_type: "PLUGINS".to_string(),
                     success_count: 2,
                     failed_count: 1,
@@ -3618,6 +3819,7 @@ async fn reducer_ingests_external_agent_config_import_completed_fact() {
             "event_params": {
                 "import_id": "import-1",
                 "source": "app_server",
+                "provider_id": "test-provider-42",
                 "type": "PLUGINS",
                 "success_count": 2,
                 "failed_count": 1,
@@ -3635,9 +3837,11 @@ fn external_agent_config_import_failure_event_serializes_expected_shape() {
             event_params: CodexOnboardingExternalAgentImportFailureMetadata {
                 import_id: "import-1".to_string(),
                 source: "app_server".to_string(),
-                item_type: "SESSIONS".to_string(),
-                failure_stage: "session_missing".to_string(),
-                error_type: "session_missing".to_string(),
+                provider_id: "test-provider-42".to_string(),
+                item_type: "PLUGINS".to_string(),
+                failure_stage: "plugin_import".to_string(),
+                error_type: "plugin_import".to_string(),
+                sub_error_type: Some("failed_to_copy_plugin_file".to_string()),
                 product_client_id: Some(originator().value),
             },
         },
@@ -3652,9 +3856,11 @@ fn external_agent_config_import_failure_event_serializes_expected_shape() {
             "event_params": {
                 "import_id": "import-1",
                 "source": "app_server",
-                "type": "SESSIONS",
-                "failure_stage": "session_missing",
-                "error_type": "session_missing",
+                "provider_id": "test-provider-42",
+                "type": "PLUGINS",
+                "failure_stage": "plugin_import",
+                "error_type": "plugin_import",
+                "sub_error_type": "failed_to_copy_plugin_file",
                 "product_client_id": originator().value,
             }
         })
@@ -3672,9 +3878,11 @@ async fn reducer_ingests_external_agent_config_import_failure_fact() {
                 ExternalAgentConfigImportFailureInput {
                     import_id: "import-1".to_string(),
                     source: "app_server".to_string(),
-                    item_type: "SESSIONS".to_string(),
-                    failure_stage: "session_missing".to_string(),
-                    error_type: "session_missing".to_string(),
+                    provider_id: "test-provider-42".to_string(),
+                    item_type: "PLUGINS".to_string(),
+                    failure_stage: "plugin_import".to_string(),
+                    error_type: "plugin_import".to_string(),
+                    sub_error_type: Some("failed_to_copy_plugin_file".to_string()),
                 },
             )),
             &mut events,
@@ -3689,9 +3897,11 @@ async fn reducer_ingests_external_agent_config_import_failure_fact() {
             "event_params": {
                 "import_id": "import-1",
                 "source": "app_server",
-                "type": "SESSIONS",
-                "failure_stage": "session_missing",
-                "error_type": "session_missing",
+                "provider_id": "test-provider-42",
+                "type": "PLUGINS",
+                "failure_stage": "plugin_import",
+                "error_type": "plugin_import",
+                "sub_error_type": "failed_to_copy_plugin_file",
                 "product_client_id": originator().value,
             }
         }])
@@ -3743,6 +3953,7 @@ fn turn_event_serializes_expected_shape() {
             image_generation_count: None,
             input_tokens: None,
             cached_input_tokens: None,
+            cache_write_input_tokens: None,
             output_tokens: None,
             reasoning_output_tokens: None,
             total_tokens: None,
@@ -3815,6 +4026,7 @@ fn turn_event_serializes_expected_shape() {
                 "image_generation_count": null,
                 "input_tokens": null,
                 "cached_input_tokens": null,
+                "cache_write_input_tokens": null,
                 "output_tokens": null,
                 "reasoning_output_tokens": null,
                 "total_tokens": null,
@@ -3868,6 +4080,7 @@ async fn accepted_turn_steer_emits_expected_event() {
                 connection_id: 7,
                 request_id: RequestId::Integer(4),
                 response: Box::new(sample_turn_steer_response("turn-2")),
+                thread_originator: None,
             },
             &mut out,
         )
@@ -4039,6 +4252,7 @@ async fn turn_start_error_response_discards_pending_start_request() {
                 connection_id: 7,
                 request_id: RequestId::Integer(3),
                 response: Box::new(sample_turn_start_response("turn-2")),
+                thread_originator: None,
             },
             &mut out,
         )
@@ -4144,6 +4358,10 @@ async fn turn_lifecycle_emits_turn_event() {
     assert_eq!(payload["event_params"]["duration_ms"], json!(1234));
     assert_eq!(payload["event_params"]["input_tokens"], json!(123));
     assert_eq!(payload["event_params"]["cached_input_tokens"], json!(45));
+    assert_eq!(
+        payload["event_params"]["cache_write_input_tokens"],
+        json!(7)
+    );
     assert_eq!(payload["event_params"]["output_tokens"], json!(140));
     assert_eq!(
         payload["event_params"]["reasoning_output_tokens"],
@@ -4173,27 +4391,19 @@ async fn turn_event_counts_completed_tool_items() {
         tool: "search".to_string(),
         status,
         arguments: json!({}),
-        app_context: None,
+        app_context: Some(McpToolCallAppContext {
+            connector_id: "connector-test".to_string(),
+            link_id: None,
+            resource_uri: None,
+            app_name: None,
+            action_name: None,
+        }),
         mcp_app_resource_uri: None,
         plugin_id: Some("sample@test".to_string()),
         result: None,
         error: None,
         duration_ms,
     };
-    reducer
-        .ingest(
-            AnalyticsFact::Notification(Box::new(ServerNotification::ItemStarted(
-                ItemStartedNotification {
-                    thread_id: "thread-2".to_string(),
-                    turn_id: "turn-2".to_string(),
-                    started_at_ms: 998,
-                    item: mcp_tool_call_item(McpToolCallStatus::InProgress, None),
-                },
-            ))),
-            &mut out,
-        )
-        .await;
-
     let completed_tool_items = vec![
         sample_command_execution_item(CommandExecutionStatus::Completed, Some(0), Some(1)),
         ThreadItem::FileChange {
@@ -4229,19 +4439,36 @@ async fn turn_event_counts_completed_tool_items() {
             agent_thread_id: "thread-child".to_string(),
             agent_path: "/root/child".to_string(),
         },
-        ThreadItem::WebSearch {
+        ThreadItem::WebSearch(WebSearchItem {
             id: "web-1".to_string(),
             query: "codex".to_string(),
             action: None,
-        },
-        ThreadItem::ImageGeneration {
+            results: None,
+        }),
+        ThreadItem::ImageGeneration(ImageGenerationItem {
             id: "image-1".to_string(),
             status: "completed".to_string(),
             revised_prompt: None,
             result: "ok".to_string(),
             saved_path: None,
-        },
+        }),
     ];
+
+    for item in &completed_tool_items {
+        reducer
+            .ingest(
+                AnalyticsFact::Notification(Box::new(ServerNotification::ItemStarted(
+                    ItemStartedNotification {
+                        thread_id: "thread-2".to_string(),
+                        turn_id: "turn-2".to_string(),
+                        started_at_ms: 998,
+                        item: item.clone(),
+                    },
+                ))),
+                &mut out,
+            )
+            .await;
+    }
 
     for item in completed_tool_items {
         reducer
@@ -4259,12 +4486,43 @@ async fn turn_event_counts_completed_tool_items() {
             .await;
     }
 
+    let payload = serde_json::to_value(&out).expect("serialize tool item events");
+    let emitted_tool_events = payload
+        .as_array()
+        .expect("tool item events array")
+        .iter()
+        .map(|event| {
+            (
+                event["event_type"].as_str().expect("tool item event type"),
+                event["event_params"]["session_id"]
+                    .as_str()
+                    .expect("tool item event session ID"),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        emitted_tool_events,
+        vec![
+            ("codex_command_execution_event", "session-thread-2"),
+            ("codex_file_change_event", "session-thread-2"),
+            ("codex_mcp_tool_call_event", "session-thread-2"),
+            ("codex_dynamic_tool_call_event", "session-thread-2"),
+            ("codex_collab_agent_tool_call_event", "session-thread-2"),
+            ("codex_web_search_event", "session-thread-2"),
+            ("codex_image_generation_event", "session-thread-2"),
+        ]
+    );
+
     let mcp_tool_call_event = out
         .iter()
         .find(|event| matches!(event, TrackEventRequest::McpToolCall(_)))
         .expect("MCP tool call event should be emitted");
     let payload = serde_json::to_value(mcp_tool_call_event).expect("serialize MCP tool call event");
     assert_eq!(payload["event_params"]["plugin_id"], json!("sample@test"));
+    assert_eq!(
+        payload["event_params"]["connector_id"],
+        json!("connector-test")
+    );
 
     reducer
         .ingest(
@@ -4367,6 +4625,7 @@ async fn accepted_steers_increment_turn_steer_count() {
                 connection_id: 7,
                 request_id: RequestId::Integer(4),
                 response: Box::new(sample_turn_steer_response("turn-2")),
+                thread_originator: None,
             },
             &mut out,
         )
@@ -4414,6 +4673,7 @@ async fn accepted_steers_increment_turn_steer_count() {
                 connection_id: 7,
                 request_id: RequestId::Integer(6),
                 response: Box::new(sample_turn_steer_response("turn-2")),
+                thread_originator: None,
             },
             &mut out,
         )

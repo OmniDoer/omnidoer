@@ -206,6 +206,12 @@ fn populate_merged_regular_fields_with_sources(
     // Destructure without `..` so every new requirements field must choose
     // whether it belongs in the regular TOML merge path or in a special merger.
     let ConfigRequirementsToml {
+        sqlite_home,
+        log_dir,
+        model_catalog_json,
+        check_for_update_on_startup,
+        allow_login_shell,
+        feedback,
         allowed_approval_policies,
         allowed_approvals_reviewers,
         allowed_sandbox_modes,
@@ -228,9 +234,19 @@ fn populate_merged_regular_fields_with_sources(
         enforce_residency,
         network,
         permissions,
+        models,
         guardian_policy_config,
     } = requirements;
 
+    set_sourced!(sqlite_home, &["sqlite_home"]);
+    set_sourced!(log_dir, &["log_dir"]);
+    set_sourced!(model_catalog_json, &["model_catalog_json"]);
+    set_sourced!(
+        check_for_update_on_startup,
+        &["check_for_update_on_startup"]
+    );
+    set_sourced!(allow_login_shell, &["allow_login_shell"]);
+    set_sourced!(feedback, &["feedback"]);
     set_sourced!(allowed_approval_policies, &["allowed_approval_policies"]);
     set_sourced!(
         allowed_approvals_reviewers,
@@ -256,6 +272,7 @@ fn populate_merged_regular_fields_with_sources(
     set_sourced!(enforce_residency, &["enforce_residency"]);
     set_sourced!(network, &["experimental_network"]);
     set_sourced!(permissions, &["permissions"]);
+    set_sourced!(models, &["models"]);
 
     if let Some(guardian_policy_config) =
         guardian_policy_config.filter(|value| !value.trim().is_empty())

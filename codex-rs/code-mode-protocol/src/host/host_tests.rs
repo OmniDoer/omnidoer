@@ -130,6 +130,9 @@ fn content_items() -> Vec<WireContentItem> {
             image_url: "data:image/png;base64,original".to_string(),
             detail: Some(WireImageDetail::Original),
         },
+        WireContentItem::InputAudio {
+            audio_url: "data:audio/wav;base64,YXVkaW8=".to_string(),
+        },
     ]
 }
 
@@ -156,6 +159,10 @@ fn content_items_json() -> Value {
             "type": "input_image",
             "image_url": "data:image/png;base64,original",
             "detail": "original",
+        },
+        {
+            "type": "input_audio",
+            "audio_url": "data:audio/wav;base64,YXVkaW8=",
         },
     ])
 }
@@ -365,6 +372,16 @@ fn client_to_host_v1_variants_are_pinned() {
             }),
         );
     }
+
+    assert_wire_round_trip(
+        ClientToHost::CancelRequest {
+            id: request_id(/*value*/ 9),
+        },
+        json!({
+            "type": "operation/cancel",
+            "id": 9,
+        }),
+    );
 }
 
 #[test]

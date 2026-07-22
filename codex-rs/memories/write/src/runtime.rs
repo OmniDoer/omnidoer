@@ -260,8 +260,9 @@ impl MemoryStartupContext {
             config.features.enabled(Feature::EnableRequestCompression),
             config.features.enabled(Feature::RuntimeMetrics),
             /*beta_features_header*/ None,
-            config.features.enabled(Feature::ItemIds),
+            /*concurrent_reasoning_summaries_enabled*/ false,
             /*attestation_provider*/ None,
+            config.http_client_factory(),
         );
 
         let mut client_session = model_client.new_session();
@@ -322,14 +323,16 @@ impl MemoryStartupContext {
     ) -> anyhow::Result<SpawnedConsolidationAgent> {
         let environments = self
             .thread_manager
-            .default_environment_selections(&config.cwd);
+            .default_environment_selections(&config.cwd, &config.workspace_roots);
         let NewThread {
             thread_id, thread, ..
         } = self
             .thread_manager
             .start_thread_with_options(StartThreadOptions {
                 config,
+                allow_provider_model_fallback: false,
                 initial_history: InitialHistory::New,
+                history_mode: None,
                 session_source: Some(SessionSource::Internal(
                     InternalSessionSource::MemoryConsolidation,
                 )),

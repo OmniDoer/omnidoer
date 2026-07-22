@@ -3,8 +3,10 @@ use std::sync::Arc;
 
 use chrono::DateTime;
 use chrono::Utc;
+use codex_app_server_protocol::CodexErrorInfo;
 use codex_protocol::SessionId;
 use codex_protocol::ThreadId;
+use codex_protocol::capabilities::SelectedCapabilityRoot;
 use codex_protocol::dynamic_tools::DynamicToolSpec;
 use codex_protocol::models::BaseInstructions;
 use codex_protocol::models::PermissionProfile;
@@ -14,6 +16,7 @@ use codex_protocol::protocol::GitInfo;
 use codex_protocol::protocol::MultiAgentVersion;
 use codex_protocol::protocol::RolloutItem;
 use codex_protocol::protocol::SessionSource;
+use codex_protocol::protocol::ThreadHistoryMode;
 use codex_protocol::protocol::ThreadMemoryMode as MemoryMode;
 use codex_protocol::protocol::ThreadSource;
 use codex_protocol::protocol::TokenUsage;
@@ -85,8 +88,15 @@ pub struct CreateThreadParams {
     pub base_instructions: BaseInstructions,
     /// Dynamic tools available to the thread at startup.
     pub dynamic_tools: Vec<DynamicToolSpec>,
+    /// Environment-qualified capability roots selected for this thread.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub selected_capability_roots: Vec<SelectedCapabilityRoot>,
     /// Multi-agent runtime selected when the thread was created.
     pub multi_agent_version: Option<MultiAgentVersion>,
+    /// Persisted thread history contract selected when the thread was created.
+    pub history_mode: ThreadHistoryMode,
+    /// First rollout ordinal that belongs to this subagent's projected history.
+    pub subagent_history_start_ordinal: Option<u64>,
     /// Initial context-window identity captured when the thread was created.
     pub initial_window_id: String,
     /// Metadata captured for the newly created thread.
@@ -106,6 +116,20 @@ pub struct ResumeThreadParams {
     pub include_archived: bool,
     /// Metadata for future writes appended to the resumed live thread.
     pub metadata: ThreadPersistenceMetadata,
+}
+
+pub(crate) fn canonical_history_mode_from_rollout_items(
+    items: &[RolloutItem],
+) -> ThreadHistoryMode {
+    // Forked rollouts keep copied source SessionMeta items after the new thread's
+    // canonical SessionMeta, so the thread contract comes from the first one.
+    items
+        .iter()
+        .find_map(|item| match item {
+            RolloutItem::SessionMeta(meta_line) => Some(meta_line.meta.history_mode),
+            _ => None,
+        })
+        .unwrap_or_default()
 }
 
 /// Parameters for appending rollout items to a live thread.
@@ -133,6 +157,19 @@ pub struct LoadThreadHistoryParams {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StoredThreadHistory {
     /// Thread id represented by the history.
+    pub thread_id: ThreadId,
+    /// Persisted rollout items in replay order.
+    pub items: Vec<RolloutItem>,
+}
+
+/// Persisted rollout items needed to reconstruct the latest model-visible context.
+///
+/// Local stores may return only a resumable suffix while stores without targeted reads may return
+/// the full persisted history. In either case, `items` remain in replay order and are suitable for
+/// the existing rollout reconstruction path.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StoredModelContext {
+    /// Thread id represented by the model context.
     pub thread_id: ThreadId,
     /// Persisted rollout items in replay order.
     pub items: Vec<RolloutItem>,
@@ -271,8 +308,6 @@ pub enum StoredTurnItemsView {
     /// Return display summary items for each turn.
     #[default]
     Summary,
-    /// Return every persisted item available for each turn.
-    Full,
 }
 
 /// Store-owned status for a persisted turn.
@@ -290,9 +325,12 @@ pub enum StoredTurnStatus {
 
 /// Store-owned error details for a failed persisted turn.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StoredTurnError {
     /// User-visible error message.
     pub message: String,
+    /// Structured Codex error classification, when available.
+    pub codex_error_info: Option<CodexErrorInfo>,
     /// Optional additional detail for clients that expose expanded error context.
     pub additional_details: Option<String>,
 }
@@ -319,13 +357,8 @@ pub struct ListTurnsParams {
 pub struct StoredTurn {
     /// Turn id.
     pub turn_id: String,
-    /// Persisted rollout items associated with this turn, according to `items_view`.
-    pub items: Vec<RolloutItem>,
-    /// Opaque serialized turn metadata supplied by a projected durable store.
-    pub metadata_json: Option<Vec<u8>>,
-    /// Semantic turn creation timestamp in milliseconds, when supplied by a projected durable
-    /// store.
-    pub turn_created_at_ms: Option<i64>,
+    /// Projected app-server item snapshots associated with this turn, according to `items_view`.
+    pub items: Vec<StoredThreadItem>,
     /// Amount of item detail included in `items`.
     pub items_view: StoredTurnItemsView,
     /// Store-owned status for API layer projection.
@@ -371,11 +404,14 @@ pub struct ListItemsParams {
 /// A projected app-server `ThreadItem` snapshot within a turn.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StoredThreadItem {
-    pub turn_id: Option<String>,
-    pub item_key: String,
-    pub item_ordinal: u64,
-    pub item_created_at_ms: i64,
-    pub materialized_thread_item_json: Vec<u8>,
+    /// Turn containing this item.
+    pub turn_id: String,
+    /// Stable item identifier within the turn.
+    pub item_id: String,
+    /// Unix timestamp (milliseconds) when this logical item was first projected.
+    pub created_at_ms: i64,
+    /// Serialized app-server ThreadItem snapshot.
+    pub item_json: Vec<u8>,
 }
 
 /// A page of persisted items within a thread, optionally filtered to a turn.
@@ -387,6 +423,44 @@ pub struct ItemPage {
     pub next_cursor: Option<String>,
     /// Opaque cursor for fetching in the opposite direction.
     pub backwards_cursor: Option<String>,
+}
+
+/// Parameters for searching visible message occurrences within one paginated thread.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SearchThreadOccurrencesParams {
+    /// Thread id to search.
+    pub thread_id: ThreadId,
+    /// Case-insensitive literal substring to find.
+    pub search_term: String,
+    /// Opaque cursor returned by a previous search call.
+    pub cursor: Option<String>,
+    /// Maximum number of occurrences to return.
+    pub page_size: usize,
+}
+
+/// UTF-16 code-unit range within `snippet`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SearchTextRange {
+    pub start: u32,
+    pub end: u32,
+}
+
+/// One visible message occurrence within a stored thread.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StoredThreadOccurrence {
+    pub turn_id: String,
+    pub item_id: String,
+    pub snippet: String,
+    pub snippet_match_range: SearchTextRange,
+    /// Inclusive cursor accepted by `thread/turns/list` for this turn.
+    pub turn_cursor: String,
+}
+
+/// A page of visible message occurrences within one stored thread.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ThreadOccurrenceSearchPage {
+    pub items: Vec<StoredThreadOccurrence>,
+    pub next_cursor: Option<String>,
 }
 
 /// Store-owned thread metadata used by list/read/resume responses.
@@ -426,6 +500,8 @@ pub struct StoredThread {
     pub cli_version: String,
     /// Runtime source for the thread.
     pub source: SessionSource,
+    /// Persisted thread history contract selected when this thread was created.
+    pub history_mode: ThreadHistoryMode,
     /// Optional analytics source classification for this thread.
     pub thread_source: Option<ThreadSource>,
     /// Optional random nickname for thread-spawn sub-agents.
@@ -520,7 +596,12 @@ pub struct ThreadMetadataPatch {
     /// Latest observed model.
     pub model: Option<String>,
     /// Latest observed reasoning effort.
-    pub reasoning_effort: Option<ReasoningEffort>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "optional_option"
+    )]
+    pub reasoning_effort: ClearableField<ReasoningEffort>,
     /// Creation timestamp when known.
     pub created_at: Option<DateTime<Utc>>,
     /// Last update timestamp for this metadata observation.
@@ -707,6 +788,13 @@ pub struct DeleteThreadParams {
     pub thread_id: ThreadId,
 }
 
+/// Parameters for deleting a set of threads as one store operation.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeleteThreadsParams {
+    /// Thread ids to delete, in the order their persisted data should be removed.
+    pub thread_ids: Vec<ThreadId>,
+}
+
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
@@ -718,6 +806,7 @@ mod tests {
     fn thread_metadata_patch_round_trips_optional_clears() {
         let patch = ThreadMetadataPatch {
             name: Some(None),
+            reasoning_effort: Some(None),
             thread_source: Some(None),
             agent_nickname: Some(None),
             agent_role: Some(None),
@@ -727,6 +816,7 @@ mod tests {
 
         let value = serde_json::to_value(&patch).expect("serialize patch");
         assert_eq!(value["name"], json!(null));
+        assert_eq!(value["reasoning_effort"], json!(null));
         assert_eq!(value["thread_source"], json!(null));
         assert_eq!(value["agent_nickname"], json!(null));
         assert_eq!(value["agent_role"], json!(null));
@@ -735,6 +825,7 @@ mod tests {
         let decoded: ThreadMetadataPatch =
             serde_json::from_value(value).expect("deserialize patch");
         assert_eq!(decoded.name, Some(None));
+        assert_eq!(decoded.reasoning_effort, Some(None));
         assert_eq!(decoded.thread_source, Some(None));
         assert_eq!(decoded.agent_nickname, Some(None));
         assert_eq!(decoded.agent_role, Some(None));
@@ -782,6 +873,17 @@ mod tests {
     }
 
     #[test]
+    fn canonical_history_mode_uses_first_session_meta() {
+        assert_eq!(
+            canonical_history_mode_from_rollout_items(&[
+                session_meta(ThreadHistoryMode::Legacy),
+                session_meta(ThreadHistoryMode::Paginated),
+            ]),
+            ThreadHistoryMode::Legacy
+        );
+    }
+
+    #[test]
     fn thread_metadata_patch_merge_uses_presence_semantics() {
         let mut current = ThreadMetadataPatch {
             name: Some(Some("old name".to_string())),
@@ -817,5 +919,15 @@ mod tests {
                 origin_url: Some(None),
             })
         );
+    }
+
+    fn session_meta(history_mode: ThreadHistoryMode) -> RolloutItem {
+        RolloutItem::SessionMeta(codex_protocol::protocol::SessionMetaLine {
+            meta: codex_protocol::protocol::SessionMeta {
+                history_mode,
+                ..Default::default()
+            },
+            git: None,
+        })
     }
 }

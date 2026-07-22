@@ -249,6 +249,15 @@ fn metadata_from_auth(auth: &AuthDotJson) -> AuthUserMetadata {
                 updated_at,
             }
         }
+        AuthMode::Headers => AuthUserMetadata {
+            id: hash_id(&["external-auth-headers"]),
+            label: "Externally managed auth headers".to_string(),
+            auth_mode,
+            email: None,
+            account_id: None,
+            plan_type: None,
+            updated_at,
+        },
         AuthMode::AgentIdentity => {
             let (id, label, email, account_id, plan_type) = match auth.agent_identity.as_ref() {
                 Some(AgentIdentityStorage::Jwt(jwt)) => (

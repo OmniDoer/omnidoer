@@ -874,7 +874,9 @@ impl AuthModeWidget {
                 .request_typed::<LoginAccountResponse>(ClientRequest::LoginAccount {
                     request_id: onboarding_request_id(),
                     params: LoginAccountParams::Chatgpt {
+                        app_brand: None,
                         codex_streamlined_login: false,
+                        use_hosted_login_success_page: false,
                     },
                 })
                 .await
@@ -950,6 +952,7 @@ impl AuthModeWidget {
                     ApiAuthMode::ApiKey => AuthMode::ApiKey,
                     ApiAuthMode::Chatgpt => AuthMode::Chatgpt,
                     ApiAuthMode::ChatgptAuthTokens => AuthMode::ChatgptAuthTokens,
+                    ApiAuthMode::Headers => AuthMode::Headers,
                     ApiAuthMode::AgentIdentity => AuthMode::AgentIdentity,
                     ApiAuthMode::PersonalAccessToken => AuthMode::PersonalAccessToken,
                     ApiAuthMode::BedrockApiKey => AuthMode::BedrockApiKey,
@@ -1037,6 +1040,7 @@ mod tests {
             .build()
             .await
             .unwrap();
+        let auth_route_config = config.auth_route_config();
         let client = InProcessAppServerClient::start(InProcessClientStartArgs {
             arg0_paths: Arg0DispatchPaths::default(),
             config: Arc::new(config),
@@ -1049,7 +1053,7 @@ mod tests {
                 AuthCredentialsStoreMode::File,
                 AuthKeyringBackendKind::default(),
                 "https://chatgpt.com/backend-api/".to_string(),
-                /*auth_route_config*/ None,
+                auth_route_config,
             )
             .await,
             feedback: codex_feedback::CodexFeedback::new(),
