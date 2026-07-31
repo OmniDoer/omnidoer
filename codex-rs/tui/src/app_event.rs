@@ -767,6 +767,13 @@ pub(crate) enum AppEvent {
     /// Update the current model slug in the running app and widget.
     UpdateModel(String),
 
+    /// Persist a provider/model pair and start a fresh conversation on that provider.
+    SwitchModelProvider {
+        model_provider: String,
+        model: String,
+        effort: Option<ReasoningEffort>,
+    },
+
     /// Update the current personality in the running app and widget.
     UpdatePersonality(Personality),
 

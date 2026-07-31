@@ -140,7 +140,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("hidden", views["files"])
         self.assertEqual(parser.tabs, ["terminal", "passwords", "requests", "files"])
         for asset in parser.assets:
-            self.assertIn("20260611-secret-labels", asset)
+            self.assertIn("20260731-deepseek-provider", asset)
 
     def test_password_inputs_are_password_type(self) -> None:
         self.assertIn('id="password"', self.app)
@@ -197,6 +197,17 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("/api/requests", app)
         self.assertIn("submitEncrypted", app)
         self.assertIn("web-p256-v1", app)
+
+    def test_deepseek_key_ui_reuses_vault_e2ee_boundary(self) -> None:
+        lite_html = (lite_static_root() / "index.html").read_text()
+        lite_app = (lite_static_root() / "lite.js").read_text()
+        for source in (self.html, lite_html):
+            self.assertIn("deepseek-api-key", source)
+            self.assertIn('type="password"', source)
+        for source in (self.app, lite_app):
+            self.assertIn("/api/model-providers/deepseek/key-request", source)
+            self.assertIn("encryptForBroker", source)
+            self.assertNotIn("localStorage.setItem(\"deepseek", source)
 
     def test_requests_default_to_open_items(self) -> None:
         self.assertIn("language-select", self.html)
@@ -410,7 +421,7 @@ class ControlUiContractTest(unittest.TestCase):
         self.assertIn("formatChatTimestamp", app)
         self.assertIn("CHAT_RETENTION_MS", app)
         self.assertIn("pruneChatTimelineForRetention", app)
-        self.assertIn("20260611-request-inputs", self.html)
+        self.assertIn("20260731-deepseek-provider", self.html)
         self.assertIn("<title>OmniDoer</title>", self.html)
         self.assertIn("markdown-copy-button", app)
         self.assertIn("chatSendInFlight", app)

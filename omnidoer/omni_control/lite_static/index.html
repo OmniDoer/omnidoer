@@ -8,11 +8,11 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="OmniDoer Lite">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="/manifest.json?v=20260611-secret-labels">
+  <link rel="manifest" href="/manifest.json?v=20260731-deepseek-provider">
   <link rel="icon" href="/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <title>OmniDoer Lite</title>
-  <link rel="stylesheet" href="/lite.css?v=20260611-secret-labels">
+  <link rel="stylesheet" href="/lite.css?v=20260731-deepseek-provider">
 </head>
 <body>
   <div id="boot-screen" class="boot-screen" aria-hidden="true">
@@ -62,6 +62,17 @@
         <h2>密码</h2>
         <button id="credentials-refresh-button" type="button">刷新</button>
       </div>
+      <article class="provider-card">
+        <div class="section-head">
+          <strong>DeepSeek V4</strong>
+          <span id="deepseek-provider-status" class="meta">检查中</span>
+        </div>
+        <form id="deepseek-key-form" class="credential-form">
+          <input id="deepseek-api-key" type="password" autocomplete="new-password" placeholder="DeepSeek API Key" required>
+          <small>浏览器内加密后存入 Vault，不进入对话或模型上下文。</small>
+          <button id="deepseek-key-submit" type="submit">初始化 API Key</button>
+        </form>
+      </article>
       <input id="credential-search" class="search-input" autocomplete="off" placeholder="搜索网站或账号">
       <div id="credential-requests" class="request-list compact"></div>
       <div id="credentials" class="credential-list"></div>
@@ -112,6 +123,6 @@
     <button type="button" data-tab="requests">请求</button>
     <button type="button" data-tab="files">文件</button>
   </nav>
-  <script src="/lite.js?v=20260611-secret-labels"></script>
+  <script src="/lite.js?v=20260731-deepseek-provider"></script>
 </body>
 </html>

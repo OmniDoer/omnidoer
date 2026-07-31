@@ -55,7 +55,12 @@ from omnidoer.omni_control.security_headers import apply_security_headers
 from omnidoer.omni_control.requests import RequestStore
 from omnidoer.omni_control.runtime import record_control_service_runtime
 from omnidoer.omni_control.pairing import PairingStore
-from omnidoer.omni_control.secure_channel import load_or_create_keypair, load_or_create_web_keypair
+from omnidoer.omni_control.secure_channel import (
+    ReplayGuard,
+    decrypt_control_envelope,
+    load_or_create_keypair,
+    load_or_create_web_keypair,
+)
 from omnidoer.omni_control.sessions import CONTROL_SESSION_TTL_SECONDS, ControlSession, SessionStore
 from omnidoer.omni_control.tasks import TaskStore
 from omnidoer.omni_takeover.input_events import event_from_dict
@@ -734,6 +739,86 @@ class ControlHandler(SimpleHTTPRequestHandler):
         if create and passphrase:
             return Vault.create(path, passphrase)
         raise FileNotFoundError("vault not found")
+
+    def _deepseek_provider_status(self) -> dict[str, object]:
+        callback = getattr(self.server, "omnidoer_deepseek_status", None)
+        if callable(callback):
+            return callback()
+        from omnidoer.omni_control.deepseek_provider import provider_status
+
+        return provider_status(
+            vault_path=self._vault_path(),
+            passphrase_available=self._vault_passphrase() is not None,
+        )
+
+    def _create_deepseek_key_request(self, store: RequestStore, session: ControlSession | None):
+        if self._vault_passphrase() is None:
+            raise PermissionError("vault passphrase source required")
+        from omnidoer.omni_control.deepseek_provider import DEEPSEEK_ORIGIN
+
+        return store.create(
+            "credential",
+            origin=DEEPSEEK_ORIGIN,
+            top_level_url=DEEPSEEK_ORIGIN,
+            action_summary="Initialize or rotate the DeepSeek API Key",
+            risk_level="high",
+            ttl_seconds=10 * 60,
+            broker_public_key_fingerprint=load_or_create_keypair().fingerprint,
+            requested_fields=["password"],
+            allowed_device_id=session.device_id if session else None,
+            save_to_vault=True,
+            structured_details={
+                "credential_labels": {"password": "DeepSeek API Key"},
+                "secret_target": "deepseek_model_provider",
+                "provider": "deepseek",
+            },
+        )
+
+    def _apply_deepseek_key_request(self, store: RequestStore, request) -> tuple[object, dict[str, object]]:
+        if request.structured_details.get("secret_target") != "deepseek_model_provider":
+            raise ValueError("not a DeepSeek provider key request")
+        if not request.response_ciphertext:
+            raise ValueError("provider key request has no encrypted response")
+        expected_expires_at = request.expires_at if request.response_ciphertext.get("expires_at") is not None else None
+        payload = decrypt_control_envelope(
+            request.response_ciphertext,
+            request_id=request.request_id,
+            origin=request.origin,
+            request_type=request.request_type,
+            device_id=request.allowed_device_id,
+            expires_at=expected_expires_at,
+            replay_guard=ReplayGuard(),
+        )
+        passphrase = self._vault_passphrase()
+        if not passphrase:
+            raise PermissionError("vault passphrase source required")
+        from omnidoer.omni_control.deepseek_provider import activate_bridge, upsert_api_key
+
+        vault = self._load_vault(passphrase=passphrase, create=True)
+        credential_id, created = upsert_api_key(vault, str(payload.get("password") or ""))
+        callback = getattr(self.server, "omnidoer_deepseek_activate", None)
+        activation = callback() if callable(callback) else activate_bridge(vault_path=self._vault_path(), passphrase=passphrase)
+        request.response_ciphertext = None
+        request.status = "consumed"
+        request.used = True
+        request.structured_details = {
+            **request.structured_details,
+            "provider_key_configured": True,
+            "provider_key_created": created,
+            "bridge_active": bool((activation or {}).get("bridge_active")),
+        }
+        request = store.update(request)
+        AuditLog().append(
+            "model_provider_key_configured",
+            request_id=request.request_id,
+            provider="deepseek",
+            credential_id=credential_id,
+            created=created,
+            bridge_active=bool((activation or {}).get("bridge_active")),
+            secret_exposed_to_model=False,
+            status="ok",
+        )
+        return request, self._deepseek_provider_status()
 
     def _credential_payload(self, *, include_requests: bool = True) -> dict:
         path = self._vault_path()
@@ -2150,6 +2235,13 @@ class ControlHandler(SimpleHTTPRequestHandler):
 
             self._send_json(HTTPStatus.OK, security_status(self.config))
             return
+        if path == "/api/model-providers/deepseek":
+            try:
+                self._require_access()
+                self._send_json(HTTPStatus.OK, self._deepseek_provider_status())
+            except PermissionError:
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+            return
         if path == "/api/events":
             try:
                 session = self._require_access()
@@ -2796,6 +2888,24 @@ class ControlHandler(SimpleHTTPRequestHandler):
             except Exception as exc:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
             return
+        if path == "/api/model-providers/deepseek/key-request":
+            try:
+                session = self._require_access(mutating=True)
+                self._check_mutation_rate_limit(session)
+                request = self._create_deepseek_key_request(store, session)
+                self._send_json(
+                    HTTPStatus.CREATED,
+                    {
+                        "request": request.to_public_dict(),
+                        "provider": self._deepseek_provider_status(),
+                        "secret_exposed_to_model": False,
+                    },
+                )
+            except PermissionError as exc:
+                self._send_permission_error(exc)
+            except Exception as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": type(exc).__name__})
+            return
         if path == "/api/console/restart-bridge":
             try:
                 session = self._require_access(mutating=True)
@@ -3241,6 +3351,7 @@ class ControlHandler(SimpleHTTPRequestHandler):
                 control_request = self._get_request_for_session(store, request_id, session)
                 console_restart_result = None
                 agent_continue_result = None
+                provider_status_result = None
                 if action == "approve":
                     body = self._read_json()
                     if control_request.request_type in {"payment_approval", "console_restart"} and (
@@ -3275,6 +3386,8 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     envelope = body.get("envelope", body)
                     self._validate_envelope_for_session(envelope, control_request, session)
                     request = store.submit_ciphertext(request_id, envelope)
+                    if control_request.structured_details.get("secret_target") == "deepseek_model_provider":
+                        request, provider_status_result = self._apply_deepseek_key_request(store, request)
                 elif action == "input":
                     request = control_request
                     browser = get_browser_context(request.browser_context_id)
@@ -3329,6 +3442,8 @@ class ControlHandler(SimpleHTTPRequestHandler):
                     payload["console_restart"] = console_restart_result
                 if agent_continue_result is not None:
                     payload["agent_continue"] = agent_continue_result
+                if provider_status_result is not None:
+                    payload["provider_status"] = provider_status_result
                 self._send_json(HTTPStatus.OK, payload)
             except PermissionError as exc:
                 self._send_json(HTTPStatus.FORBIDDEN, {"error": "forbidden", "reason": str(exc)})

@@ -211,6 +211,16 @@ def build_parser() -> argparse.ArgumentParser:
         p = control_sub.add_parser(name)
         p.add_argument("request_id")
 
+    provider = sub.add_parser("provider", help="Model provider runtime commands")
+    provider_sub = provider.add_subparsers(dest="provider_name")
+    deepseek = provider_sub.add_parser("deepseek")
+    deepseek_sub = deepseek.add_subparsers(dest="provider_command")
+    prepare_deepseek = deepseek_sub.add_parser("prepare-runtime")
+    prepare_deepseek.add_argument("--vault", default=None)
+    prepare_deepseek.add_argument("--passphrase-file", default=None)
+    prepare_deepseek.add_argument("--template", default="/etc/omnidoer/moonbridge-deepseek.yml.template")
+    prepare_deepseek.add_argument("--output", default="/run/omnidoer-moonbridge/deepseek.yml")
+
     vault = sub.add_parser("vault", help="Vault commands")
     vault_sub = vault.add_subparsers(dest="vault_command")
     vault_create = vault_sub.add_parser("create")
@@ -336,6 +346,7 @@ def main(argv: list[str] | None = None) -> int:
         "mcp",
         "pair",
         "policy",
+        "provider",
         "telegram",
         "upgrade",
         "vault",
@@ -463,6 +474,11 @@ def main(argv: list[str] | None = None) -> int:
         from omnidoer.omni_broker.secret_requests import handle_cred_command
 
         return handle_cred_command(args)
+
+    if args.command == "provider":
+        from omnidoer.omni_control.deepseek_provider import handle_provider_command
+
+        return handle_provider_command(args)
 
     if args.command == "git":
         from omnidoer.omni_vault.git_credentials import handle_git_command

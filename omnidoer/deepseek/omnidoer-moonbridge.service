@@ -1,0 +1,24 @@
+[Unit]
+Description=OmniDoer DeepSeek Responses compatibility bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=OMNIDOER_HOME=/root/.omnidoer
+RuntimeDirectory=omnidoer-moonbridge
+RuntimeDirectoryMode=0700
+ExecStartPre=/usr/local/bin/omnidoer provider deepseek prepare-runtime
+ExecStart=/usr/local/lib/omnidoer/moonbridge -config /run/omnidoer-moonbridge/deepseek.yml
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=read-only
+ProtectSystem=strict
+ReadWritePaths=/var/lib/omnidoer-moonbridge
+MemoryMax=512M
+TasksMax=128
+
+[Install]
+WantedBy=multi-user.target

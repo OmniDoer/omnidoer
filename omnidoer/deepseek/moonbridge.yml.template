@@ -1,0 +1,79 @@
+mode: Transform
+
+trace:
+  enabled: false
+
+log:
+  level: info
+  format: text
+
+server:
+  addr: "127.0.0.1:38440"
+
+extensions:
+  deepseek_v4:
+    config:
+      reinforce_instructions: true
+      reinforce_prompt: "[System Reminder]: Follow the system instructions, AGENTS.md files, and the user's request carefully.\n[User]:"
+
+models:
+  deepseek-v4-flash:
+    display_name: "DeepSeek V4 Flash"
+    description: "Fast and economical DeepSeek V4"
+    context_window: 1000000
+    max_output_tokens: 384000
+    default_reasoning_level: high
+    supported_reasoning_levels:
+      - effort: high
+        description: "Deep reasoning for regular agent work"
+      - effort: max
+        description: "Maximum reasoning for difficult agent work"
+    supports_reasoning: true
+    supports_reasoning_summaries: true
+    default_reasoning_summary: auto
+    input_modalities:
+      - text
+    extensions:
+      deepseek_v4:
+        enabled: true
+
+  deepseek-v4-pro:
+    display_name: "DeepSeek V4 Pro"
+    description: "Flagship DeepSeek V4 reasoning model"
+    context_window: 1000000
+    max_output_tokens: 384000
+    default_reasoning_level: high
+    supported_reasoning_levels:
+      - effort: high
+        description: "Deep reasoning for regular agent work"
+      - effort: max
+        description: "Maximum reasoning for difficult agent work"
+    supports_reasoning: true
+    supports_reasoning_summaries: true
+    default_reasoning_summary: auto
+    input_modalities:
+      - text
+    extensions:
+      deepseek_v4:
+        enabled: true
+
+providers:
+  deepseek:
+    base_url: "https://api.deepseek.com/anthropic"
+    protocol: anthropic
+    api_key: "__OMNIDOER_DEEPSEEK_API_KEY__"
+    offers:
+      - model: deepseek-v4-flash
+      - model: deepseek-v4-pro
+
+routes:
+  deepseek-v4-flash:
+    model: deepseek-v4-flash
+    provider: deepseek
+  deepseek-v4-pro:
+    model: deepseek-v4-pro
+    provider: deepseek
+
+defaults:
+  model: deepseek-v4-flash
+  max_tokens: 65536

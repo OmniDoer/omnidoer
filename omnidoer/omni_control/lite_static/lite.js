@@ -47,7 +47,10 @@ function switchView(view) {
   document.querySelectorAll("[data-tab]").forEach((tab) => {
     tab.classList.toggle("active", tab.dataset.tab === activeView);
   });
-  if (activeView === "passwords") loadCredentials();
+  if (activeView === "passwords") {
+    loadCredentials();
+    loadDeepSeekProvider();
+  }
   if (activeView === "files") loadFiles(currentFilePath);
   if (activeView === "requests") loadState({ forceRequests: true });
   if (activeView === "terminal") $("#chat-input").focus({ preventScroll: true });
@@ -488,6 +491,56 @@ async function loadCredentials() {
   const response = await signedFetch("/api/lite/credentials", { cache: "no-store" });
   if (!response.ok) return;
   renderCredentials(await response.json());
+}
+
+async function loadDeepSeekProvider() {
+  const response = await signedFetch("/api/model-providers/deepseek", { cache: "no-store" });
+  if (!response.ok) return;
+  const provider = await response.json();
+  const status = $("#deepseek-provider-status");
+  const submit = $("#deepseek-key-submit");
+  if (provider.configured && provider.bridge_active) status.textContent = "已加密保存 · 桥接运行中";
+  else if (provider.configured) status.textContent = "已加密保存 · 桥接未运行";
+  else if (!provider.vault_ready) status.textContent = "Vault 未解锁";
+  else status.textContent = "尚未配置";
+  submit.textContent = provider.configured ? "更换 API Key" : "初始化 API Key";
+}
+
+async function saveDeepSeekApiKey(event) {
+  event.preventDefault();
+  const input = $("#deepseek-api-key");
+  const submit = $("#deepseek-key-submit");
+  const apiKey = input.value;
+  if (apiKey.trim().length < 16) {
+    setStatus("API Key 无效");
+    return;
+  }
+  submit.disabled = true;
+  try {
+    const created = await signedFetch("/api/model-providers/deepseek/key-request", {
+      method: "POST",
+      headers: csrfHeaders()
+    });
+    if (!created.ok) throw new Error("provider_request_failed");
+    const request = (await created.json()).request;
+    const envelope = await encryptForBroker(
+      { username: "deepseek", password: apiKey, totp_seed: "", save_to_vault: true },
+      request
+    );
+    const response = await signedFetch(`/api/requests/${encodeURIComponent(request.request_id)}/submit`, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...csrfHeaders() },
+      body: JSON.stringify({ envelope })
+    });
+    if (!response.ok) throw new Error("provider_submit_failed");
+    setStatus("DeepSeek Key 已存入保险柜");
+    await Promise.all([loadDeepSeekProvider(), loadCredentials(), loadState({ forceRequests: true })]);
+  } catch {
+    setStatus("DeepSeek Key 保存失败");
+  } finally {
+    input.value = "";
+    submit.disabled = false;
+  }
 }
 
 async function revealCredential(credentialId) {
@@ -1121,6 +1174,7 @@ $("#password-login-button").onclick = passwordLogin;
 $("#refresh-button").onclick = () => loadState({ forceRequests: true });
 $("#credentials-refresh-button").onclick = loadCredentials;
 $("#credential-form").onsubmit = saveCredential;
+$("#deepseek-key-form").onsubmit = saveDeepSeekApiKey;
 $("#credential-clear-button").onclick = clearCredentialForm;
 $("#files-refresh-button").onclick = () => loadFiles(currentFilePath);
 $("#new-file-button").onclick = newFile;
@@ -1164,6 +1218,7 @@ loadState({ forceRequests: true }).finally(() => {
   markReady();
   switchView(activeView);
   loadCredentials();
+  loadDeepSeekProvider();
   loadFiles(currentFilePath);
   startStateLoop();
   startChatStream();
