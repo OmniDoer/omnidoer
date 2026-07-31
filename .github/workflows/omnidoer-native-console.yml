@@ -41,6 +41,9 @@ jobs:
           cargo test --locked --profile dev-small -p codex-tui model_catalog_tests --lib
           cargo test --locked --profile dev-small -p codex-tui configured_deepseek_model_selection_switches_provider --lib
           cargo test --locked --profile dev-small -p codex-tui provider_model_selection_updates_provider_model_and_effort_together --lib
+          cargo test --locked --profile dev-small -p codex-tui deepseek_provider_does_not_require_chatgpt_login --lib
+          cargo test --locked --profile dev-small -p codex-tui prefetch_rate_limits_preserves_chatgpt_status_for_deepseek --lib
+          cargo test --locked --profile dev-small -p codex-tui status_deepseek_keeps_chatgpt_free_usage_status --lib
 
       - name: Build OmniDoer console binary
         run: cargo build --locked --profile dev-small -p codex-cli

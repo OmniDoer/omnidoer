@@ -461,7 +461,7 @@ async fn configured_pet_load_is_deferred_until_after_construction() {
 }
 
 #[tokio::test]
-async fn prefetch_rate_limits_is_gated_on_chatgpt_auth_provider() {
+async fn prefetch_rate_limits_preserves_chatgpt_status_for_deepseek() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
 
     assert!(!chat.should_prefetch_rate_limits());
@@ -470,6 +470,10 @@ async fn prefetch_rate_limits_is_gated_on_chatgpt_auth_provider() {
     assert!(chat.should_prefetch_rate_limits());
 
     chat.config.model_provider.requires_openai_auth = false;
+    chat.config.model_provider_id = crate::model_catalog::DEEPSEEK_PROVIDER_ID.to_string();
+    assert!(chat.should_prefetch_rate_limits());
+
+    chat.config.model_provider_id = "amazon-bedrock".to_string();
     assert!(!chat.should_prefetch_rate_limits());
 
     chat.prefetch_rate_limits();

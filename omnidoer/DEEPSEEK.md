@@ -43,6 +43,16 @@ OmniDoer 可以在 `/model` 选择器中同时显示 GPT、`deepseek-v4-flash` �
 `deepseek-v4-pro`。当目标模型属于其他 provider 时，客户端会原子保存 provider、模型和
 推理强度，然后新建会话，避免请求误发给上一个 provider。
 
+DeepSeek 推理由 DeepSeek API 独立计费，不会消耗 ChatGPT/Codex 额度。为保持原有体验，
+在 DeepSeek 会话中运行 `/status` 仍会显示原有 ChatGPT 账户的 GPT 额度；DeepSeek 额度
+请在官方 DeepSeek 控制台查看。选择 DeepSeek 后，`/model` 也会继续保留内建 GPT 项，
+随时可以切回。
+
+DeepSeek provider 不需要 Plus/Pro 订阅。即使 ChatGPT 账户降为 Free，只要 DeepSeek Vault
+key 与本地桥接器仍有效，`/model` 中的 DeepSeek V4 Flash / Pro 仍可选择和使用；`/status`
+仍显示这个 Free 账户原有的 GPT 状态。即使用户完全退出 ChatGPT，DeepSeek 也不会被阻止，
+只是 `/status` 不再有可显示的 GPT 账户额度。
+
 DeepSeek 提供 Chat Completions 与 Anthropic 接口，而当前 Codex 使用 OpenAI Responses
 API。因此 OmniDoer 使用固定上游提交、独立构建和运行的 Moon Bridge 旁路进程做协议转换。
 该 GPL-3.0 组件作为独立进程和 Actions 产物分发，源码不复制进本仓库。

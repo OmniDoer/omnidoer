@@ -53,3 +53,37 @@ fn active_provider_model_wins_over_known_duplicate() {
         1
     );
 }
+
+#[test]
+fn deepseek_catalog_keeps_builtin_openai_models_for_switching_back() {
+    let gpt = ModelPreset {
+        id: "gpt-test".to_string(),
+        model: "gpt-test".to_string(),
+        display_name: "GPT Test".to_string(),
+        ..deepseek_v4_models()
+            .into_iter()
+            .next()
+            .expect("DeepSeek preset")
+    };
+    let catalog =
+        ModelCatalog::with_provider_models(vec![gpt], DEEPSEEK_PROVIDER_ID, [DEEPSEEK_PROVIDER_ID]);
+
+    assert_eq!(
+        catalog.provider_for_model("gpt-test"),
+        Some(DEEPSEEK_PROVIDER_ID)
+    );
+    assert!(
+        catalog
+            .try_list_models()
+            .expect("infallible model list")
+            .iter()
+            .any(|preset| preset.model.starts_with("gpt-"))
+    );
+}
+
+#[test]
+fn deepseek_preserves_chatgpt_status_without_billing_inference_to_openai() {
+    assert!(should_preserve_chatgpt_status(DEEPSEEK_PROVIDER_ID, false));
+    assert!(should_preserve_chatgpt_status(OPENAI_PROVIDER_ID, true));
+    assert!(!should_preserve_chatgpt_status("amazon-bedrock", false));
+}

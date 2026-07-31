@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use std::convert::Infallible;
 
 pub(crate) const DEEPSEEK_PROVIDER_ID: &str = "deepseek";
-const OPENAI_PROVIDER_ID: &str = "openai";
+pub(crate) const OPENAI_PROVIDER_ID: &str = "openai";
 const DEEPSEEK_V4_FLASH: &str = "deepseek-v4-flash";
 const DEEPSEEK_V4_PRO: &str = "deepseek-v4-pro";
 
@@ -31,7 +31,12 @@ impl ModelCatalog {
         current_provider: &str,
         configured_provider_ids: impl IntoIterator<Item = &'a str>,
     ) -> Self {
-        let configured_provider_ids = configured_provider_ids.into_iter().collect::<HashSet<_>>();
+        let mut configured_provider_ids =
+            configured_provider_ids.into_iter().collect::<HashSet<_>>();
+        // OpenAI is a built-in provider and is normally absent from the user
+        // `model_providers` table. Keep its presets available after a user
+        // switches to DeepSeek so `/model` is a reversible choice.
+        configured_provider_ids.insert(OPENAI_PROVIDER_ID);
         let mut model_providers = models
             .iter()
             .map(|model| (model.model.clone(), current_provider.to_string()))
@@ -74,6 +79,16 @@ impl ModelCatalog {
     pub(crate) fn provider_for_model(&self, model: &str) -> Option<&str> {
         self.model_providers.get(model).map(String::as_str)
     }
+}
+
+/// DeepSeek inference is billed by DeepSeek, not against the ChatGPT quota.
+/// Keep the existing ChatGPT account status available in `/status` so users
+/// can still see their original GPT limits while a DeepSeek model is active.
+pub(crate) fn should_preserve_chatgpt_status(
+    model_provider_id: &str,
+    requires_openai_auth: bool,
+) -> bool {
+    requires_openai_auth || model_provider_id == DEEPSEEK_PROVIDER_ID
 }
 
 fn append_provider_models(

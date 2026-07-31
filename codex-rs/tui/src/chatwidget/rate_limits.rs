@@ -328,7 +328,11 @@ impl ChatWidget {
 
     #[cfg_attr(not(test), allow(dead_code))]
     pub(super) fn should_prefetch_rate_limits(&self) -> bool {
-        self.config.model_provider.requires_openai_auth && self.has_chatgpt_account
+        self.has_chatgpt_account
+            && crate::model_catalog::should_preserve_chatgpt_status(
+                &self.config.model_provider_id,
+                self.config.model_provider.requires_openai_auth,
+            )
     }
 
     fn lower_cost_preset(&self) -> Option<ModelPreset> {

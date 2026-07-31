@@ -1120,7 +1120,9 @@ impl App {
                 model,
                 effort,
             } => {
-                if !self.config.model_providers.contains_key(&model_provider) {
+                if model_provider != crate::model_catalog::OPENAI_PROVIDER_ID
+                    && !self.config.model_providers.contains_key(&model_provider)
+                {
                     self.chat_widget.add_error_message(format!(
                         "Model provider `{model_provider}` is not configured. Add it to config.toml and try /model again."
                     ));

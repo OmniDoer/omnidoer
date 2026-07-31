@@ -3293,4 +3293,30 @@ trust_level = "untrusted"
         );
         Ok(())
     }
+
+    #[tokio::test]
+    async fn deepseek_provider_does_not_require_chatgpt_login() -> std::io::Result<()> {
+        use codex_model_provider_info::ModelProviderInfo;
+
+        let temp_dir = TempDir::new()?;
+        let mut config = build_config(&temp_dir).await?;
+        config.model_provider_id = crate::model_catalog::DEEPSEEK_PROVIDER_ID.to_string();
+        config.model_provider = ModelProviderInfo {
+            name: "DeepSeek V4 via Moon Bridge".to_string(),
+            base_url: Some("http://127.0.0.1:38440/v1".to_string()),
+            requires_openai_auth: false,
+            ..ModelProviderInfo::default()
+        };
+
+        assert!(!should_show_login_screen(
+            LoginStatus::NotAuthenticated,
+            &config
+        ));
+        assert!(!should_show_onboarding(
+            LoginStatus::NotAuthenticated,
+            &config,
+            /*show_trust_screen*/ false,
+        ));
+        Ok(())
+    }
 }

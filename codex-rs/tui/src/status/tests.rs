@@ -837,6 +837,75 @@ async fn status_model_provider_uses_bedrock_runtime_base_url_and_gates_usage_lin
 }
 
 #[tokio::test]
+async fn status_deepseek_keeps_chatgpt_free_usage_status() {
+    let temp_home = TempDir::new().expect("temp home");
+    let mut config = test_config(&temp_home).await;
+    config.model_provider_id = crate::model_catalog::DEEPSEEK_PROVIDER_ID.to_string();
+    config.model_provider = ModelProviderInfo {
+        name: "DeepSeek V4 via Moon Bridge".to_string(),
+        base_url: Some("http://127.0.0.1:38440/v1".to_string()),
+        requires_openai_auth: false,
+        ..ModelProviderInfo::default()
+    };
+    let now = chrono::Local::now();
+    let model_slug = get_model_offline_for_tests(Some("deepseek-v4-flash"));
+    let free_account = StatusAccountDisplay::ChatGpt {
+        email: Some("free-user@example.com".to_string()),
+        plan: Some("Free".to_string()),
+    };
+    let limits = [RateLimitSnapshotDisplay {
+        limit_name: "codex".to_string(),
+        captured_at: now,
+        primary: Some(RateLimitWindowDisplay {
+            used_percent: 45.0,
+            resets_at: Some("soon".to_string()),
+            window_minutes: Some(300),
+        }),
+        secondary: None,
+        credits: None,
+        individual_limit: None,
+    }];
+    let (composite, _) = new_status_output_with_rate_limits_handle(
+        &config,
+        None,
+        None,
+        Some(&free_account),
+        None,
+        &TokenUsage::default(),
+        &None,
+        None,
+        None,
+        &limits,
+        None,
+        now,
+        &model_slug,
+        None,
+        None,
+        "<none>".to_string(),
+        false,
+    );
+    let destinations: Vec<String> = composite
+        .display_hyperlink_lines(120)
+        .into_iter()
+        .flat_map(|line| line.hyperlinks.into_iter())
+        .map(|link| link.destination)
+        .collect();
+    assert_eq!(
+        destinations,
+        vec!["https://chatgpt.com/codex/settings/usage"]
+    );
+    let rendered = render_lines(&composite.display_lines(120)).join("\n");
+    assert!(
+        rendered.contains("5h limit"),
+        "expected GPT quota in /status: {rendered}"
+    );
+    assert!(
+        rendered.contains("Free"),
+        "expected ChatGPT Free account in /status: {rendered}"
+    );
+}
+
+#[tokio::test]
 async fn status_snapshot_shows_auto_review_permissions() {
     let temp_home = TempDir::new().expect("temp home");
     let mut config = test_config(&temp_home).await;
