@@ -1156,10 +1156,7 @@ See the Codex keymap documentation for supported actions and examples."
         // already has data and available reset credits can be surfaced, without
         // delaying the initial frame render.
         if has_chatgpt_account
-            && should_preserve_chatgpt_status(
-                &app.config.model_provider_id,
-                requires_openai_auth,
-            )
+            && should_preserve_chatgpt_status(&app.config.model_provider_id, requires_openai_auth)
         {
             let reset_hint_request_id = app.chat_widget.start_rate_limit_reset_startup_check();
             app.refresh_rate_limits(
