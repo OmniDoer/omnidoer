@@ -372,8 +372,8 @@ sidecar runtime for web action. The fork keeps Codex auth, model selection, and
 billing behavior intact while adding the execution system Codex needs in order
 to operate websites safely.
 
-Sync note, July 22, 2026: `main` is merged through upstream
-`openai/codex` commit `bd9a28a839`. This imports the current Codex CLI,
+Sync note, July 31, 2026: `main` is merged through upstream
+`openai/codex` commit `da2c7ca8d1`. This imports the current Codex CLI,
 app-server protocol, installer, release, TUI, and documentation changes while
 preserving upstream model naming, authentication, billing, and quota behavior
 alongside OmniDoer's branding and sidecar security features.
