@@ -20,6 +20,29 @@ from omnidoer.omni_vault.vault import Vault
 
 
 class DeepSeekProviderTest(unittest.TestCase):
+    def test_existing_deepseek_llm_api_record_is_reused_without_reentry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            vault_path = root / "vault.json"
+            template_path = root / "template.yml"
+            output_path = root / "run" / "deepseek.yml"
+            passphrase = "legacy-provider-passphrase"
+            api_key = "sk-existing-deepseek-provider-key"
+            Vault.create(vault_path, passphrase).add_credential(
+                username="api-key",
+                password=api_key,
+                allowed_origins=["https://api.deepseek.com"],
+                metadata={"kind": "llm_api", "provider": "deepseek"},
+            )
+            template_path.write_text(f'api_key: "{DEEPSEEK_KEY_PLACEHOLDER}"\n')
+            prepare_runtime_config(
+                vault_path=vault_path,
+                passphrase=passphrase,
+                template_path=template_path,
+                output_path=output_path,
+            )
+            self.assertIn(api_key, output_path.read_text())
+
     def test_vault_upsert_and_tmpfs_style_runtime_config(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

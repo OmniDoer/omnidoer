@@ -20,6 +20,7 @@ from omnidoer.paths import default_vault_path
 DEEPSEEK_ORIGIN = "https://api.deepseek.com"
 DEEPSEEK_PROVIDER_ID = "deepseek"
 DEEPSEEK_CREDENTIAL_KIND = "model_provider_api_key"
+DEEPSEEK_COMPATIBLE_CREDENTIAL_KINDS = {DEEPSEEK_CREDENTIAL_KIND, "llm_api"}
 DEEPSEEK_KEY_PLACEHOLDER = "__OMNIDOER_DEEPSEEK_API_KEY__"
 DEFAULT_TEMPLATE_PATH = Path("/etc/omnidoer/moonbridge-deepseek.yml.template")
 DEFAULT_RUNTIME_CONFIG_PATH = Path("/run/omnidoer-moonbridge/deepseek.yml")
@@ -29,7 +30,11 @@ DEFAULT_SERVICE_NAME = "omnidoer-moonbridge.service"
 def _deepseek_credential_id(vault: Vault) -> str | None:
     for credential in vault.list_metadata():
         metadata = credential.metadata
-        if metadata.get("kind") == DEEPSEEK_CREDENTIAL_KIND and metadata.get("provider") == DEEPSEEK_PROVIDER_ID:
+        if (
+            metadata.get("kind") in DEEPSEEK_COMPATIBLE_CREDENTIAL_KINDS
+            and metadata.get("provider") == DEEPSEEK_PROVIDER_ID
+            and DEEPSEEK_ORIGIN in credential.allowed_origins
+        ):
             return credential.credential_id
     return None
 
