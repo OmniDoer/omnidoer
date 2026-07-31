@@ -499,6 +499,30 @@
             },
             "method": {
               "enum": [
+                "thread/section/move"
+              ],
+              "title": "Thread/section/moveRequestMethod",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/definitions/v2/ThreadSectionMoveParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "title": "Thread/section/moveRequest",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/definitions/v2/RequestId"
+            },
+            "method": {
+              "enum": [
                 "thread/unarchive"
               ],
               "title": "Thread/unarchiveRequestMethod",
@@ -634,6 +658,30 @@
             "params"
           ],
           "title": "Thread/listRequest",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/definitions/v2/RequestId"
+            },
+            "method": {
+              "enum": [
+                "threadSection/list"
+              ],
+              "title": "ThreadSection/listRequestMethod",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/definitions/v2/ThreadSectionListParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "title": "ThreadSection/listRequest",
           "type": "object"
         },
         {
@@ -2217,6 +2265,30 @@
             "params"
           ],
           "title": "ExternalAgentConfig/importRequest",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/definitions/v2/RequestId"
+            },
+            "method": {
+              "enum": [
+                "externalAgentConfig/import/recordHistory"
+              ],
+              "title": "ExternalAgentConfig/import/recordHistoryRequestMethod",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/definitions/v2/ExternalAgentConfigImportHistoryRecordParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "title": "ExternalAgentConfig/import/recordHistoryRequest",
           "type": "object"
         },
         {
@@ -6643,12 +6715,6 @@
               "null"
             ]
           },
-          "firstPartyType": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "review": {
             "anyOf": [
               {
@@ -6882,6 +6948,20 @@
         "properties": {
           "description": {
             "type": "string"
+          },
+          "disabledReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isEnabled": {
+            "default": true,
+            "type": "boolean"
+          },
+          "isReadOnly": {
+            "default": false,
+            "type": "boolean"
           },
           "name": {
             "type": "string"
@@ -7234,6 +7314,17 @@
         ],
         "type": "string"
       },
+      "BrowserUseRequirements": {
+        "properties": {
+          "disableAutoReview": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "ByteRange": {
         "properties": {
           "end": {
@@ -7582,7 +7673,7 @@
                 "type": "string"
               },
               "path": {
-                "$ref": "#/definitions/v2/AbsolutePathBuf"
+                "$ref": "#/definitions/v2/LegacyAppPathString"
               },
               "type": {
                 "enum": [
@@ -8257,7 +8348,7 @@
             ]
           },
           "reloadUserConfig": {
-            "description": "When true, hot-reload the updated user config into all loaded threads after writing.",
+            "description": "When true, hot-reload updated runtime settings into loaded threads after writing. Session-static model, reasoning-effort, Plan-mode reasoning-effort, service-tier, and personality defaults are not reloaded.",
             "type": "boolean"
           }
         },
@@ -8627,6 +8718,16 @@
             "type": [
               "array",
               "null"
+            ]
+          },
+          "browserUse": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/BrowserUseRequirements"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "checkForUpdateOnStartup": {
@@ -9692,6 +9793,13 @@
       "ExternalAgentConfigDetectResponse": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "properties": {
+          "connectors": {
+            "default": [],
+            "items": {
+              "$ref": "#/definitions/v2/ExternalAgentDetectedConnectorCandidate"
+            },
+            "type": "array"
+          },
           "items": {
             "items": {
               "$ref": "#/definitions/v2/ExternalAgentConfigMigrationItem"
@@ -9763,6 +9871,12 @@
           "importId": {
             "type": "string"
           },
+          "providerId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "successes": {
             "items": {
               "$ref": "#/definitions/v2/ExternalAgentConfigImportItemTypeSuccess"
@@ -9774,6 +9888,103 @@
           "completedAtMs",
           "failures",
           "importId",
+          "successes"
+        ],
+        "type": "object"
+      },
+      "ExternalAgentConfigImportHistoryRecordParams": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "itemTypeResults": {
+            "description": "Completed results grouped by imported item type.",
+            "items": {
+              "$ref": "#/definitions/v2/ExternalAgentConfigImportHistoryRecordTypeResultParams"
+            },
+            "type": "array"
+          },
+          "providerId": {
+            "description": "Opaque provider identifier for the externally completed import.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemTypeResults",
+          "providerId"
+        ],
+        "title": "ExternalAgentConfigImportHistoryRecordParams",
+        "type": "object"
+      },
+      "ExternalAgentConfigImportHistoryRecordResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "importId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "importId"
+        ],
+        "title": "ExternalAgentConfigImportHistoryRecordResponse",
+        "type": "object"
+      },
+      "ExternalAgentConfigImportHistoryRecordSuccessParams": {
+        "properties": {
+          "cwd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "itemType": {
+            "$ref": "#/definitions/v2/ExternalAgentConfigMigrationItemType"
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "default": null,
+            "description": "Original title for an imported session, when available.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "itemType"
+        ],
+        "type": "object"
+      },
+      "ExternalAgentConfigImportHistoryRecordTypeResultParams": {
+        "properties": {
+          "failures": {
+            "items": {
+              "$ref": "#/definitions/v2/ExternalAgentConfigImportItemTypeFailure"
+            },
+            "type": "array"
+          },
+          "itemType": {
+            "$ref": "#/definitions/v2/ExternalAgentConfigMigrationItemType"
+          },
+          "successes": {
+            "items": {
+              "$ref": "#/definitions/v2/ExternalAgentConfigImportHistoryRecordSuccessParams"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "failures",
+          "itemType",
           "successes"
         ],
         "type": "object"
@@ -9843,6 +10054,14 @@
               "string",
               "null"
             ]
+          },
+          "title": {
+            "default": null,
+            "description": "Original title for an imported session; null for other item types.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -9867,7 +10086,7 @@
             ]
           },
           "providerId": {
-            "description": "Opaque provider identifier supplied by the caller for analytics attribution. This does not select the migration source.",
+            "description": "Opaque provider identifier supplied by the caller for analytics attribution and import history display. This does not select the migration source.",
             "type": [
               "string",
               "null"
@@ -9989,6 +10208,34 @@
           "COMMANDS",
           "MEMORY",
           "SESSIONS"
+        ],
+        "type": "string"
+      },
+      "ExternalAgentDetectedConnectorCandidate": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "sessionCount": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "source": {
+            "$ref": "#/definitions/v2/ExternalAgentDetectedConnectorSource"
+          }
+        },
+        "required": [
+          "name",
+          "sessionCount",
+          "source"
+        ],
+        "type": "object"
+      },
+      "ExternalAgentDetectedConnectorSource": {
+        "enum": [
+          "remoteMcpServersConfig",
+          "sessionToolUse"
         ],
         "type": "string"
       },
@@ -12595,6 +12842,7 @@
       },
       "McpAuthStatus": {
         "enum": [
+          "unknown",
           "unsupported",
           "notLoggedIn",
           "bearerToken",
@@ -13933,8 +14181,11 @@
           "pro",
           "prolite",
           "team",
+          "self_serve_business_prolite",
           "self_serve_business_usage_based",
           "business",
+          "ent26",
+          "enterprise_cbp_automation",
           "enterprise_cbp_usage_based",
           "enterprise",
           "edu",
@@ -14046,6 +14297,15 @@
           "summary"
         ],
         "type": "object"
+      },
+      "PluginDisabledReason": {
+        "enum": [
+          "disabled_by_admin",
+          "plan_not_eligible",
+          "required_app_unavailable",
+          "unknown"
+        ],
+        "type": "string"
       },
       "PluginHookSummary": {
         "properties": {
@@ -14530,6 +14790,13 @@
       },
       "PluginShareContext": {
         "properties": {
+          "canPublishToWorkspace": {
+            "default": null,
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "creatorAccountUserId": {
             "type": [
               "string",
@@ -14732,6 +14999,13 @@
       "PluginShareSaveResponse": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "properties": {
+          "canPublishToWorkspace": {
+            "default": null,
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "remotePluginId": {
             "type": "string"
           },
@@ -14985,6 +15259,29 @@
             "default": "AVAILABLE",
             "description": "Availability state for installing and using the plugin."
           },
+          "disabledReason": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/PluginDisabledReason"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Why the remote plugin is unavailable, when provided by plugin-service."
+          },
+          "eligiblePlanTypes": {
+            "default": null,
+            "description": "Raw plugin-service plan identifiers eligible to install the plugin.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "enabled": {
             "type": "boolean"
           },
@@ -15006,6 +15303,15 @@
           },
           "installed": {
             "type": "boolean"
+          },
+          "installedAt": {
+            "default": null,
+            "description": "Unix timestamp in seconds when the remote plugin was installed, when available.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "interface": {
             "anyOf": [
@@ -16200,6 +16506,15 @@
               },
               "call_id": {
                 "type": "string"
+              },
+              "encrypted_function_args": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
               },
               "id": {
                 "type": [
@@ -17415,6 +17730,13 @@
               }
             ]
           },
+          "iconLargeUrl": {
+            "description": "Remote large icon URL from the plugin catalog.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "iconSmall": {
             "anyOf": [
               {
@@ -17423,6 +17745,13 @@
               {
                 "type": "null"
               }
+            ]
+          },
+          "iconSmallUrl": {
+            "description": "Remote small icon URL from the plugin catalog.",
+            "type": [
+              "string",
+              "null"
             ]
           },
           "shortDescription": {
@@ -18053,6 +18382,27 @@
           },
           "recencyAt": {
             "description": "Unix timestamp (in seconds) used for thread recency ordering.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "section": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ThreadSection"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The independently persisted section selected for this thread, if any."
+          },
+          "sectionEnteredAt": {
+            "default": null,
+            "description": "Unix timestamp in seconds when the thread entered its current section.",
             "format": "int64",
             "type": [
               "integer",
@@ -18872,8 +19222,24 @@
               "id": {
                 "type": "string"
               },
+              "pluginId": {
+                "default": null,
+                "description": "Trusted first-party plugin id when this command resolves to one plugin script.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "processId": {
                 "description": "Identifier for the underlying PTY process (when available).",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "scriptPath": {
+                "default": null,
+                "description": "Safe plugin-relative path when this command resolves to one plugin script.",
                 "type": [
                   "string",
                   "null"
@@ -18984,6 +19350,12 @@
               "pluginId": {
                 "type": [
                   "string",
+                  "null"
+                ]
+              },
+              "readOnlyHint": {
+                "type": [
+                  "boolean",
                   "null"
                 ]
               },
@@ -19493,6 +19865,13 @@
           },
           "searchTerm": {
             "description": "Optional substring filter for the extracted thread title.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sectionId": {
+            "description": "Omit to include every section, set to `null` for unsectioned threads, or provide a section ID to return only threads in that section.",
             "type": [
               "string",
               "null"
@@ -20250,6 +20629,115 @@
         ],
         "type": "object"
       },
+      "ThreadSearchSortKey": {
+        "enum": [
+          "created_at",
+          "updated_at",
+          "recency_at"
+        ],
+        "type": "string"
+      },
+      "ThreadSection": {
+        "description": "An independently persisted, user-visible thread section.",
+        "properties": {
+          "id": {
+            "description": "Opaque UUIDv7 identity that remains stable when the section is renamed.",
+            "type": "string"
+          },
+          "name": {
+            "description": "The current user-visible section name.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "ThreadSectionListParams": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "description": "Parameters for listing independently persisted thread sections.",
+        "properties": {
+          "cursor": {
+            "description": "Opaque pagination cursor returned by a previous call.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "Maximum number of sections to return.",
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "title": "ThreadSectionListParams",
+        "type": "object"
+      },
+      "ThreadSectionListResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "description": "One page of independently persisted thread sections.",
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/definitions/v2/ThreadSection"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "description": "Opaque cursor for the next page, or `null` when no sections remain.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "ThreadSectionListResponse",
+        "type": "object"
+      },
+      "ThreadSectionMoveParams": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "description": "Parameters for moving a thread within a server-owned section ordering.",
+        "properties": {
+          "beforeThreadId": {
+            "description": "Existing thread to insert before; omission or null appends to the section.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sectionId": {
+            "description": "Destination section, or `null` to remove the thread from its section.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "threadId": {
+            "description": "Thread to move into, within, or out of a section.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sectionId",
+          "threadId"
+        ],
+        "title": "ThreadSectionMoveParams",
+        "type": "object"
+      },
+      "ThreadSectionMoveResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "ThreadSectionMoveResponse",
+        "type": "object"
+      },
       "ThreadSetNameParams": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "properties": {
@@ -20397,7 +20885,8 @@
         "enum": [
           "created_at",
           "updated_at",
-          "recency_at"
+          "recency_at",
+          "section_position"
         ],
         "type": "string"
       },
