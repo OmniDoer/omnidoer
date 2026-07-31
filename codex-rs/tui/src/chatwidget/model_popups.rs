@@ -238,11 +238,22 @@ impl ChatWidget {
         effort_for_action: Option<ReasoningEffortConfig>,
         should_prompt_plan_mode_scope: bool,
     ) -> Vec<SelectionAction> {
+        let model_provider_for_action = self
+            .model_catalog
+            .provider_for_model(&model_for_action)
+            .filter(|provider| *provider != self.config.model_provider_id)
+            .map(str::to_string);
         let warning = effort_for_action
             .as_ref()
             .and_then(|effort| self.ultra_reasoning_concurrency_warning(effort));
         vec![Box::new(move |tx| {
-            if effort_for_action == Some(ReasoningEffortConfig::Ultra) {
+            if let Some(model_provider) = model_provider_for_action.as_ref() {
+                tx.send(AppEvent::SwitchModelProvider {
+                    model_provider: model_provider.clone(),
+                    model: model_for_action.clone(),
+                    effort: effort_for_action.clone(),
+                });
+            } else if effort_for_action == Some(ReasoningEffortConfig::Ultra) {
                 tx.send(AppEvent::ApplyAdvancedReasoning {
                     model: model_for_action.clone(),
                     effort: ReasoningEffortConfig::Ultra,
@@ -701,6 +712,18 @@ impl ChatWidget {
     }
 
     fn apply_model_and_effort(&self, model: String, effort: Option<ReasoningEffortConfig>) {
+        if let Some(model_provider) = self
+            .model_catalog
+            .provider_for_model(&model)
+            .filter(|provider| *provider != self.config.model_provider_id)
+        {
+            self.app_event_tx.send(AppEvent::SwitchModelProvider {
+                model_provider: model_provider.to_string(),
+                model,
+                effort,
+            });
+            return;
+        }
         self.apply_model_and_effort_without_persist(model.clone(), effort.clone());
         self.app_event_tx
             .send(AppEvent::PersistModelSelection { model, effort });

@@ -3154,6 +3154,37 @@ async fn model_picker_hides_show_in_picker_false_models_from_cache() {
 }
 
 #[tokio::test]
+async fn configured_deepseek_model_selection_switches_provider() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
+    let catalog = ModelCatalog::with_provider_models(
+        Vec::new(),
+        "openai",
+        ["openai", crate::model_catalog::DEEPSEEK_PROVIDER_ID],
+    );
+    let preset = catalog
+        .try_list_models()
+        .expect("infallible model list")
+        .into_iter()
+        .find(|preset| preset.model == "deepseek-v4-pro")
+        .expect("DeepSeek V4 Pro preset");
+    chat.model_catalog = std::sync::Arc::new(catalog);
+
+    chat.open_reasoning_popup(preset);
+    while rx.try_recv().is_ok() {}
+    chat.handle_key_event(KeyEvent::from(KeyCode::Enter));
+
+    assert_matches!(
+        rx.try_recv(),
+        Ok(AppEvent::SwitchModelProvider {
+            model_provider,
+            model,
+            effort: Some(ReasoningEffortConfig::High),
+        }) if model_provider == crate::model_catalog::DEEPSEEK_PROVIDER_ID
+            && model == "deepseek-v4-pro"
+    );
+}
+
+#[tokio::test]
 async fn server_overloaded_error_does_not_switch_models() {
     let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(Some("gpt-5.2")).await;
     chat.set_model("gpt-5.2");

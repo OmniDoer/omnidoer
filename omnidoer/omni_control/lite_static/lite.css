@@ -175,6 +175,14 @@ textarea {
   margin-top: 10px;
 }
 .credential-form input { width: 100%; }
+
+.provider-card {
+  border: 1px solid #263a55;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: #0b1829;
+}
 .file-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

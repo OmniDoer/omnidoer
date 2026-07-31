@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "omnidoer"
-version = "20260722123719"
+version = "20260731190000"
 description = "Local-first Codex CLI sidecar runtime for safe web actions"
 readme = "README.md"
 requires-python = ">=3.11"

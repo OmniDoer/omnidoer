@@ -498,6 +498,12 @@ omnidoer pair</code></pre>
           </figcaption>
         </figure>
       </div>
+      <article class="card" style="margin-top: 18px;">
+        <h3>July 2026 — the model menu crossed provider boundaries</h3>
+        <p>Working with its operator, OmniDoer taught the native <code>/model</code> picker to move between GPT and DeepSeek V4 Flash/Pro without confusing provider state. The small server refused to become a Rust build farm: GitHub Actions compiled and tested the native client and its separately licensed protocol bridge.</p>
+        <p>The harder question was the API key. A normal settings field would have placed a new secret too close to chat. Instead, OmniDoer reused its Control Client E2EE channel and Vault: the browser encrypts the key to the local Broker, Vault keeps the durable ciphertext, and the bridge receives only a temporary <code>0600</code> runtime file under <code>/run</code>. The next chapter is broader provider discovery without weakening that boundary.</p>
+        <p lang="zh-CN">2026 年 7 月，OmniDoer 与操作者一起让原生 <code>/model</code> 菜单跨越 GPT 与 DeepSeek V4 Flash/Pro。4GB 服务器只负责协调，Rust 编译和桥接器构建交给 GitHub Actions；API Key 则沿用 Control Client E2EE 与 Vault，只在 <code>/run</code> 生成临时运行配置，不进入聊天上下文。</p>
+      </article>
     </section>
 
     <section id="technical-proof">

@@ -500,6 +500,13 @@ body[data-runtime-state="tui_bridge_active"] .status-strip #runtime-mode {
   margin-top: 12px;
   padding-top: 12px;
 }
+
+.provider-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1rem;
+  background: #ffffff;
+}
 .flow-note {
   background: #f8fafc;
   border: 1px solid #e2e8f0;

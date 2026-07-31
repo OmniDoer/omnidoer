@@ -329,7 +329,7 @@ class ControlChatApiTest(unittest.TestCase):
                 with urllib_request.urlopen(f"{base}/", timeout=5) as response:
                     html = response.read().decode()
                 self.assertIn("OmniDoer Lite", html)
-                self.assertIn("20260611-secret-labels", html)
+                self.assertIn("20260731-deepseek-provider", html)
                 with urllib_request.urlopen(f"{base}/lite.js?v=20260608-lite13", timeout=5) as response:
                     lite_js = response.read().decode()
                 self.assertIn("switchView", lite_js)

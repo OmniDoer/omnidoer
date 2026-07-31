@@ -8,12 +8,17 @@ on:
       - ".github/workflows/omnidoer-native-console.yml"
       - "codex-rs/**"
       - "omnidoer/omni_cli/**"
+      - "omnidoer/omni_control/**"
+      - "omnidoer/deepseek/**"
+      - "omnidoer/scripts/install-deepseek-bridge.sh"
       - "omnidoer/scripts/install-native-console.sh"
+      - "pyproject.toml"
+      - "tests/**"
 
 jobs:
   linux-x64:
     runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    timeout-minutes: 120
     defaults:
       run:
         working-directory: codex-rs
@@ -31,6 +36,12 @@ jobs:
       - name: Check formatting
         run: cargo fmt -- --config imports_granularity=Item --check
 
+      - name: Test provider-aware model selection
+        run: |
+          cargo test --locked --profile dev-small -p codex-tui model_catalog_tests --lib
+          cargo test --locked --profile dev-small -p codex-tui configured_deepseek_model_selection_switches_provider --lib
+          cargo test --locked --profile dev-small -p codex-tui provider_model_selection_updates_provider_model_and_effort_together --lib
+
       - name: Build OmniDoer console binary
         run: cargo build --locked --profile dev-small -p codex-cli
 
@@ -46,3 +57,80 @@ jobs:
         with:
           name: omnidoer-codex-linux-x64
           path: artifacts/omnidoer-codex-linux-x64
+
+  python-client:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.11"
+
+      - name: Install test and wheel dependencies
+        run: |
+          python -m pip install --upgrade pip build
+          python -m pip install -e ".[dev]"
+
+      - name: Verify Control Client and Vault provider flow
+        run: |
+          node --check omnidoer/omni_control/static/app.js
+          node --check omnidoer/omni_control/lite_static/lite.js
+          python -m pytest -q tests/test_deepseek_provider.py tests/test_control_ui_contract.py
+          sh -n omnidoer/scripts/install-deepseek-bridge.sh
+
+      - name: Build Python client wheel
+        run: python -m build --wheel --outdir artifacts
+
+      - name: Upload Python client artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: omnidoer-python-client
+          path: artifacts/*.whl
+          if-no-files-found: error
+
+  moonbridge-linux-x64:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out OmniDoer
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Check out pinned Moon Bridge source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ZhiYi-R/moon-bridge
+          ref: c9ae8a8ee824c02ce1166893543838f3e414fde0
+          path: moon-bridge
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.25.x"
+          cache-dependency-path: moon-bridge/go.sum
+
+      - name: Build Responses compatibility bridge
+        working-directory: moon-bridge
+        run: go build -trimpath -o ../artifacts/omnidoer-moonbridge-linux-x64 ./cmd/moonbridge
+
+      - name: Stage GPL source notice
+        run: cp moon-bridge/LICENSE artifacts/MOONBRIDGE-LICENSE
+
+      - name: Verify bridge binary
+        run: artifacts/omnidoer-moonbridge-linux-x64 -config omnidoer/deepseek/moonbridge.yml.template -print-mode
+
+      - name: Upload bridge artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: omnidoer-moonbridge-linux-x64
+          path: |
+            artifacts/omnidoer-moonbridge-linux-x64
+            artifacts/MOONBRIDGE-LICENSE

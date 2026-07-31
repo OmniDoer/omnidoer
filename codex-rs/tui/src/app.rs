@@ -842,7 +842,11 @@ impl App {
         if let Some(updated_model) = config.model.clone() {
             model = updated_model;
         }
-        let model_catalog = Arc::new(ModelCatalog::new(available_models.clone()));
+        let model_catalog = Arc::new(ModelCatalog::with_provider_models(
+            available_models.clone(),
+            &config.model_provider_id,
+            config.model_providers.keys().map(String::as_str),
+        ));
         let feedback_audience = bootstrap.feedback_audience;
         let auth_mode = bootstrap.auth_mode;
         let has_chatgpt_account = bootstrap.has_chatgpt_account;

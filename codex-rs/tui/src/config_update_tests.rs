@@ -38,3 +38,27 @@ fn format_config_error_preserves_server_validation_message() {
          features.fast_mode=true violates managed requirements; allowed set [fast_mode=false]"
     );
 }
+
+#[test]
+fn provider_model_selection_updates_provider_model_and_effort_together() {
+    assert_eq!(
+        build_provider_model_selection_edits("deepseek", "deepseek-v4-pro", Some("max")),
+        vec![
+            ConfigEdit {
+                key_path: "model".to_string(),
+                value: serde_json::json!("deepseek-v4-pro"),
+                merge_strategy: MergeStrategy::Replace,
+            },
+            ConfigEdit {
+                key_path: "model_reasoning_effort".to_string(),
+                value: serde_json::json!("max"),
+                merge_strategy: MergeStrategy::Replace,
+            },
+            ConfigEdit {
+                key_path: "model_provider".to_string(),
+                value: serde_json::json!("deepseek"),
+                merge_strategy: MergeStrategy::Replace,
+            },
+        ]
+    );
+}

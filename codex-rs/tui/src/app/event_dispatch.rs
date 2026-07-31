@@ -1115,6 +1115,49 @@ impl App {
                 self.sync_active_thread_service_tier_to_cached_session()
                     .await;
             }
+            AppEvent::SwitchModelProvider {
+                model_provider,
+                model,
+                effort,
+            } => {
+                if !self.config.model_providers.contains_key(&model_provider) {
+                    self.chat_widget.add_error_message(format!(
+                        "Model provider `{model_provider}` is not configured. Add it to config.toml and try /model again."
+                    ));
+                } else {
+                    let edits = crate::config_update::build_provider_model_selection_edits(
+                        &model_provider,
+                        &model,
+                        effort.as_ref(),
+                    );
+                    match crate::config_update::write_config_batch(
+                        app_server.request_handle(),
+                        edits,
+                    )
+                    .await
+                    {
+                        Ok(_) => {
+                            self.start_fresh_session_with_summary_hint(
+                                tui, app_server, /*session_start_source*/ None,
+                                /*initial_user_message*/ None, /*new_thread_name*/ None,
+                            )
+                            .await;
+                        }
+                        Err(err) => {
+                            let error = format_config_error(&err);
+                            tracing::error!(
+                                error = %error,
+                                provider = %model_provider,
+                                model = %model,
+                                "failed to persist model provider selection"
+                            );
+                            self.chat_widget.add_error_message(format!(
+                                "Failed to switch to {model} on {model_provider}: {error}"
+                            ));
+                        }
+                    }
+                }
+            }
             AppEvent::UpdatePersonality(personality) => {
                 self.on_update_personality(personality);
                 self.sync_active_thread_personality_setting(app_server, personality)

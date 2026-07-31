@@ -1730,6 +1730,15 @@ if (refreshDevicesButton) {
   refreshDevicesButton.onclick = () => loadDevicesAndSessions();
 }
 
+const deepSeekProviderRefreshButton = document.querySelector("#deepseek-provider-refresh");
+if (deepSeekProviderRefreshButton) {
+  deepSeekProviderRefreshButton.onclick = () => loadDeepSeekProvider();
+}
+const deepSeekKeyForm = document.querySelector("#deepseek-key-form");
+if (deepSeekKeyForm) {
+  deepSeekKeyForm.onsubmit = submitDeepSeekApiKey;
+}
+
 const refreshTakeoverFrameButton = document.querySelector("#refresh-takeover-frame");
 if (refreshTakeoverFrameButton) {
   refreshTakeoverFrameButton.onclick = () => refreshActiveTakeoverFrame();
@@ -3548,6 +3557,64 @@ async function submitEncrypted(request, payload) {
     clearApprovalDraftsForRequest(request.request_id);
   }
   await loadRequests({ forceRender: true });
+  return response;
+}
+
+async function loadDeepSeekProvider() {
+  const status = document.querySelector("#deepseek-provider-status");
+  const submit = document.querySelector("#deepseek-key-submit");
+  if (!status || !submit || !authenticatedApiAvailable()) return;
+  try {
+    const response = await signedFetch("/api/model-providers/deepseek", { cache: "no-store" });
+    if (!response.ok) throw new Error("provider status unavailable");
+    const provider = await response.json();
+    if (provider.configured && provider.bridge_active) {
+      status.textContent = "API Key is encrypted in Vault. The local DeepSeek bridge is active.";
+    } else if (provider.configured) {
+      status.textContent = "API Key is encrypted in Vault. The local bridge is not active yet.";
+    } else if (!provider.vault_ready) {
+      status.textContent = "Vault passphrase source is unavailable on the Control Service.";
+    } else {
+      status.textContent = "No DeepSeek API Key is configured.";
+    }
+    submit.textContent = provider.configured ? "Replace API Key" : "Initialize API Key";
+  } catch {
+    status.textContent = "Pair this device to manage the DeepSeek API Key.";
+  }
+}
+
+async function submitDeepSeekApiKey(event) {
+  event.preventDefault();
+  const input = document.querySelector("#deepseek-api-key");
+  const submit = document.querySelector("#deepseek-key-submit");
+  const apiKey = input?.value || "";
+  if (apiKey.trim().length < 16) {
+    setStatus("DeepSeek API Key", "Enter a valid API key.");
+    return;
+  }
+  submit.disabled = true;
+  try {
+    const created = await signedFetch("/api/model-providers/deepseek/key-request", {
+      method: "POST",
+      headers: csrfHeaders()
+    });
+    if (!created.ok) throw new Error("provider key request failed");
+    const request = (await created.json()).request;
+    const response = await submitEncrypted(request, {
+      username: "deepseek",
+      password: apiKey,
+      totp_seed: "",
+      save_to_vault: true
+    });
+    if (!response.ok) throw new Error("provider key submission failed");
+    setStatus("DeepSeek API Key", "Encrypted in Vault and applied to the local bridge.");
+    await loadDeepSeekProvider();
+  } catch {
+    setStatus("DeepSeek API Key", "The encrypted key could not be applied.");
+  } finally {
+    input.value = "";
+    submit.disabled = false;
+  }
 }
 
 async function postAction(request, action, payload = null) {
@@ -6419,7 +6486,8 @@ async function refreshAuthenticatedData() {
     loadRequests(),
     loadBrowserContexts(),
     loadChatMessages(),
-    loadDevicesAndSessions()
+    loadDevicesAndSessions(),
+    loadDeepSeekProvider()
   ]);
 }
 

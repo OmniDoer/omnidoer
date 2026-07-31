@@ -8,7 +8,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icon-192.png">
-  <link rel="stylesheet" href="/style.css?v=20260611-request-inputs">
+  <link rel="stylesheet" href="/style.css?v=20260731-deepseek-provider">
   <title>OmniDoer</title>
 </head>
 <body>
@@ -29,6 +29,7 @@
       <a href="#requests-panel">Requests</a>
       <a href="#takeover-panel">Takeover</a>
       <a href="#device-panel">Devices</a>
+      <a href="#model-providers">Models</a>
       <a href="#security">Security</a>
       <a href="#payment-approval">Payments</a>
       <a href="#pairing-panel">Pair</a>
@@ -127,6 +128,24 @@
           <div id="sessions-list">Pair this device to view sessions.</div>
         </div>
       </div>
+    </section>
+    <section id="model-providers">
+      <div class="panel-heading">
+        <div>
+          <h2>Model Providers</h2>
+          <p>Provider secrets use the OmniDoer Vault and browser-to-Broker encryption. They never enter chat or model context.</p>
+        </div>
+        <button id="deepseek-provider-refresh" type="button">Refresh</button>
+      </div>
+      <article class="provider-card">
+        <h3>DeepSeek V4</h3>
+        <p id="deepseek-provider-status">Checking Vault and bridge status...</p>
+        <form id="deepseek-key-form" class="secure-form">
+          <label>DeepSeek API Key <input id="deepseek-api-key" type="password" autocomplete="new-password" required></label>
+          <p class="flow-note">Encrypted in this browser, stored in Vault, and materialized only in a <code>0600</code> runtime file under <code>/run</code>.</p>
+          <div class="button-row"><button id="deepseek-key-submit" type="submit">Initialize API Key</button></div>
+        </form>
+      </article>
     </section>
     <section id="security">
       <h2>Security</h2>
@@ -265,6 +284,6 @@
       </div>
     </section>
   </main>
-  <script src="/app.js?v=20260611-request-inputs"></script>
+  <script src="/app.js?v=20260731-deepseek-provider"></script>
 </body>
 </html>
