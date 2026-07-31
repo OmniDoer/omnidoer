@@ -125,7 +125,7 @@ jobs:
         run: cp moon-bridge/LICENSE artifacts/MOONBRIDGE-LICENSE
 
       - name: Verify bridge binary
-        run: artifacts/omnidoer-moonbridge-linux-x64 -h
+        run: artifacts/omnidoer-moonbridge-linux-x64 -config omnidoer/deepseek/moonbridge.yml.template -print-mode
 
       - name: Upload bridge artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
