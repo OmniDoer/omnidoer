@@ -14,7 +14,7 @@ import tempfile
 from pathlib import Path
 
 from omnidoer.omni_vault.vault import Vault
-from omnidoer.paths import default_vault_path
+from omnidoer.paths import home
 
 
 DEEPSEEK_ORIGIN = "https://api.deepseek.com"
@@ -25,6 +25,16 @@ DEEPSEEK_KEY_PLACEHOLDER = "__OMNIDOER_DEEPSEEK_API_KEY__"
 DEFAULT_TEMPLATE_PATH = Path("/etc/omnidoer/moonbridge-deepseek.yml.template")
 DEFAULT_RUNTIME_CONFIG_PATH = Path("/run/omnidoer-moonbridge/deepseek.yml")
 DEFAULT_SERVICE_NAME = "omnidoer-moonbridge.service"
+
+
+def _vault_path(vault_path: str | Path | None) -> Path:
+    """Resolve the Vault without mutating its parent directory.
+
+    The Moon Bridge systemd unit intentionally mounts the OmniDoer home
+    read-only.  ``default_vault_path`` calls ``ensure_home`` for normal CLI
+    use, which includes a chmod and therefore cannot be used by that unit.
+    """
+    return Path(vault_path) if vault_path else home() / "vault.json"
 
 
 def _deepseek_credential_id(vault: Vault) -> str | None:
@@ -81,7 +91,7 @@ def provider_status(
     passphrase_available: bool = False,
     service_name: str = DEFAULT_SERVICE_NAME,
 ) -> dict[str, object]:
-    path = Path(vault_path) if vault_path else default_vault_path()
+    path = _vault_path(vault_path)
     configured = path.exists() and _deepseek_credential_id(Vault.load(path)) is not None
     bridge_active = False
     try:
@@ -120,7 +130,7 @@ def prepare_runtime_config(
     template_path: str | Path = DEFAULT_TEMPLATE_PATH,
     output_path: str | Path = DEFAULT_RUNTIME_CONFIG_PATH,
 ) -> Path:
-    vault_file = Path(vault_path) if vault_path else default_vault_path()
+    vault_file = _vault_path(vault_path)
     vault = Vault.load(
         vault_file,
         _passphrase(vault_path=vault_file, passphrase=passphrase, passphrase_file=passphrase_file),
