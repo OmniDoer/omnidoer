@@ -2553,7 +2553,7 @@ async fn try_run_sampling_request(
                             .await;
                     }
                 } else {
-                    error_or_panic("OutputTextDelta without active item".to_string());
+                    continue;
                 }
             }
             ResponseEvent::ToolCallInputDelta {
@@ -2595,7 +2595,7 @@ async fn try_run_sampling_request(
                     sess.send_event(&turn_context, EventMsg::ReasoningContentDelta(event))
                         .await;
                 } else {
-                    error_or_panic("ReasoningSummaryDelta without active item".to_string());
+                    continue;
                 }
             }
             ResponseEvent::ReasoningSummaryPartAdded { summary_index } => {
@@ -2613,7 +2613,7 @@ async fn try_run_sampling_request(
                         });
                     sess.send_event(&turn_context, event).await;
                 } else {
-                    error_or_panic("ReasoningSummaryPartAdded without active item".to_string());
+                    continue;
                 }
             }
             ResponseEvent::ReasoningSummaryDone {
@@ -2668,7 +2668,7 @@ async fn try_run_sampling_request(
                     sess.send_event(&turn_context, EventMsg::ReasoningRawContentDelta(event))
                         .await;
                 } else {
-                    error_or_panic("ReasoningRawContentDelta without active item".to_string());
+                    continue;
                 }
             }
         }
