@@ -1686,14 +1686,16 @@ impl App {
 
 fn thread_event_is_compaction_summary(event: &ThreadBufferedEvent) -> bool {
     match event {
-        ThreadBufferedEvent::Notification(ServerNotification::ContextCompacted(_)) => true,
-        ThreadBufferedEvent::Notification(ServerNotification::ItemCompleted(notification)) => {
-            matches!(
-                notification.item,
-                codex_app_server_protocol::ThreadItem::ContextCompaction { .. }
-            )
-        }
-        ThreadBufferedEvent::Notification(_) => false,
+        ThreadBufferedEvent::Notification(notification) => match notification.as_ref() {
+            ServerNotification::ContextCompacted(_) => true,
+            ServerNotification::ItemCompleted(notification) => {
+                matches!(
+                    notification.item,
+                    codex_app_server_protocol::ThreadItem::ContextCompaction { .. }
+                )
+            }
+            _ => false,
+        },
         ThreadBufferedEvent::Request(_)
         | ThreadBufferedEvent::HistoryEntryResponse(_)
         | ThreadBufferedEvent::FeedbackSubmission(_) => false,
