@@ -190,6 +190,22 @@ pub(crate) fn resolve_provider_auth(
         return Ok(Arc::new(auth));
     }
 
+    // Providers that do not require OpenAI auth must never receive the ChatGPT
+    // account bearer credential. Local bridges and OSS endpoints authenticate
+    // with their own provider-specific key; without one configured, send no
+    // auth headers at all. Command- and AWS-backed providers are exempt because
+    // they resolve their own credentials through `auth`/`aws`.
+    if !provider.requires_openai_auth
+        && provider.auth.is_none()
+        && provider.aws.is_none()
+        && matches!(
+            auth,
+            Some(CodexAuth::Chatgpt(_) | CodexAuth::ChatgptAuthTokens(_))
+        )
+    {
+        return Ok(unauthenticated_auth_provider());
+    }
+
     Ok(match auth {
         Some(auth) => auth_provider_from_auth(auth),
         None => unauthenticated_auth_provider(),
@@ -446,6 +462,52 @@ mod tests {
         let auth = resolve_provider_auth(/*auth*/ None, &provider).expect("auth should resolve");
 
         assert!(auth.to_auth_headers().is_empty());
+    }
+
+    #[tokio::test]
+    async fn non_openai_provider_without_key_does_not_attach_chatgpt_account_auth() {
+        let codex_home = test_codex_home();
+        login_with_chatgpt_auth_tokens(
+            &codex_home,
+            "header.e30.deepseek",
+            "test-account",
+            /*chatgpt_plan_type*/ None,
+        )
+        .expect("save chatgpt auth");
+        let auth_manager = AuthManager::new(
+            codex_home,
+            /*enable_codex_api_key_env*/ false,
+            AuthCredentialsStoreMode::File,
+            /*forced_chatgpt_workspace_id*/ None,
+            /*chatgpt_base_url*/ None,
+            AuthKeyringBackendKind::default(),
+            codex_login::test_support::transport_default_auth_route_config(),
+        )
+        .await;
+        let auth = auth_manager.auth().await.expect("auth should load");
+
+        // A local bridge / OSS provider without its own key must not inherit
+        // the ChatGPT account credential.
+        let deepseek_provider = ModelProviderInfo {
+            base_url: Some("http://127.0.0.1:38440/v1".to_string()),
+            requires_openai_auth: false,
+            ..Default::default()
+        };
+        let resolved = resolve_provider_auth(Some(&auth), &deepseek_provider)
+            .expect("deepseek auth should resolve");
+        assert!(
+            resolved.to_auth_headers().is_empty(),
+            "non-OpenAI provider without a key must not attach ChatGPT account auth"
+        );
+
+        // First-party OpenAI providers keep attaching the ChatGPT credential.
+        let openai_provider = ModelProviderInfo::create_openai_provider(/*base_url*/ None);
+        let resolved = resolve_provider_auth(Some(&auth), &openai_provider)
+            .expect("openai auth should resolve");
+        assert_eq!(
+            resolved.to_auth_headers().get(AUTHORIZATION),
+            Some(&HeaderValue::from_static("Bearer header.e30.deepseek"))
+        );
     }
 
     #[test]
