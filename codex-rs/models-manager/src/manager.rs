@@ -38,6 +38,18 @@ pub trait ModelsEndpointClient: fmt::Debug + Send + Sync {
     /// Returns whether the currently resolved auth can use Codex backend-only models.
     fn uses_codex_backend(&self) -> ModelsEndpointFuture<'_, bool>;
 
+    /// Returns whether this provider serves the bundled OpenAI model catalog.
+    ///
+    /// OpenAI and OpenAI-auth providers merge the bundled catalog with remote
+    /// models and share the on-disk model cache. Providers with their own
+    /// catalog (for example a non-OpenAI model bridge) must never inherit
+    /// bundled OpenAI models or another provider's cache entry: doing so makes
+    /// the TUI attribute bundled GPT models to the active provider, so picking
+    /// one of them later fails to switch the provider back to OpenAI.
+    fn uses_bundled_catalog(&self) -> bool {
+        true
+    }
+
     /// Fetches the latest remote model catalog and optional ETag.
     fn list_models<'a>(
         &'a self,
@@ -255,7 +267,11 @@ impl OpenAiModelsManager {
         endpoint_client: Arc<dyn ModelsEndpointClient>,
         auth_manager: Option<Arc<AuthManager>>,
     ) -> Self {
-        let remote_models = load_remote_models_from_file().unwrap_or_default();
+        let remote_models = if endpoint_client.uses_bundled_catalog() {
+            load_remote_models_from_file().unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         Self {
             remote_models: RwLock::new(remote_models),
             etag: RwLock::new(None),
@@ -402,7 +418,9 @@ impl OpenAiModelsManager {
             .await?;
         self.apply_remote_models(models.clone()).await;
         *self.etag.write().await = etag.clone();
-        if let Some(cache_manager) = self.cache_manager.as_ref() {
+        if self.endpoint_client.uses_bundled_catalog()
+            && let Some(cache_manager) = self.cache_manager.as_ref()
+        {
             cache_manager
                 .persist_cache(&models, etag, client_version)
                 .await;
@@ -411,6 +429,11 @@ impl OpenAiModelsManager {
     }
 
     async fn should_refresh_models(&self) -> bool {
+        if !self.endpoint_client.uses_bundled_catalog() {
+            // Providers with their own catalog must always fetch from their
+            // endpoint; the bundled catalog and the shared cache do not apply.
+            return true;
+        }
         self.endpoint_client.uses_codex_backend().await || self.endpoint_client.has_command_auth()
     }
 
@@ -436,7 +459,11 @@ impl OpenAiModelsManager {
             return;
         }
 
-        let mut existing_models = load_remote_models_from_file().unwrap_or_default();
+        let mut existing_models = if self.endpoint_client.uses_bundled_catalog() {
+            load_remote_models_from_file().unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         for model in models {
             if let Some(existing_index) = existing_models
                 .iter()
@@ -452,6 +479,10 @@ impl OpenAiModelsManager {
 
     /// Attempt to satisfy the refresh from the cache when it matches the provider and TTL.
     async fn try_load_cache(&self) -> bool {
+        if !self.endpoint_client.uses_bundled_catalog() {
+            info!("models cache: skipping shared cache for provider-owned catalog");
+            return false;
+        }
         let Some(cache_manager) = self.cache_manager.as_ref() else {
             return false;
         };
@@ -459,8 +490,9 @@ impl OpenAiModelsManager {
             codex_otel::start_global_timer("codex.remote_models.load_cache.duration_ms", &[]);
         let client_version = crate::client_version_to_whole();
         info!(client_version, "models cache: evaluating cache eligibility");
-        // TODO(celia-oai): Include provider identity in cache eligibility so switching
-        // providers does not reuse a fresh models_cache.json entry from another provider.
+        // The shared cache file is only reused within the bundled-catalog
+        // family; provider-owned catalogs are gated out above. Provider
+        // identity within the family is intentionally not part of eligibility.
         let cache = match cache_manager.load_fresh(&client_version).await {
             Some(cache) => cache,
             None => {

@@ -82,6 +82,21 @@ fn deepseek_catalog_keeps_builtin_openai_models_for_switching_back() {
 }
 
 #[test]
+fn deepseek_catalog_attributes_bundled_openai_models_to_openai() {
+    let catalog = ModelCatalog::with_provider_models(
+        deepseek_v4_models(),
+        DEEPSEEK_PROVIDER_ID,
+        [DEEPSEEK_PROVIDER_ID],
+    );
+
+    assert_eq!(
+        catalog.provider_for_model("gpt-5.6-sol"),
+        Some(OPENAI_PROVIDER_ID),
+        "bundled GPT models must stay attributed to OpenAI so /model can switch back"
+    );
+}
+
+#[test]
 fn deepseek_preserves_chatgpt_status_without_billing_inference_to_openai() {
     assert!(should_preserve_chatgpt_status(DEEPSEEK_PROVIDER_ID, false));
     assert!(should_preserve_chatgpt_status(OPENAI_PROVIDER_ID, true));

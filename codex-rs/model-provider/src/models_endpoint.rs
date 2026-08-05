@@ -128,6 +128,10 @@ impl ModelsEndpointClient for OpenAiModelsEndpoint {
         self.provider_info.has_command_auth()
     }
 
+    fn uses_bundled_catalog(&self) -> bool {
+        self.provider_info.is_openai() || self.provider_info.requires_openai_auth
+    }
+
     fn uses_codex_backend(&self) -> ModelsEndpointFuture<'_, bool> {
         Box::pin(OpenAiModelsEndpoint::uses_codex_backend(self))
     }

@@ -78,6 +78,7 @@ fn assert_models_contain(actual: &[ModelInfo], expected: &[ModelInfo]) {
 struct TestModelsEndpoint {
     has_command_auth: bool,
     uses_codex_backend: bool,
+    uses_bundled_catalog: bool,
     responses: Mutex<VecDeque<Vec<ModelInfo>>>,
     fetch_count: AtomicUsize,
     observed_proxy_policy: Mutex<Option<OutboundProxyPolicy>>,
@@ -88,6 +89,7 @@ impl TestModelsEndpoint {
         Arc::new(Self {
             has_command_auth: false,
             uses_codex_backend: true,
+            uses_bundled_catalog: true,
             responses: Mutex::new(responses.into()),
             fetch_count: AtomicUsize::new(0),
             observed_proxy_policy: Mutex::new(None),
@@ -98,6 +100,7 @@ impl TestModelsEndpoint {
         Arc::new(Self {
             has_command_auth: false,
             uses_codex_backend: false,
+            uses_bundled_catalog: true,
             responses: Mutex::new(responses.into()),
             fetch_count: AtomicUsize::new(0),
             observed_proxy_policy: Mutex::new(None),
@@ -162,6 +165,10 @@ impl ExternalAuth for TestUnresolvedExternalApiKeyAuth {
 impl ModelsEndpointClient for TestModelsEndpoint {
     fn has_command_auth(&self) -> bool {
         self.has_command_auth
+    }
+
+    fn uses_bundled_catalog(&self) -> bool {
+        self.uses_bundled_catalog
     }
 
     fn uses_codex_backend(&self) -> ModelsEndpointFuture<'_, bool> {
@@ -672,6 +679,7 @@ async fn refresh_available_models_keeps_merging_for_api_auth() {
     let endpoint = Arc::new(TestModelsEndpoint {
         has_command_auth: true,
         uses_codex_backend: false,
+        uses_bundled_catalog: true,
         responses: Mutex::new(vec![remote_models.clone()].into()),
         fetch_count: AtomicUsize::new(0),
         observed_proxy_policy: Mutex::new(None),
@@ -696,6 +704,107 @@ async fn refresh_available_models_keeps_merging_for_api_auth() {
 
     assert_eq!(manager.get_remote_models().await, expected);
     assert_eq!(endpoint.fetch_count(), 1, "expected a single model fetch");
+}
+
+#[tokio::test]
+async fn refresh_available_models_uses_remote_only_catalog_for_provider_without_bundled_catalog() {
+    let remote_models = vec![remote_model(
+        "provider-owned-remote",
+        "Provider Owned",
+        /*priority*/ 0,
+    )];
+    let codex_home = tempdir().expect("temp dir");
+    let endpoint = Arc::new(TestModelsEndpoint {
+        has_command_auth: false,
+        uses_codex_backend: false,
+        uses_bundled_catalog: false,
+        responses: Mutex::new(vec![remote_models.clone()].into()),
+        fetch_count: AtomicUsize::new(0),
+        observed_proxy_policy: Mutex::new(None),
+    });
+    let manager = openai_manager_for_tests_with_auth(
+        codex_home.path().to_path_buf(),
+        endpoint.clone(),
+        /*auth_manager*/ None,
+    );
+
+    manager
+        .refresh_available_models(
+            RefreshStrategy::OnlineIfUncached,
+            &DEFAULT_HTTP_CLIENT_FACTORY,
+        )
+        .await
+        .expect("refresh succeeds");
+
+    assert_eq!(
+        manager.get_remote_models().await,
+        remote_models,
+        "provider-owned catalogs must not inherit bundled OpenAI models"
+    );
+    assert_eq!(
+        endpoint.fetch_count(),
+        1,
+        "provider-owned catalogs should fetch from their own endpoint"
+    );
+}
+
+#[tokio::test]
+async fn provider_without_bundled_catalog_ignores_shared_cache_from_openai_family() {
+    let openai_remote = vec![remote_model(
+        "openai-cached",
+        "OpenAI Cached",
+        /*priority*/ 0,
+    )];
+    let provider_remote = vec![remote_model(
+        "provider-owned-cached",
+        "Provider Owned Cached",
+        /*priority*/ 0,
+    )];
+    let codex_home = tempdir().expect("temp dir");
+
+    let fetch_endpoint = TestModelsEndpoint::new(vec![openai_remote.clone()]);
+    let fetch_manager =
+        openai_manager_for_tests(codex_home.path().to_path_buf(), fetch_endpoint.clone());
+    fetch_manager
+        .refresh_available_models(
+            RefreshStrategy::OnlineIfUncached,
+            &DEFAULT_HTTP_CLIENT_FACTORY,
+        )
+        .await
+        .expect("openai family refresh succeeds");
+
+    let provider_endpoint = Arc::new(TestModelsEndpoint {
+        has_command_auth: false,
+        uses_codex_backend: false,
+        uses_bundled_catalog: false,
+        responses: Mutex::new(vec![provider_remote.clone()].into()),
+        fetch_count: AtomicUsize::new(0),
+        observed_proxy_policy: Mutex::new(None),
+    });
+    let provider_manager = openai_manager_for_tests_with_auth(
+        codex_home.path().to_path_buf(),
+        provider_endpoint.clone(),
+        /*auth_manager*/ None,
+    );
+
+    provider_manager
+        .refresh_available_models(
+            RefreshStrategy::OnlineIfUncached,
+            &DEFAULT_HTTP_CLIENT_FACTORY,
+        )
+        .await
+        .expect("provider refresh succeeds");
+
+    assert_eq!(
+        provider_manager.get_remote_models().await,
+        provider_remote,
+        "provider-owned catalogs must not reuse another provider's cache entry"
+    );
+    assert_eq!(
+        provider_endpoint.fetch_count(),
+        1,
+        "fresh shared cache from the OpenAI family must not suppress provider fetch"
+    );
 }
 
 #[tokio::test]
