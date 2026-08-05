@@ -38,7 +38,7 @@ jobs:
 
       - name: Test provider-aware model selection
         run: |
-          cargo test --locked --profile dev-small -p codex-tui model_catalog_tests --lib
+          cargo test --locked --profile dev-small -p codex-tui model_catalog --lib
           cargo test --locked --profile dev-small -p codex-tui configured_deepseek_model_selection_switches_provider --lib
           cargo test --locked --profile dev-small -p codex-tui provider_model_selection_updates_provider_model_and_effort_together --lib
           cargo test --locked --profile dev-small -p codex-tui deepseek_provider_does_not_require_chatgpt_login --lib
