@@ -864,6 +864,68 @@ mod thread_processor_behavior_tests {
     }
 
     #[test]
+    fn merge_persisted_resume_metadata_repairs_gpt_on_deepseek_provider() -> Result<()> {
+        let mut request_overrides = None;
+        let mut typesafe_overrides = ConfigOverrides::default();
+        let mut persisted_metadata =
+            test_thread_metadata(Some("gpt-5.6-sol"), Some(ReasoningEffort::Medium))?;
+        persisted_metadata.model_provider = "deepseek".to_string();
+
+        merge_persisted_resume_metadata(
+            &mut request_overrides,
+            &mut typesafe_overrides,
+            &persisted_metadata,
+        );
+
+        assert_eq!(
+            typesafe_overrides.model_provider,
+            Some("openai".to_string())
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn merge_persisted_resume_metadata_repairs_deepseek_on_openai_provider() -> Result<()> {
+        let mut request_overrides = None;
+        let mut typesafe_overrides = ConfigOverrides::default();
+        let mut persisted_metadata =
+            test_thread_metadata(Some("deepseek-v4-flash"), Some(ReasoningEffort::High))?;
+        persisted_metadata.model_provider = "openai".to_string();
+
+        merge_persisted_resume_metadata(
+            &mut request_overrides,
+            &mut typesafe_overrides,
+            &persisted_metadata,
+        );
+
+        assert_eq!(
+            typesafe_overrides.model_provider,
+            Some("deepseek".to_string())
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn merge_persisted_resume_metadata_preserves_custom_gpt_provider() -> Result<()> {
+        let mut request_overrides = None;
+        let mut typesafe_overrides = ConfigOverrides::default();
+        let persisted_metadata =
+            test_thread_metadata(Some("gpt-5.6-sol"), Some(ReasoningEffort::Medium))?;
+
+        merge_persisted_resume_metadata(
+            &mut request_overrides,
+            &mut typesafe_overrides,
+            &persisted_metadata,
+        );
+
+        assert_eq!(
+            typesafe_overrides.model_provider,
+            Some("mock_provider".to_string())
+        );
+        Ok(())
+    }
+
+    #[test]
     fn merge_persisted_resume_metadata_preserves_explicit_overrides() -> Result<()> {
         let mut request_overrides = Some(HashMap::from([(
             "model_reasoning_effort".to_string(),

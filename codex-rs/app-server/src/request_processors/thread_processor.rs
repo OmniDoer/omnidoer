@@ -164,7 +164,7 @@ fn merge_persisted_resume_metadata(
     }
 
     typesafe_overrides.model = persisted_metadata.model.clone();
-    typesafe_overrides.model_provider = Some(persisted_metadata.model_provider.clone());
+    typesafe_overrides.model_provider = Some(provider_for_persisted_model(persisted_metadata));
 
     if let Some(reasoning_effort) = persisted_metadata.reasoning_effort.as_ref() {
         request_overrides.get_or_insert_with(HashMap::new).insert(
@@ -172,6 +172,28 @@ fn merge_persisted_resume_metadata(
             serde_json::Value::String(reasoning_effort.to_string()),
         );
     }
+}
+
+fn provider_for_persisted_model(persisted_metadata: &ThreadMetadata) -> String {
+    let Some(model) = persisted_metadata.model.as_deref() else {
+        return persisted_metadata.model_provider.clone();
+    };
+    if persisted_metadata.model_provider == "deepseek"
+        && codex_models_manager::bundled_models_response().is_ok_and(|catalog| {
+            catalog
+                .models
+                .iter()
+                .any(|candidate| candidate.slug == model)
+        })
+    {
+        return codex_model_provider_info::OPENAI_PROVIDER_ID.to_string();
+    }
+    if persisted_metadata.model_provider == codex_model_provider_info::OPENAI_PROVIDER_ID
+        && model.starts_with("deepseek-v4-")
+    {
+        return "deepseek".to_string();
+    }
+    persisted_metadata.model_provider.clone()
 }
 
 fn merge_persisted_approvals_reviewer(
