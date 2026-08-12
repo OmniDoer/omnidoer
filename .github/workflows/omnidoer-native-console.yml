@@ -49,6 +49,7 @@ jobs:
           cargo test --locked --profile dev-small -p codex-models-manager provider_without_bundled_catalog_ignores_shared_cache_from_openai_family --lib
           cargo test --locked --profile dev-small -p codex-app-server merge_persisted_resume_metadata_repairs --lib
           cargo test --locked --profile dev-small -p codex-app-server merge_persisted_resume_metadata_preserves_custom_gpt_provider --lib
+          cargo test --locked --profile dev-small -p codex-core prepare_response_items_clears_foreign_function_call_ids_for_openai --lib
 
       - name: Build OmniDoer console binary
         run: cargo build --locked --profile dev-small -p codex-cli
