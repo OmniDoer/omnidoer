@@ -59,6 +59,7 @@ fn trusted_project_edit(project_path: &Path) -> ConfigEdit {
 }
 
 pub(crate) fn build_model_selection_edits(
+    model_provider: &str,
     model: &str,
     effort: Option<impl ToString>,
 ) -> Vec<ConfigEdit> {
@@ -74,20 +75,8 @@ pub(crate) fn build_model_selection_edits(
     vec![
         replace_config_value("model", serde_json::json!(model)),
         effort_edit,
+        replace_config_value("model_provider", serde_json::json!(model_provider)),
     ]
-}
-
-pub(crate) fn build_provider_model_selection_edits(
-    model_provider: &str,
-    model: &str,
-    effort: Option<impl ToString>,
-) -> Vec<ConfigEdit> {
-    let mut edits = build_model_selection_edits(model, effort);
-    edits.push(replace_config_value(
-        "model_provider",
-        serde_json::json!(model_provider),
-    ));
-    edits
 }
 
 pub(crate) fn build_service_tier_selection_edits(service_tier: Option<&str>) -> Vec<ConfigEdit> {

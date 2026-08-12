@@ -1149,7 +1149,7 @@ impl App {
                         "Model provider `{model_provider}` is not configured. Add it to config.toml and try /model again."
                     ));
                 } else {
-                    let edits = crate::config_update::build_provider_model_selection_edits(
+                    let edits = crate::config_update::build_model_selection_edits(
                         &model_provider,
                         &model,
                         effort.as_ref(),
@@ -1219,6 +1219,7 @@ impl App {
                     && let Err(err) = crate::config_update::write_config_batch(
                         app_server.request_handle(),
                         crate::config_update::build_model_selection_edits(
+                            &self.config.model_provider_id,
                             model.as_str(),
                             Some(default_effort),
                         ),
@@ -1752,6 +1753,7 @@ impl App {
                 match crate::config_update::write_config_batch(
                     app_server.request_handle(),
                     crate::config_update::build_model_selection_edits(
+                        &self.config.model_provider_id,
                         model.as_str(),
                         effort.as_ref(),
                     ),

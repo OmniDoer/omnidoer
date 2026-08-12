@@ -42,7 +42,7 @@ fn format_config_error_preserves_server_validation_message() {
 #[test]
 fn provider_model_selection_updates_provider_model_and_effort_together() {
     assert_eq!(
-        build_provider_model_selection_edits("deepseek", "deepseek-v4-pro", Some("max")),
+        build_model_selection_edits("deepseek", "deepseek-v4-pro", Some("max")),
         vec![
             ConfigEdit {
                 key_path: "model".to_string(),
