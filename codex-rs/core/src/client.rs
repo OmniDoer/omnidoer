@@ -937,9 +937,8 @@ impl ModelClient {
             let should_clear_id = item.id().is_some_and(|id| {
                 !id.is_prefixed()
                     || (is_openai
-                        && expected_prefix.is_some_and(|prefix| {
-                            !id.as_str().starts_with(&format!("{prefix}_"))
-                        }))
+                        && expected_prefix
+                            .is_some_and(|prefix| !id.as_str().starts_with(&format!("{prefix}_"))))
             });
             if should_clear_id {
                 item.set_id(/*new_id*/ None);
