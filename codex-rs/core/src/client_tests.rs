@@ -35,6 +35,7 @@ use codex_model_provider_info::WireApi;
 use codex_model_provider_info::create_oss_provider_with_base_url;
 use codex_otel::SessionTelemetry;
 use codex_protocol::ThreadId;
+use codex_protocol::ResponseItemId;
 use codex_protocol::auth::AuthMode;
 use codex_protocol::models::BaseInstructions;
 use codex_protocol::models::ContentItem;
@@ -86,6 +87,24 @@ const TEST_INSTALLATION_ID: &str = "11111111-1111-4111-8111-111111111111";
 
 fn test_model_client(session_source: SessionSource) -> ModelClient {
     test_model_client_with_thread_id(ThreadId::new(), session_source)
+}
+
+fn test_openai_model_client() -> ModelClient {
+    ModelClient::new(
+        /*auth_manager*/ None,
+        AgentIdentityAuthPolicy::JwtOnly,
+        ThreadId::new(),
+        ModelProviderInfo::create_openai_provider(Some(CHATGPT_CODEX_BASE_URL.to_string())),
+        SessionSource::Cli,
+        "test_originator".to_string(),
+        /*model_verbosity*/ None,
+        /*enable_request_compression*/ false,
+        /*include_timing_metrics*/ false,
+        /*beta_features_header*/ None,
+        /*concurrent_reasoning_summaries_enabled*/ false,
+        /*attestation_provider*/ None,
+        HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
+    )
 }
 
 fn test_model_client_with_thread_id(
@@ -222,6 +241,36 @@ async fn compact_uses_bearer_after_agent_identity_session_fallback() -> anyhow::
 
 fn test_model_provider() -> SharedModelProvider {
     test_model_client(SessionSource::Cli).state.provider.clone()
+}
+
+#[test]
+fn prepare_response_items_clears_foreign_function_call_ids_for_openai() {
+    let function_call = |id: &str| ResponseItem::FunctionCall {
+        id: Some(ResponseItemId::from_server(id.to_string())),
+        name: "exec_command".to_string(),
+        namespace: None,
+        arguments: "{}".to_string(),
+        encrypted_function_args: None,
+        call_id: "call_00_test".to_string(),
+        internal_chat_message_metadata_passthrough: None,
+    };
+    let mut openai_items = vec![function_call("call_00_foreign"), function_call("fc_valid")];
+    test_openai_model_client().prepare_response_items_for_request(&mut openai_items);
+    assert_eq!(openai_items[0].id(), None);
+    assert_eq!(
+        openai_items[1].id().map(ResponseItemId::as_str),
+        Some("fc_valid")
+    );
+
+    let mut compatible_provider_items = vec![function_call("call_00_foreign")];
+    test_model_client(SessionSource::Cli)
+        .prepare_response_items_for_request(&mut compatible_provider_items);
+    assert_eq!(
+        compatible_provider_items[0]
+            .id()
+            .map(ResponseItemId::as_str),
+        Some("call_00_foreign")
+    );
 }
 
 fn test_responses_metadata_for_client(

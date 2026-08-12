@@ -931,8 +931,17 @@ impl ModelClient {
     }
 
     fn prepare_response_items_for_request(&self, input: &mut [ResponseItem]) {
+        let is_openai = self.state.provider.info().is_openai();
         for item in input {
-            if item.id().is_some_and(|id| !id.is_prefixed()) {
+            let expected_prefix = item.id_prefix();
+            let should_clear_id = item.id().is_some_and(|id| {
+                !id.is_prefixed()
+                    || (is_openai
+                        && expected_prefix.is_some_and(|prefix| {
+                            !id.as_str().starts_with(&format!("{prefix}_"))
+                        }))
+            });
+            if should_clear_id {
                 item.set_id(/*new_id*/ None);
             }
         }
