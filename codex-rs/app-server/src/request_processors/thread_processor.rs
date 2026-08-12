@@ -186,9 +186,9 @@ fn provider_for_persisted_model(persisted_metadata: &ThreadMetadata) -> String {
                 .any(|candidate| candidate.slug == model)
         })
     {
-        return codex_model_provider_info::OPENAI_PROVIDER_ID.to_string();
+        return codex_model_provider::OPENAI_PROVIDER_ID.to_string();
     }
-    if persisted_metadata.model_provider == codex_model_provider_info::OPENAI_PROVIDER_ID
+    if persisted_metadata.model_provider == codex_model_provider::OPENAI_PROVIDER_ID
         && model.starts_with("deepseek-v4-")
     {
         return "deepseek".to_string();
